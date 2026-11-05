@@ -41,7 +41,10 @@ yarn-error.log*
 
 # Turbo
 .turbo
-.vscode
+
+# VS Code: personal settings stay local, the shared TakT settings are committed
+.vscode/*
+!.vscode/settings.json
 
 # vercel
 .vercel
@@ -55,3 +58,14 @@ yarn-error.log*
 ehthumbs.db
 Thumbs.db
 **/.DS_Store
+
+# logs
+**/logs/
+
+# takt
+.tt_cache
+version.txt
+
+# General
+/tmp
+/temp
