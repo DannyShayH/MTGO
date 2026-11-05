@@ -24,7 +24,7 @@
     }
   },
   "mounts": [
-    "source=${localEnv:HOME},target=/localhome,type=bind,consistency=cached"
+    "source=${localEnv:HOME}${localEnv:USERPROFILE},target=/localhome,type=bind,consistency=cached"
   ],
   "remoteEnv": {
     "GH_TOKEN": "${localEnv:GH_TOKEN}",
