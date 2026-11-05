@@ -33,21 +33,21 @@ const ShippingAddress = ({
 
   const countriesInRegion = useMemo(
     () => cart?.region?.countries?.map((c) => c.iso_2),
-    [cart?.region]
+    [cart?.region],
   )
 
   // check if customer has saved addresses that are in the current region
   const addressesInRegion = useMemo(
     () =>
       customer?.addresses.filter(
-        (a) => a.country_code && countriesInRegion?.includes(a.country_code)
+        (a) => a.country_code && countriesInRegion?.includes(a.country_code),
       ),
-    [customer?.addresses, countriesInRegion]
+    [customer?.addresses, countriesInRegion],
   )
 
   const setFormAddress = (
     address?: HttpTypes.StoreCartAddress,
-    email?: string
+    email?: string,
   ) => {
     if (address) {
       setFormData((prevState: Record<string, string>) => ({
@@ -86,7 +86,7 @@ const ShippingAddress = ({
   const handleChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLInputElement | HTMLSelectElement
-    >
+    >,
   ) => {
     setFormData({
       ...formData,
@@ -105,7 +105,7 @@ const ShippingAddress = ({
             addresses={customer.addresses}
             addressInput={
               mapKeys(formData, (_, key) =>
-                key.replace("shipping_address.", "")
+                key.replace("shipping_address.", ""),
               ) as unknown as HttpTypes.StoreCartAddress
             }
             onSelect={setFormAddress}

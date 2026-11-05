@@ -6,7 +6,9 @@ import { listRegions } from "./regions"
 export const getStorePolicies = async (countryCode: string) => {
   const regions = await listRegions()
   const current = regions.find((region) =>
-    region.countries?.some((country) => country.iso_2 === countryCode.toLowerCase())
+    region.countries?.some(
+      (country) => country.iso_2 === countryCode.toLowerCase(),
+    ),
   )
 
   return {

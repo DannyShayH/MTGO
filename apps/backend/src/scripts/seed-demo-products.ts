@@ -13,17 +13,17 @@ import {
   createProductOptionsWorkflow,
   createProductTagsWorkflow,
   createProductsWorkflow,
-} from '@medusajs/medusa/core-flows'
+} from "@medusajs/medusa/core-flows"
 import {
   ContainerRegistrationKeys,
   MedusaError,
   Modules,
   ProductStatus,
-} from '@medusajs/framework/utils'
-import type { ExecArgs } from '@medusajs/framework/types'
+} from "@medusajs/framework/utils"
+import type { ExecArgs } from "@medusajs/framework/types"
 
 const PRODUCT_COUNT = 50
-const HANDLE_PREFIX = 'demo'
+const HANDLE_PREFIX = "demo"
 /** Products are created in batches so one failure doesn't roll back all 50. */
 const BATCH_SIZE = 10
 /** Caps the variant count per product, since options multiply. */
@@ -47,36 +47,64 @@ function makeRandom(seed: number) {
 }
 
 const ADJECTIVES = [
-  'Vintage', 'Classic', 'Relaxed', 'Tailored', 'Oversized',
-  'Everyday', 'Heritage', 'Essential', 'Cropped', 'Lightweight',
+  "Vintage",
+  "Classic",
+  "Relaxed",
+  "Tailored",
+  "Oversized",
+  "Everyday",
+  "Heritage",
+  "Essential",
+  "Cropped",
+  "Lightweight",
 ]
-const MATERIALS = ['Cotton', 'Linen', 'Merino', 'Denim', 'Fleece', 'Twill']
+const MATERIALS = ["Cotton", "Linen", "Merino", "Denim", "Fleece", "Twill"]
 const TYPES = [
-  'Tee', 'Hoodie', 'Sweatshirt', 'Shorts', 'Joggers',
-  'Overshirt', 'Cap', 'Socks', 'Tote', 'Beanie',
+  "Tee",
+  "Hoodie",
+  "Sweatshirt",
+  "Shorts",
+  "Joggers",
+  "Overshirt",
+  "Cap",
+  "Socks",
+  "Tote",
+  "Beanie",
 ]
 
-const COLLECTIONS = ['Summer Essentials', 'Winter Layers', 'Everyday Basics', 'Limited Run']
-const TAGS = ['sale', 'new-arrival', 'organic', 'unisex', 'bestseller', 'last-chance']
+const COLLECTIONS = [
+  "Summer Essentials",
+  "Winter Layers",
+  "Everyday Basics",
+  "Limited Run",
+]
+const TAGS = [
+  "sale",
+  "new-arrival",
+  "organic",
+  "unisex",
+  "bestseller",
+  "last-chance",
+]
 
 /**
  * Extra shared options, so the store page's option facet shows more than the
  * Size and Color the initial seed creates.
  */
 const EXTRA_OPTIONS = [
-  { title: 'Material', values: ['Cotton', 'Linen', 'Merino', 'Fleece'] },
-  { title: 'Fit', values: ['Regular', 'Slim', 'Relaxed'] },
-  { title: 'Sleeve', values: ['Short', 'Long'] },
+  { title: "Material", values: ["Cotton", "Linen", "Merino", "Fleece"] },
+  { title: "Fit", values: ["Regular", "Slim", "Relaxed"] },
+  { title: "Sleeve", values: ["Short", "Long"] },
 ]
 
 /** Real Medusa demo images, so the grid isn't full of placeholders. */
 const IMAGES = [
-  'https://medusa-public-images.s3.eu-west-1.amazonaws.com/tee-black-front.png',
-  'https://medusa-public-images.s3.eu-west-1.amazonaws.com/tee-white-front.png',
-  'https://medusa-public-images.s3.eu-west-1.amazonaws.com/sweatshirt-vintage-front.png',
-  'https://medusa-public-images.s3.eu-west-1.amazonaws.com/sweatpants-gray-front.png',
-  'https://medusa-public-images.s3.eu-west-1.amazonaws.com/shorts-vintage-front.png',
-  'https://medusa-public-images.s3.eu-west-1.amazonaws.com/coffee-mug.png',
+  "https://medusa-public-images.s3.eu-west-1.amazonaws.com/tee-black-front.png",
+  "https://medusa-public-images.s3.eu-west-1.amazonaws.com/tee-white-front.png",
+  "https://medusa-public-images.s3.eu-west-1.amazonaws.com/sweatshirt-vintage-front.png",
+  "https://medusa-public-images.s3.eu-west-1.amazonaws.com/sweatpants-gray-front.png",
+  "https://medusa-public-images.s3.eu-west-1.amazonaws.com/shorts-vintage-front.png",
+  "https://medusa-public-images.s3.eu-west-1.amazonaws.com/coffee-mug.png",
 ]
 
 type SharedOption = { id: string; title: string; values: string[] }
@@ -95,20 +123,20 @@ export default async function seedDemoProducts({ container }: ExecArgs) {
   // ---- Prerequisites that already exist in the project ----------------------
 
   const { data: salesChannels } = await query.graph({
-    entity: 'sales_channel',
-    fields: ['id', 'name'],
+    entity: "sales_channel",
+    fields: ["id", "name"],
   })
   const { data: shippingProfiles } = await query.graph({
-    entity: 'shipping_profile',
-    fields: ['id'],
+    entity: "shipping_profile",
+    fields: ["id"],
   })
   const { data: categories } = await query.graph({
-    entity: 'product_category',
-    fields: ['id', 'name'],
+    entity: "product_category",
+    fields: ["id", "name"],
   })
   const { data: stores } = await query.graph({
-    entity: 'store',
-    fields: ['id', 'supported_currencies.currency_code'],
+    entity: "store",
+    fields: ["id", "supported_currencies.currency_code"],
   })
 
   const salesChannel = salesChannels[0]
@@ -117,35 +145,34 @@ export default async function seedDemoProducts({ container }: ExecArgs) {
   if (!salesChannel || !shippingProfile) {
     throw new MedusaError(
       MedusaError.Types.NOT_FOUND,
-      'No sales channel or shipping profile found. Run the initial data seed first.'
+      "No sales channel or shipping profile found. Run the initial data seed first.",
     )
   }
 
-  const currencyCodes: string[] = (
-    stores[0]?.supported_currencies ?? []
-  )
+  const currencyCodes: string[] = (stores[0]?.supported_currencies ?? [])
     .map((currency) => currency?.currency_code)
     .filter((code): code is string => Boolean(code))
 
   if (!currencyCodes.length) {
     throw new MedusaError(
       MedusaError.Types.NOT_FOUND,
-      'The store has no supported currencies.'
+      "The store has no supported currencies.",
     )
   }
 
   logger.info(
-    `Seeding into "${salesChannel.name}" with currencies: ${currencyCodes.join(', ')}`
+    `Seeding into "${salesChannel.name}" with currencies: ${currencyCodes.join(", ")}`,
   )
 
   // ---- Collections, tags and extra options --------------------------------
 
   const { data: existingCollections } = await query.graph({
-    entity: 'product_collection',
-    fields: ['id', 'title'],
+    entity: "product_collection",
+    fields: ["id", "title"],
   })
   const missingCollections = COLLECTIONS.filter(
-    (title) => !existingCollections.some((collection) => collection.title === title)
+    (title) =>
+      !existingCollections.some((collection) => collection.title === title),
   )
 
   if (missingCollections.length) {
@@ -156,16 +183,16 @@ export default async function seedDemoProducts({ container }: ExecArgs) {
   }
 
   const { data: allCollections } = await query.graph({
-    entity: 'product_collection',
-    fields: ['id', 'title'],
+    entity: "product_collection",
+    fields: ["id", "title"],
   })
 
   const { data: existingTags } = await query.graph({
-    entity: 'product_tag',
-    fields: ['id', 'value'],
+    entity: "product_tag",
+    fields: ["id", "value"],
   })
   const missingTags = TAGS.filter(
-    (value) => !existingTags.some((tag) => tag.value === value)
+    (value) => !existingTags.some((tag) => tag.value === value),
   )
 
   if (missingTags.length) {
@@ -176,19 +203,20 @@ export default async function seedDemoProducts({ container }: ExecArgs) {
   }
 
   const { data: allTags } = await query.graph({
-    entity: 'product_tag',
-    fields: ['id', 'value'],
+    entity: "product_tag",
+    fields: ["id", "value"],
   })
 
   // Shared (non-exclusive) options, the way the initial seed defines them.
   const { data: existingOptions } = await query.graph({
-    entity: 'product_option',
-    fields: ['id', 'title', 'values.value'],
+    entity: "product_option",
+    fields: ["id", "title", "values.value"],
     filters: { is_exclusive: false },
   })
 
   const missingOptions = EXTRA_OPTIONS.filter(
-    (option) => !existingOptions.some((existing) => existing.title === option.title)
+    (option) =>
+      !existingOptions.some((existing) => existing.title === option.title),
   )
 
   if (missingOptions.length) {
@@ -199,8 +227,8 @@ export default async function seedDemoProducts({ container }: ExecArgs) {
   }
 
   const { data: optionRows } = await query.graph({
-    entity: 'product_option',
-    fields: ['id', 'title', 'values.value'],
+    entity: "product_option",
+    fields: ["id", "title", "values.value"],
     filters: { is_exclusive: false },
   })
 
@@ -214,23 +242,23 @@ export default async function seedDemoProducts({ container }: ExecArgs) {
     }))
     .filter((option) => option.values.length > 0)
 
-  const sizeOption = sharedOptions.find((option) => option.title === 'Size')
+  const sizeOption = sharedOptions.find((option) => option.title === "Size")
 
   if (!sizeOption) {
     throw new MedusaError(
       MedusaError.Types.NOT_FOUND,
-      'No shared "Size" option found. Run the initial data seed first.'
+      'No shared "Size" option found. Run the initial data seed first.',
     )
   }
 
   // ---- Build the products -------------------------------------------------
 
   const { data: alreadySeeded } = await query.graph({
-    entity: 'product',
-    fields: ['handle'],
+    entity: "product",
+    fields: ["handle"],
   })
   const takenHandles = new Set(
-    alreadySeeded.map((product) => product.handle).filter(Boolean)
+    alreadySeeded.map((product) => product.handle).filter(Boolean),
   )
 
   const products: Record<string, unknown>[] = []
@@ -253,8 +281,8 @@ export default async function seedDemoProducts({ container }: ExecArgs) {
     const chosenOptions = [
       sizeOption,
       ...pickSome(
-        sharedOptions.filter((option) => option.title !== 'Size'),
-        2
+        sharedOptions.filter((option) => option.title !== "Size"),
+        2,
       ),
     ]
 
@@ -298,8 +326,8 @@ export default async function seedDemoProducts({ container }: ExecArgs) {
       sales_channels: [{ id: salesChannel.id }],
       options: chosenOptions.map((option) => ({ id: option.id })),
       variants: combinations.map((combination) => ({
-        title: Object.values(combination).join(' / '),
-        sku: `${handle.toUpperCase()}-${Object.values(combination).join('-').toUpperCase()}`,
+        title: Object.values(combination).join(" / "),
+        sku: `${handle.toUpperCase()}-${Object.values(combination).join("-").toUpperCase()}`,
         options: combination,
         prices: currencyCodes.map((currency_code) => ({
           amount: basePrice,
@@ -310,7 +338,7 @@ export default async function seedDemoProducts({ container }: ExecArgs) {
   }
 
   if (!products.length) {
-    logger.info('Every demo product already exists. Nothing to do.')
+    logger.info("Every demo product already exists. Nothing to do.")
     return
   }
 
@@ -337,19 +365,19 @@ export default async function seedDemoProducts({ container }: ExecArgs) {
   // `consume` upserts, so it is safe to run over every product.
   const search = container.resolve(Modules.SEARCH)
   const { data: allProducts } = await query.graph({
-    entity: 'product',
-    fields: ['id'],
+    entity: "product",
+    fields: ["id"],
   })
 
   for (let start = 0; start < allProducts.length; start += INGEST_CHUNK_SIZE) {
     const chunk = allProducts.slice(start, start + INGEST_CHUNK_SIZE)
 
     await search.ingest({
-      name: 'product.created',
+      name: "product.created",
       data: chunk.map((product) => ({ id: product.id })),
     } as never)
   }
 
   logger.info(`Search index caught up for ${allProducts.length} product(s).`)
-  logger.info('Done. Open the store page to see the new products.')
+  logger.info("Done. Open the store page to see the new products.")
 }

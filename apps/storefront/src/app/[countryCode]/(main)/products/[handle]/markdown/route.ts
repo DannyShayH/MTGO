@@ -12,7 +12,7 @@ const HEADERS = {
 /** Served for `<product-url>.md` and `Accept: text/markdown` via rewrites in next.config.js. */
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ countryCode: string; handle: string }> }
+  { params }: { params: Promise<{ countryCode: string; handle: string }> },
 ) {
   const { countryCode, handle } = await params
   const region = await getRegion(countryCode)
@@ -23,7 +23,10 @@ export async function GET(
     : undefined
 
   if (!region || !product) {
-    return new Response("# Product not found\n", { status: 404, headers: HEADERS })
+    return new Response("# Product not found\n", {
+      status: 404,
+      headers: HEADERS,
+    })
   }
 
   return new Response(
@@ -33,6 +36,6 @@ export async function GET(
       origin: getRequestOrigin(request),
       countryCode,
     }),
-    { headers: HEADERS }
+    { headers: HEADERS },
   )
 }

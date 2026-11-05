@@ -15,7 +15,7 @@ const CountrySelect = forwardRef<
 
   useImperativeHandle<HTMLSelectElement | null, HTMLSelectElement | null>(
     ref,
-    () => innerRef.current
+    () => innerRef.current,
   )
 
   const countryOptions = useMemo(() => {

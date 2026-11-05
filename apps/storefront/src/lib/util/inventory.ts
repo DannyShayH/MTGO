@@ -1,7 +1,7 @@
 import { HttpTypes } from "@medusajs/types"
 
 export const isVariantInStock = (
-  variant: HttpTypes.StoreProductVariant | undefined
+  variant: HttpTypes.StoreProductVariant | undefined,
 ) =>
   !!variant &&
   (!variant.manage_inventory ||

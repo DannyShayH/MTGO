@@ -19,7 +19,7 @@ const HitPrice = ({ hit, currencyCode }: HitPriceProps) => {
   const min_price = amount(hit[priceAttribute("min_price", currencyCode)])
   const max_price = amount(hit[priceAttribute("max_price", currencyCode)])
   const original_price = amount(
-    hit[priceAttribute("original_price", currencyCode)]
+    hit[priceAttribute("original_price", currencyCode)],
   )
   const on_sale = hit[priceAttribute("on_sale", currencyCode)] === true
 

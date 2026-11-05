@@ -8,7 +8,11 @@ export const GET = async (request: Request, { params }: Context) =>
 
 export const PUT = async (request: Request, { params }: Context) =>
   toResponse(
-    await updateCart(request, (await params).cartId, (await readJsonBody(request)) ?? {})
+    await updateCart(
+      request,
+      (await params).cartId,
+      (await readJsonBody(request)) ?? {},
+    ),
   )
 
 export const DELETE = async (request: Request, { params }: Context) =>

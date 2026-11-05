@@ -22,7 +22,7 @@ export const activateCart = async (cartId: string) => {
  * store's default country only when none was requested.
  */
 export const resolveRegion = async (
-  countryCode?: string
+  countryCode?: string,
 ): Promise<{ countryCode: string; region: HttpTypes.StoreRegion } | null> => {
   const regions = await listRegions()
   const code = countryCode?.toLowerCase() || getDefaultCountryCode(regions)
@@ -32,7 +32,7 @@ export const resolveRegion = async (
 
 export const createCartWithItems = async (
   regionId: string,
-  items: { variant_id: string; quantity: number }[]
+  items: { variant_id: string; quantity: number }[],
 ) => {
   const { cart } = await sdk.store.cart.create({ region_id: regionId })
   for (const item of items) {

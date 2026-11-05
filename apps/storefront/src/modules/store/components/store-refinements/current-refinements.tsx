@@ -29,7 +29,7 @@ function refinementLabel(refinement: Refinement, currencyCode: string) {
     return separator < 1
       ? label
       : `${String(value).slice(0, separator)}: ${String(value).slice(
-          separator + 1
+          separator + 1,
         )}`
   }
 

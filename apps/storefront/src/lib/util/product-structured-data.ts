@@ -12,7 +12,7 @@ const SCHEMA_OUT_OF_STOCK = "https://schema.org/OutOfStock"
 
 export const getPricedVariants = (product: HttpTypes.StoreProduct) =>
   (product.variants ?? []).filter(
-    (variant) => variant.calculated_price?.calculated_amount != null
+    (variant) => variant.calculated_price?.calculated_amount != null,
   )
 
 export const buildProductStructuredData = ({
@@ -37,7 +37,7 @@ export const buildProductStructuredData = ({
   const brand = { "@type": "Brand", name: STORE_NAME }
   const policies = getRegionPolicies(region)
   const optionTitles = new Map(
-    (product.options ?? []).map((option) => [option.id, option.title])
+    (product.options ?? []).map((option) => [option.id, option.title]),
   )
 
   const buildOffer = (variant: HttpTypes.StoreProductVariant, url: string) => ({
@@ -52,7 +52,11 @@ export const buildProductStructuredData = ({
     itemCondition: "https://schema.org/NewCondition",
     ...(policies
       ? {
-          shippingDetails: buildShippingDetails(policies, countryCode, currency),
+          shippingDetails: buildShippingDetails(
+            policies,
+            countryCode,
+            currency,
+          ),
           hasMerchantReturnPolicy: buildReturnPolicy(policies, countryCode),
         }
       : {}),

@@ -51,7 +51,7 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
         listCountryCodes(regions).map((code) => [
           `en-${code.toUpperCase()}`,
           `${origin}/${code}${path}`,
-        ])
+        ]),
       ),
       types: { "text/markdown": `${productUrl}.md` },
     },
@@ -79,7 +79,7 @@ const ProductMetaTags = ({
         min.calculated_price!.calculated_amount!
         ? v
         : min,
-    undefined
+    undefined,
   )
   const currency = region.currency_code.toUpperCase()
   const amount = cheapest?.calculated_price?.calculated_amount?.toFixed(2)

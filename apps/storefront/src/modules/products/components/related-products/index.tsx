@@ -38,7 +38,7 @@ export default async function RelatedProducts({
     countryCode,
   }).then(({ response }) => {
     return response.products.filter(
-      (responseProduct) => responseProduct.id !== product.id
+      (responseProduct) => responseProduct.id !== product.id,
     )
   })
 

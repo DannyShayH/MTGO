@@ -37,7 +37,7 @@ const PaymentContainer: React.FC<PaymentContainerProps> = ({
         {
           "border-ui-border-interactive":
             selectedPaymentOptionId === paymentProviderId,
-        }
+        },
       )}
     >
       <div className="flex items-center justify-between ">
@@ -102,7 +102,7 @@ export const StripePaymentContainer = ({
                 setPaymentComplete(false)
                 setError(
                   getPaymentErrorMessage(e.error) ??
-                    "Could not load the payment methods."
+                    "Could not load the payment methods.",
                 )
               }}
             />

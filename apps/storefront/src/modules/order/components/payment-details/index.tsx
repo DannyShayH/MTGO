@@ -28,7 +28,8 @@ const PaymentDetails = ({ order }: PaymentDetailsProps) => {
                 className="txt-medium text-ui-fg-subtle"
                 data-testid="payment-method"
               >
-                {getPaymentInfo(payment.provider_id)?.title || payment.provider_id}
+                {getPaymentInfo(payment.provider_id)?.title ||
+                  payment.provider_id}
               </Text>
             </div>
             <div className="flex flex-col w-2/3">
@@ -46,7 +47,7 @@ const PaymentDetails = ({ order }: PaymentDetailsProps) => {
                         amount: payment.amount,
                         currency_code: order.currency_code,
                       })} paid at ${new Date(
-                        payment.created_at ?? ""
+                        payment.created_at ?? "",
                       ).toLocaleString()}`}
                 </Text>
               </div>

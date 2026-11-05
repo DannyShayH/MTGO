@@ -18,7 +18,7 @@ const LineItemUnitPrice = ({
   const hasReducedPrice = total < original_total
 
   const percentage_diff = Math.round(
-    ((original_total - total) / original_total) * 100
+    ((original_total - total) / original_total) * 100,
   )
 
   return (

@@ -1,9 +1,9 @@
-import { listCategories } from "@lib/data/categories";
-import { listCollections } from "@lib/data/collections";
-import { Text, clx } from "@modules/common/components/ui";
+import { listCategories } from "@lib/data/categories"
+import { listCollections } from "@lib/data/collections"
+import { Text, clx } from "@modules/common/components/ui"
 
-import LocalizedClientLink from "@modules/common/components/localized-client-link";
-import MedusaCTA from "@modules/layout/components/medusa-cta";
+import LocalizedClientLink from "@modules/common/components/localized-client-link"
+import MedusaCTA from "@modules/layout/components/medusa-cta"
 
 export default async function Footer() {
   const [{ collections }, productCategories] = await Promise.all([
@@ -12,7 +12,7 @@ export default async function Footer() {
       fields:
         "id,name,handle,parent_category_id,category_children.id,category_children.name,category_children.handle",
     }),
-  ]);
+  ])
 
   return (
     <footer className="border-t border-ui-border-base w-full">
@@ -38,7 +38,7 @@ export default async function Footer() {
                 >
                   {productCategories?.slice(0, 6).map((c) => {
                     if (c.parent_category_id) {
-                      return;
+                      return
                     }
 
                     const children =
@@ -46,7 +46,7 @@ export default async function Footer() {
                         name: child.name,
                         handle: child.handle,
                         id: child.id,
-                      })) || null;
+                      })) || null
 
                     return (
                       <li
@@ -56,7 +56,7 @@ export default async function Footer() {
                         <LocalizedClientLink
                           className={clx(
                             "hover:text-ui-fg-base",
-                            children && "txt-small-plus"
+                            children && "txt-small-plus",
                           )}
                           href={`/categories/${c.handle}`}
                           data-testid="category-link"
@@ -80,7 +80,7 @@ export default async function Footer() {
                           </ul>
                         )}
                       </li>
-                    );
+                    )
                   })}
                 </ul>
               </div>
@@ -95,7 +95,7 @@ export default async function Footer() {
                     "grid grid-cols-1 gap-2 text-ui-fg-subtle txt-small",
                     {
                       "grid-cols-2": (collections?.length || 0) > 3,
-                    }
+                    },
                   )}
                 >
                   {collections?.slice(0, 6).map((c) => (
@@ -211,5 +211,5 @@ export default async function Footer() {
         </div>
       </div>
     </footer>
-  );
+  )
 }

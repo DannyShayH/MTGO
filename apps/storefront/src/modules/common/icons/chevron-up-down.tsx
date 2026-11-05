@@ -35,4 +35,3 @@ const ChevronUpDown: React.FC<IconProps> = ({
 }
 
 export default ChevronUpDown
-

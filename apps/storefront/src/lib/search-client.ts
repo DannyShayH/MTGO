@@ -14,10 +14,7 @@ export const PRODUCT_INDEX_NAME = "product"
 export const SEARCH_PRICE_CURRENCIES = ["eur", "usd"]
 
 export type PriceField =
-  | "min_price"
-  | "max_price"
-  | "original_price"
-  | "on_sale"
+  "min_price" | "max_price" | "original_price" | "on_sale"
 
 /**
  * The indexed currency to read prices in for a region. A region whose currency

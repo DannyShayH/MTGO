@@ -39,7 +39,7 @@ const AdyenPaymentButton = ({
   const { countryCode } = useParams()
 
   const session = cart.payment_collection?.payment_sessions?.find((s) =>
-    isAdyen(s.provider_id)
+    isAdyen(s.provider_id),
   )
 
   useEffect(() => {
@@ -52,7 +52,7 @@ const AdyenPaymentButton = ({
 
     const handleResult = (
       result: AdyenPaymentResult,
-      actions: SubmitActions | AdditionalDetailsActions
+      actions: SubmitActions | AdditionalDetailsActions,
     ) => {
       if ("action" in result) {
         actions.resolve({
@@ -67,9 +67,8 @@ const AdyenPaymentButton = ({
     }
 
     const mount = async () => {
-      const { AdyenCheckout, Dropin, Card, ApplePay, GooglePay } = await import(
-        "@adyen/adyen-web"
-      )
+      const { AdyenCheckout, Dropin, Card, ApplePay, GooglePay } =
+        await import("@adyen/adyen-web")
 
       const checkout = await AdyenCheckout({
         clientKey,
@@ -93,13 +92,13 @@ const AdyenPaymentButton = ({
               // Used when the shopper's bank redirects them for authentication.
               return_url: `${window.location.origin}/api/payment-return?cart_id=${cart.id}&country_code=${countryCode}`,
             }),
-            actions
+            actions,
           )
         },
         onAdditionalDetails: async (state, _component, actions) => {
           handleResult(
             await submitAdyenPayment({ details: state.data.details }),
-            actions
+            actions,
           )
         },
         onError: (error) => {

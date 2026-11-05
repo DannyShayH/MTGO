@@ -4,14 +4,14 @@
  * can change them in Settings → Regions → Metadata.
  */
 export type RegionStorePolicies = {
-  return_window_days: number;
-  free_returns: boolean;
-  shipping_rate: number;
-  handling_days_min: number;
-  handling_days_max: number;
-  transit_days_min: number;
-  transit_days_max: number;
-};
+  return_window_days: number
+  free_returns: boolean
+  shipping_rate: number
+  handling_days_min: number
+  handling_days_max: number
+  transit_days_min: number
+  transit_days_max: number
+}
 
 export const DEFAULT_REGION_STORE_POLICIES: RegionStorePolicies = {
   return_window_days: 30,
@@ -21,4 +21,4 @@ export const DEFAULT_REGION_STORE_POLICIES: RegionStorePolicies = {
   handling_days_max: 1,
   transit_days_min: 2,
   transit_days_max: 3,
-};
+}

@@ -15,10 +15,10 @@ import { StoreFreeShippingPrice } from "types/global"
 
 const computeTarget = (
   cart: HttpTypes.StoreCart,
-  price: HttpTypes.StorePrice
+  price: HttpTypes.StorePrice,
 ) => {
   const priceRule = (price.price_rules || []).find(
-    (pr) => pr.attribute === "item_total"
+    (pr) => pr.attribute === "item_total",
   )!
 
   const currentAmount = cart.item_total
@@ -101,8 +101,8 @@ export default function ShippingPriceNudge({
         (price) =>
           price.currency_code === cart.currency_code &&
           (price.price_rules || []).some(
-            (priceRule) => priceRule.attribute === "item_total"
-          )
+            (priceRule) => priceRule.attribute === "item_total",
+          ),
       )
 
       return validCurrencyPrices.map((price) => {
@@ -178,7 +178,7 @@ function FreeShippingInline({
               "bg-gradient-to-r from-zinc-400 to-zinc-500 h-1 rounded-full max-w-full duration-500 ease-in-out",
               {
                 "from-green-400 to-green-500": price.target_reached,
-              }
+              },
             )}
             style={{ width: `${price.remaining_percentage}%` }}
           ></div>
@@ -206,7 +206,7 @@ function FreeShippingPopup({
           "opacity-0 invisible delay-1000": price.target_reached,
           "opacity-0 invisible": isClosed,
           "opacity-100 visible": !price.target_reached && !isClosed,
-        }
+        },
       )}
     >
       <div>
@@ -254,7 +254,7 @@ function FreeShippingPopup({
                   "bg-gradient-to-r from-zinc-400 to-zinc-500 h-1.5 rounded-full max-w-full duration-500 ease-in-out",
                   {
                     "from-green-400 to-green-500": price.target_reached,
-                  }
+                  },
                 )}
                 style={{ width: `${price.remaining_percentage}%` }}
               ></div>

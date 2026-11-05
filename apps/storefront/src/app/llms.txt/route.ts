@@ -21,14 +21,16 @@ export async function GET(request: Request) {
   const countries = listCountryCodes(regions)
   const base = `${origin}/${getDefaultCountryCode(regions)}`
   const currencies = Array.from(
-    new Set(regions.map((r) => r.currency_code?.toUpperCase()).filter(Boolean))
+    new Set(regions.map((r) => r.currency_code?.toUpperCase()).filter(Boolean)),
   )
 
   const links = [
     ...categories
       .filter((c) => !c.parent_category_id)
       .map((c) => `- [${c.name}](${base}/categories/${c.handle})`),
-    ...collections.map((c) => `- [${c.title}](${base}/collections/${c.handle})`),
+    ...collections.map(
+      (c) => `- [${c.title}](${base}/collections/${c.handle})`,
+    ),
   ]
 
   const body = `# ${STORE_NAME}

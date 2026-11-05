@@ -4,7 +4,8 @@ export const isEmpty = (input: unknown) => {
   return (
     input === null ||
     input === undefined ||
-    (isObject(input) && Object.keys(input as Record<string, unknown>).length === 0) ||
+    (isObject(input) &&
+      Object.keys(input as Record<string, unknown>).length === 0) ||
     (isArray(input) && (input as unknown[]).length === 0) ||
     (typeof input === "string" && input.trim().length === 0)
   )

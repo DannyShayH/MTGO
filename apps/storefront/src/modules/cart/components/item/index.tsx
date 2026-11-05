@@ -91,7 +91,7 @@ const Item = ({ item, type = "full", currencyCode }: ItemProps) => {
                   <option value={i + 1} key={i}>
                     {i + 1}
                   </option>
-                )
+                ),
               )}
 
               <option value={1} key={1}>

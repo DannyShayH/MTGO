@@ -11,8 +11,14 @@ const capability = (path: string, schema: string) => ({
 })
 
 export const UCP_CAPABILITIES = {
-  "dev.ucp.shopping.catalog.search": capability("catalog/search", "catalog_search"),
-  "dev.ucp.shopping.catalog.lookup": capability("catalog/lookup", "catalog_lookup"),
+  "dev.ucp.shopping.catalog.search": capability(
+    "catalog/search",
+    "catalog_search",
+  ),
+  "dev.ucp.shopping.catalog.lookup": capability(
+    "catalog/lookup",
+    "catalog_lookup",
+  ),
   "dev.ucp.shopping.cart": capability("cart", "cart"),
   "dev.ucp.shopping.checkout": capability("checkout", "checkout"),
 } as const
@@ -32,7 +38,10 @@ const minorUnitDigits = (currency: string) =>
     .maximumFractionDigits ?? 2
 
 /** Converts a Medusa amount (major units) to UCP minor units. */
-export const toMinorUnits = (amount: number | null | undefined, currencyCode: string) =>
+export const toMinorUnits = (
+  amount: number | null | undefined,
+  currencyCode: string,
+) =>
   Math.round((amount ?? 0) * 10 ** minorUnitDigits(currencyCode.toUpperCase()))
 
 const toMoney = (amount: number | null | undefined, currencyCode: string) => ({
@@ -43,7 +52,7 @@ const toMoney = (amount: number | null | undefined, currencyCode: string) => ({
 export const ucpResult = (
   name: CapabilityName,
   body: Record<string, unknown>,
-  status = 200
+  status = 200,
 ): UcpResult => ({
   status,
   body: {
@@ -61,7 +70,7 @@ export const ucpError = (
   name: CapabilityName,
   status: number,
   code: string,
-  content: string
+  content: string,
 ): UcpResult =>
   ucpResult(
     name,
@@ -75,18 +84,20 @@ export const ucpError = (
         },
       ],
     },
-    status
+    status,
   )
 
 export const toResponse = ({ status, body }: UcpResult) =>
   Response.json(body, { status, headers: { "Cache-Control": "no-store" } })
 
 export const readJsonBody = async (
-  request: Request
+  request: Request,
 ): Promise<Record<string, unknown> | null> => {
   try {
     const body = await request.json()
-    return body && typeof body === "object" && !Array.isArray(body) ? body : null
+    return body && typeof body === "object" && !Array.isArray(body)
+      ? body
+      : null
   } catch {
     return null
   }
@@ -95,13 +106,13 @@ export const readJsonBody = async (
 export const toUcpProduct = (
   product: HttpTypes.StoreProduct,
   currencyCode: string,
-  productUrl: string
+  productUrl: string,
 ) => {
   const optionTitles = new Map(
-    (product.options ?? []).map((option) => [option.id, option.title])
+    (product.options ?? []).map((option) => [option.id, option.title]),
   )
   const variants = (product.variants ?? []).filter(
-    (variant) => variant.calculated_price?.calculated_amount != null
+    (variant) => variant.calculated_price?.calculated_amount != null,
   )
   const amounts = variants.map((v) => v.calculated_price!.calculated_amount!)
 
@@ -129,8 +140,14 @@ export const toUcpProduct = (
         sku: variant.sku ?? undefined,
         title: variant.title ?? product.title,
         url: `${productUrl}?v_id=${variant.id}`,
-        price: toMoney(variant.calculated_price!.calculated_amount, currencyCode),
-        availability: { available, status: available ? "in_stock" : "out_of_stock" },
+        price: toMoney(
+          variant.calculated_price!.calculated_amount,
+          currencyCode,
+        ),
+        availability: {
+          available,
+          status: available ? "in_stock" : "out_of_stock",
+        },
         options: (variant.options ?? []).map((value) => ({
           name: optionTitles.get(value.option_id ?? "") ?? "",
           value: value.value,
@@ -145,20 +162,34 @@ export const toUcpLineItems = (cart: HttpTypes.StoreCart) =>
     id: item.id,
     item: {
       id: item.variant_id,
-      title: [item.product_title, item.variant_title].filter(Boolean).join(" - "),
+      title: [item.product_title, item.variant_title]
+        .filter(Boolean)
+        .join(" - "),
       price: toMinorUnits(item.unit_price, cart.currency_code),
     },
     quantity: item.quantity,
     totals: [
-      { type: "subtotal", amount: toMinorUnits(item.subtotal, cart.currency_code) },
+      {
+        type: "subtotal",
+        amount: toMinorUnits(item.subtotal, cart.currency_code),
+      },
       { type: "total", amount: toMinorUnits(item.total, cart.currency_code) },
     ],
   }))
 
 export const toUcpTotals = (cart: HttpTypes.StoreCart) => [
-  { type: "subtotal", amount: toMinorUnits(cart.item_subtotal, cart.currency_code) },
-  { type: "discount", amount: toMinorUnits(cart.discount_total, cart.currency_code) },
-  { type: "fulfillment", amount: toMinorUnits(cart.shipping_total, cart.currency_code) },
+  {
+    type: "subtotal",
+    amount: toMinorUnits(cart.item_subtotal, cart.currency_code),
+  },
+  {
+    type: "discount",
+    amount: toMinorUnits(cart.discount_total, cart.currency_code),
+  },
+  {
+    type: "fulfillment",
+    amount: toMinorUnits(cart.shipping_total, cart.currency_code),
+  },
   { type: "tax", amount: toMinorUnits(cart.tax_total, cart.currency_code) },
   { type: "total", amount: toMinorUnits(cart.total, cart.currency_code) },
 ]
@@ -168,7 +199,7 @@ const MAX_QUANTITY = 100
 
 /** Validates a UCP `line_items` array into Medusa variant/quantity pairs. */
 export const parseLineItems = (
-  value: unknown
+  value: unknown,
 ): { variant_id: string; quantity: number }[] | null => {
   if (!Array.isArray(value) || value.length > MAX_LINE_ITEMS) {
     return null

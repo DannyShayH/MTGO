@@ -26,19 +26,19 @@ const StripeWrapper: React.FC<StripeWrapperProps> = ({
 
   if (!stripeKey) {
     throw new Error(
-      "Stripe key is missing. Set the NEXT_PUBLIC_STRIPE_KEY (Stripe) or NEXT_PUBLIC_MEDUSA_PAYMENTS_PUBLISHABLE_KEY (Medusa Payments) environment variable."
+      "Stripe key is missing. Set the NEXT_PUBLIC_STRIPE_KEY (Stripe) or NEXT_PUBLIC_MEDUSA_PAYMENTS_PUBLISHABLE_KEY (Medusa Payments) environment variable.",
     )
   }
 
   if (!stripePromise) {
     throw new Error(
-      "Stripe promise is missing. Make sure you have provided a valid Stripe key."
+      "Stripe promise is missing. Make sure you have provided a valid Stripe key.",
     )
   }
 
   if (!paymentSession?.data?.client_secret) {
     throw new Error(
-      "Stripe client secret is missing. Cannot initialize Stripe."
+      "Stripe client secret is missing. Cannot initialize Stripe.",
     )
   }
 

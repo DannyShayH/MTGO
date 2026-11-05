@@ -23,6 +23,6 @@ export default function compareAddresses(address1: object, address2: object) {
       "country_code",
       "province",
       "phone",
-    ])
+    ]),
   )
 }

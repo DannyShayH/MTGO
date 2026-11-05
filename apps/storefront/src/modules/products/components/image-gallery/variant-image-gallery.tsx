@@ -36,10 +36,12 @@ const VariantImageGallery = ({
 
   useEffect(() => setIsMounted(true), [])
 
-  const variantId = isMounted ? searchParams.get("v_id") ?? undefined : undefined
+  const variantId = isMounted
+    ? (searchParams.get("v_id") ?? undefined)
+    : undefined
   const images = useMemo(
     () => getImagesForVariant(product, variantId) ?? [],
-    [product, variantId]
+    [product, variantId],
   )
 
   return <ImageGallery images={images} />

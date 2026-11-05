@@ -6,6 +6,6 @@ export const POST = async (request: Request) =>
     await createCheckout(
       request,
       (await readJsonBody(request)) ?? {},
-      request.headers.get("idempotency-key")
-    )
+      request.headers.get("idempotency-key"),
+    ),
   )

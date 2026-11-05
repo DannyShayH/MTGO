@@ -49,7 +49,7 @@ type LanguageSelectProps = {
 const getLocalizedLanguageName = (
   code: string,
   fallbackName: string,
-  displayLocale: string = "en-US"
+  displayLocale: string = "en-US",
 ): string => {
   try {
     const displayNames = new Intl.DisplayNames([displayLocale], {
@@ -86,7 +86,7 @@ const LanguageSelect = ({
       localizedName: getLocalizedLanguageName(
         locale.code,
         locale.name,
-        currentLocale ?? "en-US"
+        currentLocale ?? "en-US",
       ),
       countryCode: getCountryCodeFromLocale(locale.code),
     }))
@@ -96,7 +96,7 @@ const LanguageSelect = ({
   useEffect(() => {
     if (currentLocale) {
       const option = options.find(
-        (o) => o.code.toLowerCase() === currentLocale.toLowerCase()
+        (o) => o.code.toLowerCase() === currentLocale.toLowerCase(),
       )
       setCurrent(option ?? DEFAULT_OPTION)
     } else {
@@ -119,9 +119,9 @@ const LanguageSelect = ({
         onChange={handleChange}
         defaultValue={
           currentLocale
-            ? options.find(
-                (o) => o.code.toLowerCase() === currentLocale.toLowerCase()
-              ) ?? DEFAULT_OPTION
+            ? (options.find(
+                (o) => o.code.toLowerCase() === currentLocale.toLowerCase(),
+              ) ?? DEFAULT_OPTION)
             : DEFAULT_OPTION
         }
         disabled={isPending}
@@ -132,7 +132,6 @@ const LanguageSelect = ({
             {current && (
               <span className="txt-compact-small flex items-center gap-x-2">
                 {current.countryCode && (
-                  /* @ts-ignore */
                   <ReactCountryFlag
                     svg
                     style={{
@@ -166,7 +165,6 @@ const LanguageSelect = ({
                   className="py-2 hover:bg-gray-200 px-3 cursor-pointer flex items-center gap-x-2"
                 >
                   {o.countryCode ? (
-                    /* @ts-ignore */
                     <ReactCountryFlag
                       svg
                       style={{

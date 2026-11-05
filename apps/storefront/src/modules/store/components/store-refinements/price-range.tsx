@@ -7,16 +7,16 @@ import { useRange } from "react-instantsearch"
 import { indexedCurrency, priceAttribute } from "@lib/search-client"
 
 function formatAmount(amount: number, currency: string) {
-    try {
-      return new Intl.NumberFormat(undefined, {
-        style: "currency",
-        currency: currency.toUpperCase(),
-        maximumFractionDigits: 0,
-      }).format(amount)
-    } catch {
-      // An unrecognised currency code shouldn't take the sidebar down.
-      return `${Math.round(amount)} ${currency.toUpperCase()}`
-    }
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: currency.toUpperCase(),
+      maximumFractionDigits: 0,
+    }).format(amount)
+  } catch {
+    // An unrecognised currency code shouldn't take the sidebar down.
+    return `${Math.round(amount)} ${currency.toUpperCase()}`
+  }
 }
 
 /**

@@ -66,7 +66,7 @@ const EditAddress: React.FC<EditAddressProps> = ({
           "border rounded-rounded p-5 min-h-[220px] h-full w-full flex flex-col justify-between transition-colors",
           {
             "border-gray-900": isActive,
-          }
+          },
         )}
         data-testid="address-container"
       >

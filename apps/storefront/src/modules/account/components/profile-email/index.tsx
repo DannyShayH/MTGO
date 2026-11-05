@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useActionState } from "react";
+import React, { useEffect, useActionState } from "react"
 
 import Input from "@modules/common/components/input"
 
@@ -18,7 +18,7 @@ const ProfileEmail: React.FC<MyInformationProps> = ({ customer }) => {
   // TODO: It seems we don't support updating emails now?
   const updateCustomerEmail = (
     _currentState: Record<string, unknown>,
-    _formData: FormData
+    _formData: FormData,
   ) => {
     try {
       // email: formData.get("email") as string

@@ -20,7 +20,7 @@ export const renderProductMarkdown = ({
   const currency = region.currency_code
   const policies = getRegionPolicies(region)
   const optionTitles = new Map(
-    (product.options ?? []).map((option) => [option.id, option.title])
+    (product.options ?? []).map((option) => [option.id, option.title]),
   )
 
   const policyLines = policies
@@ -28,17 +28,25 @@ export const renderProductMarkdown = ({
 - Shipping: ${
         policies.shippingRate === 0
           ? "free"
-          : convertToLocale({ amount: policies.shippingRate, currency_code: currency })
+          : convertToLocale({
+              amount: policies.shippingRate,
+              currency_code: currency,
+            })
       }, ships in ${formatDayRange(policies.handlingDays)} business days, delivery ${formatDayRange(policies.transitDays)} business days
 - Returns: within ${policies.returnWindowDays} days of delivery, ${
-        policies.freeReturns ? "free return shipping" : "return shipping paid by the customer"
+        policies.freeReturns
+          ? "free return shipping"
+          : "return shipping paid by the customer"
       }`
     : ""
 
   const variants = getPricedVariants(product)
   const variantRows = variants.map((variant) => {
     const options = (variant.options ?? [])
-      .map((value) => `${optionTitles.get(value.option_id ?? "") ?? "Option"}: ${value.value}`)
+      .map(
+        (value) =>
+          `${optionTitles.get(value.option_id ?? "") ?? "Option"}: ${value.value}`,
+      )
       .join(", ")
     const price = convertToLocale({
       amount: variant.calculated_price!.calculated_amount!,

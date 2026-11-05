@@ -18,7 +18,7 @@ export function useSearchSettled() {
   const isSearching = status !== "idle" && status !== "error"
   const hasNoResultsYet = Boolean(
     (results as unknown as { __isArtificial?: boolean } | undefined)
-      ?.__isArtificial
+      ?.__isArtificial,
   )
 
   return {

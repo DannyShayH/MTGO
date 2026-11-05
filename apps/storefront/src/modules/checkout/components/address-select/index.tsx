@@ -12,7 +12,7 @@ type AddressSelectProps = {
   addressInput: HttpTypes.StoreCartAddress | null
   onSelect: (
     address: HttpTypes.StoreCartAddress | undefined,
-    email?: string
+    email?: string,
   ) => void
 }
 
@@ -29,7 +29,9 @@ const AddressSelect = ({
   }
 
   const selectedAddress = useMemo(() => {
-    return addresses.find((a) => addressInput && compareAddresses(a, addressInput))
+    return addresses.find(
+      (a) => addressInput && compareAddresses(a, addressInput),
+    )
   }, [addresses, addressInput])
 
   return (

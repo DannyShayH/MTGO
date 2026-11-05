@@ -9,7 +9,10 @@ import { getRequestOrigin } from "@lib/util/site"
 import { NextResponse } from "next/server"
 
 const ITEM_PATTERN = /^([A-Za-z0-9._-]+|~[A-Za-z0-9_-]+):([1-9][0-9]*)$/
-const NO_STORE = { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" }
+const NO_STORE = {
+  "Cache-Control": "no-store",
+  "Referrer-Policy": "no-referrer",
+}
 
 const decodeItemId = (token: string) =>
   token.startsWith("~")
@@ -38,20 +41,30 @@ const textResponse = (body: string, status: number) =>
 /** UCP cart permalink: /buy/{variant_id}:{quantity},... builds a cart and opens checkout. */
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ items: string }> }
+  { params }: { params: Promise<{ items: string }> },
 ) {
   const items = parseItems((await params).items)
   if (!items) {
-    return textResponse("Malformed permalink. Use /buy/{variant_id}:{quantity},...", 400)
+    return textResponse(
+      "Malformed permalink. Use /buy/{variant_id}:{quantity},...",
+      400,
+    )
   }
 
-  const country = new URL(request.url).searchParams.get("context/address_country")
+  const country = new URL(request.url).searchParams.get(
+    "context/address_country",
+  )
   const resolved = await resolveRegion(country ?? undefined)
   if (!resolved) {
-    return textResponse("This store does not ship to the requested country", 400)
+    return textResponse(
+      "This store does not ship to the requested country",
+      400,
+    )
   }
 
-  const missing = await findMissingVariantIds(items.map((item) => item.variant_id))
+  const missing = await findMissingVariantIds(
+    items.map((item) => item.variant_id),
+  )
   if (missing.length) {
     return textResponse(`Unknown items: ${missing.join(", ")}`, 404)
   }
@@ -60,13 +73,16 @@ export async function GET(
   try {
     cartId = await createCartWithItems(resolved.region.id, items)
   } catch {
-    return textResponse("One or more items in this link can't be purchased", 400)
+    return textResponse(
+      "One or more items in this link can't be purchased",
+      400,
+    )
   }
 
   await activateCart(cartId)
 
   return NextResponse.redirect(
     `${getRequestOrigin(request)}/${resolved.countryCode}/checkout`,
-    { status: 303, headers: NO_STORE }
+    { status: 303, headers: NO_STORE },
   )
 }

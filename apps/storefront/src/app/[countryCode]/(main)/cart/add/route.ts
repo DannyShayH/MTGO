@@ -29,10 +29,10 @@ const resolveVariantId = async (form: FormData, regionId: string) => {
   return product.variants?.find((variant: HttpTypes.StoreProductVariant) =>
     isEqual(
       Object.fromEntries(
-        (variant.options ?? []).map((o) => [o.option_id, o.value])
+        (variant.options ?? []).map((o) => [o.option_id, o.value]),
       ),
-      selectedOptions
-    )
+      selectedOptions,
+    ),
   )?.id
 }
 
@@ -40,7 +40,7 @@ const addLineItem = async (
   cartId: string | undefined,
   regionId: string,
   variantId: string,
-  quantity: number
+  quantity: number,
 ) => {
   const id =
     cartId ?? (await sdk.store.cart.create({ region_id: regionId })).cart.id
@@ -54,7 +54,7 @@ const errorMessage = (error: unknown) =>
 /** No-JavaScript add-to-cart: the product page form posts here. */
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ countryCode: string }> }
+  { params }: { params: Promise<{ countryCode: string }> },
 ) {
   const { countryCode } = await params
   const region = await getRegion(countryCode)
@@ -65,7 +65,7 @@ export async function POST(
   const form = await request.formData()
   const quantity = Math.min(
     Math.max(parseInt(form.get("quantity")?.toString() ?? "1", 10) || 1, 1),
-    MAX_LINE_ITEM_QUANTITY
+    MAX_LINE_ITEM_QUANTITY,
   )
 
   let variantId: string | undefined
@@ -98,6 +98,6 @@ export async function POST(
 
   return NextResponse.redirect(
     `${getRequestOrigin(request)}/${countryCode}/cart`,
-    303
+    303,
   )
 }

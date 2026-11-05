@@ -28,7 +28,7 @@ export async function generateMetadata(props: {
           listCountryCodes(regions).map((code) => [
             `en-${code.toUpperCase()}`,
             `${origin}/${code}`,
-          ])
+          ]),
         ),
         "x-default": origin,
       },

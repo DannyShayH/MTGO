@@ -43,7 +43,7 @@ const FilterRadioGroup = ({
                 "!txt-compact-small !transform-none text-ui-fg-subtle hover:cursor-pointer",
                 {
                   "text-ui-fg-base": i.value === value,
-                }
+                },
               )}
               data-testid="radio-label"
               data-active={i.value === value}

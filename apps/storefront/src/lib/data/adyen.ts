@@ -8,8 +8,7 @@ import { placeOrder } from "./cart"
 import { getAuthHeaders, getCartId } from "./cookies"
 
 export type AdyenPaymentResult =
-  | { resultCode: string; action: Record<string, unknown> }
-  | { error: string }
+  { resultCode: string; action: Record<string, unknown> } | { error: string }
 
 const DECLINED_ERROR =
   "Your payment was declined. Please try again or use a different payment method."
@@ -25,11 +24,11 @@ const getAdyenSession = async (cartId: string) => {
       method: "GET",
       headers: { ...(await getAuthHeaders()) },
       cache: "no-store",
-    }
+    },
   )
 
   const session = cart.payment_collection?.payment_sessions?.find((s) =>
-    isAdyen(s.provider_id)
+    isAdyen(s.provider_id),
   )
 
   return session && { collectionId: cart.payment_collection!.id, session }
@@ -43,7 +42,7 @@ const getAdyenSession = async (cartId: string) => {
  */
 export async function submitAdyenPayment(
   clientData: Record<string, unknown>,
-  cartId?: string
+  cartId?: string,
 ): Promise<AdyenPaymentResult> {
   const id = cartId || (await getCartId())
   const current = id ? await getAdyenSession(id) : undefined
@@ -58,7 +57,7 @@ export async function submitAdyenPayment(
       current.session.id,
       { client_data: clientData },
       {},
-      { ...(await getAuthHeaders()) }
+      { ...(await getAuthHeaders()) },
     )
 
     await placeOrder(id)

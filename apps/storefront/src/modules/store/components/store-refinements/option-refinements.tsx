@@ -21,7 +21,7 @@ type OptionGroup = {
 }
 
 function groupItems(
-  items: ReturnType<typeof useRefinementList>["items"]
+  items: ReturnType<typeof useRefinementList>["items"],
 ): OptionGroup[] {
   const groups = new Map<string, OptionGroup>()
 
@@ -76,7 +76,7 @@ const OptionRefinements = () => {
         setClosedGroups(
           groups
             .map((group) => group.title)
-            .filter((title) => !openTitles.includes(title))
+            .filter((title) => !openTitles.includes(title)),
         )
       }
       className="flex flex-col gap-y-3 pr-6"
@@ -84,7 +84,7 @@ const OptionRefinements = () => {
       {groups.map((group) => {
         const isOpen = !closedGroups.includes(group.title)
         const selectedCount = group.values.filter(
-          (value) => value.isRefined
+          (value) => value.isRefined,
         ).length
 
         return (
@@ -106,7 +106,7 @@ const OptionRefinements = () => {
                 <span
                   className={clsx(
                     "flex h-7 w-7 items-center justify-center text-ui-fg-muted transition-transform duration-150",
-                    { "rotate-180": isOpen }
+                    { "rotate-180": isOpen },
                   )}
                 >
                   <ChevronDownMini />
@@ -127,7 +127,7 @@ const OptionRefinements = () => {
                           value.isRefined,
                         "text-ui-fg-muted hover:text-ui-fg-base":
                           !value.isRefined,
-                      }
+                      },
                     )}
                     data-testid="option-refinement"
                   >

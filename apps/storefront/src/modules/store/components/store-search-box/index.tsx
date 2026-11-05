@@ -19,7 +19,7 @@ const StoreSearchBox = () => {
       window.clearTimeout(timer.current)
       timer.current = window.setTimeout(() => search(nextQuery), DEBOUNCE_MS)
     },
-    []
+    [],
   )
 
   const { query, refine } = useSearchBox({ queryHook })

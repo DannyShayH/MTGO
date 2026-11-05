@@ -7,7 +7,11 @@ type SearchFormProps = {
 }
 
 /** Plain GET form so search works without JavaScript and for browser agents. */
-const SearchForm = ({ countryCode, defaultValue, className }: SearchFormProps) => (
+const SearchForm = ({
+  countryCode,
+  defaultValue,
+  className,
+}: SearchFormProps) => (
   <form
     role="search"
     method="get"

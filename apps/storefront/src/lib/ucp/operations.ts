@@ -31,29 +31,45 @@ const IDEMPOTENCY_TTL_MS = 10 * 60 * 1000
 const CANCELED_KEY = "ucp_canceled"
 
 const asObject = (value: unknown): Input =>
-  value && typeof value === "object" && !Array.isArray(value) ? (value as Input) : {}
+  value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Input)
+    : {}
 
 const asString = (value: unknown) =>
   typeof value === "string" && value.trim() ? value.trim() : undefined
 
-const contextCountry = (input: Input) => asString(asObject(input.context).address_country)
+const contextCountry = (input: Input) =>
+  asString(asObject(input.context).address_country)
 
 const unsupportedCountry = (name: Parameters<typeof ucpError>[0]) =>
-  ucpError(name, 400, "unsupported_country", "This store doesn't sell to that country")
+  ucpError(
+    name,
+    400,
+    "unsupported_country",
+    "This store doesn't sell to that country",
+  )
 
 const invalidLineItems = (name: Parameters<typeof ucpError>[0]) =>
   ucpError(
     name,
     400,
     "invalid_request",
-    "line_items must be an array of { item: { id }, quantity } with quantity 1-100"
+    "line_items must be an array of { item: { id }, quantity } with quantity 1-100",
   )
 
 const itemUnavailable = (name: Parameters<typeof ucpError>[0]) =>
-  ucpError(name, 422, "item_unavailable", "One or more items don't exist or can't be purchased")
+  ucpError(
+    name,
+    422,
+    "item_unavailable",
+    "One or more items don't exist or can't be purchased",
+  )
 
 const MAX_IDEMPOTENCY_ENTRIES = 500
-const idempotentResults = new Map<string, { expiresAt: number; value: Promise<unknown> }>()
+const idempotentResults = new Map<
+  string,
+  { expiresAt: number; value: Promise<unknown> }
+>()
 
 /**
  * Runs `operation` once per idempotency key for 10 minutes. Kept in process
@@ -62,7 +78,7 @@ const idempotentResults = new Map<string, { expiresAt: number; value: Promise<un
 export const withIdempotency = <T>(
   key: string | null | undefined,
   scope: string,
-  operation: () => Promise<T>
+  operation: () => Promise<T>,
 ): Promise<T> => {
   if (!key) {
     return operation()
@@ -85,18 +101,30 @@ export const withIdempotency = <T>(
   }
 
   const value = operation()
-  idempotentResults.set(cacheKey, { expiresAt: now + IDEMPOTENCY_TTL_MS, value })
+  idempotentResults.set(cacheKey, {
+    expiresAt: now + IDEMPOTENCY_TTL_MS,
+    value,
+  })
   value.catch(() => idempotentResults.delete(cacheKey))
   return value
 }
 
 // Catalog
 
-export const searchCatalog = async (request: Request, input: Input): Promise<UcpResult> => {
+export const searchCatalog = async (
+  request: Request,
+  input: Input,
+): Promise<UcpResult> => {
   const query = asString(input.query)?.slice(0, 200)
   const pagination = asObject(input.pagination)
-  const limit = Math.min(Math.max(Number(pagination.limit) || 20, 1), MAX_SEARCH_LIMIT)
-  const offset = Math.max(parseInt(String(pagination.cursor ?? "0"), 10) || 0, 0)
+  const limit = Math.min(
+    Math.max(Number(pagination.limit) || 20, 1),
+    MAX_SEARCH_LIMIT,
+  )
+  const offset = Math.max(
+    parseInt(String(pagination.cursor ?? "0"), 10) || 0,
+    0,
+  )
 
   const resolved = await resolveRegion(contextCountry(input))
   if (!resolved) return unsupportedCountry(CATALOG_SEARCH)
@@ -114,7 +142,11 @@ export const searchCatalog = async (request: Request, input: Input): Promise<Ucp
 
   return ucpResult(CATALOG_SEARCH, {
     products: products.map((product) =>
-      toUcpProduct(product, resolved.region.currency_code, `${base}/${product.handle}`)
+      toUcpProduct(
+        product,
+        resolved.region.currency_code,
+        `${base}/${product.handle}`,
+      ),
     ),
     pagination: {
       has_next_page: nextOffset < count,
@@ -125,16 +157,21 @@ export const searchCatalog = async (request: Request, input: Input): Promise<Ucp
   })
 }
 
-export const lookupCatalog = async (request: Request, input: Input): Promise<UcpResult> => {
+export const lookupCatalog = async (
+  request: Request,
+  input: Input,
+): Promise<UcpResult> => {
   const ids = Array.isArray(input.ids)
-    ? input.ids.filter((id): id is string => typeof id === "string" && id.length > 0)
+    ? input.ids.filter(
+        (id): id is string => typeof id === "string" && id.length > 0,
+      )
     : []
   if (!ids.length || ids.length > MAX_LOOKUP_IDS) {
     return ucpError(
       CATALOG_LOOKUP,
       400,
       "invalid_request",
-      `"ids" must contain 1-${MAX_LOOKUP_IDS} identifiers`
+      `"ids" must contain 1-${MAX_LOOKUP_IDS} identifiers`,
     )
   }
 
@@ -142,22 +179,44 @@ export const lookupCatalog = async (request: Request, input: Input): Promise<Ucp
   if (!resolved) return unsupportedCountry(CATALOG_LOOKUP)
 
   const variantIds = ids.filter((id) => id.startsWith("variant_"))
-  const handles = ids.filter((id) => !id.startsWith("prod_") && !id.startsWith("variant_"))
+  const handles = ids.filter(
+    (id) => !id.startsWith("prod_") && !id.startsWith("variant_"),
+  )
   const variantProductIds = variantIds.length
     ? await sdk.client
-        .fetch<{ variants: { product_id?: string | null }[] }>("/store/product-variants", {
-          query: { id: variantIds, fields: "id,product_id", limit: MAX_LOOKUP_IDS },
-        })
-        .then(({ variants }) => variants.map((v) => v.product_id).filter((id): id is string => !!id))
+        .fetch<{ variants: { product_id?: string | null }[] }>(
+          "/store/product-variants",
+          {
+            query: {
+              id: variantIds,
+              fields: "id,product_id",
+              limit: MAX_LOOKUP_IDS,
+            },
+          },
+        )
+        .then(({ variants }) =>
+          variants.map((v) => v.product_id).filter((id): id is string => !!id),
+        )
     : []
   const productIds = Array.from(
-    new Set([...ids.filter((id) => id.startsWith("prod_")), ...variantProductIds])
+    new Set([
+      ...ids.filter((id) => id.startsWith("prod_")),
+      ...variantProductIds,
+    ]),
   )
-  const common = { region_id: resolved.region.id, fields: UCP_PRODUCT_FIELDS, limit: MAX_LOOKUP_IDS }
+  const common = {
+    region_id: resolved.region.id,
+    fields: UCP_PRODUCT_FIELDS,
+    limit: MAX_LOOKUP_IDS,
+  }
 
   const results = await Promise.all([
-    productIds.length ? sdk.store.product.list({ ...common, id: productIds }) : null,
-    handles.length ? sdk.store.product.list({ ...common, handle: handles }) : null,
+    productIds.length
+      ? sdk.store.product.list({ ...common, id: productIds })
+      : null,
+    handles.length
+      ? sdk.store.product.list({ ...common, handle: handles })
+      : null,
   ])
 
   const products = new Map<string, HttpTypes.StoreProduct>()
@@ -176,7 +235,11 @@ export const lookupCatalog = async (request: Request, input: Input): Promise<Ucp
 
   return ucpResult(CATALOG_LOOKUP, {
     products: Array.from(products.values()).map((product) =>
-      toUcpProduct(product, resolved.region.currency_code, `${base}/${product.handle}`)
+      toUcpProduct(
+        product,
+        resolved.region.currency_code,
+        `${base}/${product.handle}`,
+      ),
     ),
     messages: ids
       .filter((id) => !found.has(id))
@@ -192,14 +255,17 @@ export const lookupCatalog = async (request: Request, input: Input): Promise<Ucp
 
 const retrieveCart = async (cartId: string) => {
   try {
-    const { cart } = await sdk.store.cart.retrieve(cartId, { fields: UCP_CART_FIELDS })
+    const { cart } = await sdk.store.cart.retrieve(cartId, {
+      fields: UCP_CART_FIELDS,
+    })
     return cart
   } catch {
     return null
   }
 }
 
-const isCanceled = (cart: HttpTypes.StoreCart) => cart.metadata?.[CANCELED_KEY] === true
+const isCanceled = (cart: HttpTypes.StoreCart) =>
+  cart.metadata?.[CANCELED_KEY] === true
 
 const retrieveOpenCart = async (cartId: string) => {
   const cart = await retrieveCart(cartId)
@@ -208,10 +274,12 @@ const retrieveOpenCart = async (cartId: string) => {
 
 const syncLineItems = async (
   cart: HttpTypes.StoreCart,
-  items: { variant_id: string; quantity: number }[]
+  items: { variant_id: string; quantity: number }[],
 ) => {
   const desired = new Map(items.map((item) => [item.variant_id, item.quantity]))
-  const existing = new Map((cart.items ?? []).map((line) => [line.variant_id, line]))
+  const existing = new Map(
+    (cart.items ?? []).map((line) => [line.variant_id, line]),
+  )
 
   for (const [variantId, line] of Array.from(existing)) {
     const quantity = variantId ? desired.get(variantId) : undefined
@@ -223,7 +291,10 @@ const syncLineItems = async (
   }
   for (const [variantId, quantity] of Array.from(desired)) {
     if (!existing.has(variantId)) {
-      await sdk.store.cart.createLineItem(cart.id, { variant_id: variantId, quantity })
+      await sdk.store.cart.createLineItem(cart.id, {
+        variant_id: variantId,
+        quantity,
+      })
     }
   }
 }
@@ -242,7 +313,7 @@ const cartNotFound = () => ucpError(CART, 404, "not_found", "Cart not found")
 export const createCart = async (
   request: Request,
   input: Input,
-  idempotencyKey?: string | null
+  idempotencyKey?: string | null,
 ): Promise<UcpResult> => {
   const items = parseLineItems(input.line_items ?? [])
   if (!items) return invalidLineItems(CART)
@@ -253,17 +324,22 @@ export const createCart = async (
   let cartId: string
   try {
     cartId = await withIdempotency(idempotencyKey, "cart", () =>
-      createCartWithItems(resolved.region.id, items)
+      createCartWithItems(resolved.region.id, items),
     )
   } catch {
     return itemUnavailable(CART)
   }
 
   const cart = await retrieveCart(cartId)
-  return cart ? ucpResult(CART, toUcpCartBody(request, cart), 201) : cartNotFound()
+  return cart
+    ? ucpResult(CART, toUcpCartBody(request, cart), 201)
+    : cartNotFound()
 }
 
-export const getCart = async (request: Request, cartId: string): Promise<UcpResult> => {
+export const getCart = async (
+  request: Request,
+  cartId: string,
+): Promise<UcpResult> => {
   const cart = await retrieveOpenCart(cartId)
   return cart ? ucpResult(CART, toUcpCartBody(request, cart)) : cartNotFound()
 }
@@ -271,7 +347,7 @@ export const getCart = async (request: Request, cartId: string): Promise<UcpResu
 export const updateCart = async (
   request: Request,
   cartId: string,
-  input: Input
+  input: Input,
 ): Promise<UcpResult> => {
   const items = parseLineItems(input.line_items)
   if (!items) return invalidLineItems(CART)
@@ -286,14 +362,21 @@ export const updateCart = async (
   }
 
   const updated = await retrieveCart(cart.id)
-  return updated ? ucpResult(CART, toUcpCartBody(request, updated)) : cartNotFound()
+  return updated
+    ? ucpResult(CART, toUcpCartBody(request, updated))
+    : cartNotFound()
 }
 
-export const cancelCart = async (request: Request, cartId: string): Promise<UcpResult> => {
+export const cancelCart = async (
+  request: Request,
+  cartId: string,
+): Promise<UcpResult> => {
   const cart = await retrieveOpenCart(cartId)
   if (!cart) return cartNotFound()
 
-  await sdk.store.cart.update(cart.id, { metadata: { ...cart.metadata, [CANCELED_KEY]: true } })
+  await sdk.store.cart.update(cart.id, {
+    metadata: { ...cart.metadata, [CANCELED_KEY]: true },
+  })
   return ucpResult(CART, {
     ...toUcpCartBody(request, cart),
     continue_url: undefined,
@@ -305,14 +388,15 @@ export const cancelCart = async (request: Request, cartId: string): Promise<UcpR
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-const firstItem = (value: unknown) => asObject(Array.isArray(value) ? value[0] : undefined)
+const firstItem = (value: unknown) =>
+  asObject(Array.isArray(value) ? value[0] : undefined)
 
 const firstDestination = (input: Input) =>
   firstItem(firstItem(asObject(input.fulfillment).methods).destinations)
 
 const applyCheckoutDetails = async (
   cart: HttpTypes.StoreCart,
-  input: Input
+  input: Input,
 ): Promise<UcpResult | null> => {
   const buyer = asObject(input.buyer)
   const destination = firstDestination(input)
@@ -322,23 +406,33 @@ const applyCheckoutDetails = async (
   const email = asString(buyer.email)
   if (email) {
     if (!EMAIL_PATTERN.test(email)) {
-      return ucpError(CHECKOUT, 400, "invalid_email", "buyer.email is not a valid email address")
+      return ucpError(
+        CHECKOUT,
+        400,
+        "invalid_email",
+        "buyer.email is not a valid email address",
+      )
     }
     update.email = email
   }
 
   const countryCode = asString(destination.address_country)?.toLowerCase()
   if (countryCode) {
-    const inCartRegion = cart.region?.countries?.some((c) => c.iso_2 === countryCode)
+    const inCartRegion = cart.region?.countries?.some(
+      (c) => c.iso_2 === countryCode,
+    )
     if (!inCartRegion) {
       const regions = await listRegions()
-      const region = regions.find((r) => r.countries?.some((c) => c.iso_2 === countryCode))
+      const region = regions.find((r) =>
+        r.countries?.some((c) => c.iso_2 === countryCode),
+      )
       if (!region) return unsupportedCountry(CHECKOUT)
       update.region_id = region.id
     }
 
     update.shipping_address = {
-      first_name: asString(destination.first_name) ?? asString(buyer.first_name),
+      first_name:
+        asString(destination.first_name) ?? asString(buyer.first_name),
       last_name: asString(destination.last_name) ?? asString(buyer.last_name),
       address_1: asString(destination.street_address),
       address_2: asString(destination.extended_address),
@@ -360,21 +454,29 @@ const applyCheckoutDetails = async (
 // cart returns its existing order (the Store API cart route doesn't expose it).
 const findOrder = async (cartId: string) => {
   try {
-    const result = await sdk.store.cart.complete(cartId, { fields: "id,display_id" })
+    const result = await sdk.store.cart.complete(cartId, {
+      fields: "id,display_id",
+    })
     return result.type === "order" ? result.order : null
   } catch {
     return null
   }
 }
 
-const toUcpCheckoutBody = async (request: Request, cart: HttpTypes.StoreCart) => {
+const toUcpCheckoutBody = async (
+  request: Request,
+  cart: HttpTypes.StoreCart,
+) => {
   const origin = getRequestOrigin(request)
   const countryCode = cartCountryCode(cart)
   const base = `${origin}/${countryCode}`
   const address = cart.shipping_address
 
   const missing = [
-    !cart.email && { path: "$.buyer.email", content: "Buyer email is required" },
+    !cart.email && {
+      path: "$.buyer.email",
+      content: "Buyer email is required",
+    },
     !address?.address_1 && {
       path: "$.fulfillment.methods[0].destinations[0]",
       content: "A shipping destination is required",
@@ -450,12 +552,13 @@ const toUcpCheckoutBody = async (request: Request, cart: HttpTypes.StoreCart) =>
   }
 }
 
-const checkoutNotFound = () => ucpError(CHECKOUT, 404, "not_found", "Checkout session not found")
+const checkoutNotFound = () =>
+  ucpError(CHECKOUT, 404, "not_found", "Checkout session not found")
 
 export const createCheckout = async (
   request: Request,
   input: Input,
-  idempotencyKey?: string | null
+  idempotencyKey?: string | null,
 ): Promise<UcpResult> => {
   const destinationCountry = asString(firstDestination(input).address_country)
 
@@ -468,12 +571,14 @@ export const createCheckout = async (
     const items = parseLineItems(input.line_items)
     if (!items?.length) return invalidLineItems(CHECKOUT)
 
-    const resolved = await resolveRegion(destinationCountry ?? contextCountry(input))
+    const resolved = await resolveRegion(
+      destinationCountry ?? contextCountry(input),
+    )
     if (!resolved) return unsupportedCountry(CHECKOUT)
 
     try {
       cartId = await withIdempotency(idempotencyKey, "checkout", () =>
-        createCartWithItems(resolved.region.id, items)
+        createCartWithItems(resolved.region.id, items),
       )
     } catch {
       return itemUnavailable(CHECKOUT)
@@ -492,15 +597,20 @@ export const createCheckout = async (
     : checkoutNotFound()
 }
 
-export const getCheckout = async (request: Request, id: string): Promise<UcpResult> => {
+export const getCheckout = async (
+  request: Request,
+  id: string,
+): Promise<UcpResult> => {
   const cart = await retrieveCart(id)
-  return cart ? ucpResult(CHECKOUT, await toUcpCheckoutBody(request, cart)) : checkoutNotFound()
+  return cart
+    ? ucpResult(CHECKOUT, await toUcpCheckoutBody(request, cart))
+    : checkoutNotFound()
 }
 
 export const updateCheckout = async (
   request: Request,
   id: string,
-  input: Input
+  input: Input,
 ): Promise<UcpResult> => {
   const cart = await retrieveOpenCart(id)
   if (!cart) return checkoutNotFound()
@@ -528,17 +638,28 @@ export const updateCheckout = async (
  * Payment can't be taken through the API, so completing an open session
  * returns it unchanged with `requires_escalation` and a `continue_url`.
  */
-export const completeCheckout = (request: Request, id: string) => getCheckout(request, id)
+export const completeCheckout = (request: Request, id: string) =>
+  getCheckout(request, id)
 
-export const cancelCheckout = async (request: Request, id: string): Promise<UcpResult> => {
+export const cancelCheckout = async (
+  request: Request,
+  id: string,
+): Promise<UcpResult> => {
   const cart = await retrieveCart(id)
   if (!cart) return checkoutNotFound()
   if (cart.completed_at) {
-    return ucpError(CHECKOUT, 409, "already_completed", "This checkout has already been completed")
+    return ucpError(
+      CHECKOUT,
+      409,
+      "already_completed",
+      "This checkout has already been completed",
+    )
   }
 
   if (!isCanceled(cart)) {
-    await sdk.store.cart.update(cart.id, { metadata: { ...cart.metadata, [CANCELED_KEY]: true } })
+    await sdk.store.cart.update(cart.id, {
+      metadata: { ...cart.metadata, [CANCELED_KEY]: true },
+    })
   }
   const updated = await retrieveCart(cart.id)
   return updated

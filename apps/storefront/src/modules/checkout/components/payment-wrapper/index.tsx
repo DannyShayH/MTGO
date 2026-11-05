@@ -27,7 +27,7 @@ const getStripePromise = (key: string, stripeAccount?: string) => {
   if (!stripePromises.has(cacheKey)) {
     stripePromises.set(
       cacheKey,
-      loadStripe(key, stripeAccount ? { stripeAccount } : undefined)
+      loadStripe(key, stripeAccount ? { stripeAccount } : undefined),
     )
   }
   return stripePromises.get(cacheKey)!
@@ -35,7 +35,7 @@ const getStripePromise = (key: string, stripeAccount?: string) => {
 
 const PaymentWrapper: React.FC<PaymentWrapperProps> = ({ cart, children }) => {
   const paymentSession = cart.payment_collection?.payment_sessions?.find(
-    (s) => s.status === "pending"
+    (s) => s.status === "pending",
   )
 
   if (paymentSession && isStripeLike(paymentSession.provider_id)) {

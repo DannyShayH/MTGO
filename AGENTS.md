@@ -13,23 +13,23 @@ Medusa DTC Starter — a Turborepo workspace monorepo containing a Medusa backen
 
 ## Where to Look
 
-| Task | Location | Read first |
-| --- | --- | --- |
-| Store/admin API route | `apps/backend/src/api/{store,admin}/<path>/route.ts` | `@medusajs/framework` (`/http`), `@medusajs/medusa` |
-| Middleware, auth, body validation | `apps/backend/src/api/middlewares.ts` | `@medusajs/framework` (`/http`) |
-| Business logic | `apps/backend/src/workflows/` | `@medusajs/framework` (`/workflows-sdk`), `@medusajs/core-flows` |
-| Reuse a built-in flow (create cart, product, order...) | import from `@medusajs/medusa/core-flows` | `@medusajs/core-flows` |
-| Custom data model + service | `apps/backend/src/modules/<name>/` | `@medusajs/framework` (`/utils`) |
-| Extend a commerce module (product, cart, order...) | `apps/backend/src/links/` | `@medusajs/<module>` (e.g. `@medusajs/product`) |
-| Events / cron | `apps/backend/src/subscribers/`, `apps/backend/src/jobs/` | `@medusajs/framework` |
-| Product search index | `apps/backend/src/search/` | `@medusajs/framework` (`/types` `SearchTypes`) |
-| One-off scripts | `apps/backend/src/scripts/` (run with `medusa exec`) | `@medusajs/cli` |
-| Admin widgets / pages | `apps/backend/src/admin/` | `@medusajs/admin-sdk`, `@medusajs/ui`, `@medusajs/icons` |
-| Module/plugin config | `apps/backend/medusa-config.ts` | `@medusajs/framework` |
-| Tests | `apps/backend/integration-tests/`, `src/**/__tests__/` | `@medusajs/test-utils` |
-| Storefront API calls | `apps/storefront/src/lib/data/` | `@medusajs/js-sdk`, `@medusajs/types` (`HttpTypes`) |
-| Storefront UI | `apps/storefront/src/modules/<feature>/`, routes in `src/app/` | `@medusajs/ui` |
-| Lint failure | the flagged file | `@medusajs/eslint-plugin` |
+| Task                                                   | Location                                                       | Read first                                                       |
+| ------------------------------------------------------ | -------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Store/admin API route                                  | `apps/backend/src/api/{store,admin}/<path>/route.ts`           | `@medusajs/framework` (`/http`), `@medusajs/medusa`              |
+| Middleware, auth, body validation                      | `apps/backend/src/api/middlewares.ts`                          | `@medusajs/framework` (`/http`)                                  |
+| Business logic                                         | `apps/backend/src/workflows/`                                  | `@medusajs/framework` (`/workflows-sdk`), `@medusajs/core-flows` |
+| Reuse a built-in flow (create cart, product, order...) | import from `@medusajs/medusa/core-flows`                      | `@medusajs/core-flows`                                           |
+| Custom data model + service                            | `apps/backend/src/modules/<name>/`                             | `@medusajs/framework` (`/utils`)                                 |
+| Extend a commerce module (product, cart, order...)     | `apps/backend/src/links/`                                      | `@medusajs/<module>` (e.g. `@medusajs/product`)                  |
+| Events / cron                                          | `apps/backend/src/subscribers/`, `apps/backend/src/jobs/`      | `@medusajs/framework`                                            |
+| Product search index                                   | `apps/backend/src/search/`                                     | `@medusajs/framework` (`/types` `SearchTypes`)                   |
+| One-off scripts                                        | `apps/backend/src/scripts/` (run with `medusa exec`)           | `@medusajs/cli`                                                  |
+| Admin widgets / pages                                  | `apps/backend/src/admin/`                                      | `@medusajs/admin-sdk`, `@medusajs/ui`, `@medusajs/icons`         |
+| Module/plugin config                                   | `apps/backend/medusa-config.ts`                                | `@medusajs/framework`                                            |
+| Tests                                                  | `apps/backend/integration-tests/`, `src/**/__tests__/`         | `@medusajs/test-utils`                                           |
+| Storefront API calls                                   | `apps/storefront/src/lib/data/`                                | `@medusajs/js-sdk`, `@medusajs/types` (`HttpTypes`)              |
+| Storefront UI                                          | `apps/storefront/src/modules/<feature>/`, routes in `src/app/` | `@medusajs/ui`                                                   |
+| Lint failure                                           | the flagged file                                               | `@medusajs/eslint-plugin`                                        |
 
 ## Directory Structure
 
@@ -153,18 +153,18 @@ find node_modules -maxdepth 6 -path "*/@medusajs/product/AGENTS.md" 2>/dev/null 
 
 Most useful for this project:
 
-| Package | Read it for |
-| --- | --- |
-| `@medusajs/framework` | Import subpaths (`/utils`, `/types`, `/http`, `/workflows-sdk`, `/zod`...), `medusa-config.ts`, `model`, `MedusaService`, `defineLink` |
-| `@medusajs/medusa` | Built-in API routes, core subscribers, module re-exports (`@medusajs/medusa/<module>`, `/core-flows`) |
-| `@medusajs/core-flows` | Prebuilt workflows/steps and their hooks — reuse these instead of calling module services directly |
-| `@medusajs/<module>` (`product`, `cart`, `order`, `pricing`, `inventory`, `payment`, `fulfillment`, ...) | That commerce module's data models, service methods, and gotchas |
-| `@medusajs/admin-sdk`, `@medusajs/ui`, `@medusajs/icons` | Admin widgets/routes and UI components |
-| `@medusajs/js-sdk`, `@medusajs/types` | Storefront client config, store/auth namespaces, `HttpTypes` |
-| `@medusajs/test-utils` | `medusaIntegrationTestRunner`, `moduleIntegrationTestRunner` |
-| `@medusajs/eslint-plugin` | What each `@medusajs/*` lint rule enforces and how to fix it |
-| `@medusajs/cli` | `medusa` commands (`db:*`, `exec`, `user`, `build`) |
-| `@medusajs/draft-order` | The draft order plugin used by this backend |
+| Package                                                                                                  | Read it for                                                                                                                            |
+| -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `@medusajs/framework`                                                                                    | Import subpaths (`/utils`, `/types`, `/http`, `/workflows-sdk`, `/zod`...), `medusa-config.ts`, `model`, `MedusaService`, `defineLink` |
+| `@medusajs/medusa`                                                                                       | Built-in API routes, core subscribers, module re-exports (`@medusajs/medusa/<module>`, `/core-flows`)                                  |
+| `@medusajs/core-flows`                                                                                   | Prebuilt workflows/steps and their hooks — reuse these instead of calling module services directly                                     |
+| `@medusajs/<module>` (`product`, `cart`, `order`, `pricing`, `inventory`, `payment`, `fulfillment`, ...) | That commerce module's data models, service methods, and gotchas                                                                       |
+| `@medusajs/admin-sdk`, `@medusajs/ui`, `@medusajs/icons`                                                 | Admin widgets/routes and UI components                                                                                                 |
+| `@medusajs/js-sdk`, `@medusajs/types`                                                                    | Storefront client config, store/auth namespaces, `HttpTypes`                                                                           |
+| `@medusajs/test-utils`                                                                                   | `medusaIntegrationTestRunner`, `moduleIntegrationTestRunner`                                                                           |
+| `@medusajs/eslint-plugin`                                                                                | What each `@medusajs/*` lint rule enforces and how to fix it                                                                           |
+| `@medusajs/cli`                                                                                          | `medusa` commands (`db:*`, `exec`, `user`, `build`)                                                                                    |
+| `@medusajs/draft-order`                                                                                  | The draft order plugin used by this backend                                                                                            |
 
 Don't import from `@medusajs/utils`, `@medusajs/workflows-sdk`, etc. directly in the backend; use the `@medusajs/framework/*` subpaths.
 
@@ -172,7 +172,7 @@ Don't import from `@medusajs/utils`, `@medusajs/workflows-sdk`, etc. directly in
 
 These are optional but strongly recommended — they give documentation-backed answers instead of guesses about Medusa APIs. **Use them when available; if they are not, mention to the user that installing them meaningfully improves development on this project.**
 
-**Agentic skills** ([docs](https://docs.medusajs.com/learn/introduction/build-with-llms-ai/agentic-skills)) — if the `medusa-dev` skills are listed as available, load them *before* writing code, not after:
+**Agentic skills** ([docs](https://docs.medusajs.com/learn/introduction/build-with-llms-ai/agentic-skills)) — if the `medusa-dev` skills are listed as available, load them _before_ writing code, not after:
 
 - `building-with-medusa` — any backend work: modules, API routes, workflows, data models, module links
 - `building-admin-dashboard-customizations` — anything under `apps/backend/src/admin`
@@ -210,7 +210,7 @@ claude mcp add --transport http medusa-cloud https://cloud.medusajs.com/mcp # or
 
 This repo uses the TakT trunk-based workflow ([mindovermachine-dev/how-we-work](https://github.com/mindovermachine-dev/how-we-work)) with a Kanban board in GitHub Projects. These rules apply to every AI agent (Claude, Copilot, Codex, Cursor, ...).
 
-- **The developer owns the board and the flow.** Humans move issues to Ready, start work with `gh workon <issue>` and deliver with `gh deliver`. Never run `gh workon`, `gh wrapup` or `gh deliver` yourself, and never move board items.
+- **The developer owns the board and the flow.** Humans move issues to Ready, start work with `gh workon -i <issue-number>` and deliver with `gh deliver`. Never run `gh workon`, `gh wrapup` or `gh deliver` yourself, and never move board items.
 - **Work only on the current issue branch** (`<issue-number>-<title>`, created by `gh workon`). Never create, rename or switch branches, and never commit to `main`. Only the ready flow (`.github/workflows/on_ready.yml`) merges to `main`.
 - **One issue at a time.** Keep changes within the scope of the current issue. Do not run several agents in parallel on the same branch.
 - **After editing files, run `gh insitu run fix-all`.** AI edits bypass editor format-on-save. The pre-commit hook runs `gh insitu run trunk-worthy` (cspell, markdownlint, prettier). If it fails, fix the cause. Never bypass it with `--no-verify`.
@@ -223,6 +223,7 @@ This repo uses the TakT trunk-based workflow ([mindovermachine-dev/how-we-work](
 
 AI agents are not contributors on GitHub for this repo and must never push (no `git push`, no opening PRs). Only the working developer does that. Commits authored while pair-programming with an AI agent are attributed to the working developer: use the developer's own name and email (already set in the local git config) as the commit author, and do not add a `Co-Authored-By: Claude` (or similar) trailer to commit messages.
 
+- Do not stage changes yourself (`git add`, `git rm --cached`). When something is staged, `gh wrapup` commits only the staged changes and leaves the rest behind. When nothing is staged, it commits everything.
 - Reference the issue number in commit messages, for example `Add commission calculation (#12)`. `gh deliver` squashes the branch into one commit on `main` that resolves the issue.
 - Never rewrite history that the developer has not asked you to rewrite (no `git rebase`, `git reset --hard` or `git commit --amend` on your own initiative).
 

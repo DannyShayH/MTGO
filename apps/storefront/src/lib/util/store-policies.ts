@@ -20,7 +20,7 @@ const toNumber = (value: unknown) => {
  * data instead of publishing guesses.
  */
 export const getRegionPolicies = (
-  region: Pick<HttpTypes.StoreRegion, "metadata"> | null | undefined
+  region: Pick<HttpTypes.StoreRegion, "metadata"> | null | undefined,
 ): StorePolicies | null => {
   const metadata = region?.metadata ?? {}
   const values = {
@@ -55,7 +55,7 @@ const businessDays = (range: { min: number; max: number }) => ({
 export const buildShippingDetails = (
   policies: StorePolicies,
   countryCode: string,
-  currencyCode: string
+  currencyCode: string,
 ) => ({
   "@type": "OfferShippingDetails",
   shippingRate: {
@@ -76,7 +76,7 @@ export const buildShippingDetails = (
 
 export const buildReturnPolicy = (
   policies: StorePolicies,
-  countryCode: string
+  countryCode: string,
 ) => ({
   "@type": "MerchantReturnPolicy",
   applicableCountry: countryCode.toUpperCase(),

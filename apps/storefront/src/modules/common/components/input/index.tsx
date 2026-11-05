@@ -16,7 +16,10 @@ type InputProps = Omit<
 }
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ type, name, label, touched: _touched, required, topLabel, ...props }, ref) => {
+  (
+    { type, name, label, touched: _touched, required, topLabel, ...props },
+    ref,
+  ) => {
     const inputRef = React.useRef<HTMLInputElement>(null)
     const [showPassword, setShowPassword] = useState(false)
     const [inputType, setInputType] = useState(type)
@@ -68,7 +71,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         </div>
       </div>
     )
-  }
+  },
 )
 
 Input.displayName = "Input"

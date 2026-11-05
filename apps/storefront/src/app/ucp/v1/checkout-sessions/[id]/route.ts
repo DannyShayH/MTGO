@@ -8,5 +8,9 @@ export const GET = async (request: Request, { params }: Context) =>
 
 export const PUT = async (request: Request, { params }: Context) =>
   toResponse(
-    await updateCheckout(request, (await params).id, (await readJsonBody(request)) ?? {})
+    await updateCheckout(
+      request,
+      (await params).id,
+      (await readJsonBody(request)) ?? {},
+    ),
   )

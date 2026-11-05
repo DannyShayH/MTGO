@@ -13,7 +13,7 @@ import { defineLink } from "@medusajs/framework/utils"
 
 export default defineLink(
   ProductModule.linkable.product,
-  BlogModule.linkable.post
+  BlogModule.linkable.post,
 )
 ```
 

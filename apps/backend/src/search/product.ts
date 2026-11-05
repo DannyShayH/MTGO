@@ -1,14 +1,14 @@
-import type { SearchTypes } from "@medusajs/framework/types";
+import type { SearchTypes } from "@medusajs/framework/types"
 import {
   defineSearchIndex,
   graphConsume,
   graphSeed,
   search,
-} from "@medusajs/framework/utils";
+} from "@medusajs/framework/utils"
 
-import { ProductOptionRow, toOptionValues } from "./helpers/option-values";
-import { loadPricing, priceFields, toProductPricing } from "./helpers/pricing";
-import { resolveProductIds } from "./helpers/resolve-product-ids";
+import { ProductOptionRow, toOptionValues } from "./helpers/option-values"
+import { loadPricing, priceFields, toProductPricing } from "./helpers/pricing"
+import { resolveProductIds } from "./helpers/resolve-product-ids"
 
 const PRODUCT_GRAPH_FIELDS = [
   "id",
@@ -23,22 +23,22 @@ const PRODUCT_GRAPH_FIELDS = [
   "tags.value",
   "options.title",
   "options.values.value",
-];
+]
 
 type ProductRow = {
-  id: string;
-  title?: string | null;
-  description?: string | null;
-  handle?: string | null;
-  thumbnail?: string | null;
-  status?: string | null;
-  created_at?: string | Date | null;
-  deleted_at?: string | Date | null;
-  sales_channels?: ({ id?: string | null } | null)[] | null;
-  categories?: ({ name?: string | null } | null)[] | null;
-  tags?: ({ value?: string | null } | null)[] | null;
-  options?: ProductOptionRow[] | null;
-};
+  id: string
+  title?: string | null
+  description?: string | null
+  handle?: string | null
+  thumbnail?: string | null
+  status?: string | null
+  created_at?: string | Date | null
+  deleted_at?: string | Date | null
+  sales_channels?: ({ id?: string | null } | null)[] | null
+  categories?: ({ name?: string | null } | null)[] | null
+  tags?: ({ value?: string | null } | null)[] | null
+  options?: ProductOptionRow[] | null
+}
 
 const productFields = search.define({
   id: search.keyword().filterable().retrievable(),
@@ -61,11 +61,9 @@ const productFields = search.define({
     .facetable()
     .retrievable(),
   ...priceFields,
-});
+})
 
-type ProductDocument = SearchTypes.InferSearchDocumentType<
-  typeof productFields
->;
+type ProductDocument = SearchTypes.InferSearchDocumentType<typeof productFields>
 
 function toDocument(
   product: ProductRow,
@@ -73,13 +71,13 @@ function toDocument(
 ): ProductDocument {
   const category = (product.categories ?? [])
     .map((productCategory) => productCategory?.name?.trim())
-    .filter((name): name is string => Boolean(name));
+    .filter((name): name is string => Boolean(name))
   const labels = (product.tags ?? [])
     .map((tag) => tag?.value?.trim())
-    .filter((value): value is string => Boolean(value));
+    .filter((value): value is string => Boolean(value))
   const salesChannelIds = (product.sales_channels ?? [])
     .map((salesChannel) => salesChannel?.id?.trim())
-    .filter((id): id is string => Boolean(id));
+    .filter((id): id is string => Boolean(id))
 
   return {
     id: product.id,
@@ -94,7 +92,7 @@ function toDocument(
     labels,
     option_values: toOptionValues(product.options),
     ...toProductPricing(pricing),
-  };
+  }
 }
 
 /**
@@ -111,11 +109,11 @@ const source = {
     const pricing = await loadPricing(
       rows.map((row) => row.id),
       context,
-    );
+    )
 
-    return rows.map((row) => toDocument(row, pricing.get(row.id)));
+    return rows.map((row) => toDocument(row, pricing.get(row.id)))
   },
-};
+}
 
 /**
  * Everything a document is built from, so a change to any of it re-indexes the
@@ -145,7 +143,7 @@ const PRODUCT_EVENTS = [
   "product-category.updated",
   "product-category.deleted",
   "sales-channel.deleted",
-];
+]
 
 export default defineSearchIndex({
   name: "product",
@@ -162,4 +160,4 @@ export default defineSearchIndex({
     is_delete: (event) => event.name === "product.deleted",
   }),
   seed: graphSeed<typeof productFields, ProductRow>(source),
-});
+})

@@ -22,7 +22,7 @@ type ProductActionsProps = {
 }
 
 const optionsAsKeymap = (
-  variantOptions: HttpTypes.StoreProductVariant["options"]
+  variantOptions: HttpTypes.StoreProductVariant["options"],
 ) => {
   return variantOptions?.reduce((acc: Record<string, string>, varopt) => {
     if (varopt.option_id) acc[varopt.option_id] = varopt.value
@@ -42,7 +42,7 @@ export default function ProductActions({
   // Preselected on the server so the form posts a valid variant without JavaScript.
   // The page is statically rendered, so `?v_id=` is applied after hydration.
   const [options, setOptions] = useState<Record<string, string | undefined>>(
-    () => optionsAsKeymap(getDefaultVariant(product)?.options ?? null) ?? {}
+    () => optionsAsKeymap(getDefaultVariant(product)?.options ?? null) ?? {},
   )
   const [isUrlVariantApplied, setIsUrlVariantApplied] = useState(false)
   const [isAdding, setIsAdding] = useState(false)
@@ -107,7 +107,7 @@ export default function ProductActions({
 
   const inStock = useMemo(
     () => isVariantInStock(selectedVariant),
-    [selectedVariant]
+    [selectedVariant],
   )
 
   const actionsRef = useRef<HTMLDivElement>(null)
@@ -153,7 +153,7 @@ export default function ProductActions({
           <input
             type="hidden"
             name="variant_id"
-            value={isValidVariant ? selectedVariant?.id ?? "" : ""}
+            value={isValidVariant ? (selectedVariant?.id ?? "") : ""}
           />
           <input type="hidden" name="quantity" value="1" />
           <div>
@@ -207,8 +207,8 @@ export default function ProductActions({
             {!selectedVariant
               ? "Select variant"
               : !inStock || !isValidVariant
-              ? "Out of stock"
-              : "Add to cart"}
+                ? "Out of stock"
+                : "Add to cart"}
           </Button>
         </form>
         <MobileActions

@@ -3,12 +3,15 @@ import { activateCart } from "@lib/util/server-cart"
 import { getRequestOrigin } from "@lib/util/site"
 import { NextResponse } from "next/server"
 
-const NO_STORE = { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" }
+const NO_STORE = {
+  "Cache-Control": "no-store",
+  "Referrer-Policy": "no-referrer",
+}
 
 /** UCP checkout `continue_url`: hands an agent-built cart to the buyer for payment. */
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ countryCode: string; cartId: string }> }
+  { params }: { params: Promise<{ countryCode: string; cartId: string }> },
 ) {
   const { countryCode, cartId } = await params
 
@@ -30,6 +33,6 @@ export async function GET(
 
   return NextResponse.redirect(
     `${getRequestOrigin(request)}/${countryCode}/checkout`,
-    { status: 303, headers: NO_STORE }
+    { status: 303, headers: NO_STORE },
   )
 }

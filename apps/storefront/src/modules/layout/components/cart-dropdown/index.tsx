@@ -31,7 +31,7 @@ const CartDropdown = ({
   const [clientCart, setClientCart] = useState<HttpTypes.StoreCart | null>(null)
   const cartState = serverCart ?? clientCart
   const [activeTimer, setActiveTimer] = useState<NodeJS.Timer | undefined>(
-    undefined
+    undefined,
   )
   const [cartDropdownOpen, setCartDropdownOpen] = useState(false)
 

@@ -17,8 +17,8 @@ export default function TermsPage() {
       <PlaceholderNotice />
       <p>
         By placing an order with {STORE_NAME} you agree to these terms. Prices,
-        product availability and shipping options are shown on the product
-        pages and at checkout, and may change without notice.
+        product availability and shipping options are shown on the product pages
+        and at checkout, and may change without notice.
       </p>
       <p>
         Orders are confirmed by email once payment is received. Returns and

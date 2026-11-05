@@ -97,7 +97,7 @@ const StoreHits = ({ hitsPerPage, currencyCode }: StoreHitsProps) => {
                   </div>
                 </LocalizedClientLink>
               </li>
-            ) : null
+            ) : null,
           )}
         </ul>
       )}

@@ -14,7 +14,7 @@ export const GET = (request: Request) => {
     Object.entries(UCP_CAPABILITIES).map(([name, { spec, schema }]) => [
       name,
       [{ version: UCP_VERSION, spec, schema }],
-    ])
+    ]),
   )
 
   return Response.json(
@@ -58,6 +58,6 @@ export const GET = (request: Request) => {
         "Cache-Control": "public, max-age=300",
         "Access-Control-Allow-Origin": "*",
       },
-    }
+    },
   )
 }

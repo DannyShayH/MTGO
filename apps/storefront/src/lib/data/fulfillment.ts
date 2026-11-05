@@ -24,7 +24,7 @@ export const listCartShippingMethods = async (cartId: string) => {
         headers,
         next,
         cache: "force-cache",
-      }
+      },
     )
     .then(({ shipping_options }) => shipping_options)
     .catch(() => {
@@ -35,7 +35,7 @@ export const listCartShippingMethods = async (cartId: string) => {
 export const calculatePriceForShippingOption = async (
   optionId: string,
   cartId: string,
-  data?: Record<string, unknown>
+  data?: Record<string, unknown>,
 ) => {
   const headers = {
     ...(await getAuthHeaders()),
@@ -59,7 +59,7 @@ export const calculatePriceForShippingOption = async (
         body,
         headers,
         next,
-      }
+      },
     )
     .then(({ shipping_option }) => shipping_option)
     .catch((_e) => {

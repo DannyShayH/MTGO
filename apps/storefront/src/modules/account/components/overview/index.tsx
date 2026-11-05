@@ -155,7 +155,7 @@ const getProfileCompletion = (customer: HttpTypes.StoreCustomer | null) => {
   }
 
   const billingAddress = customer.addresses?.find(
-    (addr) => addr.is_default_billing
+    (addr) => addr.is_default_billing,
   )
 
   if (billingAddress) {

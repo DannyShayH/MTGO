@@ -2,7 +2,9 @@ import { convertToLocale } from "@lib/util/money"
 import { formatDayRange, StorePolicies } from "@lib/util/store-policies"
 
 export const formatShippingRate = (rate: number, currencyCode: string) =>
-  rate === 0 ? "Free" : convertToLocale({ amount: rate, currency_code: currencyCode })
+  rate === 0
+    ? "Free"
+    : convertToLocale({ amount: rate, currency_code: currencyCode })
 
 export const PolicyPage = ({
   title,

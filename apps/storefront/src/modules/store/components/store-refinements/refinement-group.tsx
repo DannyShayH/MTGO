@@ -21,9 +21,7 @@ const RefinementGroup = ({ attribute, title }: RefinementGroupProps) => {
 
   return (
     <div className="flex flex-col gap-y-3">
-      <span className="txt-compact-small-plus text-ui-fg-subtle">
-        {title}
-      </span>
+      <span className="txt-compact-small-plus text-ui-fg-subtle">{title}</span>
       <ul className="flex flex-col gap-y-2 pr-6">
         {items.map((item) => (
           <li key={item.value}>

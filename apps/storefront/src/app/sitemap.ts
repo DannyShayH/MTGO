@@ -32,25 +32,26 @@ type Entry = { handle?: string | null; updated_at?: string | Date | null }
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const query = { fields: "handle,updated_at", limit: PAGE_SIZE }
 
-  const [origin, regions, products, categories, collections] = await Promise.all([
-    getSiteOrigin(),
-    listRegions(),
-    listAll<Entry>((offset) =>
-      sdk.store.product
-        .list({ ...query, offset })
-        .then((res) => ({ items: res.products, count: res.count }))
-    ),
-    listAll<Entry>((offset) =>
-      sdk.store.category
-        .list({ ...query, offset })
-        .then((res) => ({ items: res.product_categories, count: res.count }))
-    ),
-    listAll<Entry>((offset) =>
-      sdk.store.collection
-        .list({ ...query, offset })
-        .then((res) => ({ items: res.collections, count: res.count }))
-    ),
-  ])
+  const [origin, regions, products, categories, collections] =
+    await Promise.all([
+      getSiteOrigin(),
+      listRegions(),
+      listAll<Entry>((offset) =>
+        sdk.store.product
+          .list({ ...query, offset })
+          .then((res) => ({ items: res.products, count: res.count })),
+      ),
+      listAll<Entry>((offset) =>
+        sdk.store.category
+          .list({ ...query, offset })
+          .then((res) => ({ items: res.product_categories, count: res.count })),
+      ),
+      listAll<Entry>((offset) =>
+        sdk.store.collection
+          .list({ ...query, offset })
+          .then((res) => ({ items: res.collections, count: res.count })),
+      ),
+    ])
 
   const toEntries = (base: string, prefix: string, items: Entry[]) =>
     items
