@@ -1,3 +1,7 @@
-# Shell scripts and git hooks run inside the Linux devcontainer and must keep LF line endings
+# Everything is developed inside the Linux devcontainer, so all text files use LF.
+# This also keeps Windows checkouts (core.autocrlf=true) from converting files to CRLF.
+* text=auto eol=lf
+
+# Shell scripts and git hooks must keep LF line endings or they fail to run
 .githooks/* text eol=lf
 *.sh text eol=lf

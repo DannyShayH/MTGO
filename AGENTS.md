@@ -104,6 +104,15 @@ cd apps/backend && <pm> run lint       # medusa lint
 cd apps/storefront && <pm> run lint    # eslint (flat config)
 ```
 
+### Architecture rules
+
+```bash
+<pm> run arch          # dependency-cruiser: rules in .dependency-cruiser.cjs (runs in the pre-commit hook)
+<pm> run arch:graph    # backend dependency graph as Mermaid
+```
+
+The rules enforce: no circular dependencies, no imports between `apps/storefront` and `apps/backend`, custom modules never import each other (use module links and workflows), and the layering Module → Workflow → API route. A violation means the design is wrong: fix the code, never loosen or delete a rule to make it pass.
+
 ### Test (backend only; the storefront has no test suite)
 
 Run the suites from `apps/backend` — it defines no plain `test` script, so the root `<pm> run test` runs nothing there.
@@ -196,6 +205,26 @@ claude mcp add --transport http medusa-cloud https://cloud.medusajs.com/mcp # or
 **Plain-text docs** — without MCP, fetch [`llms.txt`](https://docs.medusajs.com/llms.txt) (index) or append `.md` to any `docs.medusajs.com` page URL for its Markdown.
 
 **Which source to use:** package `AGENTS.md` for the installed API surface → skills for project patterns → MCP/docs for concepts, guides, and upgrades.
+
+## Workflow (TakT + Kanban)
+
+This repo uses the TakT trunk-based workflow ([mindovermachine-dev/how-we-work](https://github.com/mindovermachine-dev/how-we-work)) with a Kanban board in GitHub Projects. These rules apply to every AI agent (Claude, Copilot, Codex, Cursor, ...).
+
+- **The developer owns the board and the flow.** Humans move issues to Ready, start work with `gh workon <issue>` and deliver with `gh deliver`. Never run `gh workon`, `gh wrapup` or `gh deliver` yourself, and never move board items.
+- **Work only on the current issue branch** (`<issue-number>-<title>`, created by `gh workon`). Never create, rename or switch branches, and never commit to `main`. Only the ready flow (`.github/workflows/on_ready.yml`) merges to `main`.
+- **One issue at a time.** Keep changes within the scope of the current issue. Do not run several agents in parallel on the same branch.
+- **After editing files, run `gh insitu run fix-all`.** AI edits bypass editor format-on-save. The pre-commit hook runs `gh insitu run trunk-worthy` (cspell, markdownlint, prettier). If it fails, fix the cause. Never bypass it with `--no-verify`.
+- **Also run the app checks** from [Commands](#commands) that match the change: `<pm> run lint`, and the backend tests for backend changes.
+- **Update documentation in the same issue as the code.** A module's README lives next to the module. Project-wide docs live in the docs site (`apps/docs`, or `docs/` until the site exists).
+- **GitHub Actions workflows must run on `ubuntu-latest`.**
+- **Creating issues** (for example when breaking down a spec): use the MoM template (`.github/ISSUE_TEMPLATE/standard-mom.md`), write vertical slices with acceptance criteria, keep each issue at effort M or smaller, and leave new issues in Backlog. A human decides when an issue is Ready.
+
+## Git & commits
+
+AI agents are not contributors on GitHub for this repo and must never push (no `git push`, no opening PRs). Only the working developer does that. Commits authored while pair-programming with an AI agent are attributed to the working developer: use the developer's own name and email (already set in the local git config) as the commit author, and do not add a `Co-Authored-By: Claude` (or similar) trailer to commit messages.
+
+- Reference the issue number in commit messages, for example `Add commission calculation (#12)`. `gh deliver` squashes the branch into one commit on `main` that resolves the issue.
+- Never rewrite history that the developer has not asked you to rewrite (no `git rebase`, `git reset --hard` or `git commit --amend` on your own initiative).
 
 ## Code Style
 

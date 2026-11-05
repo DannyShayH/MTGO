@@ -4,6 +4,7 @@
     "**/*.md",
     "**/*.mdx",
     "!**/node_modules/**",
+    "!**/.agents/**",
     "!**/tmp/**",
     "!**/background/**",
     "!**/dist/**",

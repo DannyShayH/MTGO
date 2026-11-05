@@ -16,6 +16,17 @@ module.exports = {
   moduleFileExtensions: ["js", "ts", "json"],
   modulePathIgnorePatterns: ["dist/", "<rootDir>/.medusa/"],
   setupFiles: ["./integration-tests/setup.js"],
+  // Coverage (our JaCoCo). Only collected with --coverage; lcov is read by SonarQube later.
+  collectCoverageFrom: [
+    "src/**/*.ts",
+    "!src/**/__tests__/**",
+    "!src/**/migrations/**",
+    "!src/admin/**",
+    "!src/scripts/**",
+    "!src/migration-scripts/**",
+  ],
+  coverageDirectory: "coverage",
+  coverageReporters: ["text-summary", "lcov"],
 };
 
 if (process.env.TEST_TYPE === "integration:http") {

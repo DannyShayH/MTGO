@@ -1,1 +1,12 @@
 tmp/**
+
+# Vendored TakT skill from mindovermachine-dev/how-we-work, kept as published
+.agents/**
+
+# Lockfile is only changed by the package manager (see AGENTS.md, Off-Limits)
+package-lock.json
+
+# Generated build output (see AGENTS.md, Off-Limits). Prettier only reads the root .gitignore
+**/.medusa/**
+**/.next/**
+**/.turbo/**

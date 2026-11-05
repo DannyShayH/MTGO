@@ -61,6 +61,40 @@ inventory:
       command -v prettier
       command -v remote-astro-theme
 
+  - id: npm-install
+    name: Install project dependencies from the lockfile
+    command: npm ci
+
+  - id: unit-tests
+    name: Run backend unit tests (fast, no database)
+    command: |
+      cd apps/backend && npm run test:unit -- --passWithNoTests
+
+  - id: architecture
+    name: Check architecture rules with dependency-cruiser (.dependency-cruiser.cjs)
+    command: npm run arch
+
+  - id: coverage
+    name: Run backend unit tests with coverage (lcov in apps/backend/coverage)
+    command: |
+      cd apps/backend && npm run test:unit -- --passWithNoTests --coverage
+
+  - id: lint
+    name: Run ESLint for all apps (medusa lint + storefront eslint)
+    command: npm run lint
+
+  - id: integration-modules
+    name: Run backend module integration tests (needs Postgres)
+    timeout: 15m
+    command: |
+      cd apps/backend && npm run test:integration:modules -- --passWithNoTests
+
+  - id: integration-http
+    name: Run backend HTTP integration tests (needs Postgres)
+    timeout: 15m
+    command: |
+      cd apps/backend && npm run test:integration:http -- --passWithNoTests
+
   - id: "fix-markdown"
     name: "Fix all fixable markdown issues"
     command: |
@@ -83,6 +117,7 @@ waves:
       - install-takt-shortcuts
       - safe-repo
       - repo-gitconfig
+      - npm-install
 
   - id: "prep-runner"
     name: "Run to prepare GitHub runner"
@@ -92,7 +127,10 @@ waves:
       - install-gh-insitu
       - repo-gitconfig
       - install-npm-tools
+      - npm-install
 
+  # Runs on every commit (pre-commit hook) and on push to an issue branch (on_dev.yml).
+  # Keep it fast: no database, no build.
   - id: trunk-worthy
     name: Minimum quality checks before commit
     parallel: true
@@ -100,6 +138,19 @@ waves:
       - cspell
       - markdownlint
       - prettier
+      - unit-tests
+      - architecture
+
+  # Runs in the ready flow (on_ready.yml) before anything is merged to main.
+  # Needs a reachable Postgres (DB_HOST, DB_PORT, DB_USERNAME, DB_PASSWORD).
+  - id: ready-checks
+    name: Lint and integration tests before merge to trunk
+    parallel: false
+    checks:
+      - lint
+      - coverage
+      - integration-modules
+      - integration-http
 
   - id: "fix-all"
     name: "Fix anything that can be fixed automatically"

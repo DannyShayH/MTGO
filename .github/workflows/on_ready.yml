@@ -20,6 +20,21 @@ jobs:
       statuses: write # required to set the trunk-worthy status check and for gh insitu
       pages: write # required to deploy to GitHub Pages
 
+    # Throwaway database for the Medusa integration tests (lives only for this job)
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -30,6 +45,15 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           verify: gh insitu run trunk-worthy
+
+      - name: Lint and integration tests
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USERNAME: postgres
+          DB_PASSWORD: postgres
+        run: gh insitu run ready-checks
 
   merge-to-trunk:
     name: Merge to trunk

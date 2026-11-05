@@ -1,18 +1,5 @@
 # Copilot Instructions
 
-## Project Overview
+All agent instructions for this repository live in [AGENTS.md](../AGENTS.md), shared by every AI agent (Copilot, Claude, Codex, Cursor, ...). Read it and follow it, in particular the sections "Workflow (TakT + Kanban)" and "Git & commits".
 
-This repository supports the TakT skill and is initialized with a devcontainer and minimal dependencies. It is designed to be extended with additional skills for specific tools stacks, such as Astro, Jekyll, GoLang, Python, etc.:
-
-## Quality Gates
-
-- Git hooks are configured via `.githooks`
-- pre-commit runs `trunk-worthy` wave from `gh insitu`
-- After file edits, run:
-  - `gh insitu run fix-all`
-
-This is required because AI edits bypass editor format-on-save.
-
-## CI And Pipeline Notes
-
-- Keep runner compatibility with ubuntu-latest
+This file only exists because GitHub Copilot looks for instructions at this path. Do not add rules here; add them to `AGENTS.md`.

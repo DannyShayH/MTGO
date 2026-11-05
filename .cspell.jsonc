@@ -5,6 +5,8 @@
   "language": "en-US, en-GB, da-DK",
   "ignorePaths": [
     "**/node_modules/**",
+    "**/.agents/**",
+    "**/package-lock.json",
     "**/bower_components/**",
     "**/vendor/**",
     "**/dist/**",

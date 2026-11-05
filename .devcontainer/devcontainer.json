@@ -16,6 +16,8 @@
     "vscode": {
       "extensions": [
         "github.copilot",
+        "anthropic.claude-code",
+        "openai.chatgpt",
         "DavidAnson.vscode-markdownlint",
         "streetsidesoftware.code-spell-checker"
       ]
