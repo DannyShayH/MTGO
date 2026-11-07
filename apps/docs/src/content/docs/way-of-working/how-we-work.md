@@ -67,14 +67,14 @@ Fix the code, never the rule. After editing files, run `gh insitu run fix-all`.
 
 ## 5. Working with AI agents
 
-Agents (Claude Code, Codex, Copilot) read [AGENTS.md](https://github.com/DannyShayH/MTGO/blob/main/AGENTS.md) and the skills in the repository. They edit and commit on the issue branch. People move board items, run `gh workon`, `gh wrapup` and `gh deliver`, and push.
+Agents (Claude Code, Codex, Copilot) read [AGENTS.md](https://github.com/DannyShayH/MTGO/blob/main/AGENTS.md) and the skills in the repository. They edit on the issue branch and commit with `gh wrapup`. People move board items and run `gh workon` and `gh deliver`.
 
 ### Which skill when
 
 | Situation                   | Flow                                                                                                                                    |
 | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | **A new feature or epic**   | `/grill-with-docs` (clarify, update glossary and ADRs) → `/to-spec` (spec on the issue) → `/to-tickets` (small issues in Backlog)       |
-| **Implementing a ticket**   | `gh workon -i <nr>` → `/implement` (uses `/tdd` for logic) → `/code-review` → you run `gh wrapup` and `gh deliver`                      |
+| **Implementing a ticket**   | `gh workon -i <nr>` → `/implement` (uses `/tdd` for logic) → `/code-review` → the agent runs `gh wrapup`, you run `gh deliver`          |
 | **Backend code (Medusa)**   | `building-with-medusa`, plus `db-generate` and `db-migrate` for data models                                                             |
 | **Storefront code**         | `building-storefronts`                                                                                                                  |
 | **Admin pages and widgets** | `building-admin-dashboard-customizations`                                                                                               |
@@ -89,8 +89,8 @@ Not used here: `implement-spec`, `pr`, `triage`, `setup-pre-commit`, `git-guardr
 1. `gh workon -i 5` on the epic, then `/grill-with-docs` with the plan as input, `/to-spec` and `/to-tickets`.
 2. `gh wrapup` and `gh deliver` for the epic: the glossary and ADRs land on `main`, and the new tickets wait in Backlog.
 3. The team moves the first ticket to Ready. Someone runs `gh workon -i <nr>`.
-4. The agent runs `/implement` with `/tdd`, then `/code-review`.
-5. The developer reads the result, runs `gh wrapup` and `gh deliver`, and watches the ready flow.
+4. The agent runs `/implement` with `/tdd`, then `/code-review`, and commits with `gh wrapup`.
+5. The developer reads the result, runs `gh deliver`, and watches the ready flow.
 6. The ticket moves to Done by itself. `git sweep`, and pull the next one.
 
 ## 6. Flow metrics and the weekly flow review

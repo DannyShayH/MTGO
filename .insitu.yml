@@ -96,6 +96,11 @@ inventory:
     command: |
       cd apps/backend && npm run test:integration:http -- --passWithNoTests
 
+  - id: docs-tests
+    name: Run the docs app tests with Vitest (ADR-0001)
+    command: |
+      cd apps/docs && npx vitest run
+
   - id: docs-build
     name: Type check, build and link check the docs site (apps/docs)
     command: |
@@ -158,6 +163,7 @@ waves:
       - coverage
       - integration-modules
       - integration-http
+      - docs-tests
       - docs-build
 
   - id: "fix-all"

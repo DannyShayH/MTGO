@@ -15,7 +15,7 @@
     "backend:dev": "turbo dev --filter=@dtc/backend",
     "storefront:dev": "turbo dev --filter=@dtc/storefront",
     "arch": "depcruise apps --config .dependency-cruiser.cjs",
-    "arch:graph": "depcruise apps/backend/src --config .dependency-cruiser.cjs --output-type mermaid"
+    "arch:graph": "depcruise apps/backend/src --config .dependency-cruiser.cjs --output-type mermaid --collapse \"^apps/backend/src/[^/]+\""
   },
   "pnpm": {
     "overrides": {

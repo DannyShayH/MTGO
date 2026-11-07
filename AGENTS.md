@@ -52,7 +52,7 @@ Medusa DTC Starter — a Turborepo workspace monorepo containing a Medusa backen
 │   │       └── workflows/        # Workflows and workflow steps
 │   ├── docs/                     # Docs site, Astro Starlight (@dtc/docs), deployed to GitHub Pages under /MTGO/
 │   │   ├── astro.config.mjs      # Site, base path, sidebar, Mermaid and link validator
-│   │   ├── scripts/              # Build checks (check-base-links.mjs)
+│   │   ├── scripts/              # Build steps and checks (copy-root-docs.ts, check-base-links.mjs)
 │   │   └── src/content/docs/     # The pages, one folder per sidebar section
 │   └── storefront/               # OPTIONAL Next.js storefront (@dtc/storefront)
 │       └── src/
@@ -115,15 +115,18 @@ cd apps/docs && <pm> run dev           # http://localhost:4321/MTGO/ (--host, so
 cd apps/docs && <pm> run check         # astro check (types and content frontmatter)
 cd apps/docs && <pm> run build         # static site in apps/docs/dist; fails on a dead internal link
 cd apps/docs && <pm> run check:links   # after build: every internal link includes the /MTGO base
+cd apps/docs && <pm> run test          # Vitest (ADR-0001), *.test.ts next to the code
 ```
 
-In Markdown pages, write internal links as absolute links with the base (`/MTGO/way-of-working/`). The link validator checks those and rejects relative links. The ready flow runs all of these as the `docs-build` check.
+`dev`, `check` and `build` first run `scripts/copy-root-docs.ts`, which copies `GLOSSARY.md`, `docs/adr/` and every module `README.md` under `apps/` (except the docs app) into `src/content/docs/architecture/` and generates the dependency graph page from `<pm> run arch:graph`. Those pages, and the `architecture/decisions/` and `architecture/modules/` folders, are git-ignored: edit the source file, never the copy, and put no hand-written page in those two folders. Links between copied documents are rewritten to their pages on the site, and links to other repository files go to GitHub. A hand-written page at the path of a generated page fails the build instead of being overwritten.
+
+In Markdown pages, write internal links as absolute links with the base (`/MTGO/way-of-working/`). The link validator checks those and rejects relative links. The ready flow runs all of these as the `docs-tests` and `docs-build` checks.
 
 ### Architecture rules
 
 ```bash
 <pm> run arch          # dependency-cruiser: rules in .dependency-cruiser.cjs (runs in the pre-commit hook)
-<pm> run arch:graph    # backend dependency graph as Mermaid
+<pm> run arch:graph    # backend dependency graph as Mermaid, one node per src/ folder
 ```
 
 The rules enforce: no circular dependencies, no imports between `apps/storefront` and `apps/backend`, custom modules never import each other (use module links and workflows), and the layering Module → Workflow → API route. A violation means the design is wrong: fix the code, never loosen or delete a rule to make it pass.
@@ -225,7 +228,7 @@ claude mcp add --transport http medusa-cloud https://cloud.medusajs.com/mcp # or
 
 This repo uses the TakT trunk-based workflow ([mindovermachine-dev/how-we-work](https://github.com/mindovermachine-dev/how-we-work)) with a Kanban board in GitHub Projects. These rules apply to every AI agent (Claude, Copilot, Codex, Cursor, ...).
 
-- **The developer owns the board and the flow.** Humans move issues to Ready, start work with `gh workon -i <issue-number>` and deliver with `gh deliver`. Never run `gh workon`, `gh wrapup` or `gh deliver` yourself, and never move board items. `gh workon` is an alias for `scripts/workon.sh`, which also sets the project's Start date (needed for cycle time). Do not edit board fields by hand to fix dates.
+- **The developer owns the board and the flow.** Humans move issues to Ready, start work with `gh workon -i <issue-number>` and deliver with `gh deliver`. Never run `gh workon` or `gh deliver` yourself, and never move board items. Agents commit with `gh wrapup` (see [Git & commits](#git--commits)). `gh workon` is an alias for `scripts/workon.sh`, which also sets the project's Start date (needed for cycle time). Do not edit board fields by hand to fix dates.
 - **Work only on the current issue branch** (`<issue-number>-<title>`, created by `gh workon`). Never create, rename or switch branches, and never commit to `main`. Only the ready flow (`.github/workflows/on_ready.yml`) merges to `main`.
 - **One issue at a time.** Keep changes within the scope of the current issue. Do not run several agents in parallel on the same branch.
 - **After editing files, run `gh insitu run fix-all`.** AI edits bypass editor format-on-save. The pre-commit hook runs `gh insitu run trunk-worthy` (cspell, markdownlint, prettier). If it fails, fix the cause. Never bypass it with `--no-verify`.
@@ -265,9 +268,10 @@ Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root, both created
 
 ## Git & commits
 
-AI agents are not contributors on GitHub for this repo and must never push (no `git push`, no opening PRs). Only the working developer does that. Commits authored while pair-programming with an AI agent are attributed to the working developer: use the developer's own name and email (already set in the local git config) as the commit author, and do not add a `Co-Authored-By: Claude` (or similar) trailer to commit messages.
+AI agents commit their work on the issue branch with `gh wrapup "<message>"`, which runs the quality checks, commits and pushes the issue branch. That is the only way an agent pushes: no plain `git commit` or `git push`, and no opening PRs. Commits authored while pair-programming with an AI agent are attributed to the working developer: use the developer's own name and email (already set in the local git config) as the commit author, and do not add a `Co-Authored-By: Claude` (or similar) trailer to commit messages.
 
 - Do not stage changes yourself (`git add`, `git rm --cached`). When something is staged, `gh wrapup` commits only the staged changes and leaves the rest behind. When nothing is staged, it commits everything.
+- If `gh wrapup` fails on a quality check, fix the cause and run it again. Never bypass the checks.
 - Reference the issue number in commit messages, for example `Add commission calculation (#12)`. `gh deliver` squashes the branch into one commit on `main` that resolves the issue.
 - Never rewrite history that the developer has not asked you to rewrite (no `git rebase`, `git reset --hard` or `git commit --amend` on your own initiative).
 

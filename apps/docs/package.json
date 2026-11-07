@@ -5,11 +5,13 @@
   "version": "0.0.1",
   "description": "MTOGO documentation site (Astro Starlight), published on GitHub Pages",
   "scripts": {
-    "dev": "astro dev --host",
-    "build": "astro build",
+    "generate": "node scripts/copy-root-docs.ts",
+    "dev": "node scripts/copy-root-docs.ts && astro dev --host",
+    "build": "node scripts/copy-root-docs.ts && astro build",
     "preview": "astro preview --host",
-    "check": "astro check",
+    "check": "node scripts/copy-root-docs.ts && astro check",
     "check:links": "node scripts/check-base-links.mjs",
+    "test": "vitest run",
     "astro": "astro"
   },
   "dependencies": {
@@ -21,5 +23,8 @@
     "sharp": "^0.35.5",
     "starlight-links-validator": "^0.27.0",
     "typescript": "^6.0.3"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.12"
   }
 }

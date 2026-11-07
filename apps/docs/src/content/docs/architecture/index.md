@@ -21,7 +21,11 @@ flowchart LR
 
 The architecture rules (dependency-cruiser) forbid imports between the storefront and the backend, imports between custom modules, and circular dependencies.
 
-## Coming next
+## Glossary, decisions and modules
 
-- The glossary and the architecture decisions (ADRs) on the site, and a generated dependency graph of the backend: [issue #13](https://github.com/DannyShayH/MTGO/issues/13).
-- Until then, the sources are [`GLOSSARY.md`](https://github.com/DannyShayH/MTGO/blob/main/GLOSSARY.md) and [`docs/adr/`](https://github.com/DannyShayH/MTGO/tree/main/docs/adr) in the repository.
+These pages are copied from the repository at every build, so the file in the repository stays the only source. Edit the source, never the page on the site.
+
+- [Glossary](/MTGO/architecture/glossary/): the language of the product and of the way the team works, from `GLOSSARY.md`.
+- [Dependency graph](/MTGO/architecture/dependency-graph/): the backend's imports, generated from the architecture rules.
+- Decisions: the architecture decision records from `docs/adr/`, starting with [ADR-0001](/MTGO/architecture/decisions/0001-vitest-for-the-docs-app/).
+- Modules: the README next to each app folder, starting with the [backend](/MTGO/architecture/modules/backend/).
