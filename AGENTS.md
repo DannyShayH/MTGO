@@ -210,7 +210,7 @@ claude mcp add --transport http medusa-cloud https://cloud.medusajs.com/mcp # or
 
 This repo uses the TakT trunk-based workflow ([mindovermachine-dev/how-we-work](https://github.com/mindovermachine-dev/how-we-work)) with a Kanban board in GitHub Projects. These rules apply to every AI agent (Claude, Copilot, Codex, Cursor, ...).
 
-- **The developer owns the board and the flow.** Humans move issues to Ready, start work with `gh workon -i <issue-number>` and deliver with `gh deliver`. Never run `gh workon`, `gh wrapup` or `gh deliver` yourself, and never move board items.
+- **The developer owns the board and the flow.** Humans move issues to Ready, start work with `gh workon -i <issue-number>` and deliver with `gh deliver`. Never run `gh workon`, `gh wrapup` or `gh deliver` yourself, and never move board items. `gh workon` is an alias for `scripts/workon.sh`, which also sets the project's Start date (needed for cycle time). Do not edit board fields by hand to fix dates.
 - **Work only on the current issue branch** (`<issue-number>-<title>`, created by `gh workon`). Never create, rename or switch branches, and never commit to `main`. Only the ready flow (`.github/workflows/on_ready.yml`) merges to `main`.
 - **One issue at a time.** Keep changes within the scope of the current issue. Do not run several agents in parallel on the same branch.
 - **After editing files, run `gh insitu run fix-all`.** AI edits bypass editor format-on-save. The pre-commit hook runs `gh insitu run trunk-worthy` (cspell, markdownlint, prettier). If it fails, fix the cause. Never bypass it with `--no-verify`.

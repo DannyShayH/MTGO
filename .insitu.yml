@@ -21,7 +21,8 @@ inventory:
   - id: install-takt-shortcuts
     name: Install TakT shortcuts
     command: |
-      gh alias set workon '!gh tt workon "$@"' --clobber
+      # workon also sets the project's "Start date" (scripts/workon.sh), needed for cycle time
+      gh alias set workon '!bash "$(git rev-parse --show-toplevel)/scripts/workon.sh" "$@"' --clobber
       gh alias set wrapup '!gh tt wrapup "$@"' --clobber
       gh alias set deliver '!gh tt deliver "$@"' --clobber
       gh alias set semver '!gh tt semver "$@"' --clobber

@@ -58,10 +58,12 @@ The admin dashboard runs on `http://localhost:9000/app` and the storefront on `h
 Every change starts as an issue on the board and goes through TakT:
 
 ```bash
-gh workon -i <issue-number>     # create the issue branch, move the issue to In Progress
+gh workon -i <issue-number>     # create the issue branch, move the issue to In Progress, set Start date
 gh wrapup "<message>"           # commit and push, runs the quality checks
 gh deliver                      # squash to a ready branch, the ready flow merges to main
 ```
+
+`gh workon` runs [`scripts/workon.sh`](./scripts/workon.sh): Lars Kruse's `gh tt workon`, plus setting the project's **Start date** to today when it is empty. Start date and the issue's Closed date give the cycle time used in our flow metrics.
 
 The pre-commit hook runs `gh insitu run trunk-worthy`. After editing files, run `gh insitu run fix-all`.
 
