@@ -12,3 +12,4 @@ Historical flow metrics (the Cumulative Flow Diagram and WIP limit breaches) are
 - The collector removes duplicate `"" → Backlog` events that GitHub records when an item is added.
 - Cycle time still starts at the project's `Start date` field, not at the first `In Progress` event, because `Start date` is the team's policy (set by `gh workon`).
 - If GitHub removes or changes these timeline events, history-based charts break, but the current-state metrics do not.
+- Elapsed time (shown beside cycle time) starts at the first `In Progress` event on the `Start date`, found with `workStartedAt` in `flow-metrics.ts`. The saved sample carries the value by hand; the collector must fill it from the timeline.

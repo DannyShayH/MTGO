@@ -1,7 +1,9 @@
 ---
-import metrics from "../generated/flow-metrics.json"
+import generatedMetrics from "../generated/flow-metrics.json"
 import { LIMITS } from "../../scripts/flow-metrics.ts"
-import type { IssueLink } from "../../scripts/flow-metrics.ts"
+import type { FlowMetrics, IssueLink } from "../../scripts/flow-metrics.ts"
+
+const metrics = generatedMetrics as FlowMetrics
 
 const project = "https://github.com/users/DannyShayH/projects/2"
 const timeZone = "Europe/Copenhagen"
@@ -31,6 +33,8 @@ const columns = [
 ] as const
 
 const percent = (part: number, whole: number) => Math.min(100, (part / whole) * 100)
+const days = (value: number) => value === 0 ? "< 1 day" : `${value} ${value === 1 ? "day" : "days"}`
+const average = (value: number) => `${Number(value.toFixed(1))} ${value === 1 ? "day" : "days"}`
 ---
 
 <div class="flow-banner not-content">
@@ -139,3 +143,45 @@ const percent = (part: number, whole: number) => Math.min(100, (part / whole) * 
     )
   }
 </div>
+
+<h2 id="cycle-time">Cycle time</h2>
+<p>Calendar days from the project Start date to the latest close date. Same-day work contributes 0 days to averages. Elapsed time shows the wall-clock interval from the first move to In Progress to the latest close, rounded to the nearest minute. It includes waiting time, not just hands-on work.</p>
+<div class="flow-table-wrap not-content">
+  <table class="flow-table">
+    <caption>Average cycle time by closing week</caption>
+    <thead><tr><th scope="col">Closing week</th><th scope="col">Average</th><th scope="col">Count</th></tr></thead>
+    <tbody>{metrics.cycleTimeWeeks.map((week) => <tr><th scope="row">{week.week}</th><td>{average(week.averageDays)}</td><td>{week.count}</td></tr>)}</tbody>
+  </table>
+</div>
+<p class="flow-table-hint">Swipe the table to see all columns.</p>
+<div class="flow-table-wrap flow-table-cycle not-content" role="region" aria-label="Cycle time by work item" tabindex="0">
+  <table class="flow-table">
+    <caption>Cycle time by work item</caption>
+    <thead><tr><th scope="col">Work item</th><th scope="col">Closed</th><th scope="col">Elapsed time</th><th scope="col">Cycle time</th></tr></thead>
+    <tbody>{metrics.cycleTime.map((item) => <tr><th scope="row"><a href={item.url}>#{item.number} {item.title}</a>{item.reopened && <span class="flow-note">Reopened</span>}</th><td><time datetime={item.closedAt}>{item.closedAt}</time></td><td>{item.elapsedDisplay}</td><td>{item.display}</td></tr>)}</tbody>
+  </table>
+</div>
+{metrics.cycleTime.length === 0 && <p>No completed work items have a start date.</p>}
+
+<h2 id="work-item-age">Work item age</h2>
+<p>Open work items with a valid Start date, oldest first. {metrics.agingLimit.kind === "fixed" ? `Old means above ${metrics.agingLimit.days} days while fewer than 10 completed work items have a start date.` : `Old means above the 85th percentile of completed cycle times (${metrics.agingLimit.days} days).`}</p>
+<div class="flow-table-wrap not-content">
+  <table class="flow-table">
+    <caption>Active work items by age</caption>
+    <thead><tr><th scope="col">Work item</th><th scope="col">Status</th><th scope="col">Age</th></tr></thead>
+    <tbody>{metrics.activeWork.map((item) => <tr><th scope="row"><a href={item.url}>#{item.number} {item.title}</a>{item.old && <span class="flow-note flow-note-alert">Old</span>}{item.blocked && <span class="flow-note">Blocked</span>}</th><td>{item.status}</td><td>{days(item.ageDays)}</td></tr>)}</tbody>
+  </table>
+</div>
+{metrics.activeWork.length === 0 && <p>No open work items have a Start date.</p>}
+
+<h2 id="blocked">Blocked work items</h2>
+<p>Open work items with the <code>blocked</code> label. Blocked WIP is listed first.</p>
+{metrics.blocked.length ? <div class="flow-table-wrap not-content"><table class="flow-table"><thead><tr><th scope="col">Work item</th><th scope="col">Status</th><th scope="col">Age</th></tr></thead><tbody>{metrics.blocked.map((item) => <tr><th scope="row"><a href={item.url}>#{item.number} {item.title}</a></th><td>{item.status}</td><td>{item.ageDays === null ? "Unknown" : days(item.ageDays)}</td></tr>)}</tbody></table></div> : <p>No blocked work items in this sample.</p>}
+
+<h2 id="closed-without-delivery">Closed without delivery</h2>
+<p>Work items closed as not planned. They count in neither throughput nor cycle time.</p>
+{metrics.closedWithoutDelivery.length ? <div class="flow-table-wrap not-content"><table class="flow-table"><thead><tr><th scope="col">Work item</th><th scope="col">Closed</th></tr></thead><tbody>{metrics.closedWithoutDelivery.map((item) => <tr><th scope="row"><a href={item.url}>#{item.number} {item.title}</a></th><td><time datetime={item.closedAt}>{item.closedAt}</time></td></tr>)}</tbody></table></div> : <p>No work items were closed as not planned in this sample.</p>}
+
+<h2 id="data-problems">Data problems</h2>
+<p>Missing or invalid dates prevent cycle time or work item age from being calculated. A missing start time prevents elapsed time from being calculated. Completed items still count in throughput.</p>
+{metrics.dataProblems.length ? <div class="flow-table-wrap not-content"><table class="flow-table"><thead><tr><th scope="col">Work item</th><th scope="col">Problem</th></tr></thead><tbody>{metrics.dataProblems.map((item) => <tr><th scope="row"><a href={item.url}>#{item.number} {item.title}</a></th><td>{item.problem}</td></tr>)}</tbody></table></div> : <p>No data problems in this sample.</p>}

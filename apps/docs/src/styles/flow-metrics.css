@@ -217,3 +217,120 @@
   font-size: 0.75rem;
   font-weight: 400;
 }
+
+.flow-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  margin-block: 0.75rem 1.25rem;
+}
+
+.flow-table-wrap:focus-visible {
+  outline: 2px solid var(--sl-color-accent);
+  outline-offset: 2px;
+}
+
+.flow-table-hint {
+  display: none;
+}
+
+@media (max-width: 40rem) {
+  .flow-table-hint {
+    display: block;
+    margin-block-end: 0.25rem;
+    color: var(--sl-color-gray-3);
+    font-size: 0.8rem;
+  }
+}
+
+.flow-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.9rem;
+}
+
+.flow-table caption {
+  padding: 0.5rem 0;
+  color: var(--sl-color-white);
+  font-weight: 600;
+  text-align: left;
+}
+
+.flow-table th,
+.flow-table td {
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid var(--sl-color-hairline-light);
+  vertical-align: top;
+}
+
+.flow-table thead {
+  background: var(--sl-color-bg-nav);
+}
+
+.flow-table tbody th {
+  font-weight: 400;
+  min-width: 12rem;
+  overflow-wrap: anywhere;
+}
+
+.flow-table-cycle .flow-table {
+  min-width: 38rem;
+  table-layout: fixed;
+}
+
+.flow-table-cycle thead th:first-child,
+.flow-table-cycle tbody th {
+  width: var(--flow-item-width);
+}
+
+.flow-table-cycle thead th:not(:first-child),
+.flow-table-cycle tbody td {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.flow-table-cycle tbody tr:hover,
+.flow-table-cycle tbody tr:focus-within {
+  background: var(--sl-color-bg-nav);
+}
+
+.flow-table time {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.flow-table a {
+  color: var(--sl-color-text-accent);
+}
+
+.flow-table a:focus-visible {
+  outline: 2px solid var(--sl-color-accent);
+  outline-offset: 2px;
+}
+
+.flow-note {
+  display: inline-block;
+  margin-inline-start: 0.5rem;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--sl-color-hairline-light);
+  border-radius: 0.25rem;
+  color: var(--sl-color-gray-2);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.flow-note-alert {
+  border-color: var(--sl-color-red-high);
+  color: var(--sl-color-red-high);
+}
+
+.flow-table-cycle {
+  --flow-item-width: 52%;
+}
+
+@media (max-width: 40rem) {
+  .flow-table-cycle {
+    --flow-item-width: 40%;
+  }
+}

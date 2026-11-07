@@ -16,8 +16,12 @@ _Avoid_: Active work, ongoing issues
 The work items with status `Ready`, waiting to be pulled.
 
 **Cycle time**:
-The number of calendar days from a work item's start date to the date it was closed (closed date minus start date). A work item started and closed on the same day has a cycle time of less than one day.
+The number of Copenhagen calendar days from a work item's Start date to its latest closing date; same-day work counts as zero and displays as “< 1 day”.
 _Avoid_: Lead time, duration
+
+**Elapsed time**:
+The wall-clock time from the first move to `In Progress` on the Start date to the latest close, rounded to the nearest minute. It includes waiting time and is shown beside cycle time. When the start moment is missing or invalid it is "Not available" and listed as a data problem.
+_Avoid_: Cycle time (that counts calendar days)
 
 **Throughput**:
 The number of work items closed as completed in one ISO week.
@@ -39,7 +43,7 @@ A work item closed as "not planned". It counts in neither throughput nor cycle t
 _Avoid_: Cancelled, dropped
 
 **Data problem**:
-A fact about a work item that prevents a metric from being calculated honestly, such as a missing start date. A data problem is shown, never filled in with an invented value.
+A fact about a work item that prevents a metric from being calculated honestly, such as a missing, invalid or later-than-close start date, or a missing start moment for elapsed time. A data problem is shown, never filled in with an invented value.
 _Avoid_: Bad data, error
 
 **Flow review**:

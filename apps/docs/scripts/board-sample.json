@@ -11,7 +11,11 @@
       "subIssueCount": 0,
       "state": "CLOSED",
       "closeReason": "COMPLETED",
-      "closedAt": "2026-11-05T20:59:11Z"
+      "closedAt": "2026-11-05T20:59:11Z",
+      "startedAt": null,
+      "blocked": false,
+      "reopened": false,
+      "workStartedAt": null
     },
     {
       "number": 3,
@@ -22,7 +26,11 @@
       "subIssueCount": 0,
       "state": "OPEN",
       "closeReason": null,
-      "closedAt": null
+      "closedAt": null,
+      "startedAt": null,
+      "blocked": false,
+      "reopened": false,
+      "workStartedAt": null
     },
     {
       "number": 4,
@@ -33,7 +41,11 @@
       "subIssueCount": 0,
       "state": "CLOSED",
       "closeReason": "COMPLETED",
-      "closedAt": "2026-11-07T09:13:45Z"
+      "closedAt": "2026-11-07T09:13:45Z",
+      "startedAt": "2026-11-07",
+      "blocked": false,
+      "reopened": false,
+      "workStartedAt": "2026-11-07T09:03:56Z"
     },
     {
       "number": 5,
@@ -44,7 +56,11 @@
       "subIssueCount": 0,
       "state": "CLOSED",
       "closeReason": "COMPLETED",
-      "closedAt": "2026-11-07T17:17:34Z"
+      "closedAt": "2026-11-07T17:17:34Z",
+      "startedAt": "2026-11-07",
+      "blocked": false,
+      "reopened": false,
+      "workStartedAt": "2026-11-07T15:10:12Z"
     },
     {
       "number": 6,
@@ -55,7 +71,11 @@
       "subIssueCount": 0,
       "state": "OPEN",
       "closeReason": null,
-      "closedAt": null
+      "closedAt": null,
+      "startedAt": null,
+      "blocked": false,
+      "reopened": false,
+      "workStartedAt": null
     },
     {
       "number": 7,
@@ -66,7 +86,11 @@
       "subIssueCount": 0,
       "state": "OPEN",
       "closeReason": null,
-      "closedAt": null
+      "closedAt": null,
+      "startedAt": null,
+      "blocked": false,
+      "reopened": false,
+      "workStartedAt": null
     },
     {
       "number": 8,
@@ -77,7 +101,11 @@
       "subIssueCount": 0,
       "state": "CLOSED",
       "closeReason": "COMPLETED",
-      "closedAt": "2026-11-07T09:54:44Z"
+      "closedAt": "2026-11-07T09:54:44Z",
+      "startedAt": "2026-11-07",
+      "blocked": false,
+      "reopened": false,
+      "workStartedAt": "2026-11-07T09:37:04Z"
     },
     {
       "number": 9,
@@ -88,7 +116,11 @@
       "subIssueCount": 0,
       "state": "OPEN",
       "closeReason": null,
-      "closedAt": null
+      "closedAt": null,
+      "startedAt": null,
+      "blocked": false,
+      "reopened": false,
+      "workStartedAt": null
     },
     {
       "number": 10,
@@ -99,7 +131,11 @@
       "subIssueCount": 0,
       "state": "OPEN",
       "closeReason": null,
-      "closedAt": null
+      "closedAt": null,
+      "startedAt": null,
+      "blocked": false,
+      "reopened": false,
+      "workStartedAt": null
     },
     {
       "number": 11,
@@ -110,7 +146,11 @@
       "subIssueCount": 0,
       "state": "OPEN",
       "closeReason": null,
-      "closedAt": null
+      "closedAt": null,
+      "startedAt": null,
+      "blocked": false,
+      "reopened": false,
+      "workStartedAt": null
     },
     {
       "number": 12,
@@ -121,7 +161,11 @@
       "subIssueCount": 9,
       "state": "OPEN",
       "closeReason": null,
-      "closedAt": null
+      "closedAt": null,
+      "startedAt": null,
+      "blocked": false,
+      "reopened": false,
+      "workStartedAt": null
     },
     {
       "number": 13,
@@ -132,7 +176,11 @@
       "subIssueCount": 0,
       "state": "CLOSED",
       "closeReason": "COMPLETED",
-      "closedAt": "2026-11-07T18:04:12Z"
+      "closedAt": "2026-11-07T18:04:12Z",
+      "startedAt": "2026-11-07",
+      "blocked": false,
+      "reopened": false,
+      "workStartedAt": "2026-11-07T17:26:46Z"
     },
     {
       "number": 14,
@@ -143,7 +191,11 @@
       "subIssueCount": 0,
       "state": "OPEN",
       "closeReason": null,
-      "closedAt": null
+      "closedAt": null,
+      "startedAt": "2026-11-07",
+      "blocked": false,
+      "reopened": false,
+      "workStartedAt": "2026-11-07T18:08:51Z"
     },
     {
       "number": 15,
@@ -154,7 +206,11 @@
       "subIssueCount": 0,
       "state": "OPEN",
       "closeReason": null,
-      "closedAt": null
+      "closedAt": null,
+      "startedAt": null,
+      "blocked": false,
+      "reopened": false,
+      "workStartedAt": null
     },
     {
       "number": 16,
@@ -165,7 +221,11 @@
       "subIssueCount": 0,
       "state": "OPEN",
       "closeReason": null,
-      "closedAt": null
+      "closedAt": null,
+      "startedAt": null,
+      "blocked": false,
+      "reopened": false,
+      "workStartedAt": null
     },
     {
       "number": 17,
@@ -176,7 +236,11 @@
       "subIssueCount": 0,
       "state": "OPEN",
       "closeReason": null,
-      "closedAt": null
+      "closedAt": null,
+      "startedAt": null,
+      "blocked": false,
+      "reopened": false,
+      "workStartedAt": null
     },
     {
       "number": 18,
@@ -187,7 +251,11 @@
       "subIssueCount": 0,
       "state": "OPEN",
       "closeReason": null,
-      "closedAt": null
+      "closedAt": null,
+      "startedAt": null,
+      "blocked": false,
+      "reopened": false,
+      "workStartedAt": null
     },
     {
       "number": 19,
@@ -198,7 +266,11 @@
       "subIssueCount": 0,
       "state": "OPEN",
       "closeReason": null,
-      "closedAt": null
+      "closedAt": null,
+      "startedAt": null,
+      "blocked": false,
+      "reopened": false,
+      "workStartedAt": null
     },
     {
       "number": 20,
@@ -209,7 +281,11 @@
       "subIssueCount": 0,
       "state": "OPEN",
       "closeReason": null,
-      "closedAt": null
+      "closedAt": null,
+      "startedAt": null,
+      "blocked": false,
+      "reopened": false,
+      "workStartedAt": null
     }
   ]
 }

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Wrapper around `gh tt workon` that also records when work on an issue started.
 #
-# gh tt workon only moves the issue to "In Progress". Cycle time (In Progress -> Done)
-# also needs a start date, so this script sets the project's "Start date" field to
+# gh tt workon moves the issue to "In Progress". GitHub records the timestamp of
+# that status change for elapsed-time reporting. Calendar-day cycle time also
+# needs a start date, so this script sets the project's "Start date" field to
 # today, but only when it is still empty. Re-running workon never moves the date.
 #
 # Usage: gh workon -i <issue-number>   (the gh alias points here, see .insitu.yml)
