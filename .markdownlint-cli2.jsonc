@@ -5,6 +5,7 @@
     "**/*.mdx",
     "!**/node_modules/**",
     "!**/.agents/**",
+    "!**/.claude/skills/**",
     "!**/tmp/**",
     "!**/background/**",
     "!**/dist/**",

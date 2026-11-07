@@ -1,7 +1,10 @@
 tmp/**
 
-# Vendored TakT skill from mindovermachine-dev/how-we-work, kept as published
+# Vendored agent skills (TakT, Matt Pocock, Medusa, Anthropic, Emil Kowalski), kept as published.
+# Installed and updated with the skills CLI, versions pinned in skills-lock.json
 .agents/**
+.claude/skills/**
+skills-lock.json
 
 # Lockfile is only changed by the package manager (see AGENTS.md, Off-Limits)
 package-lock.json

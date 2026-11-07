@@ -219,6 +219,35 @@ This repo uses the TakT trunk-based workflow ([mindovermachine-dev/how-we-work](
 - **GitHub Actions workflows must run on `ubuntu-latest`.**
 - **Creating issues** (for example when breaking down a spec): use the MoM template (`.github/ISSUE_TEMPLATE/standard-mom.md`), write vertical slices with acceptance criteria, keep each issue at effort M or smaller, and leave new issues in Backlog. A human decides when an issue is Ready.
 
+## Agent skills
+
+Skills are installed in the repository with the skills CLI, so every agent uses the same versions: Claude Code reads `.claude/skills/`, Codex and Copilot read `.agents/skills/`. Versions are pinned in `skills-lock.json`. Never edit the skill files; update them with `npx skills update` on an issue branch.
+
+| Area              | Skills                                                                                                                 | Source                         |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| Workflow          | `grill-with-docs`, `to-spec`, `to-tickets`, `implement`, `tdd`, `code-review`, `domain-modeling`, `diagnosing-bugs`    | `mattpocock/skills`            |
+| Medusa            | `building-with-medusa`, `building-storefronts`, `building-admin-dashboard-customizations`, `db-generate`, `db-migrate` | `medusajs/medusa-agent-skills` |
+| Design direction  | `frontend-design`                                                                                                      | `anthropics/skills`            |
+| Motion and polish | `emil-design-eng`, `apple-design` and the animation skills                                                             | `emilkowalski/skills`          |
+
+Rules for using them in this repo:
+
+- **Do not use `implement-spec`, `pr`, `triage` or `setup-pre-commit`.** Parallel subagents on one branch break TakT and the WIP limits, we do not use pull requests, status lives on the board instead of triage labels, and git hooks come from TakT (`.githooks`).
+- **Medusa Cloud skills (`mcloud-*`, `using-medusa-cloud`) do not apply.** We deploy to DigitalOcean.
+- **Mobile skills (`animate-expo`, `mobile-native`, `write-swift`) are kept for a possible mobile app later.** There is no mobile app yet, so do not use them unless an issue asks for one.
+- **`git-guardrails-claude-code` is not used.** Git rules for every agent live in [Git & commits](#git--commits).
+- **Load the matching Medusa skill before writing Medusa code**, as described in [Medusa Skills & MCP Server](#medusa-skills--mcp-server).
+- **`frontend-design` works inside our design system:** Medusa UI components, our own colours and typography, and the team's design brief. Choose a deliberate direction within those limits instead of a new visual style.
+- **`implement` and `tdd` run on the issue branch created by `gh workon`** and follow the rules in [Workflow (TakT + Kanban)](#workflow-takt--kanban) and [Git & commits](#git--commits).
+
+### Issue tracker
+
+Issues live in GitHub Issues on `DannyShayH/MTGO`. Status lives on the Project board and labels only mark the type of work. See [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md).
+
+### Domain docs
+
+Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root, both created when first needed. See [docs/agents/domain.md](docs/agents/domain.md).
+
 ## Git & commits
 
 AI agents are not contributors on GitHub for this repo and must never push (no `git push`, no opening PRs). Only the working developer does that. Commits authored while pair-programming with an AI agent are attributed to the working developer: use the developer's own name and email (already set in the local git config) as the commit author, and do not add a `Co-Authored-By: Claude` (or similar) trailer to commit messages.

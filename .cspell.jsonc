@@ -6,6 +6,8 @@
   "ignorePaths": [
     "**/node_modules/**",
     "**/.agents/**",
+    "**/.claude/skills/**",
+    "**/skills-lock.json",
     "**/package-lock.json",
     "**/bower_components/**",
     "**/vendor/**",
