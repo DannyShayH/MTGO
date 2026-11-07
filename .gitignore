@@ -82,3 +82,5 @@ apps/docs/src/content/docs/architecture/glossary.md
 apps/docs/src/content/docs/architecture/dependency-graph.md
 apps/docs/src/content/docs/architecture/decisions/
 apps/docs/src/content/docs/architecture/modules/
+apps/docs/public/flow-metrics.json
+apps/docs/src/generated/

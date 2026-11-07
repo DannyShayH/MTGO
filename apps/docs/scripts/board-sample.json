@@ -1,0 +1,215 @@
+{
+  "source": "sample",
+  "observedAt": "2026-11-07T18:12:51.608Z",
+  "items": [
+    {
+      "number": 2,
+      "title": "Make the repository trunk worthy",
+      "url": "https://github.com/DannyShayH/MTGO/issues/2",
+      "status": "Done",
+      "workType": "development",
+      "subIssueCount": 0,
+      "state": "CLOSED",
+      "closeReason": "COMPLETED",
+      "closedAt": "2026-11-05T20:59:11Z"
+    },
+    {
+      "number": 3,
+      "title": "Devcontainer with its own PostgreSQL",
+      "url": "https://github.com/DannyShayH/MTGO/issues/3",
+      "status": "Backlog",
+      "workType": "unlabelled",
+      "subIssueCount": 0,
+      "state": "OPEN",
+      "closeReason": null,
+      "closedAt": null
+    },
+    {
+      "number": 4,
+      "title": "Set the start date automatically on gh workon",
+      "url": "https://github.com/DannyShayH/MTGO/issues/4",
+      "status": "Done",
+      "workType": "development",
+      "subIssueCount": 0,
+      "state": "CLOSED",
+      "closeReason": "COMPLETED",
+      "closedAt": "2026-11-07T09:13:45Z"
+    },
+    {
+      "number": 5,
+      "title": "Documentation site with Starlight (walking skeleton)",
+      "url": "https://github.com/DannyShayH/MTGO/issues/5",
+      "status": "Done",
+      "workType": "development",
+      "subIssueCount": 0,
+      "state": "CLOSED",
+      "closeReason": "COMPLETED",
+      "closedAt": "2026-11-07T17:17:34Z"
+    },
+    {
+      "number": 6,
+      "title": "Enforce a test coverage threshold",
+      "url": "https://github.com/DannyShayH/MTGO/issues/6",
+      "status": "Backlog",
+      "workType": "unlabelled",
+      "subIssueCount": 0,
+      "state": "OPEN",
+      "closeReason": null,
+      "closedAt": null
+    },
+    {
+      "number": 7,
+      "title": "Static code analysis with SonarQube Cloud",
+      "url": "https://github.com/DannyShayH/MTGO/issues/7",
+      "status": "Backlog",
+      "workType": "unlabelled",
+      "subIssueCount": 0,
+      "state": "OPEN",
+      "closeReason": null,
+      "closedAt": null
+    },
+    {
+      "number": 8,
+      "title": "Shared agent skills for all AI agents (Matt Pocock and Medusa)",
+      "url": "https://github.com/DannyShayH/MTGO/issues/8",
+      "status": "Done",
+      "workType": "development",
+      "subIssueCount": 0,
+      "state": "CLOSED",
+      "closeReason": "COMPLETED",
+      "closedAt": "2026-11-07T09:54:44Z"
+    },
+    {
+      "number": 9,
+      "title": "Definition of Done, explicit policies and a shared coding standard",
+      "url": "https://github.com/DannyShayH/MTGO/issues/9",
+      "status": "Backlog",
+      "workType": "unlabelled",
+      "subIssueCount": 0,
+      "state": "OPEN",
+      "closeReason": null,
+      "closedAt": null
+    },
+    {
+      "number": 10,
+      "title": "Domain model and FURPS requirements",
+      "url": "https://github.com/DannyShayH/MTGO/issues/10",
+      "status": "Backlog",
+      "workType": "unlabelled",
+      "subIssueCount": 0,
+      "state": "OPEN",
+      "closeReason": null,
+      "closedAt": null
+    },
+    {
+      "number": 11,
+      "title": "Review npm audit findings and set up Dependabot",
+      "url": "https://github.com/DannyShayH/MTGO/issues/11",
+      "status": "Backlog",
+      "workType": "unlabelled",
+      "subIssueCount": 0,
+      "state": "OPEN",
+      "closeReason": null,
+      "closedAt": null
+    },
+    {
+      "number": 12,
+      "title": "Docs site and automatic Kanban flow metrics",
+      "url": "https://github.com/DannyShayH/MTGO/issues/12",
+      "status": "Backlog",
+      "workType": "unlabelled",
+      "subIssueCount": 9,
+      "state": "OPEN",
+      "closeReason": null,
+      "closedAt": null
+    },
+    {
+      "number": 13,
+      "title": "Root documents and architecture graph on the site",
+      "url": "https://github.com/DannyShayH/MTGO/issues/13",
+      "status": "Done",
+      "workType": "development",
+      "subIssueCount": 0,
+      "state": "CLOSED",
+      "closeReason": "COMPLETED",
+      "closedAt": "2026-11-07T18:04:12Z"
+    },
+    {
+      "number": 14,
+      "title": "Flow metrics from sample data: WIP, ready queue and throughput",
+      "url": "https://github.com/DannyShayH/MTGO/issues/14",
+      "status": "In Progress",
+      "workType": "development",
+      "subIssueCount": 0,
+      "state": "OPEN",
+      "closeReason": null,
+      "closedAt": null
+    },
+    {
+      "number": 15,
+      "title": "Flow review template and the first review (2026-w46)",
+      "url": "https://github.com/DannyShayH/MTGO/issues/15",
+      "status": "Backlog",
+      "workType": "development",
+      "subIssueCount": 0,
+      "state": "OPEN",
+      "closeReason": null,
+      "closedAt": null
+    },
+    {
+      "number": 16,
+      "title": "Cycle time, work item age, old and blocked work items, closed without delivery, data problems",
+      "url": "https://github.com/DannyShayH/MTGO/issues/16",
+      "status": "Backlog",
+      "workType": "development",
+      "subIssueCount": 0,
+      "state": "OPEN",
+      "closeReason": null,
+      "closedAt": null
+    },
+    {
+      "number": 17,
+      "title": "Collector: real data from Project #2",
+      "url": "https://github.com/DannyShayH/MTGO/issues/17",
+      "status": "Backlog",
+      "workType": "development",
+      "subIssueCount": 0,
+      "state": "OPEN",
+      "closeReason": null,
+      "closedAt": null
+    },
+    {
+      "number": 18,
+      "title": "Throughput and cycle time charts",
+      "url": "https://github.com/DannyShayH/MTGO/issues/18",
+      "status": "Backlog",
+      "workType": "development",
+      "subIssueCount": 0,
+      "state": "OPEN",
+      "closeReason": null,
+      "closedAt": null
+    },
+    {
+      "number": 19,
+      "title": "Daily refresh",
+      "url": "https://github.com/DannyShayH/MTGO/issues/19",
+      "status": "Backlog",
+      "workType": "development",
+      "subIssueCount": 0,
+      "state": "OPEN",
+      "closeReason": null,
+      "closedAt": null
+    },
+    {
+      "number": 20,
+      "title": "Cumulative Flow Diagram and WIP limit breaches",
+      "url": "https://github.com/DannyShayH/MTGO/issues/20",
+      "status": "Backlog",
+      "workType": "development",
+      "subIssueCount": 0,
+      "state": "OPEN",
+      "closeReason": null,
+      "closedAt": null
+    }
+  ]
+}

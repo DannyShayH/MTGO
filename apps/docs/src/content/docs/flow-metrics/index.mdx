@@ -1,0 +1,28 @@
+---
+title: Flow metrics
+description: WIP, ready queue and weekly throughput from a sample of Project #2.
+sidebar:
+  label: Overview
+  order: 0
+---
+
+import FlowMetrics from "../../../components/FlowMetrics.astro"
+
+<FlowMetrics />
+
+## What each metric means
+
+The full definitions are in the [way-of-working glossary](/MTGO/architecture/glossary/). The numbers come from a saved copy of [Project #2](https://github.com/users/DannyShayH/projects/2) (the sample), calculated at build time by one pure function. The [published metrics JSON](/MTGO/flow-metrics.json) holds the same numbers.
+
+- **Work item**: an issue on the project board with no sub-issues. Parent issues are left out, because their sub-issues are counted instead. Source: the issue list of the sample.
+- **WIP**: open work items with status **In Progress** or **Delivery Initiated**, each column against its own limit. Source: the status field of each issue in the sample.
+- **Ready queue**: open work items with status **Ready**, waiting to be pulled. It is not WIP. Source: the status field of each issue in the sample.
+- **Throughput**: work items closed as completed in each Monday-to-Sunday ISO week in Europe/Copenhagen time, broken down by work type. Issues closed as "not planned" do not count. Source: the close date and close reason of each issue in the sample.
+
+## Later
+
+- Scatterplot and aging chart
+- Monte Carlo forecast
+- DORA metrics
+- Quality data
+- Release notes

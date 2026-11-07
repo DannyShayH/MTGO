@@ -27,6 +27,7 @@ export default defineConfig({
     mermaid({ autoTheme: true }),
     starlight({
       title: "MTOGO Docs",
+      customCss: ["./src/styles/flow-metrics.css"],
       description:
         "Documentation, way of working and Kanban flow metrics for the MTOGO project.",
       social: [{ icon: "github", label: "GitHub", href: repo }],
