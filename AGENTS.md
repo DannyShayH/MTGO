@@ -2,7 +2,7 @@
 
 ## Overview
 
-Medusa DTC Starter — a Turborepo workspace monorepo containing a Medusa backend (`@medusajs/medusa` 2.x, Node 22.22+, PostgreSQL 15+) and an optional Next.js storefront.
+Medusa DTC Starter — a Turborepo workspace monorepo containing a Medusa backend (`@medusajs/medusa` 2.x, Node 22.22+, PostgreSQL 15+) an optional Next.js storefront, and an Astro Starlight docs site published on GitHub Pages.
 
 ## Before You Start
 
@@ -50,6 +50,10 @@ Medusa DTC Starter — a Turborepo workspace monorepo containing a Medusa backen
 │   │       ├── search/           # Product search index definition
 │   │       ├── subscribers/      # Event subscribers
 │   │       └── workflows/        # Workflows and workflow steps
+│   ├── docs/                     # Docs site, Astro Starlight (@dtc/docs), deployed to GitHub Pages under /MTGO/
+│   │   ├── astro.config.mjs      # Site, base path, sidebar, Mermaid and link validator
+│   │   ├── scripts/              # Build checks (check-base-links.mjs)
+│   │   └── src/content/docs/     # The pages, one folder per sidebar section
 │   └── storefront/               # OPTIONAL Next.js storefront (@dtc/storefront)
 │       └── src/
 │           ├── app/              # Next.js App Router routes
@@ -103,6 +107,17 @@ Run from the repo root unless noted. Turbo skips missing apps automatically.
 cd apps/backend && <pm> run lint       # medusa lint
 cd apps/storefront && <pm> run lint    # eslint (flat config)
 ```
+
+### Docs site
+
+```bash
+cd apps/docs && <pm> run dev           # http://localhost:4321/MTGO/ (--host, so dev-container port forwarding reaches it)
+cd apps/docs && <pm> run check         # astro check (types and content frontmatter)
+cd apps/docs && <pm> run build         # static site in apps/docs/dist; fails on a dead internal link
+cd apps/docs && <pm> run check:links   # after build: every internal link includes the /MTGO base
+```
+
+In Markdown pages, write internal links as absolute links with the base (`/MTGO/way-of-working/`). The link validator checks those and rejects relative links. The ready flow runs all of these as the `docs-build` check.
 
 ### Architecture rules
 
@@ -215,7 +230,7 @@ This repo uses the TakT trunk-based workflow ([mindovermachine-dev/how-we-work](
 - **One issue at a time.** Keep changes within the scope of the current issue. Do not run several agents in parallel on the same branch.
 - **After editing files, run `gh insitu run fix-all`.** AI edits bypass editor format-on-save. The pre-commit hook runs `gh insitu run trunk-worthy` (cspell, markdownlint, prettier). If it fails, fix the cause. Never bypass it with `--no-verify`.
 - **Also run the app checks** from [Commands](#commands) that match the change: `<pm> run lint`, and the backend tests for backend changes.
-- **Update documentation in the same issue as the code.** A module's README lives next to the module. Project-wide docs live in the docs site (`apps/docs`, or `docs/` until the site exists).
+- **Update documentation in the same issue as the code.** A module's README lives next to the module. Project-wide docs live in the docs site (`apps/docs/src/content/docs`). `GLOSSARY.md` and `docs/adr/` stay at the repo root.
 - **GitHub Actions workflows must run on `ubuntu-latest`.**
 - **Creating issues** (for example when breaking down a spec): use the MoM template (`.github/ISSUE_TEMPLATE/standard-mom.md`), write vertical slices with acceptance criteria, keep each issue at effort M or smaller, and leave new issues in Backlog. A human decides when an issue is Ready.
 

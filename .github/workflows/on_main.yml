@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   deploy_artifact_to_pages:
-    name: Stage flow, runs when a new commit is pushed to main
+    name: Deploy the docs site when a new commit is pushed to main
     runs-on: ubuntu-latest
     permissions:
       actions: read # required to download workflow artifacts in a private repo
@@ -24,5 +24,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Placeholder deploy step
-        run: echo "Replace this step the appropriate build and deploy action for your stage environment"
+      # Deploys the docs site built and tested by on_ready for this commit
+      - name: Deploy docs site to GitHub Pages
+        uses: devx-cafe/takt-actions/deploy-artifact@v1
+        with:
+          artifact_name: github-pages-${{ github.sha }}
+          artifact_path: apps/docs/dist

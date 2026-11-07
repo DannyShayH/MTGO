@@ -72,3 +72,6 @@ version.txt
 # General
 /tmp
 /temp
+
+# Astro (apps/docs)
+**/.astro/

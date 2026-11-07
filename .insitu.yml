@@ -96,6 +96,12 @@ inventory:
     command: |
       cd apps/backend && npm run test:integration:http -- --passWithNoTests
 
+  - id: docs-build
+    name: Type check, build and link check the docs site (apps/docs)
+    command: |
+      # SITE_ORIGIN and BASE_PATH come from actions/configure-pages in the ready flow
+      cd apps/docs && npm run check && npm run build && npm run check:links
+
   - id: "fix-markdown"
     name: "Fix all fixable markdown issues"
     command: |
@@ -152,6 +158,7 @@ waves:
       - coverage
       - integration-modules
       - integration-http
+      - docs-build
 
   - id: "fix-all"
     name: "Fix anything that can be fixed automatically"
