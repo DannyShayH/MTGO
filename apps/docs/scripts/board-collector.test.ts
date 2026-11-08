@@ -56,6 +56,27 @@ const item = (
   }) as RawItem
 
 describe("normaliseBoard", () => {
+  it("retains close and reopen moments for historical WIP", () => {
+    const dataset = normaliseBoard(
+      [
+        item(
+          20,
+          {},
+          [],
+          [
+            { __typename: "ClosedEvent", createdAt: "2026-11-07T10:00:00Z" },
+            { __typename: "ReopenedEvent", createdAt: "2026-11-07T11:00:00Z" },
+          ],
+        ),
+      ],
+      NOW,
+    )
+    expect(dataset.items[0].stateChanges).toEqual([
+      { state: "CLOSED", at: "2026-11-07T10:00:00Z" },
+      { state: "OPEN", at: "2026-11-07T11:00:00Z" },
+    ])
+  })
+
   it("maps a recorded response to the board dataset", () => {
     const dataset = normaliseBoard(recordedItems, NOW)
     expect(dataset.source).toBe("board")
@@ -147,6 +168,20 @@ describe("normaliseBoard", () => {
     ).items
     expect(i.workStartedAt).toBe("2026-11-08T08:00:00Z")
     expect(i.statusChanges.map((c) => c.to)).toEqual(["Backlog", "In Progress"])
+    const metrics = calculateFlowMetrics(
+      { source: "board", observedAt: NOW, items: [i] },
+      NOW,
+    )
+    expect(
+      metrics.cumulativeFlow.map(({ date, counts }) => [
+        date,
+        counts.Backlog,
+        counts["In Progress"],
+      ]),
+    ).toEqual([
+      ["2026-11-07", 1, 0],
+      ["2026-11-08", 0, 1],
+    ])
   })
 
   it("keeps a later re-add to the board and drops only its duplicate", () => {

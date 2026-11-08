@@ -1,0 +1,17 @@
+---
+import { metrics, project, flowUrl, isSample, observed } from "../lib/flow-view.ts"
+interface Props { current: "overview" | "work-items" | "definitions" }
+const { current } = Astro.props
+const pages = [
+  { id: "overview", label: "Overview", path: "" },
+  { id: "work-items", label: "Work items", path: "work-items/" },
+  { id: "definitions", label: "Definitions", path: "definitions/" },
+]
+---
+<nav class="flow-nav not-content" aria-label="Flow metrics">
+  {pages.map(({ id, label, path }) => <a href={flowUrl(path)} aria-current={current === id ? "page" : undefined}>{label}</a>)}
+</nav>
+{isSample ? <aside class="flow-banner not-content" aria-label="Sample data">
+  <strong>Sample data</strong>
+  <span>Saved from <a href={project}>Project #2</a> on <time datetime={metrics.observedAt}>{observed}</time> (Copenhagen). These numbers do not update with the board.</span>
+</aside> : <p class="flow-updated not-content"><a href={project}>Project #2</a><span>Updated <time datetime={metrics.observedAt}>{observed}</time> (Copenhagen)</span></p>}

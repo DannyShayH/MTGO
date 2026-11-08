@@ -1,0 +1,10 @@
+---
+import { metrics, historyStatuses } from "../lib/flow-view.ts"
+---
+    <div class="flow-table-wrap not-content" role="region" aria-label="Daily status counts" tabindex="0">
+      <table class="flow-table">
+        <thead><tr><th scope="col">Copenhagen date</th>{historyStatuses.map((status) => <th scope="col">{status}</th>)}</tr></thead>
+        <tbody>{metrics.cumulativeFlow.map(({ date, counts }) => <tr><th scope="row"><time datetime={date}>{date}</time></th>{historyStatuses.map((status) => <td>{counts[status] ?? 0}</td>)}</tr>)}</tbody>
+      </table>
+    </div>
+

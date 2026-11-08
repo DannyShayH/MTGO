@@ -1,0 +1,16 @@
+---
+import { Icon } from "@astrojs/starlight/components"
+interface Props {
+  label: string
+  links: { title: string; href: string; description: string }[]
+}
+const { label, links } = Astro.props
+---
+<nav class="docs-directory not-content" aria-label={label}>
+  <ul>{links.map(({ title, href, description }) => <li>
+    <a href={href}>
+      <span><strong>{title}</strong><span>{description}</span></span>
+      <Icon name="right-arrow" size="1.1rem" />
+    </a>
+  </li>)}</ul>
+</nav>

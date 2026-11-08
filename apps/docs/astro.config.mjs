@@ -24,10 +24,36 @@ export default defineConfig({
   },
   integrations: [
     // Renders ```mermaid code blocks in the browser and follows the theme
-    mermaid({ autoTheme: true }),
+    mermaid({
+      autoTheme: true,
+      mermaidConfig: {
+        fontFamily: "system-ui, sans-serif",
+        themeVariables: { fontSize: "18px" },
+        themeCSS: `
+          .node.service rect, .node.queue rect { fill: var(--sl-color-bg-nav); stroke: var(--sl-color-gray-3); }
+          .node.service .nodeLabel, .node.queue .nodeLabel { color: var(--sl-color-white); }
+          .node.entry rect, .node.wip rect { fill: var(--sl-color-accent-low); stroke: var(--sl-color-accent-high); stroke-width: 2px; }
+          .node.entry .nodeLabel, .node.wip .nodeLabel { color: var(--sl-color-accent-high); }
+          .cluster rect { fill: var(--sl-color-bg); stroke: var(--sl-color-gray-3); }
+          .cluster-label span { color: var(--sl-color-white); }
+        `,
+        flowchart: {
+          look: "classic",
+          curve: "linear",
+          nodeSpacing: 36,
+          rankSpacing: 48,
+          padding: 20,
+        },
+      },
+    }),
     starlight({
       title: "MTOGO Docs",
-      customCss: ["./src/styles/flow-metrics.css"],
+      customCss: [
+        "./src/styles/docs.css",
+        "./src/styles/docs-content.css",
+        "./src/styles/flow-metrics.css",
+      ],
+      components: { Pagination: "./src/components/starlight/pagination.astro" },
       description:
         "Documentation, way of working and Kanban flow metrics for the MTOGO project.",
       social: [{ icon: "github", label: "GitHub", href: repo }],

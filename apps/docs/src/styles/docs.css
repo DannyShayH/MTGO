@@ -1,0 +1,101 @@
+/* Shared document geometry. Keep navigation, titles and content on the same
+   left edge even when the browser is much wider than the reading column. */
+:root {
+  --docs-reading-width: 52rem;
+  --docs-dashboard-width: 90rem;
+  --docs-toc-width: 15rem;
+  --docs-shell-width: calc(
+    var(--sl-sidebar-width) + var(--docs-dashboard-width) + 2 *
+      var(--sl-content-pad-x)
+  );
+  --sl-content-width: var(--docs-reading-width);
+}
+
+:root[data-has-toc],
+:root:has(.flow-dashboard),
+:root:has(.flow-evidence),
+:root:has(.docs-workflow),
+:root:has(.docs-architecture) {
+  --sl-content-width: var(--docs-dashboard-width);
+}
+
+/* Starlight separates the title and body into panels. Spacing provides that
+   hierarchy without a full-width rule across every document. */
+.content-panel + .content-panel {
+  border-top: 0;
+  padding-top: 0;
+}
+
+#_top {
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+
+@media (min-width: 50rem) {
+  :root {
+    --sl-content-pad-x: 2rem;
+  }
+
+  /* Center the complete frame, including fixed navigation and the header.
+     Keeping one frame width across routes prevents the sidebar from jumping. */
+  :root[data-has-sidebar] .page {
+    max-width: var(--docs-shell-width);
+    margin-inline: auto;
+  }
+
+  :root[data-has-sidebar] header.header {
+    inset-inline: 0;
+    width: min(100%, var(--docs-shell-width));
+    margin-inline: auto;
+  }
+
+  :root[data-has-sidebar] .sidebar-pane {
+    inset-inline-start: max(0px, calc((100% - var(--docs-shell-width)) / 2));
+  }
+
+  /* The search field shares the document's left edge instead of following
+     Starlight's calculation for a centered reading column. */
+  :root[data-has-sidebar] header.header > .header {
+    grid-template-columns:
+      calc(
+        var(--sl-sidebar-width) + var(--sl-content-pad-x) -
+          var(--sl-nav-pad-x) - var(--sl-nav-gap)
+      )
+      minmax(0, 1fr) auto;
+  }
+}
+
+@media (min-width: 72rem) {
+  :root[data-has-sidebar] .main-pane {
+    --sl-content-margin-inline: 0;
+    flex: 0 1 auto;
+    min-width: 0;
+    width: min(
+      100%,
+      calc(var(--sl-content-width) + 2 * var(--sl-content-pad-x))
+    );
+  }
+
+  :root[data-has-sidebar][data-has-toc] .main-pane {
+    width: min(
+      calc(100% - var(--docs-toc-width)),
+      calc(var(--sl-content-width) + 2 * var(--sl-content-pad-x))
+    );
+  }
+
+  :root[data-has-sidebar] .right-sidebar-container {
+    flex: 0 0 var(--docs-toc-width);
+    width: var(--docs-toc-width);
+    margin-inline-start: 0;
+  }
+
+  :root[data-has-sidebar] .right-sidebar {
+    width: var(--docs-toc-width);
+    border-inline-start: 0;
+  }
+
+  :root[data-has-sidebar] .right-sidebar-panel .sl-container {
+    width: auto;
+    max-width: none;
+  }
+}

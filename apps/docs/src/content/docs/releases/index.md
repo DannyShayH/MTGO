@@ -4,6 +4,9 @@ description: Release notes per SemVer version.
 sidebar:
   label: Overview
   order: 0
+tableOfContents: false
 ---
 
-There are no releases yet. The first release notes come with the first SemVer tag.
+:::note[No releases yet]
+Release notes will appear here after the first SemVer tag.
+:::

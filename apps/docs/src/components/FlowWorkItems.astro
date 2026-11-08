@@ -1,0 +1,124 @@
+---
+import FlowBreachTable from "./FlowBreachTable.astro"
+import FlowDailyCounts from "./FlowDailyCounts.astro"
+import FlowMetricsHeader from "./FlowMetricsHeader.astro"
+import { metrics, columns, percent, scope, days, average, range, LIMITS } from "../lib/flow-view.ts"
+import type { IssueLink } from "../../scripts/flow-metrics.ts"
+---
+<div class="flow-page flow-evidence">
+<FlowMetricsHeader current="work-items" />
+<p class="flow-intro">The work behind the numbers. Start with blocked and old work items, then explore completed work and status history.</p>
+<nav class="flow-jump not-content" aria-label="Work item sections">
+  <a href="#blocked">Blocked</a><a href="#work-item-age">Work item age</a><a href="#data-problems">Data problems</a><a href="#current-columns">Current columns</a><a href="#throughput">Throughput</a><a href="#cycle-time">Cycle time</a><a href="#daily-status-counts">Daily counts</a><a href="#wip-limit-breaches">Breaches</a>
+</nav>
+<h2 id="blocked">Blocked work items</h2>
+<p>Open work items with the <code>blocked</code> label. Blocked WIP is listed first.</p>
+{metrics.blocked.length ? <div class="flow-table-wrap not-content" role="region" aria-label="Blocked work items" tabindex="0"><table class="flow-table"><thead><tr><th scope="col">Work item</th><th scope="col">Status</th><th scope="col">Age</th></tr></thead><tbody>{metrics.blocked.map((item) => <tr><th scope="row"><a href={item.url}>#{item.number} {item.title}</a></th><td>{item.status}</td><td>{item.ageDays === null ? "Unknown" : days(item.ageDays)}</td></tr>)}</tbody></table></div> : <p>No blocked work items in {scope}.</p>}
+
+<h2 id="work-item-age">Work item age</h2>
+<p>Open work items with a valid Start date, oldest first. {metrics.agingLimit.kind === "fixed" ? `Old means above ${metrics.agingLimit.days} days while fewer than 10 completed work items have a start date.` : `Old means above the 85th percentile of completed cycle times (${metrics.agingLimit.days} days).`}</p>
+<div class="flow-table-wrap not-content" role="region" aria-label="Work item age" tabindex="0">
+  <table class="flow-table">
+    <caption>Active work items by age</caption>
+    <thead><tr><th scope="col">Work item</th><th scope="col">Status</th><th scope="col">Age</th></tr></thead>
+    <tbody>{metrics.activeWork.map((item) => <tr><th scope="row"><a href={item.url}>#{item.number} {item.title}</a>{item.old && <span class="flow-note flow-note-alert">Old</span>}{item.blocked && <span class="flow-note">Blocked</span>}</th><td>{item.status}</td><td>{days(item.ageDays)}</td></tr>)}</tbody>
+  </table>
+</div>
+{metrics.activeWork.length === 0 && <p>No open work items have a Start date.</p>}
+
+<h2 id="data-problems">Data problems</h2>
+<p>Missing information that affects the metrics. Correct the fields on GitHub; they will be read again at the next refresh.</p>
+{metrics.dataProblems.length ? <div class="flow-table-wrap not-content" role="region" aria-label="Data problems" tabindex="0"><table class="flow-table"><thead><tr><th scope="col">Work item</th><th scope="col">Problem</th></tr></thead><tbody>{metrics.dataProblems.map((item) => <tr><th scope="row"><a href={item.url}>#{item.number} {item.title}</a></th><td>{item.problem}</td></tr>)}</tbody></table></div> : <p>No data problems in {scope}.</p>}
+
+<h2 id="current-columns">Current columns</h2>
+<div class="flow-columns not-content">
+  {
+    columns.map(({ id, label, kind, data }) => (
+      <section class={kind === "queue" ? "flow-column flow-column-queue" : "flow-column"} aria-label={label} id={`issues-${id}`}>
+        <div class="flow-column-top">
+          <h3>{label}</h3>
+          <span class="flow-kind">{kind === "queue" ? "Ready queue" : "WIP"}</span>
+        </div>
+        <p class="flow-capacity">
+          <strong>{data.count}</strong>
+          <span>of {data.limit} limit</span>
+        </p>
+        <div class="flow-track" aria-hidden="true">
+          <span style={`width: ${percent(data.count, data.limit)}%`} />
+        </div>
+        {data.count > data.limit && <p class="flow-over-limit">Over limit by {data.count - data.limit}</p>}
+        {data.issues.length ? (
+          <ul class="flow-issues">
+            {data.issues.map((issue) => (
+              <li>
+                <a href={issue.url}>
+                  <span class="flow-issue-number">#{issue.number}</span>
+                  <span>{issue.title}</span>
+                </a>
+                {(issue.priority || issue.size) && (
+                  <span class="flow-issue-meta">{[issue.priority, issue.size].filter(Boolean).join(" · ")}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p class="flow-empty">No work items in this column</p>
+        )}
+      </section>
+    ))
+  }
+</div>
+
+<p>
+  The limits are {LIMITS.inProgress} for In Progress, {LIMITS.deliveryInitiated} for Delivery Initiated and {LIMITS.ready}
+  for Ready. Each work item links to its issue on GitHub.
+</p>
+
+<h2 id="throughput">Completed work by week</h2>
+<div class="flow-weeks not-content">
+  {metrics.throughput.length ? metrics.throughput.map((week) => (
+    <details class="flow-week">
+      <summary class="flow-week-summary"><strong>{week.week}</strong><small>{range(week.start, week.end)}</small><span>{week.count} completed</span></summary>
+      <div id={`issues-${week.week}`}>
+        {week.workTypes.map((type) => <div class="flow-type">
+          <div class="flow-type-heading"><h4>{type.name}</h4><span>{type.count} of {week.count}</span></div>
+          <div class="flow-type-track" aria-hidden="true"><span style={`width: ${percent(type.count, week.count)}%`} /></div>
+          <ul class="flow-issues">{type.issues.map((issue: IssueLink) => <li><a href={issue.url}><span class="flow-issue-number">#{issue.number}</span><span>{issue.title}</span></a></li>)}</ul>
+        </div>)}
+      </div>
+    </details>
+  )) : <p class="flow-empty">No completed work items in {scope}.</p>}
+</div>
+
+<h2 id="cycle-time">Cycle time</h2>
+<p>Calendar days and elapsed time for completed work items. Same-day work displays as “&lt; 1 day”.</p>
+<div class="flow-table-wrap not-content" role="region" aria-label="Cycle time by week" tabindex="0">
+  <table class="flow-table">
+    <caption>Average cycle time by closing week</caption>
+    <thead><tr><th scope="col">Closing week</th><th scope="col">Average</th><th scope="col">Count</th></tr></thead>
+    <tbody>{metrics.cycleTimeWeeks.map((week) => <tr><th scope="row">{week.week}</th><td>{average(week.averageDays)}</td><td>{week.count}</td></tr>)}</tbody>
+  </table>
+</div>
+<p class="flow-table-hint">Swipe the table to see all columns.</p>
+<div class="flow-table-wrap flow-table-cycle not-content" role="region" aria-label="Cycle time by work item" tabindex="0">
+  <table class="flow-table">
+    <caption>Cycle time by work item</caption>
+    <thead><tr><th scope="col">Work item</th><th scope="col">Closed</th><th scope="col">Elapsed time</th><th scope="col">Cycle time</th></tr></thead>
+    <tbody>{metrics.cycleTime.map((item) => <tr><th scope="row"><a href={item.url}>#{item.number} {item.title}</a>{item.reopened && <span class="flow-note">Reopened</span>}</th><td><time datetime={item.closedAt}>{item.closedAt}</time></td><td>{item.elapsedDisplay}</td><td>{item.display}</td></tr>)}</tbody>
+  </table>
+</div>
+{metrics.cycleTime.length === 0 && <p>No completed work items have a start date.</p>}
+
+<h2 id="closed-without-delivery">Closed without delivery</h2>
+<p>Work items closed as not planned. They count in neither throughput nor cycle time.</p>
+{metrics.closedWithoutDelivery.length ? <div class="flow-table-wrap not-content" role="region" aria-label="Closed without delivery" tabindex="0"><table class="flow-table"><thead><tr><th scope="col">Work item</th><th scope="col">Closed</th></tr></thead><tbody>{metrics.closedWithoutDelivery.map((item) => <tr><th scope="row"><a href={item.url}>#{item.number} {item.title}</a></th><td><time datetime={item.closedAt}>{item.closedAt}</time></td></tr>)}</tbody></table></div> : <p>No work items were closed as not planned in {scope}.</p>}
+
+<h2 id="daily-status-counts">Daily status counts</h2>
+<p>End-of-day counts in Copenhagen time. The latest day ends at collection time.</p>
+
+<FlowDailyCounts />
+
+<h2 id="wip-limit-breaches">WIP limit breaches</h2>
+<p>Periods above each column's current limit, including intraday breaches and the Ready queue. Peak excess is the largest number above the limit. Times are shown in Copenhagen time.</p>
+<FlowBreachTable />
+</div>

@@ -1,4 +1,6 @@
 import {
+  STATUS,
+  type FlowDay,
   nextIsoWeek,
   roundDays,
   WORK_TYPES,
@@ -221,5 +223,65 @@ export function cycleTimeChartOption(
         }),
       },
     ],
+  }
+}
+
+/** Finished work anchors the bottom; upstream queues grow above it. */
+export function cumulativeFlowChartOption(
+  days: FlowDay[],
+  palette: ChartPalette,
+) {
+  const boardStatuses: string[] = [
+    STATUS.done,
+    STATUS.deliveryInitiated,
+    STATUS.inProgress,
+    STATUS.ready,
+    STATUS.backlog,
+    STATUS.none,
+  ]
+  const statuses = [
+    ...new Set([
+      ...boardStatuses,
+      ...days.flatMap(({ counts }) => Object.keys(counts)),
+    ]),
+  ].filter((status) => days.some(({ counts }) => counts[status] > 0))
+  const base = baseChartOption(
+    palette,
+    days.map(({ date }) => date),
+  )
+  return {
+    ...base,
+    grid: { ...base.grid, bottom: 72 },
+    xAxis: {
+      ...base.xAxis,
+      boundaryGap: false,
+      axisLabel: {
+        ...base.xAxis.axisLabel,
+        formatter: (date: string) => date.slice(5),
+      },
+    },
+    legend: {
+      bottom: 0,
+      type: "scroll" as const,
+      textStyle: { color: palette.text },
+    },
+    tooltip: { ...base.tooltip, renderMode: "richText" as const },
+    yAxis: valueAxis(palette, "Work items"),
+    series: statuses.map((name, index) => ({
+      name,
+      type: "line" as const,
+      stack: "statuses",
+      symbol: days.length === 1 ? "circle" : "none",
+      areaStyle: { opacity: 0.75 },
+      itemStyle: {
+        color:
+          palette.series[
+            (boardStatuses.includes(name)
+              ? boardStatuses.indexOf(name)
+              : index) % palette.series.length
+          ],
+      },
+      data: days.map(({ counts }) => counts[name] ?? 0),
+    })),
   }
 }

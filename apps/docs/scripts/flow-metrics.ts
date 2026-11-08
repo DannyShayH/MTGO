@@ -18,6 +18,8 @@ export type BoardIssue = {
   /** Project Priority and Size, null when not set */
   priority: string | null
   size: string | null
+  /** Close and reopen moments; optional for older saved datasets */
+  stateChanges?: { state: "OPEN" | "CLOSED"; at: string }[]
   /** Status history from the issue timeline, oldest first, duplicate Backlog events removed */
   statusChanges: StatusChange[]
 }
@@ -65,6 +67,16 @@ export type CycleTimeWeek = {
   count: number
 }
 
+export type FlowDay = { date: string; counts: Record<string, number> }
+export type WipBreach = {
+  column: string
+  limit: number
+  start: string
+  /** Null while the breach is ongoing at observation time */
+  end: string | null
+  peakExcess: number
+}
+
 export type FlowMetrics = {
   source: BoardDataset["source"]
   observedAt: string
@@ -73,6 +85,8 @@ export type FlowMetrics = {
   inProgress: Column
   deliveryInitiated: Column
   ready: Column
+  cumulativeFlow: FlowDay[]
+  wipBreaches: WipBreach[]
   throughput: Week[]
   cycleTime: CycleTime[]
   cycleTimeWeeks: CycleTimeWeek[]
@@ -103,6 +117,7 @@ export const STATUS = {
   ready: "Ready",
   inProgress: "In Progress",
   deliveryInitiated: "Delivery Initiated",
+  done: "Done",
   none: "No Status",
 } as const
 
@@ -229,6 +244,120 @@ export function nextIsoWeek(week: string): string {
 
 /** An average in days as every page and chart shows it */
 export const roundDays = (value: number) => Number(value.toFixed(1))
+
+/** Replay each item's status once; repeated arrivals never create extra items. */
+function flowHistory(items: BoardIssue[], observationTime: string) {
+  const observed = Date.parse(observationTime)
+  const events = items
+    .flatMap((item) => {
+      const changes = item.statusChanges.map(({ to, at }) => ({
+        number: item.number,
+        at,
+        status: to,
+        state: undefined as BoardIssue["state"] | undefined,
+      }))
+      return [
+        ...changes,
+        ...(
+          item.stateChanges ??
+          (item.closedAt
+            ? [{ state: "CLOSED" as const, at: item.closedAt }]
+            : [])
+        ).map(({ state, at }) => ({
+          number: item.number,
+          at,
+          status: undefined,
+          state,
+        })),
+        // A snapshot says nothing about earlier days. Reconcile only at capture time,
+        // including items whose timeline has no status events (as in the saved sample).
+        {
+          number: item.number,
+          at: observationTime,
+          status: item.status,
+          state: item.state,
+        },
+      ]
+    })
+    .filter(
+      ({ at }) => Number.isFinite(Date.parse(at)) && Date.parse(at) <= observed,
+    )
+    .sort((a, b) => Date.parse(a.at) - Date.parse(b.at))
+  const cumulativeFlow: FlowDay[] = []
+  const wipBreaches: WipBreach[] = []
+  if (!events.length) return { cumulativeFlow, wipBreaches }
+  const current = new Map<
+    number,
+    { status?: string; state: BoardIssue["state"] }
+  >()
+  const limits = new Map([
+    [STATUS.inProgress, LIMITS.inProgress],
+    [STATUS.deliveryInitiated, LIMITS.deliveryInitiated],
+    [STATUS.ready, LIMITS.ready],
+  ])
+  const ongoing = new Map<string, WipBreach>()
+  const counts = () => {
+    const result: Record<string, number> = Object.fromEntries(
+      Object.values(STATUS).map((status) => [status, 0]),
+    )
+    const open: Record<string, number> = {}
+    for (const { status, state } of current.values()) {
+      if (!status) continue
+      result[status] = (result[status] ?? 0) + 1
+      if (state === "OPEN") open[status] = (open[status] ?? 0) + 1
+    }
+    return { result, open }
+  }
+  let index = 0
+  const firstDay = copenhagenDay(events[0].at).getTime()
+  const lastDay = copenhagenDay(observationTime).getTime()
+  for (let day = firstDay; day <= lastDay; day += DAY_MS) {
+    const date = isoDate(new Date(day))
+    while (index < events.length && copenhagenDate(events[index].at) <= date) {
+      const at = events[index].at
+      const instant = Date.parse(at)
+      // Changes at the same instant are atomic: no zero-length handoff breaches.
+      while (
+        index < events.length &&
+        Date.parse(events[index].at) === instant
+      ) {
+        const event = events[index++]
+        const previous = current.get(event.number) ?? { state: "OPEN" as const }
+        current.set(event.number, {
+          status: event.status ?? previous.status,
+          state: event.state ?? previous.state,
+        })
+      }
+      const { open } = counts()
+      for (const [column, limit] of limits) {
+        const excess = (open[column] ?? 0) - limit
+        const breach = ongoing.get(column)
+        if (excess > 0) {
+          if (breach) breach.peakExcess = Math.max(breach.peakExcess, excess)
+          else
+            ongoing.set(column, {
+              column,
+              limit,
+              start: at,
+              end: null,
+              peakExcess: excess,
+            })
+        } else if (breach) {
+          breach.end = at
+          wipBreaches.push(breach)
+          ongoing.delete(column)
+        }
+      }
+    }
+    cumulativeFlow.push({ date, counts: counts().result })
+  }
+  wipBreaches.push(...ongoing.values())
+  wipBreaches.sort(
+    (a, b) =>
+      a.start.localeCompare(b.start) || a.column.localeCompare(b.column),
+  )
+  return { cumulativeFlow, wipBreaches }
+}
 
 export function calculateFlowMetrics(
   dataset: BoardDataset,
@@ -397,6 +526,7 @@ export function calculateFlowMetrics(
     LIMITS.deliveryInitiated,
   )
   return {
+    ...flowHistory(items, observationTime),
     source: dataset.source,
     observedAt: observationTime,
     wip: {

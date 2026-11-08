@@ -36,6 +36,198 @@ const board = (items: BoardDataset["items"]): BoardDataset => ({
 })
 
 describe("calculateFlowMetrics", () => {
+  it("reports independent Ready and Delivery Initiated breaches without a false simultaneous handoff", () => {
+    const start = "2026-11-07T08:00:00Z"
+    const transfer = "2026-11-07T09:00:00Z"
+    const metrics = calculateFlowMetrics(
+      board([
+        ...[1, 2, 3, 4, 5, 6].map((number) =>
+          issue(number, {
+            status: "Ready",
+            statusChanges: [{ to: "Ready", at: start }],
+          }),
+        ),
+        ...[7, 8, 9].map((number) =>
+          issue(number, {
+            status: "Delivery Initiated",
+            statusChanges: [{ to: "Delivery Initiated", at: start }],
+          }),
+        ),
+        ...[10, 11].map((number) =>
+          issue(number, {
+            status: "In Progress",
+            statusChanges: [{ to: "In Progress", at: start }],
+          }),
+        ),
+        issue(12, {
+          status: "Done",
+          statusChanges: [
+            { to: "In Progress", at: start },
+            { to: "Done", at: transfer },
+          ],
+        }),
+        issue(13, {
+          status: "In Progress",
+          statusChanges: [{ to: "In Progress", at: transfer }],
+        }),
+      ]),
+      "2026-11-07T10:00:00Z",
+    )
+    expect(metrics.wipBreaches).toEqual([
+      {
+        column: "Delivery Initiated",
+        limit: 2,
+        start,
+        end: null,
+        peakExcess: 1,
+      },
+      { column: "Ready", limit: 5, start, end: null, peakExcess: 1 },
+    ])
+  })
+
+  it("keeps Copenhagen daily samples continuous across the autumn clock change", () => {
+    const metrics = calculateFlowMetrics(
+      board([
+        issue(20, {
+          status: "Ready",
+          statusChanges: [
+            { to: "Backlog", at: "2026-10-24T21:30:00Z" },
+            { to: "Ready", at: "2026-10-24T22:30:00Z" },
+            { to: "In Progress", at: "2026-10-27T08:00:00Z" },
+          ],
+        }),
+      ]),
+      "2026-10-26T12:00:00Z",
+    )
+    expect(
+      metrics.cumulativeFlow.map(({ date, counts }) => [
+        date,
+        counts.Backlog,
+        counts.Ready,
+        counts["In Progress"],
+      ]),
+    ).toEqual([
+      ["2026-10-24", 1, 0, 0],
+      ["2026-10-25", 0, 1, 0],
+      ["2026-10-26", 0, 1, 0],
+    ])
+  })
+
+  it("uses missing history only at collection and handles an empty board", () => {
+    const metrics = calculateFlowMetrics(
+      board([
+        issue(20, {
+          status: "Ready",
+          statusChanges: [{ to: "Ready", at: "2026-11-06T12:00:00Z" }],
+        }),
+        issue(21, { status: "Backlog" }),
+        issue(22, {
+          status: "Done",
+          state: "CLOSED",
+          closeReason: "NOT_PLANNED",
+          closedAt: "2026-11-06T14:00:00Z",
+        }),
+      ]),
+      "2026-11-07T12:00:00Z",
+    )
+    expect(
+      metrics.cumulativeFlow.map(({ counts }) => [
+        counts.Backlog,
+        counts.Ready,
+        counts.Done,
+      ]),
+    ).toEqual([
+      [0, 1, 0],
+      [1, 1, 1],
+    ])
+    const empty = calculateFlowMetrics(board([]), "2026-11-07T12:00:00Z")
+    expect([empty.cumulativeFlow, empty.wipBreaches]).toEqual([[], []])
+  })
+
+  it("measures continuous intraday breaches, peak excess, and open periods using close and reopen times", () => {
+    const metrics = calculateFlowMetrics(
+      board([
+        ...[1, 2, 3].map((number) =>
+          issue(number, {
+            status: "In Progress",
+            statusChanges: [{ to: "In Progress", at: "2026-11-07T08:00:00Z" }],
+          }),
+        ),
+        issue(4, {
+          status: "In Progress",
+          statusChanges: [{ to: "In Progress", at: "2026-11-07T09:00:00Z" }],
+          stateChanges: [
+            { state: "CLOSED", at: "2026-11-07T11:00:00Z" },
+            { state: "OPEN", at: "2026-11-07T12:00:00Z" },
+          ],
+        }),
+        issue(5, {
+          status: "Ready",
+          statusChanges: [
+            { to: "In Progress", at: "2026-11-07T10:00:00Z" },
+            { to: "Ready", at: "2026-11-07T10:30:00Z" },
+          ],
+        }),
+      ]),
+      "2026-11-07T13:00:00Z",
+    )
+    expect(metrics.wipBreaches).toEqual([
+      {
+        column: "In Progress",
+        limit: 3,
+        start: "2026-11-07T09:00:00Z",
+        end: "2026-11-07T11:00:00Z",
+        peakExcess: 2,
+      },
+      {
+        column: "In Progress",
+        limit: 3,
+        start: "2026-11-07T12:00:00Z",
+        end: null,
+        peakExcess: 1,
+      },
+    ])
+  })
+
+  it("rebuilds daily status counts with backward moves and no duplicate Backlog arrivals", () => {
+    const metrics = calculateFlowMetrics(
+      board([
+        issue(20, {
+          status: "Ready",
+          statusChanges: [
+            { to: "Backlog", at: "2026-11-06T09:00:00Z" },
+            { to: "In Progress", at: "2026-11-07T09:00:00Z" },
+            { to: "Ready", at: "2026-11-07T23:00:00Z" },
+          ],
+        }),
+        issue(21, {
+          statusChanges: [
+            { to: "Backlog", at: "2026-11-06T10:00:00Z" },
+            { to: "Backlog", at: "2026-11-06T10:01:00Z" },
+          ],
+        }),
+        issue(12, {
+          subIssueCount: 2,
+          statusChanges: [{ to: "Backlog", at: "2026-11-05T09:00:00Z" }],
+        }),
+      ]),
+      "2026-11-09T12:00:00Z",
+    )
+    expect(
+      metrics.cumulativeFlow.map(({ date, counts }) => [
+        date,
+        counts.Backlog,
+        counts.Ready,
+        counts["In Progress"],
+      ]),
+    ).toEqual([
+      ["2026-11-06", 2, 0, 0],
+      ["2026-11-07", 1, 0, 1],
+      ["2026-11-08", 1, 1, 0],
+      ["2026-11-09", 1, 1, 0],
+    ])
+  })
+
   it("shows elapsed minutes beside the calendar-day cycle time", () => {
     const metrics = calculateFlowMetrics(
       board([

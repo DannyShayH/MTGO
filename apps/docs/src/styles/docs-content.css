@@ -1,0 +1,442 @@
+/* Shared reading and navigation styles. Layout remains in docs.css, while
+   metric components retain their own styles in flow-metrics.css. */
+:root {
+  --docs-control-radius: 0.5rem;
+  --docs-interactive-text: var(--sl-color-accent-high);
+  --docs-control-surface: var(--sl-color-bg-nav);
+  --docs-control-border: var(--sl-color-hairline-light);
+}
+
+#_top {
+  font-size: clamp(1.8rem, 2.4vw, 2.25rem);
+  line-height: 1.25;
+}
+
+.sl-markdown-content {
+  font-size: 1rem;
+  line-height: 1.8;
+}
+
+.sl-markdown-content > :is(p, ul, ol, blockquote, dl),
+.docs-architecture > :is(p, ul, ol, blockquote, dl) {
+  max-width: 78ch;
+}
+
+.sl-markdown-content :is(h2, h3, h4):not(:where(.not-content *)) {
+  letter-spacing: -0.015em;
+  line-height: 1.4;
+}
+
+.sl-markdown-content h2:not(:where(.not-content *)) {
+  font-size: 1.5rem;
+}
+
+.sl-markdown-content h3:not(:where(.not-content *)) {
+  font-size: 1.25rem;
+}
+
+.sl-markdown-content a:not(:where(.not-content *)) {
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+
+.sl-markdown-content :not(pre) > code:not(:where(.not-content *)) {
+  border-radius: 0.25rem;
+  overflow-wrap: anywhere;
+}
+
+.sl-markdown-content table:not(:where(.not-content *)) {
+  max-width: 100%;
+  border: 1px solid var(--docs-control-border);
+  border-radius: var(--docs-control-radius);
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.sl-markdown-content :is(th, td):not(:where(.not-content *)) {
+  padding: 0.75rem 0.85rem;
+  vertical-align: top;
+  border-bottom-color: var(--docs-control-border);
+}
+
+.sl-markdown-content
+  :is(th:first-child, td:first-child, th:last-child, td:last-child):not(
+    :where(.not-content *)
+  ) {
+  padding-inline: 0.85rem;
+}
+
+.sl-markdown-content thead:not(:where(.not-content *)) {
+  background: var(--docs-control-surface);
+}
+
+.sl-markdown-content
+  tbody
+  tr:last-child
+  :is(th, td):not(:where(.not-content *)) {
+  border-bottom: 0;
+}
+
+.sl-markdown-content blockquote:not(:where(.not-content *)) {
+  border-inline-start: 3px solid var(--docs-interactive-text);
+  padding: 0.6rem 1rem;
+  background: var(--docs-control-surface);
+  color: var(--sl-color-gray-2);
+  font-size: 1rem;
+}
+
+.expressive-code {
+  margin-block: 1.5rem;
+}
+
+.expressive-code .frame {
+  box-shadow: none;
+  border-radius: var(--docs-control-radius);
+}
+
+.starlight-aside {
+  border-radius: var(--docs-control-radius);
+  border-inline-start-width: 3px;
+  box-shadow: none;
+}
+
+/* Clear current-location cues without a solid block of accent color. */
+.sidebar-content .top-level > li + li {
+  margin-top: 0.85rem;
+}
+
+.sidebar-content .large {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.sidebar-content a,
+.sidebar-content summary {
+  min-height: 2rem;
+  padding-block: 0.45rem;
+  border-radius: 0.3rem;
+}
+
+.sidebar-content a[aria-current="page"] {
+  background: var(--sl-color-accent-low);
+  color: var(--docs-interactive-text);
+  box-shadow: inset 3px 0 var(--docs-interactive-text);
+}
+
+.sidebar-content .caret {
+  transition: none;
+}
+
+.right-sidebar-panel :where(a) {
+  padding-block: 0.35rem;
+  line-height: 1.5;
+}
+
+.right-sidebar-panel a[aria-current="true"] {
+  color: var(--docs-interactive-text);
+  font-weight: 600;
+}
+
+/* Directories are reading-order link rows, rather than another set of cards. */
+.docs-directory ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.docs-directory li {
+  border-bottom: 1px solid var(--docs-control-border);
+}
+
+.docs-directory li:first-child {
+  border-top: 1px solid var(--docs-control-border);
+}
+
+.docs-directory a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  min-height: 5rem;
+  padding: 1rem 0.75rem;
+  border-radius: 0.25rem;
+  color: var(--sl-color-white);
+  text-decoration: none;
+}
+
+.docs-directory a > span {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.docs-directory strong {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.docs-directory a > span > span {
+  color: var(--sl-color-gray-2);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.docs-directory svg {
+  flex: none;
+  color: var(--docs-interactive-text);
+}
+
+/* Keep page-turn controls compact even on a wide dashboard. */
+main footer {
+  gap: 1.25rem;
+}
+
+main footer .meta {
+  align-items: center;
+  margin-top: 2.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--docs-control-border);
+  font-size: 0.75rem;
+}
+
+main footer .meta a {
+  min-height: 2.5rem;
+}
+
+.docs-pagination {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 24rem));
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.docs-page-link {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 0.35rem;
+  min-width: 0;
+  min-height: 7rem;
+  padding: 1rem 1.15rem;
+  border: 1px solid var(--docs-control-border);
+  border-radius: var(--docs-control-radius);
+  background: var(--docs-control-surface);
+  color: var(--sl-color-white);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.docs-page-link[rel="next"] {
+  grid-column: 2;
+}
+
+.docs-page-direction {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  color: var(--sl-color-gray-2);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.docs-page-link[rel="prev"] .docs-page-direction svg {
+  order: -1;
+}
+
+.docs-page-link[rel="next"] .docs-page-direction {
+  justify-content: space-between;
+}
+
+.docs-page-title {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+}
+
+.docs-page-context {
+  color: var(--sl-color-gray-2);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+:where(a, button, summary, select, input, textarea):focus-visible {
+  outline: 2px solid var(--docs-interactive-text);
+  outline-offset: 3px;
+}
+
+.docs-page-link:active,
+.docs-directory a:active {
+  border-color: var(--docs-interactive-text);
+  background: var(--sl-color-accent-low);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .docs-page-link:hover {
+    border-color: var(--docs-interactive-text);
+    background: var(--sl-color-accent-low);
+  }
+
+  .docs-directory a:hover,
+  .sidebar-content a:not([aria-current="page"]):hover {
+    background: var(--docs-control-surface);
+    color: var(--docs-interactive-text);
+  }
+
+  .docs-page-link:hover .docs-page-title,
+  .docs-directory a:hover strong {
+    color: var(--docs-interactive-text);
+  }
+}
+
+@media (max-width: 36rem) {
+  .docs-pagination {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .docs-page-link[rel="next"] {
+    grid-column: auto;
+  }
+
+  .docs-page-link {
+    min-height: 6rem;
+  }
+
+  .sidebar-content a,
+  .sidebar-content summary {
+    min-height: 2.75rem;
+  }
+}
+
+/* Figures and tables use the article column; text keeps its reading measure. */
+.docs-directory {
+  max-width: var(--docs-reading-width);
+}
+
+.sl-markdown-content pre.mermaid {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-radius: var(--docs-control-radius);
+}
+
+.sl-markdown-content pre.mermaid svg {
+  min-width: 36rem;
+}
+
+.docs-workflow,
+.docs-diagram {
+  margin-block: 1.75rem;
+  padding: 1.25rem;
+  border: 1px solid var(--docs-control-border);
+  border-radius: var(--docs-control-radius);
+  background: var(--docs-control-surface);
+}
+
+:is(.docs-workflow, .docs-diagram) figcaption {
+  margin-bottom: 0.75rem;
+  color: var(--sl-color-white);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.sl-markdown-content figure:is(.docs-workflow, .docs-diagram) pre.mermaid {
+  margin: 0;
+  padding: 1rem 0;
+  background: transparent;
+  border: 0;
+  min-width: 64rem;
+  overflow: visible;
+}
+
+.sl-markdown-content :is(.docs-workflow, .docs-diagram) pre.mermaid svg {
+  min-width: 100%;
+}
+
+.docs-workflow-hint {
+  margin-top: 0.5rem;
+  color: var(--sl-color-gray-2);
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
+.docs-workflow-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  max-width: none;
+  margin: 1rem 0 0;
+  padding: 1rem 0 0;
+  border-top: 1px solid var(--docs-control-border);
+  list-style: none;
+}
+
+.docs-workflow-steps li {
+  color: var(--sl-color-gray-2);
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.docs-workflow-steps strong {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: var(--sl-color-white);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 50rem) {
+  .docs-workflow-steps {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 36rem) {
+  .docs-workflow,
+  .docs-diagram {
+    padding: 1rem;
+  }
+}
+
+.docs-diagram-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  border-radius: 0.25rem;
+}
+
+.docs-diagram-scroll:focus-visible {
+  outline: 2px solid var(--docs-interactive-text);
+  outline-offset: 3px;
+}
+
+@media (min-width: 50rem) {
+  .sl-markdown-content {
+    font-size: 1.125rem;
+  }
+}
+
+.docs-architecture .docs-directory {
+  max-width: none;
+}
+
+.docs-architecture .docs-directory ul {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 2rem;
+}
+
+.docs-architecture .docs-directory li {
+  border-top: 1px solid var(--docs-control-border);
+  border-bottom: 0;
+}
+
+@media (max-width: 50rem) {
+  .docs-architecture .docs-directory ul {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.sl-markdown-content figure.docs-diagram pre.mermaid {
+  min-width: 76rem;
+}

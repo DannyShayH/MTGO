@@ -1,0 +1,81 @@
+---
+title: Metric definitions
+description: Definitions, sources and counting rules for the team's flow metrics.
+sidebar:
+  label: Definitions
+  order: 2
+---
+
+import FlowMetricsHeader from "../../../components/FlowMetricsHeader.astro"
+
+<FlowMetricsHeader current="definitions" />
+
+These definitions explain how each metric is calculated, where its data comes from and how to interpret it. The [shared glossary](/MTGO/architecture/glossary/) defines the team's product and workflow vocabulary, including preferred terms and synonyms to avoid.
+
+## Sources and refresh
+
+Numbers come from [Project #2](https://github.com/users/DannyShayH/projects/2), refreshed during delivery and daily at 05:00 UTC. The collection time is shown on every metrics page. A manual refresh is available in GitHub Actions.
+
+Local builds without board access show a **Sample data** banner. An expired or rejected token fails collection so it cannot publish sample numbers by accident. The [published metrics JSON](/MTGO/flow-metrics.json) contains the same numbers used by the charts and tables.
+
+Charts use Copenhagen calendar dates. Weeks run Monday to Sunday. Empty throughput weeks have no bar; weeks without usable cycle times have a gap in the line.
+
+## Work item
+
+An issue on the project board with no sub-issues. Parent issues are left out, because their sub-issues are counted instead. Source: the sub-issue count of each issue on the board.
+
+## WIP
+
+Open work items with status **In Progress** or **Delivery Initiated**, each column against its own limit. Source: the status field of each issue on the board.
+
+## Ready queue
+
+Open work items with status **Ready**, waiting to be pulled, with their Priority and Size. It is not WIP. Source: the status field of each issue on the board.
+
+## Cumulative Flow Diagram (CFD)
+
+Daily counts in each board status, replayed from the issue timeline after duplicate Backlog additions have been removed (ADR-0002). Backward moves transfer an item between bands rather than adding work. Each point ends at Copenhagen midnight; today's point ends at collection. The latest point uses the board's current statuses. Closed items stay in their board status, including Done and items closed without delivery, so this chart describes board inventory rather than throughput. Missing status history is not backfilled: an item with no events first appears at collection time. Historical counts cover only items still on the board today.
+
+## WIP limit breaches
+
+Continuous periods when open work items exceed the current limit for In Progress, Delivery Initiated or the Ready queue. Close and reopen events stop and resume an item's contribution. The list shows column, limit, start, end (or ongoing), and peak excess. Breaches shorter than a day remain visible even when the daily chart misses them. Historical limits are unavailable, so today's limits apply to the whole history.
+
+## Throughput
+
+Work items closed as completed in each Monday-to-Sunday ISO week in Europe/Copenhagen time, broken down by work type. Issues closed as "not planned" do not count. Source: the close date and close reason of each issue on the board.
+
+## Cycle time
+
+Copenhagen calendar days from the project Start date to the latest close date for completed work items. A same-day item contributes zero to the weekly average and displays as “< 1 day”. Reopened items use their last close date. Items without a Start date are excluded from this metric.
+
+## Elapsed time
+
+Wall-clock time from the first move to In Progress on the Start date to the latest issue close, rounded to the nearest minute. It includes waiting time. GitHub records both moments; when a start event is missing, the value is shown as “Not available” rather than inferred from the date.
+
+## Work item age
+
+Copenhagen calendar days from Start date to the observation date for an open work item. Items without a Start date cannot have an age calculated.
+
+## Old work item
+
+An open item above five days old until ten completed items have usable start dates; after that, above the nearest-rank 85th percentile of completed cycle times. The page shows which limit applies.
+
+## Blocked
+
+Open work items carrying the `blocked` label, with blocked WIP first.
+
+## Closed without delivery
+
+Work items closed as not planned. They appear separately and enter neither throughput nor cycle time.
+
+## Data problem
+
+A missing, invalid or later-than-close Start date on started or completed work, a missing precise start time for elapsed time, a closed work item without a close reason, or an open work item without a status. Neither value is inferred; a completed item still enters throughput.
+
+## Planned later
+
+- Scatterplot and aging chart
+- Monte Carlo forecast
+- DORA metrics
+- Quality data
+- Release notes

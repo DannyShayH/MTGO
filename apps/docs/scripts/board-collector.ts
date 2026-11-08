@@ -207,6 +207,16 @@ function normaliseItem(raw: RawItem): BoardIssue | null {
     reopened: events.some((event) => event.__typename === "ReopenedEvent"),
     priority: selectValue(fields, "Priority"),
     size: selectValue(fields, "Size"),
+    stateChanges: events.flatMap(
+      (event): { state: BoardIssue["state"]; at: string }[] => {
+        if (!event.createdAt) return []
+        if (event.__typename === "ClosedEvent")
+          return [{ state: "CLOSED" as const, at: event.createdAt }]
+        if (event.__typename === "ReopenedEvent")
+          return [{ state: "OPEN" as const, at: event.createdAt }]
+        return []
+      },
+    ),
     statusChanges,
   }
 }

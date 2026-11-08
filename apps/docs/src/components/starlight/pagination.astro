@@ -1,0 +1,38 @@
+---
+import { Icon } from "@astrojs/starlight/components"
+
+const { sidebar, pagination, dir } = Astro.locals.starlightRoute
+
+type Sidebar = typeof sidebar
+function findSidebarPath(entries: Sidebar, href: string, parents: string[] = []): string[] | undefined {
+  for (const entry of entries) {
+    if (entry.type === "link" && entry.href === href) return [...parents, entry.label]
+    if (entry.type === "group") {
+      const path = findSidebarPath(entry.entries, href, [...parents, entry.label])
+      if (path) return path
+    }
+  }
+}
+
+const links = (["prev", "next"] as const).flatMap((direction) => {
+  const link = pagination[direction]
+  if (!link) return []
+  const parents = (findSidebarPath(sidebar, link.href) ?? []).slice(0, -1)
+  const isOverview = link.label === "Overview" && parents.length > 0
+  return [{
+    ...link,
+    direction,
+    title: isOverview ? parents.at(-1) : link.label,
+    context: (isOverview ? parents.slice(0, -1) : parents).join(" / "),
+    label: Astro.locals.t(direction === "prev" ? "page.previousLink" : "page.nextLink"),
+    icon: (direction === "prev") !== (dir === "rtl") ? "left-arrow" as const : "right-arrow" as const,
+  }]
+})
+---
+{links.length > 0 && <nav class="docs-pagination print:hidden" aria-label="Page navigation" dir={dir}>
+  {links.map((link) => <a class="docs-page-link" href={link.href} rel={link.direction}>
+    <span class="docs-page-direction"><span>{link.label}</span><Icon name={link.icon} size="1rem" /></span>
+    <span class="docs-page-title">{link.title}</span>
+    {link.context && <span class="docs-page-context">{link.context}</span>}
+  </a>)}
+</nav>}

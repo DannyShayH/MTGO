@@ -1,0 +1,117 @@
+---
+title: Architecture
+description: How the applications connect, where they run and why we made these choices.
+sidebar:
+  label: Overview
+  order: 0
+tableOfContents: false
+---
+
+import SectionLinks from "../../../components/section-links.astro"
+
+<div class="docs-architecture">
+
+MTOGO brings together a Next.js storefront, a Medusa backend and this documentation site. They share a Turborepo repository with npm workspaces, while each application lives in its own folder under `apps/`.
+
+## How the applications connect
+
+The storefront calls the backend over HTTP using the Medusa JS SDK. The backend owns the commerce data in PostgreSQL. The docs site builds separately and publishes to GitHub Pages.
+
+<figure class="docs-diagram not-content">
+  <figcaption id="applications-title">Application structure</figcaption>
+  <div class="docs-diagram-scroll" role="region" aria-labelledby="applications-title" tabindex="0">
+
+```mermaid
+flowchart LR
+    accTitle: MTOGO application structure
+    accDescr: The Next.js storefront calls the Medusa backend over HTTP. Medusa uses PostgreSQL. Astro Starlight publishes the documentation to GitHub Pages separately.
+    storefront["Storefront<br/>Next.js"] -->|HTTP API| backend["Backend<br/>Medusa 2"]
+    backend --> database["Commerce data<br/>PostgreSQL"]
+    docs["Documentation<br/>Astro Starlight"] --> pages["Published docs<br/>GitHub Pages"]
+    class storefront,backend,docs service
+    class database,pages entry
+```
+
+  </div>
+  <p class="docs-workflow-hint">Storefront: apps/storefront. Backend: apps/backend. Documentation: apps/docs. On smaller screens, scroll the diagram horizontally.</p>
+</figure>
+
+The architecture checks enforce these boundaries: no imports between the storefront and backend, no direct imports between custom backend modules, and no circular dependencies. Within the backend, API routes call workflows, and workflows coordinate modules.
+
+## Planned application hosting
+
+DigitalOcean is the intended application host. The deployment plan uses one Droplet for the application services and PostgreSQL, with Caddy in front of the Docker services. **This is a deployment proposal: the repository does not yet configure or deploy this setup.** The documentation already has its own GitHub Pages deployment.
+
+<figure class="docs-diagram not-content">
+  <figcaption id="hosting-title">Proposed DigitalOcean deployment</figcaption>
+  <div class="docs-diagram-scroll" role="region" aria-labelledby="hosting-title" tabindex="0">
+
+```mermaid
+flowchart LR
+    accTitle: Proposed application hosting on DigitalOcean
+    accDescr: A visitor connects over HTTPS to Caddy on a planned DigitalOcean Droplet. Caddy forwards requests to Next.js and Medusa services running in Docker. PostgreSQL runs on the same Droplet and stores the backend commerce data.
+    visitor["Visitor<br/>Browser"] -->|HTTPS| caddy
+    subgraph droplet["DigitalOcean Droplet · planned"]
+        caddy["Caddy<br/>Reverse proxy"]
+        subgraph docker["Docker services"]
+            web["Storefront<br/>Next.js"]
+            api["Backend<br/>Medusa 2"]
+        end
+        caddy --> web
+        caddy --> api
+        web -->|HTTP API| api
+        database["PostgreSQL<br/>Commerce data"]
+        api --> database
+    end
+    class visitor,web,api,database service
+    class caddy entry
+```
+
+  </div>
+  <p class="docs-workflow-hint">Proposed request routing, not a deployment inventory. PostgreSQL shares the application Droplet. Persistent storage, backups and deployment automation still need to be decided.</p>
+</figure>
+
+[Caddy's reverse proxy](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy) would route incoming requests to the application services. Docker would run the services on the Droplet. PostgreSQL runs on the same Droplet and is accessed by the backend.
+
+## Find the right reference
+
+The **glossary** defines our shared language: what a work item or WIP means, and which terms we use consistently. **Metric definitions** explain the dashboard's calculations, data sources and counting rules. Keep both references: they answer different questions.
+
+<SectionLinks
+  label="Architecture resources"
+  links={[
+    {
+      title: "Shared glossary",
+      href: "/MTGO/architecture/glossary/",
+      description:
+        "Product and workflow vocabulary, preferred terms and synonyms to avoid.",
+    },
+    {
+      title: "Metric definitions",
+      href: "/MTGO/flow-metrics/definitions/",
+      description:
+        "Calculations, data sources and counting rules behind the dashboard.",
+    },
+    {
+      title: "Dependency graph",
+      href: "/MTGO/architecture/dependency-graph/",
+      description:
+        "Explore the backend's actual imports and module boundaries.",
+    },
+    {
+      title: "Architecture decisions",
+      href: "/MTGO/architecture/decisions/0001-vitest-for-the-docs-app/",
+      description:
+        "The reasons and tradeoffs behind recorded technical decisions.",
+    },
+    {
+      title: "Backend module documentation",
+      href: "/MTGO/architecture/modules/backend/",
+      description: "Read the backend's responsibilities, setup and usage.",
+    },
+  ]}
+/>
+
+The glossary, decisions and module documentation are published from their repository sources. To update them, edit `GLOSSARY.md`, `docs/adr/` or the relevant module's `README.md`.
+
+</div>

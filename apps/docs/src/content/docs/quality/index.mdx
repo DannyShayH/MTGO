@@ -1,0 +1,34 @@
+---
+title: Quality
+description: CI results, code coverage and static code analysis with quality gates.
+sidebar:
+  label: Overview
+  order: 0
+tableOfContents: false
+---
+
+import SectionLinks from "../../../components/section-links.astro"
+
+This section will show the CI results, the code coverage and the static code analysis, including the quality gates.
+
+<SectionLinks
+  label="Quality resources"
+  links={[
+    {
+      title: "CI runs",
+      href: "https://github.com/DannyShayH/MTGO/actions",
+      description:
+        "The ready flow runs quality checks before a change reaches main.",
+    },
+    {
+      title: "Coverage threshold",
+      href: "https://github.com/DannyShayH/MTGO/issues/6",
+      description: "Follow the coverage work in issue #6.",
+    },
+    {
+      title: "Static analysis",
+      href: "https://github.com/DannyShayH/MTGO/issues/7",
+      description: "Follow the SonarQube Cloud integration in issue #7.",
+    },
+  ]}
+/>

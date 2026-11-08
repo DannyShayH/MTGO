@@ -20,7 +20,7 @@ use([
 ])
 
 const metricsUrl = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/flow-metrics.json`
-// Shared by both charts, and only requested when a chart is on the page
+// Shared by all charts, and only requested when a chart is on the page
 let metrics: Promise<FlowMetrics> | undefined
 const loadMetrics = () =>
   (metrics ??= fetch(metricsUrl).then((response) => {
@@ -36,7 +36,7 @@ function readPalette(element: Element): ChartPalette {
     muted: token("--sl-color-gray-3"),
     grid: token("--sl-color-hairline-light"),
     surface: token("--sl-color-bg-nav"),
-    series: [1, 2, 3, 4].map((slot) => token(`--flow-chart-${slot}`)),
+    series: [1, 2, 3, 4, 5, 6].map((slot) => token(`--flow-chart-${slot}`)),
   }
 }
 
@@ -67,6 +67,6 @@ export async function drawChart(
     element.removeAttribute("aria-label")
     element.classList.add("flow-chart-error")
     element.textContent =
-      "The chart could not be loaded. The numbers are listed below."
+      "The chart could not be loaded. Open the table below or visit Work items for the numbers."
   }
 }
