@@ -1,6 +1,6 @@
 ---
 import generatedMetrics from "../generated/flow-metrics.json"
-import { LIMITS } from "../../scripts/flow-metrics.ts"
+import { LIMITS, roundDays } from "../../scripts/flow-metrics.ts"
 import type { FlowMetrics, IssueLink } from "../../scripts/flow-metrics.ts"
 
 const metrics = generatedMetrics as FlowMetrics
@@ -36,7 +36,7 @@ const isSample = metrics.source === "sample"
 const scope = isSample ? "this sample" : "Project #2"
 const percent = (part: number, whole: number) => Math.min(100, (part / whole) * 100)
 const days = (value: number) => value === 0 ? "< 1 day" : `${value} ${value === 1 ? "day" : "days"}`
-const average = (value: number) => `${Number(value.toFixed(1))} ${value === 1 ? "day" : "days"}`
+const average = (value: number) => `${roundDays(value)} ${value === 1 ? "day" : "days"}`
 ---
 
 {
@@ -109,6 +109,15 @@ const average = (value: number) => `${Number(value.toFixed(1))} ${value === 1 ? 
 
 <h2 id="throughput">Throughput</h2>
 
+{
+  metrics.throughput.length > 0 && (
+    <figure class="flow-chart-figure not-content">
+      <figcaption>Completed work items per ISO week, by work type</figcaption>
+      <div id="throughput-chart" class="flow-chart" role="img" aria-label="Stacked bar chart of completed work items per ISO week by work type. The same numbers are in the weeks below." />
+    </figure>
+  )
+}
+
 <div class="flow-weeks not-content">
   {
     metrics.throughput.length ? (
@@ -160,6 +169,14 @@ const average = (value: number) => `${Number(value.toFixed(1))} ${value === 1 ? 
 
 <h2 id="cycle-time">Cycle time</h2>
 <p>Calendar days from the project Start date to the latest close date. Same-day work contributes 0 days to averages. Elapsed time shows the wall-clock interval from the first move to In Progress to the latest close, rounded to the nearest minute. It includes waiting time, not just hands-on work.</p>
+{
+  metrics.cycleTimeWeeks.length > 0 && (
+    <figure class="flow-chart-figure not-content">
+      <figcaption>Average cycle time per closing week</figcaption>
+      <div id="cycle-time-chart" class="flow-chart" role="img" aria-label="Line chart of the average cycle time in days per closing week. The same numbers are in the table below." />
+    </figure>
+  )
+}
 <div class="flow-table-wrap not-content">
   <table class="flow-table">
     <caption>Average cycle time by closing week</caption>
@@ -199,3 +216,6 @@ const average = (value: number) => `${Number(value.toFixed(1))} ${value === 1 ? 
 <h2 id="data-problems">Data problems</h2>
 <p>Missing or invalid dates prevent cycle time or work item age from being calculated. A missing start time prevents elapsed time from being calculated. A work item closed without a reason counts as neither delivered nor not planned, and an open work item without a status shows in no column. Completed items still count in throughput.</p>
 {metrics.dataProblems.length ? <div class="flow-table-wrap not-content"><table class="flow-table"><thead><tr><th scope="col">Work item</th><th scope="col">Problem</th></tr></thead><tbody>{metrics.dataProblems.map((item) => <tr><th scope="row"><a href={item.url}>#{item.number} {item.title}</a></th><td>{item.problem}</td></tr>)}</tbody></table></div> : <p>No data problems in {scope}.</p>}
+
+<script src="../charts/throughput-chart.ts"></script>
+<script src="../charts/cycle-time-chart.ts"></script>

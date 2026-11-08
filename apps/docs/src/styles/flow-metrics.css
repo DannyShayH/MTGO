@@ -341,3 +341,49 @@
   color: var(--sl-color-gray-3);
   font-size: var(--sl-text-xs);
 }
+
+/* Starlight is dark unless data-theme says light. Each slot belongs to one work type. */
+:root {
+  --flow-chart-1: #3987e5;
+  --flow-chart-2: #d95926;
+  --flow-chart-3: #199e70;
+  --flow-chart-4: #c98500;
+}
+
+:root[data-theme="light"] {
+  --flow-chart-1: #2a78d6;
+  --flow-chart-2: #eb6834;
+  --flow-chart-3: #1baf7a;
+  --flow-chart-4: #eda100;
+}
+
+.flow-chart-figure {
+  margin-block: 0.75rem 1.25rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--sl-color-hairline-light);
+  border-radius: 0.5rem;
+  background: var(--sl-color-bg-nav);
+}
+
+.flow-chart-figure figcaption {
+  color: var(--sl-color-white);
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.flow-chart {
+  width: 100%;
+  height: 20rem;
+}
+
+@media (max-width: 40rem) {
+  .flow-chart {
+    height: 16rem;
+  }
+}
+
+.flow-chart-error {
+  height: auto;
+  color: var(--sl-color-gray-3);
+  font-size: 0.875rem;
+}

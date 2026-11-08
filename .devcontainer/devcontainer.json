@@ -11,7 +11,7 @@
       "version": "24"
     }
   },
-  "postCreateCommand": "gh ext install devx-cafe/gh-insitu && gh insitu run post-create",
+  "postCreateCommand": "gh ext install devx-cafe/gh-insitu && gh insitu run post-create && cd apps/docs && npx playwright install --with-deps chromium",
   "customizations": {
     "vscode": {
       "extensions": [

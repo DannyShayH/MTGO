@@ -1,5 +1,6 @@
 import {
   STATUS,
+  WORK_TYPES,
   workStartedAt,
   type BoardDataset,
   type BoardIssue,
@@ -10,7 +11,6 @@ const ENDPOINT = "https://api.github.com/graphql"
 const OWNER = "DannyShayH"
 const PROJECT_NUMBER = 2
 const PROJECT = `Project #${PROJECT_NUMBER}`
-const WORK_TYPES = ["development", "ad hoc", "rework"]
 /** GitHub's largest page. Fields and labels are read in one page and checked against totalCount */
 const PAGE_SIZE = 100
 

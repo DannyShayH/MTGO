@@ -32,8 +32,8 @@ export type IssueLink = Pick<BoardIssue, "number" | "title" | "url">
 
 type ColumnIssue = IssueLink & Pick<BoardIssue, "priority" | "size">
 type Column = { count: number; limit: number; issues: ColumnIssue[] }
-type WorkType = { name: string; count: number; issues: IssueLink[] }
-type Week = {
+export type WorkType = { name: string; count: number; issues: IssueLink[] }
+export type Week = {
   week: string
   /** Monday of the week, as a Copenhagen calendar date (YYYY-MM-DD) */
   start: string
@@ -59,6 +59,12 @@ type ActiveWork = IssueLink & {
 }
 type DataProblem = IssueLink & { problem: string }
 
+export type CycleTimeWeek = {
+  week: string
+  averageDays: number
+  count: number
+}
+
 export type FlowMetrics = {
   source: BoardDataset["source"]
   observedAt: string
@@ -69,7 +75,7 @@ export type FlowMetrics = {
   ready: Column
   throughput: Week[]
   cycleTime: CycleTime[]
-  cycleTimeWeeks: { week: string; averageDays: number; count: number }[]
+  cycleTimeWeeks: CycleTimeWeek[]
   agingLimit: { kind: "fixed" | "percentile"; days: number }
   activeWork: ActiveWork[]
   blocked: (IssueLink & { status: string; ageDays: number | null })[]
@@ -80,6 +86,9 @@ export type FlowMetrics = {
 export const TIME_ZONE = "Europe/Copenhagen"
 
 export const LIMITS = { inProgress: 3, deliveryInitiated: 2, ready: 5 }
+
+/** Work type labels. The order decides which label wins on an issue with several, and how the charts stack and color them */
+export const WORK_TYPES = ["development", "ad hoc", "rework"]
 
 const DAY_MS = 86_400_000
 
@@ -206,6 +215,20 @@ function copenhagenIsoWeek(instant: string) {
     end: isoDate(sunday),
   }
 }
+
+/** The ISO week after a week label such as 2026-W53 */
+export function nextIsoWeek(week: string): string {
+  const [year, number] = week.split("-W").map(Number)
+  // January 4th is always in ISO week 1
+  const january4 = Date.UTC(year, 0, 4)
+  const weekday = new Date(january4).getUTCDay() || 7
+  const monday = january4 + ((number - 1) * 7 - (weekday - 1)) * DAY_MS
+  const noonNextMonday = monday + 7 * DAY_MS + DAY_MS / 2
+  return copenhagenIsoWeek(new Date(noonNextMonday).toISOString()).week
+}
+
+/** An average in days as every page and chart shows it */
+export const roundDays = (value: number) => Number(value.toFixed(1))
 
 export function calculateFlowMetrics(
   dataset: BoardDataset,
