@@ -27,31 +27,36 @@ apps/
 
 Development happens inside the devcontainer, so everyone has the same Node, tools and git hooks.
 
-1. Install Docker Desktop, VS Code and the Dev Containers extension.
+1. Install Docker Desktop, VS Code and the Dev Containers extension. On Windows, clone into the WSL2 filesystem or use **Dev Containers: Clone Repository in Container Volume** for better file performance.
 2. Set the environment variable `GH_TOKEN` to a GitHub token with the scopes `repo`, `project` and `workflow`.
-3. Clone the repository, open it in VS Code and run **Dev Containers: Reopen in Container**. The first start installs the TakT tools and runs `npm ci`.
-4. Copy the environment templates and fill in the values:
+3. Clone the repository, open it in VS Code and run **Dev Containers: Reopen in Container**. If you switched to this issue branch while already inside a devcontainer, run **Dev Containers: Rebuild and Reopen in Container** instead; changing branches does not recreate the running container. Docker Compose starts PostgreSQL 16 and waits for it to become healthy before the devcontainer starts. Its data lives in a named volume. The first start installs the TakT tools and runs `npm ci`.
+4. Copy the backend environment template. It already points to the PostgreSQL service on the Compose network:
 
    ```bash
-   cp apps/backend/.env.template apps/backend/.env
-   cp apps/storefront/.env.template apps/storefront/.env.local
+   test -f apps/backend/.env || cp apps/backend/.env.template apps/backend/.env
    ```
 
-5. Run the database migrations, which also seed the initial store data, and create an admin user:
+   If you already have `apps/backend/.env`, update its `DATABASE_URL` and `DB_*` values to match the template. The hostname `postgres` works inside the devcontainer; a database on the host is not required.
+
+5. Initialize the database schema with Medusa migrations, which also seed the initial store data. Write its publishable API key and the backend URL to the storefront's ignored `.env.local` file, then create an admin user:
 
    ```bash
    cd apps/backend
-   npx medusa db:migrate
-   npx medusa user -e admin@test.com -p supersecret
+   npm exec -- medusa db:migrate
+   npm exec -- medusa exec ./src/scripts/write-storefront-env.ts
+   npm exec -- medusa user -e admin@test.com -p supersecret
+   cd ../..
    ```
 
-6. Start the backend and the storefront from the repository root:
+   Run `npm exec -- medusa db:migrate` again after pulling new backend migrations. Run it before integration tests as well. Medusa handles the migrations; no separate migration tool is needed.
+
+6. Start the backend and storefront together from the repository root:
 
    ```bash
    npm run dev
    ```
 
-The admin dashboard runs on `http://localhost:9000/app` and the storefront on `http://localhost:8000`. The storefront needs the publishable API key from the admin under Settings → Publishable API keys, set as `NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY` in `apps/storefront/.env.local`.
+The admin dashboard runs on `http://localhost:9000/app` and the storefront on `http://localhost:8000`. To run the database integration suite from inside the devcontainer, use `cd apps/backend && npm run test:integration:modules`. The command succeeds when there are no custom module tests yet.
 
 ## Workflow
 
