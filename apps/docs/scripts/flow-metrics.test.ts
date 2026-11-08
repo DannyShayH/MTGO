@@ -23,6 +23,9 @@ const issue = (
   workStartedAt: null,
   blocked: false,
   reopened: false,
+  priority: null,
+  size: null,
+  statusChanges: [],
   ...overrides,
 })
 

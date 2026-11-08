@@ -1,6 +1,6 @@
 ---
 title: Flow metrics
-description: WIP, throughput, cycle time and work item age from a sample of Project #2.
+description: WIP, throughput, cycle time and work item age from Project #2.
 sidebar:
   label: Overview
   order: 0
@@ -12,19 +12,19 @@ import FlowMetrics from "../../../components/FlowMetrics.astro"
 
 ## What each metric means
 
-The full definitions are in the [way-of-working glossary](/MTGO/architecture/glossary/). The numbers come from a saved copy of [Project #2](https://github.com/users/DannyShayH/projects/2) (the sample), calculated at build time by one pure function. The [published metrics JSON](/MTGO/flow-metrics.json) holds the same numbers.
+The full definitions are in the [way-of-working glossary](/MTGO/architecture/glossary/). The numbers are read from [Project #2](https://github.com/users/DannyShayH/projects/2) by a collector in the ready flow, so every delivery ships fresh numbers. They are calculated at build time by one pure function. Without the `PROJECT_READER` token (a local build) the page uses a saved copy of the project (the sample) and shows a “Sample data” banner. An expired or rejected token fails the ready flow instead, so a delivery never ships sample numbers by accident. The [published metrics JSON](/MTGO/flow-metrics.json) holds the same numbers.
 
-- **Work item**: an issue on the project board with no sub-issues. Parent issues are left out, because their sub-issues are counted instead. Source: the issue list of the sample.
-- **WIP**: open work items with status **In Progress** or **Delivery Initiated**, each column against its own limit. Source: the status field of each issue in the sample.
-- **Ready queue**: open work items with status **Ready**, waiting to be pulled. It is not WIP. Source: the status field of each issue in the sample.
-- **Throughput**: work items closed as completed in each Monday-to-Sunday ISO week in Europe/Copenhagen time, broken down by work type. Issues closed as "not planned" do not count. Source: the close date and close reason of each issue in the sample.
+- **Work item**: an issue on the project board with no sub-issues. Parent issues are left out, because their sub-issues are counted instead. Source: the sub-issue count of each issue on the board.
+- **WIP**: open work items with status **In Progress** or **Delivery Initiated**, each column against its own limit. Source: the status field of each issue on the board.
+- **Ready queue**: open work items with status **Ready**, waiting to be pulled, with their Priority and Size. It is not WIP. Source: the status field of each issue on the board.
+- **Throughput**: work items closed as completed in each Monday-to-Sunday ISO week in Europe/Copenhagen time, broken down by work type. Issues closed as "not planned" do not count. Source: the close date and close reason of each issue on the board.
 - **Cycle time**: Copenhagen calendar days from the project Start date to the latest close date for completed work items. A same-day item contributes zero to the weekly average and displays as “< 1 day”. Reopened items use their last close date. Items without a Start date are excluded from this metric.
 - **Elapsed time**: wall-clock time from the first move to In Progress on the Start date to the latest issue close, rounded to the nearest minute. It includes waiting time. GitHub records both moments; when a start event is missing, the value is shown as “Not available” rather than inferred from the date.
 - **Work item age**: Copenhagen calendar days from Start date to the observation date for an open work item. Items without a Start date cannot have an age calculated.
 - **Old work item**: an open item above five days old until ten completed items have usable start dates; after that, above the nearest-rank 85th percentile of completed cycle times. The page shows which limit applies.
 - **Blocked**: open work items carrying the `blocked` label, with blocked WIP first.
 - **Closed without delivery**: work items closed as not planned. They appear separately and enter neither throughput nor cycle time.
-- **Data problem**: a missing, invalid or later-than-close Start date on started or completed work, or a missing precise start time for elapsed time. Neither value is inferred; a completed item still enters throughput.
+- **Data problem**: a missing, invalid or later-than-close Start date on started or completed work, a missing precise start time for elapsed time, a closed work item without a close reason, or an open work item without a status. Neither value is inferred; a completed item still enters throughput.
 
 ## Later
 

@@ -1,0 +1,762 @@
+[
+  {
+    "data": {
+      "user": {
+        "projectV2": {
+          "items": {
+            "pageInfo": {
+              "hasNextPage": true,
+              "endCursor": "Y3Vyc29yOnYyOpKrMDAwMDAwMDMuMjXOEbPzaQ=="
+            },
+            "nodes": [
+              {
+                "id": "PVTI_lAHOC8k7u84BqTAszhGz8xA",
+                "fieldValues": {
+                  "totalCount": 8,
+                  "nodes": [
+                    {
+                      "__typename": "ProjectV2ItemFieldUserValue"
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldRepositoryValue"
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldLabelValue"
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldTextValue"
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldSingleSelectValue",
+                      "name": "In Progress",
+                      "field": {
+                        "name": "Status"
+                      }
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldSingleSelectValue",
+                      "name": "Must have",
+                      "field": {
+                        "name": "Priority"
+                      }
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldSingleSelectValue",
+                      "name": "M",
+                      "field": {
+                        "name": "Size"
+                      }
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldDateValue",
+                      "date": "2026-11-08",
+                      "field": {
+                        "name": "Start date"
+                      }
+                    }
+                  ]
+                },
+                "content": {
+                  "__typename": "Issue",
+                  "number": 17,
+                  "title": "Collector: real data from Project #2",
+                  "url": "https://github.com/DannyShayH/MTGO/issues/17",
+                  "state": "OPEN",
+                  "stateReason": null,
+                  "closedAt": null,
+                  "labels": {
+                    "totalCount": 1,
+                    "nodes": [
+                      {
+                        "name": "development"
+                      }
+                    ]
+                  },
+                  "subIssues": {
+                    "totalCount": 0
+                  },
+                  "timelineItems": {
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "endCursor": "Y3Vyc29yOnYyOpPPAAABobosymABqzM1NDgyMzc3MzAz"
+                    },
+                    "nodes": [
+                      {
+                        "__typename": "ProjectV2ItemStatusChangedEvent",
+                        "createdAt": "2026-11-07T16:09:02Z",
+                        "status": "Backlog",
+                        "previousStatus": ""
+                      },
+                      {
+                        "__typename": "ProjectV2ItemStatusChangedEvent",
+                        "createdAt": "2026-11-07T19:17:20Z",
+                        "status": "Ready",
+                        "previousStatus": "Backlog"
+                      },
+                      {
+                        "__typename": "ProjectV2ItemStatusChangedEvent",
+                        "createdAt": "2026-11-08T08:01:00Z",
+                        "status": "In Progress",
+                        "previousStatus": "Ready"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "id": "PVTI_lAHOC8k7u84BqTAszhGz8zM",
+                "fieldValues": {
+                  "totalCount": 6,
+                  "nodes": [
+                    {
+                      "__typename": "ProjectV2ItemFieldRepositoryValue"
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldLabelValue"
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldTextValue"
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldSingleSelectValue",
+                      "name": "Ready",
+                      "field": {
+                        "name": "Status"
+                      }
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldSingleSelectValue",
+                      "name": "Must have",
+                      "field": {
+                        "name": "Priority"
+                      }
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldSingleSelectValue",
+                      "name": "M",
+                      "field": {
+                        "name": "Size"
+                      }
+                    }
+                  ]
+                },
+                "content": {
+                  "__typename": "Issue",
+                  "number": 18,
+                  "title": "Throughput and cycle time charts",
+                  "url": "https://github.com/DannyShayH/MTGO/issues/18",
+                  "state": "OPEN",
+                  "stateReason": null,
+                  "closedAt": null,
+                  "labels": {
+                    "totalCount": 1,
+                    "nodes": [
+                      {
+                        "name": "development"
+                      }
+                    ]
+                  },
+                  "subIssues": {
+                    "totalCount": 0
+                  },
+                  "timelineItems": {
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "endCursor": "Y3Vyc29yOnYyOpPPAAABobdxsaABqzM1NDU0NzE5NzU4"
+                    },
+                    "nodes": [
+                      {
+                        "__typename": "ProjectV2ItemStatusChangedEvent",
+                        "createdAt": "2026-11-07T16:09:06Z",
+                        "status": "Backlog",
+                        "previousStatus": ""
+                      },
+                      {
+                        "__typename": "ProjectV2ItemStatusChangedEvent",
+                        "createdAt": "2026-11-07T19:17:24Z",
+                        "status": "Ready",
+                        "previousStatus": "Backlog"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "id": "PVTI_lAHOC8k7u84BqTAszhGz804",
+                "fieldValues": {
+                  "totalCount": 6,
+                  "nodes": [
+                    {
+                      "__typename": "ProjectV2ItemFieldRepositoryValue"
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldLabelValue"
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldTextValue"
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldSingleSelectValue",
+                      "name": "Ready",
+                      "field": {
+                        "name": "Status"
+                      }
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldSingleSelectValue",
+                      "name": "Must have",
+                      "field": {
+                        "name": "Priority"
+                      }
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldSingleSelectValue",
+                      "name": "S",
+                      "field": {
+                        "name": "Size"
+                      }
+                    }
+                  ]
+                },
+                "content": {
+                  "__typename": "Issue",
+                  "number": 19,
+                  "title": "Daily refresh",
+                  "url": "https://github.com/DannyShayH/MTGO/issues/19",
+                  "state": "OPEN",
+                  "stateReason": null,
+                  "closedAt": null,
+                  "labels": {
+                    "totalCount": 1,
+                    "nodes": [
+                      {
+                        "name": "development"
+                      }
+                    ]
+                  },
+                  "subIssues": {
+                    "totalCount": 0
+                  },
+                  "timelineItems": {
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "endCursor": "Y3Vyc29yOnYyOpPPAAABobdxuXABqzM1NDU0NzIyMTYx"
+                    },
+                    "nodes": [
+                      {
+                        "__typename": "ProjectV2ItemStatusChangedEvent",
+                        "createdAt": "2026-11-07T16:09:10Z",
+                        "status": "Backlog",
+                        "previousStatus": ""
+                      },
+                      {
+                        "__typename": "ProjectV2ItemStatusChangedEvent",
+                        "createdAt": "2026-11-07T19:17:26Z",
+                        "status": "Ready",
+                        "previousStatus": "Backlog"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "id": "PVTI_lAHOC8k7u84BqTAszhGz82k",
+                "fieldValues": {
+                  "totalCount": 6,
+                  "nodes": [
+                    {
+                      "__typename": "ProjectV2ItemFieldRepositoryValue"
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldLabelValue"
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldTextValue"
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldSingleSelectValue",
+                      "name": "Ready",
+                      "field": {
+                        "name": "Status"
+                      }
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldSingleSelectValue",
+                      "name": "Could have",
+                      "field": {
+                        "name": "Priority"
+                      }
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldSingleSelectValue",
+                      "name": "M",
+                      "field": {
+                        "name": "Size"
+                      }
+                    }
+                  ]
+                },
+                "content": {
+                  "__typename": "Issue",
+                  "number": 20,
+                  "title": "Cumulative Flow Diagram and WIP limit breaches",
+                  "url": "https://github.com/DannyShayH/MTGO/issues/20",
+                  "state": "OPEN",
+                  "stateReason": null,
+                  "closedAt": null,
+                  "labels": {
+                    "totalCount": 1,
+                    "nodes": [
+                      {
+                        "name": "development"
+                      }
+                    ]
+                  },
+                  "subIssues": {
+                    "totalCount": 0
+                  },
+                  "timelineItems": {
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "endCursor": "Y3Vyc29yOnYyOpPPAAABobdxzPgBqzM1NDU0NzI2Nzk4"
+                    },
+                    "nodes": [
+                      {
+                        "__typename": "ProjectV2ItemStatusChangedEvent",
+                        "createdAt": "2026-11-07T16:09:14Z",
+                        "status": "Backlog",
+                        "previousStatus": ""
+                      },
+                      {
+                        "__typename": "ProjectV2ItemStatusChangedEvent",
+                        "createdAt": "2026-11-07T19:17:31Z",
+                        "status": "Ready",
+                        "previousStatus": "Backlog"
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  {
+    "data": {
+      "user": {
+        "projectV2": {
+          "items": {
+            "pageInfo": {
+              "hasNextPage": true,
+              "endCursor": "Y3Vyc29yOnYyOpKrMDAwMDAwMDAuMjXOEZfZzQ=="
+            },
+            "nodes": [
+              {
+                "id": "PVTI_lAHOC8k7u84BqTAszhGX2Qs",
+                "fieldValues": {
+                  "totalCount": 7,
+                  "nodes": [
+                    {
+                      "__typename": "ProjectV2ItemFieldUserValue"
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldRepositoryValue"
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldLabelValue"
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldTextValue"
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldSingleSelectValue",
+                      "name": "S",
+                      "field": {
+                        "name": "Size"
+                      }
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldSingleSelectValue",
+                      "name": "Done",
+                      "field": {
+                        "name": "Status"
+                      }
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldSingleSelectValue",
+                      "name": "Must have",
+                      "field": {
+                        "name": "Priority"
+                      }
+                    }
+                  ]
+                },
+                "content": {
+                  "__typename": "Issue",
+                  "number": 2,
+                  "title": "Make the repository trunk worthy",
+                  "url": "https://github.com/DannyShayH/MTGO/issues/2",
+                  "state": "CLOSED",
+                  "stateReason": "COMPLETED",
+                  "closedAt": "2026-11-05T20:59:11Z",
+                  "labels": {
+                    "totalCount": 1,
+                    "nodes": [
+                      {
+                        "name": "development"
+                      }
+                    ]
+                  },
+                  "subIssues": {
+                    "totalCount": 0
+                  },
+                  "timelineItems": {
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "endCursor": "Y3Vyc29yOnYyOpPPAAABoa2HvsgBqzM1Mjg2ODE2NDIz"
+                    },
+                    "nodes": [
+                      {
+                        "__typename": "ProjectV2ItemStatusChangedEvent",
+                        "createdAt": "2026-11-05T19:33:39Z",
+                        "status": "Backlog",
+                        "previousStatus": ""
+                      },
+                      {
+                        "__typename": "ProjectV2ItemStatusChangedEvent",
+                        "createdAt": "2026-11-05T19:38:37Z",
+                        "status": "Backlog",
+                        "previousStatus": ""
+                      },
+                      {
+                        "__typename": "ProjectV2ItemStatusChangedEvent",
+                        "createdAt": "2026-11-05T20:21:19Z",
+                        "status": "Ready",
+                        "previousStatus": "Backlog"
+                      },
+                      {
+                        "__typename": "ProjectV2ItemStatusChangedEvent",
+                        "createdAt": "2026-11-05T20:21:21Z",
+                        "status": "In Progress",
+                        "previousStatus": "Ready"
+                      },
+                      {
+                        "__typename": "ProjectV2ItemStatusChangedEvent",
+                        "createdAt": "2026-11-05T20:35:45Z",
+                        "status": "Delivery Initiated",
+                        "previousStatus": "In Progress"
+                      },
+                      {
+                        "__typename": "ClosedEvent",
+                        "createdAt": "2026-11-05T20:59:11Z"
+                      },
+                      {
+                        "__typename": "ProjectV2ItemStatusChangedEvent",
+                        "createdAt": "2026-11-05T21:05:17Z",
+                        "status": "Done",
+                        "previousStatus": "Delivery Initiated"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "id": "PVTI_lAHOC8k7u84BqTAszhGX2VU",
+                "fieldValues": {
+                  "totalCount": 5,
+                  "nodes": [
+                    {
+                      "__typename": "ProjectV2ItemFieldRepositoryValue"
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldTextValue"
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldSingleSelectValue",
+                      "name": "M",
+                      "field": {
+                        "name": "Size"
+                      }
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldSingleSelectValue",
+                      "name": "Backlog",
+                      "field": {
+                        "name": "Status"
+                      }
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldSingleSelectValue",
+                      "name": "Must have",
+                      "field": {
+                        "name": "Priority"
+                      }
+                    }
+                  ]
+                },
+                "content": {
+                  "__typename": "Issue",
+                  "number": 3,
+                  "title": "Devcontainer with its own PostgreSQL",
+                  "url": "https://github.com/DannyShayH/MTGO/issues/3",
+                  "state": "OPEN",
+                  "stateReason": null,
+                  "closedAt": null,
+                  "labels": {
+                    "totalCount": 0,
+                    "nodes": []
+                  },
+                  "subIssues": {
+                    "totalCount": 0
+                  },
+                  "timelineItems": {
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "endCursor": "Y3Vyc29yOnYyOpPPAAABoa04bhgBqzM1Mjc5NTUwMDUw"
+                    },
+                    "nodes": [
+                      {
+                        "__typename": "ProjectV2ItemStatusChangedEvent",
+                        "createdAt": "2026-11-05T19:33:44Z",
+                        "status": "Backlog",
+                        "previousStatus": ""
+                      },
+                      {
+                        "__typename": "ProjectV2ItemStatusChangedEvent",
+                        "createdAt": "2026-11-05T19:38:39Z",
+                        "status": "Backlog",
+                        "previousStatus": ""
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "id": "PVTI_lAHOC8k7u84BqTAszhGX2Y0",
+                "fieldValues": {
+                  "totalCount": 8,
+                  "nodes": [
+                    {
+                      "__typename": "ProjectV2ItemFieldUserValue"
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldRepositoryValue"
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldLabelValue"
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldTextValue"
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldSingleSelectValue",
+                      "name": "S",
+                      "field": {
+                        "name": "Size"
+                      }
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldSingleSelectValue",
+                      "name": "Done",
+                      "field": {
+                        "name": "Status"
+                      }
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldSingleSelectValue",
+                      "name": "Must have",
+                      "field": {
+                        "name": "Priority"
+                      }
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldDateValue",
+                      "date": "2026-11-07",
+                      "field": {
+                        "name": "Start date"
+                      }
+                    }
+                  ]
+                },
+                "content": {
+                  "__typename": "Issue",
+                  "number": 4,
+                  "title": "Set the start date automatically on gh workon",
+                  "url": "https://github.com/DannyShayH/MTGO/issues/4",
+                  "state": "CLOSED",
+                  "stateReason": "COMPLETED",
+                  "closedAt": "2026-11-07T09:13:45Z",
+                  "labels": {
+                    "totalCount": 1,
+                    "nodes": [
+                      {
+                        "name": "development"
+                      }
+                    ]
+                  },
+                  "subIssues": {
+                    "totalCount": 0
+                  },
+                  "timelineItems": {
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "endCursor": "Y3Vyc29yOnYyOpPPAAABobVJDRABqzM1NDI0MjQyMjM2"
+                    },
+                    "nodes": [
+                      {
+                        "__typename": "ProjectV2ItemStatusChangedEvent",
+                        "createdAt": "2026-11-05T19:33:47Z",
+                        "status": "Backlog",
+                        "previousStatus": ""
+                      },
+                      {
+                        "__typename": "ProjectV2ItemStatusChangedEvent",
+                        "createdAt": "2026-11-05T19:38:43Z",
+                        "status": "Backlog",
+                        "previousStatus": ""
+                      },
+                      {
+                        "__typename": "ProjectV2ItemStatusChangedEvent",
+                        "createdAt": "2026-11-07T09:03:56Z",
+                        "status": "In Progress",
+                        "previousStatus": "Backlog"
+                      },
+                      {
+                        "__typename": "ProjectV2ItemStatusChangedEvent",
+                        "createdAt": "2026-11-07T09:11:35Z",
+                        "status": "Delivery Initiated",
+                        "previousStatus": "In Progress"
+                      },
+                      {
+                        "__typename": "ClosedEvent",
+                        "createdAt": "2026-11-07T09:13:45Z"
+                      },
+                      {
+                        "__typename": "ProjectV2ItemStatusChangedEvent",
+                        "createdAt": "2026-11-07T09:13:46Z",
+                        "status": "Done",
+                        "previousStatus": "Delivery Initiated"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "id": "PVTI_lAHOC8k7u84BqTAszhGX2c0",
+                "fieldValues": {
+                  "totalCount": 8,
+                  "nodes": [
+                    {
+                      "__typename": "ProjectV2ItemFieldUserValue"
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldRepositoryValue"
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldLabelValue"
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldTextValue"
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldSingleSelectValue",
+                      "name": "M",
+                      "field": {
+                        "name": "Size"
+                      }
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldSingleSelectValue",
+                      "name": "Done",
+                      "field": {
+                        "name": "Status"
+                      }
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldSingleSelectValue",
+                      "name": "Must have",
+                      "field": {
+                        "name": "Priority"
+                      }
+                    },
+                    {
+                      "__typename": "ProjectV2ItemFieldDateValue",
+                      "date": "2026-11-07",
+                      "field": {
+                        "name": "Start date"
+                      }
+                    }
+                  ]
+                },
+                "content": {
+                  "__typename": "Issue",
+                  "number": 5,
+                  "title": "Documentation site with Starlight (walking skeleton)",
+                  "url": "https://github.com/DannyShayH/MTGO/issues/5",
+                  "state": "CLOSED",
+                  "stateReason": "COMPLETED",
+                  "closedAt": "2026-11-07T17:17:34Z",
+                  "labels": {
+                    "totalCount": 1,
+                    "nodes": [
+                      {
+                        "name": "development"
+                      }
+                    ]
+                  },
+                  "subIssues": {
+                    "totalCount": 0
+                  },
+                  "timelineItems": {
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "endCursor": "Y3Vyc29yOnYyOpPPAAABobcEA4ABqzM1NDQ3MzE1MTk4"
+                    },
+                    "nodes": [
+                      {
+                        "__typename": "ProjectV2ItemStatusChangedEvent",
+                        "createdAt": "2026-11-05T19:33:52Z",
+                        "status": "Backlog",
+                        "previousStatus": ""
+                      },
+                      {
+                        "__typename": "ProjectV2ItemStatusChangedEvent",
+                        "createdAt": "2026-11-05T19:38:45Z",
+                        "status": "Backlog",
+                        "previousStatus": ""
+                      },
+                      {
+                        "__typename": "ProjectV2ItemStatusChangedEvent",
+                        "createdAt": "2026-11-07T15:10:12Z",
+                        "status": "In Progress",
+                        "previousStatus": "Backlog"
+                      },
+                      {
+                        "__typename": "ProjectV2ItemStatusChangedEvent",
+                        "createdAt": "2026-11-07T17:15:31Z",
+                        "status": "Delivery Initiated",
+                        "previousStatus": "In Progress"
+                      },
+                      {
+                        "__typename": "ClosedEvent",
+                        "createdAt": "2026-11-07T17:17:34Z"
+                      },
+                      {
+                        "__typename": "ProjectV2ItemStatusChangedEvent",
+                        "createdAt": "2026-11-07T17:17:36Z",
+                        "status": "Done",
+                        "previousStatus": "Delivery Initiated"
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+]

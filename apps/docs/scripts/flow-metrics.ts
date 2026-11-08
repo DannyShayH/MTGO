@@ -15,6 +15,11 @@ export type BoardIssue = {
   blocked: boolean
   /** Whether this item was closed before its latest close */
   reopened: boolean
+  /** Project Priority and Size, null when not set */
+  priority: string | null
+  size: string | null
+  /** Status history from the issue timeline, oldest first, duplicate Backlog events removed */
+  statusChanges: StatusChange[]
 }
 
 export type BoardDataset = {
@@ -25,7 +30,8 @@ export type BoardDataset = {
 
 export type IssueLink = Pick<BoardIssue, "number" | "title" | "url">
 
-type Column = { count: number; limit: number; issues: IssueLink[] }
+type ColumnIssue = IssueLink & Pick<BoardIssue, "priority" | "size">
+type Column = { count: number; limit: number; issues: ColumnIssue[] }
 type WorkType = { name: string; count: number; issues: IssueLink[] }
 type Week = {
   week: string
@@ -82,7 +88,16 @@ const FIXED_AGING_DAYS = 5
 const PERCENTILE_MIN_SAMPLE = 10
 const AGING_PERCENTILE = 0.85
 
-const WIP_STATUSES = ["In Progress", "Delivery Initiated"]
+/** Board column names, plus the placeholder for an item without a Status */
+export const STATUS = {
+  backlog: "Backlog",
+  ready: "Ready",
+  inProgress: "In Progress",
+  deliveryInitiated: "Delivery Initiated",
+  none: "No Status",
+} as const
+
+const WIP_STATUSES: string[] = [STATUS.inProgress, STATUS.deliveryInitiated]
 const isWip = (status: string) => WIP_STATUSES.includes(status)
 
 type ClosedIssue = BoardIssue & { closedAt: string }
@@ -167,7 +182,7 @@ export function workStartedAt(
   const onStartDate = changes
     .filter(
       (change) =>
-        change.to === "In Progress" &&
+        change.to === STATUS.inProgress &&
         Number.isFinite(Date.parse(change.at)) &&
         copenhagenDate(change.at) === startedAt,
     )
@@ -200,7 +215,11 @@ export function calculateFlowMetrics(
   const openColumn = (status: string, limit: number): Column => {
     const issues = items
       .filter((item) => item.state === "OPEN" && item.status === status)
-      .map(issueLink)
+      .map((item) => ({
+        ...issueLink(item),
+        priority: item.priority,
+        size: item.size,
+      }))
     return { count: issues.length, limit, issues }
   }
 
@@ -324,11 +343,16 @@ export function calculateFlowMetrics(
       closedAt: copenhagenDate(item.closedAt),
     }))
   const dataProblems = items.flatMap((item): DataProblem[] => {
-    const done = closedAs(item, "COMPLETED", observationTime)
-    if (!(done || (item.state === "OPEN" && isWip(item.status)))) return []
     const problem = (text: string): DataProblem[] => [
       { ...issueLink(item), problem: text },
     ]
+    // Neither completed nor WIP, so no date or time check below applies to these
+    if (item.state === "CLOSED" && item.closeReason === null)
+      return problem("Closed without a reason")
+    if (item.state === "OPEN" && item.status === STATUS.none)
+      return problem("Missing status")
+    const done = closedAs(item, "COMPLETED", observationTime)
+    if (!(done || (item.state === "OPEN" && isWip(item.status)))) return []
     if (item.startedAt === null) return problem("Missing start date")
     const endDate = done ? copenhagenDate(item.closedAt) : observationDate
     if (daysSince(item.startedAt, endDate) === null)
@@ -344,9 +368,9 @@ export function calculateFlowMetrics(
     return []
   })
 
-  const inProgress = openColumn("In Progress", LIMITS.inProgress)
+  const inProgress = openColumn(STATUS.inProgress, LIMITS.inProgress)
   const deliveryInitiated = openColumn(
-    "Delivery Initiated",
+    STATUS.deliveryInitiated,
     LIMITS.deliveryInitiated,
   )
   return {
@@ -358,7 +382,7 @@ export function calculateFlowMetrics(
     },
     inProgress,
     deliveryInitiated,
-    ready: openColumn("Ready", LIMITS.ready),
+    ready: openColumn(STATUS.ready, LIMITS.ready),
     throughput,
     cycleTime,
     cycleTimeWeeks,

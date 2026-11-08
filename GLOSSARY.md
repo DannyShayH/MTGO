@@ -43,7 +43,7 @@ A work item closed as "not planned". It counts in neither throughput nor cycle t
 _Avoid_: Cancelled, dropped
 
 **Data problem**:
-A fact about a work item that prevents a metric from being calculated honestly, such as a missing, invalid or later-than-close start date, or a missing start moment for elapsed time. A data problem is shown, never filled in with an invented value.
+A fact about a work item that prevents a metric from being calculated honestly, such as a missing, invalid or later-than-close start date, a missing start moment for elapsed time, a work item closed without a close reason, or an open work item without a status. A data problem is shown, never filled in with an invented value.
 _Avoid_: Bad data, error
 
 **Flow review**:

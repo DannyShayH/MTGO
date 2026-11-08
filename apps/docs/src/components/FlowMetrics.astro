@@ -32,19 +32,30 @@ const columns = [
   { id: "ready", label: "Ready", kind: "queue", data: metrics.ready },
 ] as const
 
+const isSample = metrics.source === "sample"
+const scope = isSample ? "this sample" : "Project #2"
 const percent = (part: number, whole: number) => Math.min(100, (part / whole) * 100)
 const days = (value: number) => value === 0 ? "< 1 day" : `${value} ${value === 1 ? "day" : "days"}`
 const average = (value: number) => `${Number(value.toFixed(1))} ${value === 1 ? "day" : "days"}`
 ---
 
-<div class="flow-banner not-content">
-  <strong>Sample data</strong>
-  <span>
-    Saved from <a href={project}>Project #2</a> on
-    <time datetime={metrics.observedAt}>{observed}</time>. This is also the time of the last
-    update. These numbers do not update when the board changes.
-  </span>
-</div>
+{
+  isSample ? (
+    <div class="flow-banner not-content">
+      <strong>Sample data</strong>
+      <span>
+        Saved from <a href={project}>Project #2</a> on
+        <time datetime={metrics.observedAt}>{observed}</time>. This is also the time of the last
+        update. These numbers do not update when the board changes.
+      </span>
+    </div>
+  ) : (
+    <p class="flow-updated not-content">
+      Read from <a href={project}>Project #2</a> on
+      <time datetime={metrics.observedAt}>{observed}</time>, the time of the last delivery.
+    </p>
+  )
+}
 
 <h2 id="current-wip-and-ready-queue">Current WIP and ready queue</h2>
 
@@ -71,12 +82,15 @@ const average = (value: number) => `${Number(value.toFixed(1))} ${value === 1 ? 
         {data.count > data.limit && <p class="flow-over-limit">Over limit by {data.count - data.limit}</p>}
         {data.issues.length ? (
           <ul class="flow-issues" id={`issues-${id}`}>
-            {data.issues.map((issue: IssueLink) => (
+            {data.issues.map((issue) => (
               <li>
                 <a href={issue.url}>
                   <span class="flow-issue-number">#{issue.number}</span>
                   <span>{issue.title}</span>
                 </a>
+                {(issue.priority || issue.size) && (
+                  <span class="flow-issue-meta">{[issue.priority, issue.size].filter(Boolean).join(" · ")}</span>
+                )}
               </li>
             ))}
           </ul>
@@ -139,7 +153,7 @@ const average = (value: number) => `${Number(value.toFixed(1))} ${value === 1 ? 
         </section>
       ))
     ) : (
-      <p class="flow-empty">No completed work items in the sample.</p>
+      <p class="flow-empty">No completed work items in {scope}.</p>
     )
   }
 </div>
@@ -176,12 +190,12 @@ const average = (value: number) => `${Number(value.toFixed(1))} ${value === 1 ? 
 
 <h2 id="blocked">Blocked work items</h2>
 <p>Open work items with the <code>blocked</code> label. Blocked WIP is listed first.</p>
-{metrics.blocked.length ? <div class="flow-table-wrap not-content"><table class="flow-table"><thead><tr><th scope="col">Work item</th><th scope="col">Status</th><th scope="col">Age</th></tr></thead><tbody>{metrics.blocked.map((item) => <tr><th scope="row"><a href={item.url}>#{item.number} {item.title}</a></th><td>{item.status}</td><td>{item.ageDays === null ? "Unknown" : days(item.ageDays)}</td></tr>)}</tbody></table></div> : <p>No blocked work items in this sample.</p>}
+{metrics.blocked.length ? <div class="flow-table-wrap not-content"><table class="flow-table"><thead><tr><th scope="col">Work item</th><th scope="col">Status</th><th scope="col">Age</th></tr></thead><tbody>{metrics.blocked.map((item) => <tr><th scope="row"><a href={item.url}>#{item.number} {item.title}</a></th><td>{item.status}</td><td>{item.ageDays === null ? "Unknown" : days(item.ageDays)}</td></tr>)}</tbody></table></div> : <p>No blocked work items in {scope}.</p>}
 
 <h2 id="closed-without-delivery">Closed without delivery</h2>
 <p>Work items closed as not planned. They count in neither throughput nor cycle time.</p>
-{metrics.closedWithoutDelivery.length ? <div class="flow-table-wrap not-content"><table class="flow-table"><thead><tr><th scope="col">Work item</th><th scope="col">Closed</th></tr></thead><tbody>{metrics.closedWithoutDelivery.map((item) => <tr><th scope="row"><a href={item.url}>#{item.number} {item.title}</a></th><td><time datetime={item.closedAt}>{item.closedAt}</time></td></tr>)}</tbody></table></div> : <p>No work items were closed as not planned in this sample.</p>}
+{metrics.closedWithoutDelivery.length ? <div class="flow-table-wrap not-content"><table class="flow-table"><thead><tr><th scope="col">Work item</th><th scope="col">Closed</th></tr></thead><tbody>{metrics.closedWithoutDelivery.map((item) => <tr><th scope="row"><a href={item.url}>#{item.number} {item.title}</a></th><td><time datetime={item.closedAt}>{item.closedAt}</time></td></tr>)}</tbody></table></div> : <p>No work items were closed as not planned in {scope}.</p>}
 
 <h2 id="data-problems">Data problems</h2>
-<p>Missing or invalid dates prevent cycle time or work item age from being calculated. A missing start time prevents elapsed time from being calculated. Completed items still count in throughput.</p>
-{metrics.dataProblems.length ? <div class="flow-table-wrap not-content"><table class="flow-table"><thead><tr><th scope="col">Work item</th><th scope="col">Problem</th></tr></thead><tbody>{metrics.dataProblems.map((item) => <tr><th scope="row"><a href={item.url}>#{item.number} {item.title}</a></th><td>{item.problem}</td></tr>)}</tbody></table></div> : <p>No data problems in this sample.</p>}
+<p>Missing or invalid dates prevent cycle time or work item age from being calculated. A missing start time prevents elapsed time from being calculated. A work item closed without a reason counts as neither delivered nor not planned, and an open work item without a status shows in no column. Completed items still count in throughput.</p>
+{metrics.dataProblems.length ? <div class="flow-table-wrap not-content"><table class="flow-table"><thead><tr><th scope="col">Work item</th><th scope="col">Problem</th></tr></thead><tbody>{metrics.dataProblems.map((item) => <tr><th scope="row"><a href={item.url}>#{item.number} {item.title}</a></th><td>{item.problem}</td></tr>)}</tbody></table></div> : <p>No data problems in {scope}.</p>}

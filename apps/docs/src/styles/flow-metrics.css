@@ -334,3 +334,10 @@
     --flow-item-width: 40%;
   }
 }
+
+.flow-issue-meta {
+  display: block;
+  padding-bottom: 0.5rem;
+  color: var(--sl-color-gray-3);
+  font-size: var(--sl-text-xs);
+}

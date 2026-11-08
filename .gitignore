@@ -84,3 +84,5 @@ apps/docs/src/content/docs/architecture/decisions/
 apps/docs/src/content/docs/architecture/modules/
 apps/docs/public/flow-metrics.json
 apps/docs/src/generated/
+# Live board data saved by apps/docs/scripts/collect-board.ts
+apps/docs/.cache/

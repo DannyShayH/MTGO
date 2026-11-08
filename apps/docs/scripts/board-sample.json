@@ -15,7 +15,10 @@
       "startedAt": null,
       "blocked": false,
       "reopened": false,
-      "workStartedAt": null
+      "workStartedAt": null,
+      "priority": null,
+      "size": null,
+      "statusChanges": []
     },
     {
       "number": 3,
@@ -30,7 +33,10 @@
       "startedAt": null,
       "blocked": false,
       "reopened": false,
-      "workStartedAt": null
+      "workStartedAt": null,
+      "priority": null,
+      "size": null,
+      "statusChanges": []
     },
     {
       "number": 4,
@@ -45,7 +51,10 @@
       "startedAt": "2026-11-07",
       "blocked": false,
       "reopened": false,
-      "workStartedAt": "2026-11-07T09:03:56Z"
+      "workStartedAt": "2026-11-07T09:03:56Z",
+      "priority": null,
+      "size": null,
+      "statusChanges": []
     },
     {
       "number": 5,
@@ -60,7 +69,10 @@
       "startedAt": "2026-11-07",
       "blocked": false,
       "reopened": false,
-      "workStartedAt": "2026-11-07T15:10:12Z"
+      "workStartedAt": "2026-11-07T15:10:12Z",
+      "priority": null,
+      "size": null,
+      "statusChanges": []
     },
     {
       "number": 6,
@@ -75,7 +87,10 @@
       "startedAt": null,
       "blocked": false,
       "reopened": false,
-      "workStartedAt": null
+      "workStartedAt": null,
+      "priority": null,
+      "size": null,
+      "statusChanges": []
     },
     {
       "number": 7,
@@ -90,7 +105,10 @@
       "startedAt": null,
       "blocked": false,
       "reopened": false,
-      "workStartedAt": null
+      "workStartedAt": null,
+      "priority": null,
+      "size": null,
+      "statusChanges": []
     },
     {
       "number": 8,
@@ -105,7 +123,10 @@
       "startedAt": "2026-11-07",
       "blocked": false,
       "reopened": false,
-      "workStartedAt": "2026-11-07T09:37:04Z"
+      "workStartedAt": "2026-11-07T09:37:04Z",
+      "priority": null,
+      "size": null,
+      "statusChanges": []
     },
     {
       "number": 9,
@@ -120,7 +141,10 @@
       "startedAt": null,
       "blocked": false,
       "reopened": false,
-      "workStartedAt": null
+      "workStartedAt": null,
+      "priority": null,
+      "size": null,
+      "statusChanges": []
     },
     {
       "number": 10,
@@ -135,7 +159,10 @@
       "startedAt": null,
       "blocked": false,
       "reopened": false,
-      "workStartedAt": null
+      "workStartedAt": null,
+      "priority": null,
+      "size": null,
+      "statusChanges": []
     },
     {
       "number": 11,
@@ -150,7 +177,10 @@
       "startedAt": null,
       "blocked": false,
       "reopened": false,
-      "workStartedAt": null
+      "workStartedAt": null,
+      "priority": null,
+      "size": null,
+      "statusChanges": []
     },
     {
       "number": 12,
@@ -165,7 +195,10 @@
       "startedAt": null,
       "blocked": false,
       "reopened": false,
-      "workStartedAt": null
+      "workStartedAt": null,
+      "priority": null,
+      "size": null,
+      "statusChanges": []
     },
     {
       "number": 13,
@@ -180,7 +213,10 @@
       "startedAt": "2026-11-07",
       "blocked": false,
       "reopened": false,
-      "workStartedAt": "2026-11-07T17:26:46Z"
+      "workStartedAt": "2026-11-07T17:26:46Z",
+      "priority": null,
+      "size": null,
+      "statusChanges": []
     },
     {
       "number": 14,
@@ -195,7 +231,10 @@
       "startedAt": "2026-11-07",
       "blocked": false,
       "reopened": false,
-      "workStartedAt": "2026-11-07T18:08:51Z"
+      "workStartedAt": "2026-11-07T18:08:51Z",
+      "priority": null,
+      "size": null,
+      "statusChanges": []
     },
     {
       "number": 15,
@@ -210,7 +249,10 @@
       "startedAt": null,
       "blocked": false,
       "reopened": false,
-      "workStartedAt": null
+      "workStartedAt": null,
+      "priority": null,
+      "size": null,
+      "statusChanges": []
     },
     {
       "number": 16,
@@ -225,7 +267,10 @@
       "startedAt": null,
       "blocked": false,
       "reopened": false,
-      "workStartedAt": null
+      "workStartedAt": null,
+      "priority": null,
+      "size": null,
+      "statusChanges": []
     },
     {
       "number": 17,
@@ -240,7 +285,10 @@
       "startedAt": null,
       "blocked": false,
       "reopened": false,
-      "workStartedAt": null
+      "workStartedAt": null,
+      "priority": null,
+      "size": null,
+      "statusChanges": []
     },
     {
       "number": 18,
@@ -255,7 +303,10 @@
       "startedAt": null,
       "blocked": false,
       "reopened": false,
-      "workStartedAt": null
+      "workStartedAt": null,
+      "priority": null,
+      "size": null,
+      "statusChanges": []
     },
     {
       "number": 19,
@@ -270,7 +321,10 @@
       "startedAt": null,
       "blocked": false,
       "reopened": false,
-      "workStartedAt": null
+      "workStartedAt": null,
+      "priority": null,
+      "size": null,
+      "statusChanges": []
     },
     {
       "number": 20,
@@ -285,7 +339,10 @@
       "startedAt": null,
       "blocked": false,
       "reopened": false,
-      "workStartedAt": null
+      "workStartedAt": null,
+      "priority": null,
+      "size": null,
+      "statusChanges": []
     }
   ]
 }

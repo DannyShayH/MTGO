@@ -50,6 +50,13 @@ jobs:
         id: pages
         uses: actions/configure-pages@v6
 
+      # Only this step sees the token. Without the secret the site is built from the sample data
+      - name: Collect the board data from Project #2
+        working-directory: apps/docs
+        env:
+          PROJECT_READER: ${{ secrets.PROJECT_READER }}
+        run: node scripts/collect-board.ts
+
       - name: Lint, integration tests and docs build
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -61,6 +68,18 @@ jobs:
           SITE_ORIGIN: ${{ steps.pages.outputs.origin }}
           BASE_PATH: ${{ steps.pages.outputs.base_path }}
         run: gh insitu run ready-checks
+
+      - name: Verify the token is not in the built site
+        env:
+          PROJECT_READER: ${{ secrets.PROJECT_READER }}
+        run: |
+          # Fail if the build output is missing, so the grep below cannot pass on nothing
+          test -d apps/docs/dist
+          test -f apps/docs/dist/flow-metrics.json
+          if [ -n "${PROJECT_READER}" ] && grep -rFq -- "${PROJECT_READER}" apps/docs/dist apps/docs/public apps/docs/src/generated; then
+            echo "ERROR: PROJECT_READER found in the built site."
+            exit 1
+          fi
 
       # on_main deploys exactly this build. ready-to-trunk fast-forwards main, so the SHA is the same
       - name: Upload docs site artifact

@@ -7,6 +7,7 @@
     "**/node_modules/**",
     "**/.agents/**",
     "**/.claude/skills/**",
+    "apps/docs/scripts/fixtures/**",
     "**/skills-lock.json",
     "**/package-lock.json",
     "**/bower_components/**",
