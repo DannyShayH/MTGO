@@ -1,0 +1,50 @@
+---
+const layers = [
+  { name: "Storefront", stack: "Next.js 16 + React 19", detail: "Customer experience", href: "#frontend" },
+  { name: "Backend & data", stack: "Medusa 2 + PostgreSQL 16", detail: "Commerce API and admin", href: "#backend-and-database" },
+  { name: "Documentation", stack: "Astro + Starlight", detail: "Team reference and flow metrics", href: "#documentation-and-metrics" },
+]
+---
+<div class="stack-overview not-content">
+  <dl>
+    {layers.map(({ name, stack, detail, href }) => (
+      <div class="stack-layer">
+        <dt><a href={href}>{name}</a></dt>
+        <dd><strong>{stack}</strong><span>{detail}</span></dd>
+      </div>
+    ))}
+  </dl>
+  <p class="stack-foundation">TypeScript across the apps. npm workspaces and Turborepo in one repository.</p>
+  <p class="stack-status"><strong>Implementation status</strong> Mock payments in use. Redis planned. DigitalOcean hosting decided; deployment pending. <a href="#decided-and-planned">View status details</a></p>
+</div>
+
+<style>
+  .stack-overview {
+    margin-block: 1.5rem 2rem;
+    border: 1px solid var(--docs-control-border);
+    border-radius: var(--docs-control-radius);
+    overflow: hidden;
+  }
+  dl { margin: 0; }
+  .stack-layer {
+    display: grid;
+    grid-template-columns: minmax(9rem, 1fr) minmax(0, 2fr);
+    align-items: baseline;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+  }
+  .stack-layer + .stack-layer { border-top: 1px solid var(--docs-control-border); }
+  dt { font-size: 0.875rem; font-weight: 600; }
+  a { color: var(--docs-interactive-text); text-underline-offset: 0.2em; }
+  dt a { display: inline-flex; align-items: center; min-height: 2.75rem; }
+  dd { display: grid; gap: 0.2rem; margin: 0; }
+  dd strong { font-size: 1.125rem; font-weight: 600; line-height: 1.4; color: var(--sl-color-white); }
+  dd span, .stack-foundation, .stack-status { color: var(--sl-color-gray-2); font-size: 0.875rem; line-height: 1.65; }
+  .stack-foundation, .stack-status { margin: 0; padding: 1rem 1.25rem; border-top: 1px solid var(--docs-control-border); }
+  .stack-foundation { background: var(--docs-control-surface); }
+  .stack-status strong { display: block; color: var(--sl-color-white); font-weight: 600; margin-bottom: 0.25rem; }
+  @media (max-width: 36rem) {
+    .stack-layer { grid-template-columns: minmax(0, 1fr); gap: 0.25rem; padding: 0.75rem 1rem 1rem; }
+    .stack-foundation, .stack-status { padding: 1rem; }
+  }
+</style>

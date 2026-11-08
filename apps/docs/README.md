@@ -41,6 +41,11 @@ application structure from proposed DigitalOcean hosting; update the proposal wh
 deployment decisions are implemented. Diagrams scroll horizontally on
 narrow screens rather than shrinking their labels below a readable size.
 
+The technology stack page uses `src/components/stack-overview.astro` for a compact,
+linked application summary. Keep its technologies and implementation status aligned
+with the detailed page inventory. It uses the shared theme tokens, semantic definition
+lists and immediate anchor navigation, without client-side JavaScript.
+
 ## Validation
 
 Run `npm run check`, `npm run test`, `npm run build` and `npm run check:links`.

@@ -1,0 +1,128 @@
+---
+title: Technology Stack
+description: Technologies in use, their responsibilities, recorded rationale and unresolved decisions.
+---
+
+import StackOverview from "../../../components/stack-overview.astro"
+
+MTOGO's stack, organised by responsibility. The inventory below describes the current implementation; planned infrastructure and unresolved decisions are listed separately.
+
+<StackOverview />
+
+For the component diagram, service boundaries and deployment proposal, start with the [architecture overview](/MTGO/architecture/). The [dependency graph](/MTGO/architecture/dependency-graph/) shows the backend's actual imports.
+
+## Frontend
+
+| Technology in use                                    | Responsibility                                                                                              |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Next.js 16 and React 19                              | Storefront routes, server-side data loading and interactive customer flows in `apps/storefront`.            |
+| Medusa JS SDK                                        | Calls the backend's HTTP API from the storefront, keeping commerce operations in Medusa.                    |
+| Tailwind CSS 3 and Medusa UI preset                  | Storefront styling and shared design tokens. Local UI components also use Headless UI and Radix primitives. |
+| React InstantSearch and Medusa InstantSearch adapter | Navbar search, product results, sorting and refinements through Medusa's search endpoint.                   |
+
+The storefront builds on the Medusa Next.js starter. Its practical benefit is an existing commerce UI and SDK integration to extend for MTOGO. The original selection rationale is [not yet recorded](#unresolved-decisions).
+
+### What search connects to
+
+`apps/storefront/src/lib/search-client.ts` creates the InstantSearch adapter with the Medusa SDK and the path `/store/search`. Both the navbar search and store listing mount it. Backend middleware exposes the `product` index, defined in `apps/backend/src/search/product.ts`, with product fields, facets and prices. The installed Medusa default configuration selects its PostgreSQL search provider, and `medusa-config.ts` does not override it.
+
+This is an implemented search path, rather than an installed but unused dependency. It does not establish a final team decision on a search engine. No external Algolia service is configured by this path. The team still needs to evaluate the current implementation and record its choice.
+
+## Backend and database
+
+| Technology in use              | Responsibility                                                                                                                               |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Medusa 2.22.3                  | Commerce API and admin dashboard. Custom business logic follows the API route → workflow → module layering.                                  |
+| React 18 and Medusa UI         | Admin interface, separate from the React 19 storefront.                                                                                      |
+| PostgreSQL 16                  | Local commerce database in Docker Compose and disposable database for CI integration tests. Medusa reads its connection from `DATABASE_URL`. |
+| Medusa migrations              | Database schema changes and initial data setup, run with the Medusa CLI.                                                                     |
+| Medusa system payment provider | Mock checkout using `pp_system_default`, enabled by the initial data seed.                                                                   |
+
+Medusa supplies the commerce modules and workflow model that the project extends as a modular monolith. PostgreSQL provides persistent commerce storage; the same major version in development and integration CI reduces environment differences. These are practical benefits of the implementation; the original selection rationale is [not yet recorded](#unresolved-decisions).
+
+**Payment is a mock solution.** The storefront contains Stripe and Adyen integration code and dependencies inherited from the starter, but the backend configuration registers no real payment provider. They are not confirmed live payment technologies. No real payment provider needs to be selected for the current scope.
+
+See [backend documentation](/MTGO/architecture/modules/backend/) for code locations and commands rather than duplicating that reference here.
+
+## Shared development environment
+
+| Technology in use                         | Responsibility and practical benefit                                                                                                                                                                                       |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TypeScript                                | Application code, docs tooling and metric calculations use static types. A shared language makes the applications and automation easier to work across.                                                                    |
+| Node.js 24 and npm 11                     | The devcontainer and CI use Node 24. The root package requires Node `>=22.23.4` and declares `npm@11.6.2`; `package-lock.json` supplies reproducible dependency installs with `npm ci`.                                    |
+| npm workspaces and Turborepo              | Workspaces manage the apps together; Turbo coordinates development, lint and build tasks while each app keeps its own scripts.                                                                                             |
+| Docker Compose and VS Code Dev Containers | An Ubuntu 24.04 development container and PostgreSQL service give developers the same runtime and tooling. A named volume preserves local database data. This is a development setup, not a production Compose deployment. |
+| GitHub CLI, TakT and gh-insitu            | Issue-branch workflow and shared quality commands. `.insitu.yml` defines the checks used locally and in CI, so the two environments run the same quality gates.                                                            |
+
+The devcontainer also installs Python 3.14 as tooling. No application Python runtime is demonstrated by the application code; it is not part of the product stack.
+
+## Documentation and metrics
+
+| Technology in use   | Responsibility and practical benefit                                                                                                            |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Astro and Starlight | Static documentation with shared navigation, search, themes and reading styles. The site is a read-only view of team documents and GitHub data. |
+| Mermaid             | Architecture and workflow diagrams stored alongside Markdown, keeping diagrams reviewable with their source.                                    |
+| Apache ECharts      | Flow metric charts, including throughput and cumulative flow, rendered from the docs app's chart code.                                          |
+| GitHub GraphQL API  | Collects board state and issue timeline history for flow metrics without maintaining a second board or a snapshot branch.                       |
+| GitHub Pages        | Hosts the built static docs under `/MTGO/`, separately from the application hosting plan.                                                       |
+
+The docs build publishes the glossary, ADRs and module READMEs from their repository sources. That keeps technical references next to the code while making them navigable here.
+
+Recorded decisions explain the important metrics tradeoffs:
+
+- [ADR-0002: issue timeline history](/MTGO/architecture/decisions/0002-status-history-from-issue-timeline/) explains why historical metrics use GitHub events instead of daily snapshots.
+- [ADR-0003: project board token](/MTGO/architecture/decisions/0003-classic-pat-for-the-project-board/) explains why the collector uses a classic token for the user-owned board. It is used server-side and never published in the site.
+
+## Testing and quality
+
+| Technology in use                            | Responsibility and rationale                                                                                                                              |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Jest, SWC and Medusa test utilities          | Backend unit, module integration and HTTP integration suites. Jest fits Medusa's existing test harness; SWC transforms TypeScript for the tests.          |
+| Vitest                                       | Docs tooling and chart calculation tests. It fits the docs app's ESM, Vite and TypeScript setup without the backend's Medusa-specific Jest configuration. |
+| ESLint and Medusa ESLint plugin              | Storefront lint and backend framework rules catch invalid patterns as well as style problems.                                                             |
+| dependency-cruiser                           | Enforces architecture boundaries and generates the backend dependency graph, preventing accidental coupling.                                              |
+| Prettier, markdownlint and cspell            | Shared formatting, Markdown and spelling checks through gh-insitu.                                                                                        |
+| Starlight link validator and base-path check | The docs build rejects broken internal links; the follow-up check verifies the `/MTGO/` deployment base.                                                  |
+
+[ADR-0001: Vitest for the docs app](/MTGO/architecture/decisions/0001-vitest-for-the-docs-app/) records the deliberate choice to keep Jest for Medusa and use Vitest for documentation tooling. Playwright is installed, and the devcontainer installs Chromium for browser inspection, but neither app currently defines a Playwright test suite. It is not an automated CI test gate.
+
+## CI/CD and hosting
+
+GitHub Actions runs on `ubuntu-latest`. TakT shares its quality commands through `.insitu.yml`:
+
+1. Issue-branch pushes run the `trunk-worthy` checks: spelling, Markdown, formatting, backend unit tests and architecture rules. The pre-commit hook runs the same checks.
+2. Delivery to a ready branch runs lint, backend coverage and integration tests with PostgreSQL 16, then docs tests, type checking, build and link checks. Only a successful ready flow merges to `main`.
+3. The `main` workflow publishes the tested docs artifact to GitHub Pages. A scheduled workflow also collects fresh board data and rebuilds the docs daily.
+4. The release workflow verifies that a version tag belongs to `main`, but its production deployment step is still a placeholder.
+
+These checks automate the team's trunk-based workflow and keep the deployed documentation tied to a validated build. See the [way of working](/MTGO/way-of-working/) for team policies.
+
+### Decided and planned
+
+| Technology or decision               | Status                                                                                                                                                                                                                 |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DigitalOcean Droplet                 | Decided application host. The repository has no working application deployment automation yet. The [architecture overview](/MTGO/architecture/#planned-application-hosting) contains the proposed topology.            |
+| Redis                                | Planned in [issue #21](https://github.com/DannyShayH/MTGO/issues/21). It is not configured in `medusa-config.ts` or local Compose. Its responsibilities and selection rationale should be documented when implemented. |
+| Caddy and production Docker services | Proposed in the architecture overview. No production proxy or Compose configuration is implemented here.                                                                                                               |
+
+## Unresolved decisions
+
+- **Search:** evaluate the current PostgreSQL-backed Medusa search implementation and decide whether to keep it or use another engine. InstantSearch is the UI integration already in code, not evidence of a final engine decision.
+- **Selection rationale:** record the team's reasons and considered alternatives for TypeScript, Medusa, Next.js, PostgreSQL, npm/Turborepo, Astro/Starlight, ECharts and the DigitalOcean Droplet. Their responsibilities and practical benefits are described above; those are not substitutes for a confirmed historical rationale. The old docs site brief is superseded draft input, not an approved decision record.
+- **Application operations:** decide persistent storage, backups and deployment automation for the Droplet. The architecture page remains the source for the hosting proposal.
+
+## Sources and maintenance
+
+Use the source configuration for exact versions; this page records major versions where they help distinguish environments. An installed dependency alone does not establish that a service is in use.
+
+| Area                        | Source of truth                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime and workspace       | [Root package.json](https://github.com/DannyShayH/MTGO/blob/main/package.json) and [Turbo tasks](https://github.com/DannyShayH/MTGO/blob/main/turbo.json)                                                                                                                                                                                                                                                                                                                                                         |
+| Storefront                  | [Packages](https://github.com/DannyShayH/MTGO/blob/main/apps/storefront/package.json), [search client](https://github.com/DannyShayH/MTGO/blob/main/apps/storefront/src/lib/search-client.ts) and [store template](https://github.com/DannyShayH/MTGO/blob/main/apps/storefront/src/modules/store/templates/index.tsx)                                                                                                                                                                                            |
+| Backend, search and payment | [Packages](https://github.com/DannyShayH/MTGO/blob/main/apps/backend/package.json), [configuration](https://github.com/DannyShayH/MTGO/blob/main/apps/backend/medusa-config.ts), [search middleware](https://github.com/DannyShayH/MTGO/blob/main/apps/backend/src/api/middlewares.ts), [product index](https://github.com/DannyShayH/MTGO/blob/main/apps/backend/src/search/product.ts) and [initial seed](https://github.com/DannyShayH/MTGO/blob/main/apps/backend/src/migration-scripts/initial-data-seed.ts) |
+| Development environment     | [Compose services](https://github.com/DannyShayH/MTGO/blob/main/.devcontainer/compose.yaml) and [devcontainer](https://github.com/DannyShayH/MTGO/blob/main/.devcontainer/devcontainer.json)                                                                                                                                                                                                                                                                                                                      |
+| Documentation               | [Packages](https://github.com/DannyShayH/MTGO/blob/main/apps/docs/package.json), [site configuration](https://github.com/DannyShayH/MTGO/blob/main/apps/docs/astro.config.mjs) and [chart implementation](https://github.com/DannyShayH/MTGO/blob/main/apps/docs/src/charts/draw-chart.ts)                                                                                                                                                                                                                        |
+| Quality and delivery        | [Shared checks](https://github.com/DannyShayH/MTGO/blob/main/.insitu.yml) and [GitHub workflows](https://github.com/DannyShayH/MTGO/tree/main/.github/workflows)                                                                                                                                                                                                                                                                                                                                                  |
+| Explicit team decisions     | [Issue #23](https://github.com/DannyShayH/MTGO/issues/23), [Redis issue #21](https://github.com/DannyShayH/MTGO/issues/21) and the ADRs linked above                                                                                                                                                                                                                                                                                                                                                              |
+
+Update this page in the same issue that changes a technology, integration or deployment status. Keep the summary and detailed inventory aligned. For a significant decision, record the context, alternatives and consequences in `docs/adr/` and link it here. Use the page's edit link and last-updated date to trace changes.

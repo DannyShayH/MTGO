@@ -5,21 +5,27 @@ MTOGO is a food delivery platform: customers order food from restaurants, MTOGO'
 - **Board:** [GitHub Project](https://github.com/users/DannyShayH/projects/2)
 - **Issues:** [DannyShayH/MTGO](https://github.com/DannyShayH/MTGO/issues)
 
-## Stack
+## Tech stack
 
 | Part              | Technology                                                                                             |
 | ----------------- | ------------------------------------------------------------------------------------------------------ |
 | Backend and admin | [Medusa](https://docs.medusajs.com) v2 as a modular monolith, PostgreSQL                               |
 | Storefront        | Next.js with the Medusa starter storefront and Medusa UI                                               |
+| Documentation     | Astro Starlight, Mermaid and Apache ECharts, published on GitHub Pages                                 |
 | Monorepo          | npm workspaces and Turborepo                                                                           |
 | Workflow          | [TakT](https://github.com/mindovermachine-dev/how-we-work) trunk-based development with a devcontainer |
 | Quality           | Prettier, ESLint, cspell, markdownlint, dependency-cruiser, Jest                                       |
+
+The applications use TypeScript. Development uses Docker Compose and a VS Code devcontainer; GitHub Actions runs the TakT checks and publishes the docs. Payment is a mock solution. Redis is planned, and application hosting is a DigitalOcean Droplet with deployment automation still to implement.
+
+See the [Technology Stack](https://dannyshayh.github.io/MTGO/architecture/technology-stack/) for the verified inventory, responsibilities, rationale and unresolved decisions.
 
 ## Project structure
 
 ```text
 apps/
 ├── backend/      # Medusa application: API routes, workflows, modules, admin extensions
+├── docs/         # Astro Starlight documentation and flow metrics
 └── storefront/   # Next.js storefront for customers, restaurants and drivers
 ```
 
