@@ -22,7 +22,7 @@ jobs:
       contents: read # explictly required when repository is private, otherwise optional
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       # Deploys the docs site built and tested by on_ready for this commit
       - name: Deploy docs site to GitHub Pages
