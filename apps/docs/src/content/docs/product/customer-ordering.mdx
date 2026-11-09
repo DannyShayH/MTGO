@@ -1,0 +1,165 @@
+---
+title: Customer ordering (draft)
+description: The proposed customer journey from choosing food to payment, delivery updates and feedback.
+sidebar:
+  order: 2
+---
+
+import WorkflowTimeline from "../../../components/workflow-timeline.astro"
+import SectionLinks from "../../../components/section-links.astro"
+import "../../../styles/review-documents.css"
+
+<div class="review-document">
+
+<aside class="review-intro not-content" aria-label="Document status">
+  <strong>Draft for team review</strong>
+  <p>
+    Based on the supplied MTOGO case and the domain-model draft. The case
+    requirements below are separated from proposed interaction details. This
+    page does not describe an implemented feature or record team approval.
+  </p>
+</aside>
+
+A customer chooses food, pays with the order, follows its progress and rates the experience after delivery. This journey focuses on website ordering; the case also describes app and telephone ordering channels. Their interfaces and inclusion in the first delivery need separate agreement.
+
+<nav class="review-jump not-content" aria-label="Customer ordering sections">
+  <a href="#case-requirements">Case requirements</a>
+  <a href="#proposed-journey">Ordering journey</a>
+  <a href="#exceptions-to-discuss">Exceptions</a>
+  <a href="#open-decisions">Open decisions</a>
+</nav>
+
+## Case requirements
+
+- Customers have personal accounts. MTOGO supports Danish and English.
+- Restaurants choose their own menus. MTOGO displays their offerings.
+- Customers pay with the order through an external payment supplier. A mock of that service is permitted.
+- There is no additional delivery charge; delivery is included in menu prices. Drivers do not handle payment.
+- Customers receive SMS or app updates during preparation and delivery.
+- After delivery, customers are asked to rate the food, overall experience and individual driver.
+
+## Proposed journey
+
+**Actor:** Customer. **Goal:** Receive the selected food at the delivery address and understand what happens to the order.
+
+<WorkflowTimeline
+  id="customer-ordering"
+  title="From choosing food to feedback"
+  steps={[
+    {
+      title: "Choose language and restaurant",
+      detail:
+        "Browse the available restaurants in Danish or English and open a restaurant's menu.",
+    },
+    {
+      title: "Choose food",
+      detail:
+        "Read dish descriptions, prices and available allergen information, then choose items and quantities.",
+    },
+    {
+      title: "Review the basket",
+      detail:
+        "Check the items, quantities and total. The draft assumes one restaurant per order; that rule still needs agreement.",
+    },
+    {
+      title: "Use a personal account",
+      detail:
+        "Sign in or create an account and provide delivery and contact details. The team must agree on where account creation appears in checkout.",
+    },
+    {
+      title: "Confirm the order details",
+      detail:
+        "Review the address, contact details, selected food and final price before payment. No separate delivery charge is added.",
+    },
+    {
+      title: "Pay with the order",
+      detail:
+        "Complete payment through the external supplier or its mock. Confirmation and retry behavior must avoid a second charge or duplicate order.",
+    },
+    {
+      title: "Receive confirmation and updates",
+      detail:
+        "See the order reference and follow restaurant preparation and delivery progress. Updates arrive by SMS or app according to the agreed channel rules.",
+    },
+    {
+      title: "Receive the food",
+      detail:
+        "The driver delivers the food without collecting payment. Delivery status is updated.",
+    },
+    {
+      title: "Give feedback",
+      detail:
+        "Respond to the post-delivery request with ratings for the food, overall experience and individual driver.",
+    },
+  ]}
+  note="Proposed happy path. Restaurant acceptance, payment timing and failure recovery must be agreed together; the case does not define their exact sequence."
+/>
+
+## Exceptions to discuss
+
+Use these scenarios to test the journey before splitting it into implementation issues.
+
+<ul class="review-criteria">
+  <li>
+    **A dish changes during checkout.** Its price or availability changes after
+    it enters the basket. Decide what the customer must review before paying.
+  </li>
+  <li>
+    **Payment fails or times out.** Keep the customer informed and allow
+    recovery without duplicate charges or orders. Agree on how an uncertain
+    provider result is resolved.
+  </li>
+  <li>
+    **The restaurant cannot fulfil the order.** Decide how rejection or
+    cancellation affects the payment and customer notification.
+  </li>
+  <li>
+    **Delivery details cannot be used.** Decide how an invalid address or
+    unreachable customer is handled and who takes the next action.
+  </li>
+  <li>
+    **An update cannot be delivered.** Decide what happens when an SMS or app
+    notification fails and where the customer can still check order status.
+  </li>
+</ul>
+
+## Open decisions
+
+- [ ] **Account flow:** When must the customer sign in or create an account? How does telephone ordering use that account?
+- [ ] **Order scope:** Is one restaurant per order the agreed rule?
+- [ ] **Availability:** Which opening-hours, service-area and sold-out checks prevent checkout?
+- [ ] **Payment and acceptance:** When does the restaurant accept relative to payment, and how are rejection and refunds handled?
+- [ ] **Scheduling:** Immediate orders only, or ordering for a later time?
+- [ ] **Updates and feedback:** How is the notification channel chosen, what rating scale is used, and can feedback be edited?
+
+The case requires Danish and English support; which menu fields and messages need both languages is still an implementation decision. Complaint management is a future extension, outside the current project scope.
+
+## Related workflows
+
+<SectionLinks
+  label="Customer ordering references"
+  links={[
+    {
+      title: "Domain model and delivery lifecycle",
+      href: "/MTGO/product/domain-model/",
+      description:
+        "The concepts, proposed delivery states and shared business questions behind this journey.",
+    },
+    {
+      title: "Restaurant menu management",
+      href: "/MTGO/product/restaurant-menu-management/",
+      description:
+        "How restaurants maintain the food and prices customers see.",
+    },
+    {
+      title: "Driver delivery workflow",
+      href: "/MTGO/product/driver-delivery/",
+      description:
+        "Follow the driver from receiving a delivery to pickup, customer handover and completion.",
+    },
+  ]}
+/>
+
+Record agreed answers and follow-up requirements in [issue #10](https://github.com/DannyShayH/MTGO/issues/10). These discussion questions do not create backlog issues or complete the issue's approval criteria.
+
+</div>

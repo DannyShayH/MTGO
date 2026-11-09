@@ -1,0 +1,101 @@
+---
+interface Props {
+  id: string
+  title: string
+  description: string
+  detailed?: boolean
+}
+const { id, title, description, detailed = false } = Astro.props
+---
+<docs-model-diagram class:list={["model-diagram", { "model-diagram-detailed": detailed }]} data-detailed={detailed}
+  data-diagram={id}>
+  <figure aria-labelledby={`${id}-title`}>
+    <div class="model-diagram-heading">
+      <figcaption id={`${id}-title`}>{title}</figcaption>
+      {detailed && <div class="model-diagram-tools" aria-label="Diagram controls" hidden>
+        <button type="button" data-action="out" aria-label="Zoom out">−</button>
+        <output aria-label="Diagram zoom" aria-live="polite">100%</output>
+        <button type="button" data-action="in" aria-label="Zoom in">+</button>
+        <button type="button" data-action="fit">Fit</button>
+        <button type="button" data-action="fullscreen">Full screen</button>
+      </div>}
+    </div>
+    <div class="model-diagram-viewport" role="region" aria-label={`${title}. Scroll to explore the diagram.`} aria-describedby={`${id}-description`} tabindex="0">
+      <slot />
+    </div>
+    <p id={`${id}-description`} class="model-diagram-caption">{description}</p>
+  </figure>
+</docs-model-diagram>
+
+<script>
+  class ModelDiagram extends HTMLElement {
+    connectedCallback() {
+      const viewport = this.querySelector<HTMLElement>(".model-diagram-viewport")!
+      const tools = this.querySelector<HTMLElement>(".model-diagram-tools")
+      if (!tools) return
+      let scale = 1
+      let fit = false
+      const output = tools.querySelector("output")!
+      const buttons = tools.querySelectorAll<HTMLButtonElement>("button")
+      const fullscreen = tools.querySelector<HTMLButtonElement>('[data-action="fullscreen"]')!
+      fullscreen.hidden = !document.fullscreenEnabled
+      const draw = () => {
+        const svg = viewport.querySelector<SVGSVGElement>("svg")
+        if (!svg || !svg.viewBox.baseVal.width) return
+        const bounds = svg.viewBox.baseVal
+        if (fit) scale = Math.min(1, (viewport.clientWidth - 32) / bounds.width, (viewport.clientHeight - 32) / bounds.height)
+        svg.style.width = `${bounds.width * scale}px`
+        svg.style.maxWidth = "none"
+        svg.style.height = "auto"
+        output.value = `${Math.round(scale * 100)}%`
+        buttons.forEach(button => {
+          if (button.dataset.action === "out") button.disabled = scale <= 0.1
+          if (button.dataset.action === "in") button.disabled = scale >= 2.5
+        })
+        tools.hidden = false
+      }
+      this.addEventListener("keydown", event => {
+        if (event.key === "Escape" && document.fullscreenElement === this) {
+          void document.exitFullscreen()
+        }
+      })
+      tools.addEventListener("click", async event => {
+        const target = (event.target as HTMLElement).closest<HTMLButtonElement>("button")
+        if (!target) return
+        const action = target.dataset.action
+        if (action === "fullscreen") {
+          try {
+            if (document.fullscreenElement === this) await document.exitFullscreen()
+            else await this.requestFullscreen()
+          } catch {
+            fullscreen.hidden = true
+          }
+          return
+        }
+        fit = action === "fit"
+        if (!fit) scale = Math.max(0.1, Math.min(2.5, scale + (action === "in" ? 0.2 : -0.2)))
+        draw()
+      })
+      // Mermaid replaces its SVG after rendering and when the theme changes.
+      // Observe replacement, without reacting to the sizing styles above.
+      const observer = new MutationObserver(draw)
+      observer.observe(viewport, { childList: true, subtree: true })
+      const resize = new ResizeObserver(draw)
+      resize.observe(viewport)
+      const onFullscreen = () => {
+        fullscreen.textContent = document.fullscreenElement === this ? "Exit full screen" : "Full screen"
+        draw()
+      }
+      document.addEventListener("fullscreenchange", onFullscreen)
+      this.cleanup = () => {
+        observer.disconnect()
+        resize.disconnect()
+        document.removeEventListener("fullscreenchange", onFullscreen)
+      }
+      draw()
+    }
+    cleanup?: () => void
+    disconnectedCallback() { this.cleanup?.() }
+  }
+  if (!customElements.get("docs-model-diagram")) customElements.define("docs-model-diagram", ModelDiagram)
+</script>

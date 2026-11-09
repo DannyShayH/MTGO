@@ -1,0 +1,442 @@
+/* Review pages share the docs palette and reading measure. Diagrams and
+   reference tables use the full article width; prose stays comfortable to read. */
+.review-document {
+  --review-border: var(--sl-color-hairline-light);
+  --review-surface: var(--sl-color-bg-nav);
+  --review-accent: var(--sl-color-accent-high);
+  --review-muted: var(--sl-color-gray-2);
+}
+
+.review-document > p {
+  max-width: 74ch;
+}
+
+.review-document .review-intro {
+  margin: 0 0 1.75rem;
+  padding: 1.1rem 1.25rem;
+  border-inline-start: 3px solid var(--review-accent);
+  border-radius: 0 0.5rem 0.5rem 0;
+  background: var(--sl-color-accent-low);
+}
+
+.review-intro strong {
+  display: block;
+  color: var(--review-accent);
+  font-size: 0.9rem;
+}
+
+.review-intro p {
+  max-width: 75ch;
+  margin: 0.35rem 0 0;
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+
+.review-document .review-jump {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  margin: 1.25rem 0 2rem;
+  padding-block: 0.75rem;
+  border-block: 1px solid var(--review-border);
+  font-size: 0.875rem;
+}
+
+.review-jump a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.25rem;
+  color: var(--review-accent);
+  text-underline-offset: 0.2em;
+}
+
+.review-document h2 {
+  margin-top: 2.75rem;
+}
+
+.review-document h3 {
+  margin-top: 1.75rem;
+}
+
+.model-diagram {
+  display: block;
+  min-width: 0;
+  margin-block: 1.5rem;
+  border: 1px solid var(--review-border);
+  border-radius: 0.65rem;
+  background: var(--sl-color-bg);
+  overflow: hidden;
+}
+
+.model-diagram figure {
+  margin: 0;
+}
+
+.model-diagram-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.85rem 1.1rem;
+  border-bottom: 1px solid var(--review-border);
+  background: var(--review-surface);
+}
+
+.model-diagram figcaption {
+  color: var(--sl-color-white);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.model-diagram-tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.model-diagram-tools[hidden],
+.model-diagram-tools button[hidden] {
+  display: none;
+}
+
+.model-diagram-tools button {
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  padding: 0.25rem 0.7rem;
+  border: 1px solid var(--review-border);
+  border-radius: 0.35rem;
+  background: var(--sl-color-bg);
+  color: var(--sl-color-white);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.model-diagram-tools button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.model-diagram-tools button:active:not(:disabled) {
+  background: var(--sl-color-accent-low);
+  border-color: var(--review-accent);
+}
+
+.model-diagram-tools output {
+  min-width: 3.25rem;
+  text-align: center;
+  color: var(--review-muted);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.model-diagram-viewport {
+  max-width: 100%;
+  padding: 1rem;
+  overflow: auto;
+  overscroll-behavior-inline: contain;
+}
+
+.review-document .model-diagram pre.mermaid {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  overflow: visible;
+}
+
+.review-document .model-diagram pre.mermaid svg {
+  display: block;
+  min-width: 0;
+  margin-inline: auto;
+}
+
+.review-document .model-diagram:not(.model-diagram-detailed) pre.mermaid svg {
+  width: 100%;
+  min-width: var(--model-min-width, 40rem);
+  max-width: var(--model-max-width, 65rem) !important;
+}
+
+.model-diagram-detailed .model-diagram-viewport {
+  height: 34rem;
+}
+
+.model-diagram .model-diagram-caption {
+  margin: 0;
+  padding: 0.8rem 1.1rem;
+  border-top: 1px solid var(--review-border);
+  color: var(--review-muted);
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
+.model-diagram:fullscreen {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--sl-color-bg);
+}
+
+.model-diagram:fullscreen figure {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.model-diagram:fullscreen .model-diagram-viewport {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
+
+.review-document .review-detail {
+  margin-block: 1.5rem;
+  border: 1px solid var(--review-border);
+  border-radius: 0.5rem;
+}
+
+.review-detail > summary {
+  padding: 1rem 1.25rem;
+  color: var(--sl-color-white);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.review-detail > div {
+  padding: 0 1.25rem 1.25rem;
+}
+
+.review-detail .model-diagram {
+  margin-bottom: 0;
+}
+
+.review-document .review-table {
+  max-width: 100%;
+  overflow-x: auto;
+  margin-block: 1.25rem;
+}
+
+.review-table table {
+  display: table;
+  width: 100%;
+  min-width: 42rem;
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.review-table th {
+  white-space: nowrap;
+  text-align: left;
+}
+
+.review-table td:first-child {
+  color: var(--sl-color-white);
+  font-weight: 600;
+}
+
+.review-document .review-criteria {
+  max-width: 78ch;
+  margin: 1rem 0 1.75rem;
+  padding: 0;
+  list-style: none;
+}
+
+.review-criteria > li {
+  position: relative;
+  margin: 0;
+  padding: 1rem 0 1rem 1.65rem;
+  border-bottom: 1px solid var(--review-border);
+  color: var(--review-muted);
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.review-criteria > li:first-child {
+  border-top: 1px solid var(--review-border);
+}
+
+.review-criteria > li::before {
+  content: "";
+  position: absolute;
+  top: 1.4rem;
+  left: 0.1rem;
+  width: 0.6rem;
+  height: 0.6rem;
+  border: 1.5px solid var(--sl-color-gray-3);
+  border-radius: 50%;
+}
+
+.review-criteria strong {
+  color: var(--sl-color-white);
+  font-weight: 600;
+}
+
+.review-document .review-decision-note {
+  max-width: 78ch;
+  margin-block: 1.5rem;
+  padding: 0.1rem 0 0.1rem 1rem;
+  border-inline-start: 2px solid var(--review-accent);
+  color: var(--review-muted);
+  font-size: 0.95rem;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .model-diagram-tools button:hover:not(:disabled),
+  .review-detail > summary:hover {
+    background: var(--sl-color-accent-low);
+    color: var(--review-accent);
+  }
+}
+
+@media (max-width: 36rem) {
+  .review-document .review-intro {
+    padding: 1rem;
+  }
+  .review-document .review-jump {
+    gap: 0.25rem 1rem;
+  }
+  .model-diagram-heading {
+    padding: 0.75rem;
+  }
+  .model-diagram-viewport {
+    padding: 0.75rem;
+  }
+  .model-diagram-detailed .model-diagram-viewport {
+    height: 28rem;
+  }
+  .review-detail > div {
+    padding: 0 0.75rem 0.75rem;
+  }
+}
+
+@media print {
+  .review-jump,
+  .model-diagram-tools {
+    display: none;
+  }
+  .model-diagram-detailed .model-diagram-viewport {
+    height: auto;
+    overflow: visible;
+  }
+  .review-criteria > li {
+    break-inside: avoid;
+  }
+}
+
+/* A single vertical reading path keeps each workflow step visible without
+   a diagram viewport or horizontal scrolling. */
+.workflow-figure {
+  margin: 1.5rem 0;
+  border: 1px solid var(--review-border);
+  border-radius: 0.65rem;
+  overflow: hidden;
+}
+
+.workflow-figure figcaption {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--review-border);
+  background: var(--review-surface);
+  color: var(--sl-color-white);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.workflow-timeline {
+  margin: 0;
+  padding: 1.5rem 1.25rem 0;
+  list-style: none;
+}
+
+.workflow-timeline li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  gap: 1rem;
+  margin: 0;
+  padding: 0 0 1.5rem;
+}
+
+.workflow-timeline li:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  top: 2rem;
+  bottom: 0;
+  left: calc(1rem - 1px);
+  width: 2px;
+  background: var(--review-border);
+}
+
+.workflow-step-number {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--sl-color-accent-high);
+  border-radius: 50%;
+  background: var(--sl-color-accent-low);
+  color: var(--sl-color-accent-high);
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.workflow-figure strong {
+  color: var(--sl-color-white);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.workflow-figure p {
+  max-width: 72ch;
+  margin: 0.25rem 0 0;
+  color: var(--review-muted);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.workflow-follow-up {
+  margin: 0 1.25rem 1.5rem 4.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--review-border);
+}
+
+.workflow-figure .workflow-figure-note {
+  max-width: none;
+  margin: 0;
+  padding: 1rem 1.25rem;
+  border-top: 1px solid var(--review-border);
+  font-size: 0.8rem;
+}
+
+.workflow-figure-note p {
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+@media print {
+  .workflow-timeline li {
+    break-inside: avoid;
+  }
+}
+
+.review-document ul.contains-task-list {
+  padding-left: 0;
+  list-style: none;
+}
+
+.review-document .task-list-item {
+  margin-block: 0.75rem;
+  padding-inline-start: 1.75rem;
+  max-width: 78ch;
+}
+
+.review-document .task-list-item input {
+  margin-inline-start: -1.75rem;
+  margin-inline-end: 0.6rem;
+}

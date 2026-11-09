@@ -1,0 +1,137 @@
+---
+title: Definition of Done (draft)
+description: Proposed completion criteria for team review in issue 9.
+sidebar:
+  order: 2
+---
+
+import "../../../styles/review-documents.css"
+
+<div class="review-document">
+
+<aside class="review-intro not-content" aria-label="Document status">
+  <strong>Draft for team review</strong>
+  <p>
+    Proposed completion criteria for{" "}
+    <a href="https://github.com/DannyShayH/MTGO/issues/9">issue #9</a>. The team
+    has not approved this definition. Review it together with the explicit
+    policies and coding standard.
+  </p>
+</aside>
+
+A user story is done when its functionality works, its quality is verified, its documentation is current and its delivery succeeds. Use the four sections below to review all applicable criteria.
+
+<nav class="review-jump not-content" aria-label="Definition of Done sections">
+  <a href="#functionality">Functionality</a>
+  <a href="#quality">Quality</a>
+  <a href="#documentation">Documentation</a>
+  <a href="#delivery">Delivery</a>
+  <a href="#decisions-still-needed">Team decisions</a>
+</nav>
+
+## Functionality
+
+Check the behavior against the story and its acceptance criteria.
+
+<ul class="review-criteria">
+
+<li>
+  **Acceptance criteria.** Core functionality implements the acceptance
+  criteria.
+</li>
+<li>
+  **Validation and errors.** Input validation and error handling are
+  implemented. Errors use the project's standard error response.
+</li>
+<li>**Authorization.** Access rules are enforced where applicable.</li>
+<li>
+  **Integration.** The feature is integrated into the application without
+  breaking existing functionality.
+</li>
+
+</ul>
+
+## Quality
+
+Review the test evidence and the code that supports the behavior.
+
+<ul class="review-criteria">
+
+<li>
+  **Relevant tests.** Cover the happy path, validation failures and
+  authorization where applicable. Test design uses equivalence partitioning,
+  boundary value analysis and decision tables as described in the agreed coding
+  standard.
+</li>
+<li>
+  **Rule coverage.** Every input rule and business rule has data-driven test
+  cases. Each case identifies its test-design technique and the rule or behavior
+  it checks.
+</li>
+<li>**Passing checks.** All tests pass locally and in CI.</li>
+<li>
+  **Readable code.** Code explains itself where possible. Comments explain
+  complex domain logic or implementation choices whose reasons are not obvious.
+</li>
+<li>
+  **Tracked follow-up.** No TODO comments remain in the code. Follow-up work is
+  tracked as a GitHub issue in Backlog; lasting decisions and limitations are
+  documented.
+</li>
+
+</ul>
+
+## Documentation
+
+Make the change understandable to the next developer and the team.
+
+<ul class="review-criteria">
+
+<li>**Current documentation.** Documentation is updated for the change.</li>
+<li>
+  **Endpoint reference.** New or changed endpoints follow the endpoint
+  documentation template in the agreed coding standard.
+</li>
+
+</ul>
+
+## Delivery
+
+Verify review, required checks and deployment through the existing flow.
+
+<ul class="review-criteria">
+
+<li>
+  **Review.** Changes have been reviewed using the team's agreed review
+  practice.
+</li>
+<li>
+  **TakT delivery.** The developer delivers through `gh deliver`. The ready flow
+  passes the required quality checks and merges to `main`.
+</li>
+<li>
+  **Deployment.** The relevant deployment succeeds. The docs site uses GitHub
+  Pages; application deployment criteria still need team agreement.
+</li>
+
+</ul>
+
+<details class="review-detail">
+<summary>Why delivery follows TakT</summary>
+<div>
+
+The supplied draft said “reviewed and merged to the main branch via pull request.” This repository uses TakT without pull requests, so the proposed delivery criterion follows the existing [way of working](/MTGO/way-of-working/).
+
+</div>
+</details>
+
+## Decisions still needed
+
+Agree on these points before adopting this page as the team's Definition of Done. Publishing the draft does not record approval.
+
+- [ ] **Error contract:** Agree on the standard error response and where it is documented.
+- [ ] **Coding standard:** Agree on the coding standard, endpoint documentation template and test-design guidance referenced above.
+- [ ] **Review and deployment:** Agree on the review practice and deployment evidence required for each type of change.
+- [ ] **Team approval:** Approve this Definition of Done together with the explicit policies and coding standard in [issue #9](https://github.com/DannyShayH/MTGO/issues/9).
+
+</div>

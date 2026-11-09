@@ -1,0 +1,158 @@
+---
+title: MTOGO restaurant onboarding (draft)
+description: The proposed internal workflow for adding restaurants and arranging staff access through Medusa Admin.
+sidebar:
+  order: 4
+---
+
+import WorkflowTimeline from "../../../components/workflow-timeline.astro"
+import SectionLinks from "../../../components/section-links.astro"
+import "../../../styles/review-documents.css"
+
+<div class="review-document">
+
+<aside class="review-intro not-content" aria-label="Document status">
+  <strong>Draft for team review</strong>
+  <p>
+    The team has chosen Medusa Admin for MTOGO's internal restaurant setup. The
+    steps below are a proposed business workflow. They do not claim that
+    restaurant management screens or custom functionality already exist.
+  </p>
+</aside>
+
+An internal MTOGO employee adds a restaurant to the platform and arranges the access needed for its staff to maintain the menu. This is separate from the restaurant's everyday menu management.
+
+<nav
+  class="review-jump not-content"
+  aria-label="Restaurant onboarding sections"
+>
+  <a href="#case-requirements-and-team-direction">Requirements and direction</a>
+  <a href="#proposed-workflow">Onboarding workflow</a>
+  <a href="#exceptions-to-discuss">Exceptions</a>
+  <a href="#open-decisions">Open decisions</a>
+</nav>
+
+## Case requirements and team direction
+
+**From the case:** Restaurants supply the food and choose their own menus. They pay MTOGO a service fee and commission on order value excluding VAT. The commission scale and bonus scheme are not fully defined; the team must choose sustainable rules.
+
+**Team direction:** Internal MTOGO staff use Medusa Admin to add restaurants. The case does not specify the onboarding screens, required fields, staff invitations or the conditions for accepting orders.
+
+**Boundary:** An MTOGO internal user and a restaurant staff user are different roles in the domain draft. Setting up restaurant staff access does not imply giving those users general access to Medusa Admin.
+
+## Proposed workflow
+
+**Actor:** Authorized MTOGO employee using Medusa Admin. **Goal:** A correctly identified restaurant can maintain its menu and, once ready, receive customer orders.
+
+<WorkflowTimeline
+  id="restaurant-onboarding"
+  title="From restaurant setup to readiness for orders"
+  steps={[
+    {
+      title: "Open Medusa Admin",
+      detail:
+        "Sign in as an internal MTOGO user with permission to manage restaurants. Exact roles and permissions need agreement.",
+    },
+    {
+      title: "Check for an existing restaurant",
+      detail:
+        "Look for the restaurant before creating another record. Agree on how branches, shared names and duplicates are identified.",
+    },
+    {
+      title: "Enter restaurant details",
+      detail:
+        "Record the proposed restaurant name, address and opening hours from the domain draft. Required contact and business-identification fields remain open.",
+    },
+    {
+      title: "Confirm commercial terms",
+      detail:
+        "Record or reference the agreed service fee and commission policy. The case requires both, but their values and configuration level are not settled.",
+    },
+    {
+      title: "Arrange restaurant staff access",
+      detail:
+        "Associate authorized restaurant staff with this restaurant. Invitation, account creation and role assignment are still to be designed.",
+    },
+    {
+      title: "Prepare the first menu",
+      detail:
+        "Restaurant staff enter and check their own categories, dishes, prices and availability. MTOGO displays the menu rather than selecting its offerings.",
+    },
+    {
+      title: "Check readiness for orders",
+      detail:
+        "Confirm that the agreed information, staff access, menu and commercial terms are ready. Whether a separate activation or approval step is required remains open.",
+    },
+  ]}
+  note="Proposed onboarding sequence. Restaurant management will need project-specific Medusa Admin functionality; this page does not prescribe its API or implementation. No unagreed commission or service-fee values are assumed."
+/>
+
+## Exceptions to discuss
+
+<ul class="review-criteria">
+  <li>
+    **A restaurant already exists.** Confirm whether this is the same business,
+    a separate branch or a duplicate before creating another record.
+  </li>
+  <li>
+    **Setup is incomplete.** Decide whether a partial record can be saved and
+    how staff can see what remains before orders are accepted.
+  </li>
+  <li>
+    **Staff access cannot be completed.** Decide how invitations are retried,
+    corrected or revoked without exposing another restaurant's information.
+  </li>
+  <li>
+    **Commercial terms are unresolved.** Decide what blocks readiness until the
+    team and restaurant have agreed on the applicable fees.
+  </li>
+  <li>
+    **The restaurant stops operating.** Decide how it stops receiving new orders
+    while existing orders, financial records and settlements remain accessible.
+  </li>
+  <li>
+    **An unauthorized user attempts a change.** Enforce the agreed internal and
+    restaurant-specific access boundaries.
+  </li>
+</ul>
+
+## Open decisions
+
+- [ ] **Internal permissions:** Which MTOGO roles may add, edit or deactivate restaurants?
+- [ ] **Restaurant identity:** Which fields are mandatory, what identifies a duplicate, and how are multiple branches represented?
+- [ ] **Commercial terms:** What are the service fee and commission calculation, and are they shared or restaurant-specific?
+- [ ] **Staff access:** Who invites restaurant users, what roles do they have, and how is access removed?
+- [ ] **Readiness:** Is there an explicit draft/active state or approval gate, and what must be true before orders are accepted?
+- [ ] **Deactivation:** Who may stop new orders, and how are active orders and historical records handled?
+
+The case also asks for a management dashboard of order status and processing measures. Its daily operational workflow is separate from onboarding and is not specified by this draft. Complaint management remains a future extension.
+
+## Related workflows
+
+<SectionLinks
+  label="Restaurant onboarding references"
+  links={[
+    {
+      title: "Restaurant menu management",
+      href: "/MTGO/product/restaurant-menu-management/",
+      description:
+        "The restaurant's own workflow after setup and staff access are arranged.",
+    },
+    {
+      title: "Customer ordering",
+      href: "/MTGO/product/customer-ordering/",
+      description:
+        "How customers place orders once a restaurant is ready to receive them.",
+    },
+    {
+      title: "Domain model",
+      href: "/MTGO/product/domain-model/",
+      description:
+        "Restaurant, RestaurantStaff, internal employees, commission and settlements.",
+    },
+  ]}
+/>
+
+Record agreed answers and follow-up requirements in [issue #10](https://github.com/DannyShayH/MTGO/issues/10). The workflow does not resolve the domain model's open questions or record team approval.
+
+</div>

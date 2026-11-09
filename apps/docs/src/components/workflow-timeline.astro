@@ -1,0 +1,19 @@
+---
+interface Props {
+  id: string
+  title: string
+  steps: { title: string; detail: string }[]
+  note: string
+}
+const { id, title, steps, note } = Astro.props
+---
+<figure class="workflow-figure not-content" aria-labelledby={`${id}-title`}>
+  <figcaption id={`${id}-title`}>{title}</figcaption>
+  <ol class="workflow-timeline" role="list" aria-label={title}>
+    {steps.map((step, index) => <li>
+      <span class="workflow-step-number" aria-hidden="true">{index + 1}</span>
+      <div><strong>{step.title}</strong><p>{step.detail}</p></div>
+    </li>)}
+  </ol>
+  <div class="workflow-figure-note"><p>{note}</p></div>
+</figure>

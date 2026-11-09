@@ -1,0 +1,157 @@
+---
+title: Restaurant menu management (draft)
+description: The proposed restaurant workflow for maintaining categories, dishes, prices and availability.
+sidebar:
+  order: 3
+---
+
+import WorkflowTimeline from "../../../components/workflow-timeline.astro"
+import SectionLinks from "../../../components/section-links.astro"
+import "../../../styles/review-documents.css"
+
+<div class="review-document">
+
+<aside class="review-intro not-content" aria-label="Document status">
+  <strong>Draft for team review</strong>
+  <p>
+    The case gives restaurants ownership of their menus. The self-service
+    workflow below is a proposal based on the domain-model draft; its screens,
+    permissions and publishing rules have not been agreed or implemented.
+  </p>
+</aside>
+
+Restaurant staff maintain what customers can order. MTOGO provides the platform and displays the menu; it does not choose the restaurant's food offerings.
+
+<nav
+  class="review-jump not-content"
+  aria-label="Restaurant menu management sections"
+>
+  <a href="#case-requirements-and-draft-scope">Requirements and scope</a>
+  <a href="#proposed-workflow">Menu workflow</a>
+  <a href="#exceptions-to-discuss">Exceptions</a>
+  <a href="#open-decisions">Open decisions</a>
+</nav>
+
+## Case requirements and draft scope
+
+**From the case:** Each restaurant chooses its own menu. Customers can view it on the website or app. Menu prices include delivery; customers pay no additional delivery charge. MTOGO supports Danish and English.
+
+**From the domain draft:** RestaurantStaff maintain categories and dishes, including prices, descriptions, allergens and sold-out status. These fields and the restaurant workspace below are proposals. The restaurant workspace is distinct from the internal MTOGO Medusa Admin workflow; the case does not prescribe its interface.
+
+## Proposed workflow
+
+**Actor:** Authorized restaurant staff. **Starting point:** The restaurant and its staff access have been set up. **Goal:** Customers see an accurate menu that the restaurant can fulfil.
+
+<WorkflowTimeline
+  id="restaurant-menu"
+  title="From menu changes to customer visibility"
+  steps={[
+    {
+      title: "Open the restaurant workspace",
+      detail:
+        "Sign in and access the restaurant's own menu. The proposed access boundary must prevent staff from editing another restaurant's content.",
+    },
+    {
+      title: "Organize categories",
+      detail:
+        "Create or update menu categories, such as Pizza and Drinks, and choose their display order.",
+    },
+    {
+      title: "Add or edit a dish",
+      detail:
+        "Maintain the dish name, description, category and allergen information. Agree on required fields and Danish/English content before implementation.",
+    },
+    {
+      title: "Set the price",
+      detail:
+        "Enter the customer-facing price including VAT and delivery. Agree on currency, validation and rounding rules.",
+    },
+    {
+      title: "Set availability",
+      detail:
+        "Mark a dish as available or sold out so the ordering experience reflects what the restaurant can prepare.",
+    },
+    {
+      title: "Check the customer view",
+      detail:
+        "Review the category order, dish information, prices and availability as a customer would see them.",
+    },
+    {
+      title: "Make the changes visible",
+      detail:
+        "Save the menu changes. Whether saving publishes immediately or requires a separate publish action remains open.",
+    },
+  ]}
+  note="Proposed workflow. No separate approval gate, draft status or publish button is assumed to exist. Agree on those rules before implementing the interface."
+/>
+
+## Exceptions to discuss
+
+<ul class="review-criteria">
+  <li>
+    **Missing or invalid information.** Explain which field needs attention and
+    preserve the staff member's edits.
+  </li>
+  <li>
+    **A dish is sold out while a customer checks out.** Agree on the final
+    availability check and the message shown to the customer.
+  </li>
+  <li>
+    **The price of an ordered dish changes.** Agree that historical order
+    information remains understandable and define how in-progress baskets are
+    treated.
+  </li>
+  <li>
+    **Two staff members edit the same dish.** Decide how conflicting changes are
+    detected or resolved.
+  </li>
+  <li>
+    **A staff member tries to edit another restaurant.** Reject the action and
+    keep restaurant ownership clear throughout the workflow.
+  </li>
+  <li>
+    **A dish or category is removed.** Decide what happens to its existing
+    orders, active baskets and remaining menu items.
+  </li>
+</ul>
+
+## Open decisions
+
+- [ ] **Access:** Who can invite restaurant staff, and what roles may edit or publish menu content?
+- [ ] **Required content:** Which dish fields are mandatory, and which need Danish and English versions?
+- [ ] **Price rules:** What currency, VAT handling, rounding and valid price range apply?
+- [ ] **Publishing:** Are saved changes immediately visible, or is there a draft/publish step? Is any review needed?
+- [ ] **Availability:** Does sold-out status hide a dish or keep it visible but unavailable? How do opening hours affect ordering?
+- [ ] **Change history:** How are price changes, deletion and simultaneous edits handled without losing order history?
+
+The restaurant owns the menu decisions. Any proposed MTOGO approval or restriction needs an explicit reason and team agreement; it is not specified by the case.
+
+## Related workflows
+
+<SectionLinks
+  label="Restaurant menu references"
+  links={[
+    {
+      title: "MTOGO restaurant onboarding",
+      href: "/MTGO/product/restaurant-onboarding/",
+      description:
+        "How internal staff propose to set up a restaurant and arrange its staff access through Medusa Admin.",
+    },
+    {
+      title: "Customer ordering",
+      href: "/MTGO/product/customer-ordering/",
+      description:
+        "Where customers encounter menu content, prices and availability.",
+    },
+    {
+      title: "Domain model",
+      href: "/MTGO/product/domain-model/",
+      description:
+        "RestaurantStaff, MenuCategory and MenuItem, with proposed module mappings.",
+    },
+  ]}
+/>
+
+Record agreed answers and follow-up requirements in [issue #10](https://github.com/DannyShayH/MTGO/issues/10). Publishing this draft does not approve its proposed rules.
+
+</div>
