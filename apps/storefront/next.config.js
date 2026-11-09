@@ -45,9 +45,6 @@ const nextConfig = {
       fullUrl: true,
     },
   },
-  typescript: {
-    ignoreBuildErrors: true,
-  },
   images: {
     unoptimized: true,
     remotePatterns: [

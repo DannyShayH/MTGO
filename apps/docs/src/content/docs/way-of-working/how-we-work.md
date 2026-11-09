@@ -58,12 +58,16 @@ Things that are easy to get wrong:
 
 ## 4. Quality gates
 
-| When                                          | Checks                                                                            | Where defined                   |
-| --------------------------------------------- | --------------------------------------------------------------------------------- | ------------------------------- |
-| Every commit (pre-commit hook) and every push | Prettier, cspell, markdownlint, backend unit tests, architecture rules            | `trunk-worthy` in `.insitu.yml` |
-| Before merge to `main` (ready flow)           | ESLint for all apps, coverage, module and HTTP integration tests against Postgres | `ready-checks` in `.insitu.yml` |
+| When                                          | Checks                                                                                                                     | Where defined                   |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| Every commit (pre-commit hook) and every push | Prettier, cspell, markdownlint, backend unit tests, architecture rules                                                     | `trunk-worthy` in `.insitu.yml` |
+| Before merge to `main` (ready flow)           | ESLint, coverage, module and HTTP integration tests, backend/admin and storefront builds, docs tests and build/link checks | `ready-checks` in `.insitu.yml` |
 
 Fix the code, never the rule. After editing files, run `gh insitu run fix-all`.
+
+See [application build verification](/MTGO/quality/application-builds/) for local
+commands, disposable CI variables and the difference between verification builds
+and staging artifacts.
 
 ## 5. Working with AI agents
 

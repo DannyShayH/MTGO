@@ -20,6 +20,31 @@
     },
     "seed": {
       "outputs": []
+    },
+    "@dtc/backend#build": {
+      "dependsOn": ["^build"],
+      "outputs": [".medusa/server/**", ".medusa/types/**"],
+      "env": [
+        "NODE_ENV",
+        "DATABASE_URL",
+        "STORE_CORS",
+        "ADMIN_CORS",
+        "AUTH_CORS",
+        "JWT_SECRET",
+        "COOKIE_SECRET",
+        "MEDUSA_*",
+        "VITE_*"
+      ]
+    },
+    "@dtc/storefront#build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**"],
+      "env": [
+        "NODE_ENV",
+        "NEXT_PUBLIC_*",
+        "NEXT_TELEMETRY_DISABLED",
+        "MEDUSA_CLOUD_S3_*"
+      ]
     }
   }
 }

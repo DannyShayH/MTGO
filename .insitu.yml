@@ -96,6 +96,11 @@ inventory:
     command: |
       cd apps/backend && npm run test:integration:http -- --passWithNoTests
 
+  - id: application-builds
+    name: Build and type check the backend, admin and storefront with isolated CI data
+    timeout: 20m
+    command: bash scripts/verify-application-builds.sh
+
   - id: docs-tests
     name: Run the docs app tests with Vitest (ADR-0001)
     command: |
@@ -156,13 +161,14 @@ waves:
   # Runs in the ready flow (on_ready.yml) before anything is merged to main.
   # Needs a reachable Postgres (DB_HOST, DB_PORT, DB_USERNAME, DB_PASSWORD).
   - id: ready-checks
-    name: Lint and integration tests before merge to trunk
+    name: Lint, tests and application builds before merge to trunk
     parallel: false
     checks:
       - lint
       - coverage
       - integration-modules
       - integration-http
+      - application-builds
       - docs-tests
       - docs-build
 

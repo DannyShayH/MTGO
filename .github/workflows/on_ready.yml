@@ -20,13 +20,14 @@ jobs:
       statuses: write # required to set the trunk-worthy status check and for gh insitu
       pages: write # required to deploy to GitHub Pages
 
-    # Throwaway database for the Medusa integration tests (lives only for this job)
+    # Throwaway database for integration tests and application build verification
     services:
       postgres:
         image: postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: medusa_ci_build
         ports:
           - 5432:5432
         options: >-
@@ -57,13 +58,24 @@ jobs:
           PROJECT_READER: ${{ secrets.PROJECT_READER }}
         run: node scripts/collect-board.ts
 
-      - name: Lint, integration tests and docs build
+      - name: Lint, tests and application builds
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DB_HOST: localhost
           DB_PORT: 5432
           DB_USERNAME: postgres
           DB_PASSWORD: postgres
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/medusa_ci_build
+          JWT_SECRET: ci-only-jwt-secret
+          COOKIE_SECRET: ci-only-cookie-secret
+          STORE_CORS: http://localhost:8000
+          ADMIN_CORS: http://localhost:9000
+          AUTH_CORS: http://localhost:8000,http://localhost:9000
+          NEXT_PUBLIC_MEDUSA_BACKEND_URL: http://localhost:9000
+          NEXT_PUBLIC_BASE_URL: http://localhost:8000
+          NEXT_PUBLIC_DEFAULT_REGION: dk
+          MEDUSA_TELEMETRY_DISABLED: "1"
+          NEXT_TELEMETRY_DISABLED: "1"
           # Used by the docs-build check, so the site is built for its Pages URL
           SITE_ORIGIN: ${{ steps.pages.outputs.origin }}
           BASE_PATH: ${{ steps.pages.outputs.base_path }}
