@@ -64,6 +64,18 @@ Development happens inside the devcontainer, so everyone has the same Node, tool
 
 The admin dashboard runs on `http://localhost:9000/app` and the storefront on `http://localhost:8000`. To run the database integration suite from inside the devcontainer, use `cd apps/backend && npm run test:integration:modules`. The command succeeds when there are no custom module tests yet.
 
+After pulling dependency updates, stop the development servers before running
+`npm ci`, then restart with `npm run dev`. Wait for Medusa to report that port
+9000 is ready before opening the storefront. Next.js can become ready first;
+the storefront still needs the backend to load its regions.
+
+If an existing admin tab reports a failed dynamic import, wait for backend
+startup and reload with **Ctrl+Shift+R** (Windows/Linux) or **Cmd+Shift+R**
+(macOS). A fresh private window can distinguish an old browser module reference
+from a persistent server failure. See
+[local development troubleshooting](https://dannyshayh.github.io/MTGO/quality/local-development/)
+for checks when either application still fails.
+
 ## Workflow
 
 Every change starts as an issue on the board and goes through TakT:
