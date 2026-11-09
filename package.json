@@ -1,9 +1,10 @@
 {
   "name": "mtogo",
   "private": false,
-  "packageManager": "npm@11.6.2",
+  "packageManager": "npm@11.19.1",
   "engines": {
-    "node": ">=22.23.4"
+    "node": ">=22.23.4",
+    "npm": ">=11.19.1"
   },
   "scripts": {
     "dev": "turbo dev",
@@ -45,6 +46,17 @@
     },
     "@eslint/eslintrc": {
       "ajv": "^6.12.4"
+    },
+    "@rushstack/node-core-library": {
+      "ajv": "^8.18.0"
     }
+  },
+  "allowScripts": {
+    "@swc/core@1.16.21": true,
+    "esbuild@0.28.2": true,
+    "@medusajs/telemetry@2.22.3": true,
+    "msgpackr-extract@3.0.6": true,
+    "protobufjs@7.6.6": true,
+    "fsevents": false
   }
 }
