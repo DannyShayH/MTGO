@@ -5,7 +5,8 @@ description: Backend, admin and storefront production builds required before mer
 
 Every delivery runs `application-builds` in the TakT `ready-checks` wave before
 merging to `main`. It builds the Medusa backend and admin, then the Next.js
-storefront, using the repository's npm/Turbo commands. Backend compilation errors,
+storefront, using the repository's npm/Turbo commands. It then runs the required
+[browser smoke suite](/MTGO/quality/browser-verification/) against both applications. Backend compilation errors,
 storefront TypeScript errors and bundling failures fail delivery. Next.js performs
 its normal TypeScript check; `ignoreBuildErrors` is not enabled.
 
@@ -28,21 +29,24 @@ sales channel. With `NEXT_PUBLIC_BASE_URL` configured, Next.js generates static 
 `/sitemap.xml`, which reads regions, products, categories and collections. A build
 with an unreachable backend fails at that page. Do not substitute a fake key.
 
-To reproduce the CI sequence, use a clean checkout without developer `.env` files,
-run `npm ci`, start a **disposable PostgreSQL 16 database**, and set the variables
+To reproduce the CI sequence, run `npm ci`, install Chromium as described in
+[browser verification](/MTGO/quality/browser-verification/), start a **disposable
+PostgreSQL 16 database**, and set the variables
 below in the process environment. Then run:
 
 ```bash
-bash scripts/verify-application-builds.sh
+npm run verify:applications
 ```
 
-This command runs migrations, including the initial data seed, against
+This command first creates a temporary source snapshot without developer `.env`
+files. It runs migrations, including the initial data seed, against
 `DATABASE_URL`. Use only a disposable database; do not point it at a shared store.
 The script builds the backend/admin, migrates and seeds the database, exports the
 seed's real publishable key to a temporary file, starts the compiled backend,
 checks `/health` and an authenticated `/store/regions` request, and builds the
-storefront. It stops the backend and removes temporary key/log files on exit.
-Port 9000 must be free. On failure it prints the backend log to help diagnosis.
+storefront. It starts the storefront and runs the browser smoke tests, then stops
+both servers and removes the snapshot and temporary key/log files on exit.
+Ports 9000 and 8000 must be free. On failure it prints the backend log to help diagnosis.
 The script needs Bash, curl and `setsid` (available on the Ubuntu CI runner).
 
 ## Isolated CI variables
@@ -69,7 +73,9 @@ environment files. Build initialization uses the installed Medusa CLI's
 | `MEDUSA_TELEMETRY_DISABLED`, `NEXT_TELEMETRY_DISABLED` | `1`                                                                                                                            |
 
 For a local disposable database, adjust `DATABASE_URL` and the integration test
-settings to your own disposable instance. The script does not require Redis;
+settings to your own disposable loopback instance with a database name beginning
+with `medusa_ci_`. The harness supplies `MEDUSA_CI_HTTP=1` and the temporary
+`E2E_DISPOSABLE`, `E2E_ADMIN_EMAIL` and `E2E_ADMIN_PASSWORD` browser fixtures. The script does not require Redis;
 Medusa uses its default local providers.
 
 ## Build artifacts and caching
@@ -80,7 +86,8 @@ package manifest and `public/admin/**`) and `.medusa/types/**` (generated types)
 Backend and storefront build environment inputs are declared in `turbo.json`, so
 changing their configuration invalidates the appropriate cache entry. A cached
 backend build must restore the compiled server and admin, which the verification
-script starts from `apps/backend/.medusa/server`.
+script starts from `apps/backend/.medusa/server`. The verification gate forces
+compilation inside its snapshot; ordinary builds continue to use caching.
 
 CI build verification is not a staging deployment. Public Next.js variables and
 generated static data are embedded during the build. These artifacts contain localhost

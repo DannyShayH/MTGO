@@ -38,7 +38,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up and verify runner environment
         uses: ./.github/actions/prep-runner
@@ -46,6 +46,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           verify: gh insitu run trunk-worthy
+
+      - name: Install Chromium for browser smoke tests
+        working-directory: apps/storefront
+        run: npm exec -- playwright install --with-deps chromium
 
       - name: Configure Pages
         id: pages
@@ -80,6 +84,17 @@ jobs:
           SITE_ORIGIN: ${{ steps.pages.outputs.origin }}
           BASE_PATH: ${{ steps.pages.outputs.base_path }}
         run: gh insitu run ready-checks
+
+      - name: Upload browser verification evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: browser-verification-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            apps/storefront/playwright-report
+            apps/storefront/test-results
+          if-no-files-found: ignore
+          retention-days: 3
 
       - name: Verify the token is not in the built site
         env:
@@ -126,7 +141,7 @@ jobs:
           fi
           echo "READY_PUSHER is configured."
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # Fetch full history to ensure we can merge and push
           token: ${{ secrets.READY_PUSHER }} # PAT with content:write (can not use secrets.GITHUB_TOKEN as it is a special case, it does not trigger other workflows on push)

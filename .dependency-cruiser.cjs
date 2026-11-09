@@ -57,7 +57,7 @@ module.exports = {
   options: {
     doNotFollow: { path: "node_modules" },
     exclude: {
-      path: "(^|/)(node_modules|\\.medusa|\\.next|\\.turbo|dist|coverage)/",
+      path: "(^|/)(node_modules|\\.medusa|\\.next|\\.turbo|dist|coverage|playwright-report|test-results)/",
     },
     tsPreCompilationDeps: true,
     enhancedResolveOptions: {

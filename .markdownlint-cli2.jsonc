@@ -3,6 +3,9 @@
   "globs": [
     "**/*.md",
     "**/*.mdx",
+    "!**/playwright-report/**",
+    "!**/test-results/**",
+    "!**/playwright/.auth/**",
     "!**/node_modules/**",
     "!**/.agents/**",
     "!**/.claude/skills/**",

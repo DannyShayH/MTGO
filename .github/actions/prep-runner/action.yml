@@ -6,6 +6,11 @@ inputs:
     description: Script to run to verify the environment is set up correctly. If not provided, no verification will be done.
     required: false
 
+  report-statuses:
+    description: Report insitu commit statuses; disable for read-only dependency PR tokens
+    required: false
+    default: "true"
+
 runs:
   using: composite
   steps:
@@ -32,7 +37,7 @@ runs:
 
     - name: Set up Node.js (with npm cache)
       if: ${{ steps.npm-lock.outputs.present == 'true' }}
-      uses: actions/setup-node@v6
+      uses: actions/setup-node@v7
       with:
         node-version: 24
         cache: npm
@@ -40,14 +45,16 @@ runs:
 
     - name: Set up Node.js (no npm cache)
       if: ${{ steps.npm-lock.outputs.present != 'true' }}
-      uses: actions/setup-node@v6
+      uses: actions/setup-node@v7
       with:
         node-version: 24
 
     - name: Prepare runner environment
       shell: bash
+      env:
+        INSITU_REPORT_STATUSES: ${{ inputs.report-statuses }}
       run: |
-        gh insitu run prep-runner
+        GITHUB_ACTIONS="$INSITU_REPORT_STATUSES" gh insitu run prep-runner --verbose
 
     - name: Verify environment
       if: ${{ inputs.verify }}

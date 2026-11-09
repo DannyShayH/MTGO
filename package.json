@@ -16,7 +16,8 @@
     "backend:dev": "turbo dev --filter=@dtc/backend",
     "storefront:dev": "turbo dev --filter=@dtc/storefront",
     "arch": "depcruise apps --config .dependency-cruiser.cjs",
-    "arch:graph": "depcruise apps/backend/src --config .dependency-cruiser.cjs --output-type mermaid --collapse \"^apps/backend/src/[^/]+\""
+    "arch:graph": "depcruise apps/backend/src --config .dependency-cruiser.cjs --output-type mermaid --collapse \"^apps/backend/src/[^/]+\"",
+    "verify:applications": "node scripts/verify-applications.mjs"
   },
   "pnpm": {
     "overrides": {
@@ -26,7 +27,7 @@
     }
   },
   "devDependencies": {
-    "@medusajs/eslint-plugin": "2.22.3",
+    "@medusajs/eslint-plugin": "2.22.4",
     "ajv": "^8.13.0",
     "dependency-cruiser": "^18.7.2",
     "eslint": "^9.39.4",
@@ -54,9 +55,9 @@
   "allowScripts": {
     "@swc/core@1.16.21": true,
     "esbuild@0.28.2": true,
-    "@medusajs/telemetry@2.22.3": true,
     "msgpackr-extract@3.0.6": true,
     "protobufjs@7.6.6": true,
+    "@medusajs/telemetry@2.22.4": true,
     "fsevents": false
   }
 }

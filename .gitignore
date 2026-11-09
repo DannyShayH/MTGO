@@ -88,3 +88,8 @@ apps/docs/public/flow-metrics.json
 apps/docs/src/generated/
 # Live board data saved by apps/docs/scripts/collect-board.ts
 apps/docs/.cache/
+
+# Browser verification artifacts and authentication state
+**/playwright-report/
+**/test-results/
+**/playwright/.auth/

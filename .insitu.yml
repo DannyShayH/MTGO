@@ -97,9 +97,9 @@ inventory:
       cd apps/backend && npm run test:integration:http -- --passWithNoTests
 
   - id: application-builds
-    name: Build and type check the backend, admin and storefront with isolated CI data
-    timeout: 20m
-    command: bash scripts/verify-application-builds.sh
+    name: Build, type check and browser test the backend, admin and storefront
+    timeout: 30m
+    command: npm run verify:applications
 
   - id: docs-tests
     name: Run the docs app tests with Vitest (ADR-0001)

@@ -20,6 +20,9 @@ export default defineConfig([
     },
   },
   globalIgnores([
+    "playwright-report/**",
+    "test-results/**",
+    "playwright/.auth/**",
     ".next/**",
     "out/**",
     "build/**",

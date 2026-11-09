@@ -4,6 +4,9 @@
   "import": ["@cspell/dict-da-dk/cspell-ext.json"],
   "language": "en-US, en-GB, da-DK",
   "ignorePaths": [
+    "**/playwright-report/**",
+    "**/test-results/**",
+    "**/playwright/.auth/**",
     "**/node_modules/**",
     "**/.agents/**",
     "**/.claude/skills/**",

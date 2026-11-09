@@ -108,3 +108,56 @@ checks script approvals and runs the usual ready checks. The existing PR-to-Read
 workflow can deliver an approved bot pull request through TakT. Agents continue
 to use the current issue branch and `gh wrapup`; they do not open pull requests
 or bypass the ready flow.
+
+## Dependency verification batch on 9 November 2026
+
+[Issue #36](https://github.com/DannyShayH/MTGO/issues/36) reviews the current bot
+proposals together, one dependency family at a time. These decisions apply to the
+reviewed commits below; they are not blanket approval for future bot changes.
+Browser coverage and its limits are documented in
+[browser verification](/MTGO/quality/browser-verification/).
+
+| Proposal                                          | Reviewed commit                                                                                 | Version                    | Decision                  | Evidence or reason                                                                                                                                                                                                                         |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------- | -------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [#33](https://github.com/DannyShayH/MTGO/pull/33) | [`2d85ebf`](https://github.com/DannyShayH/MTGO/commit/2d85ebfc1c59d88b54ea951baa97c744d8267c5a) | React Query 5.106.1        | Verify delivered baseline | Admin login, product loading, edit and persistence pass through the UI.                                                                                                                                                                    |
+| [#29](https://github.com/DannyShayH/MTGO/pull/29) | [`edd1745`](https://github.com/DannyShayH/MTGO/commit/edd1745245b51e1d72591e39cda8789cad524ff8) | Medusa 2.22.4; UI 4.2.11   | Accept                    | Core packages remain aligned; production builds, migrations and both browser flows pass.                                                                                                                                                   |
+| [#31](https://github.com/DannyShayH/MTGO/pull/31) | [`8a64f91`](https://github.com/DannyShayH/MTGO/commit/8a64f91c00fb3b1dfde1e1da9f3443d74a2d4e78) | Storefront Prettier 3.9.10 | Accept                    | Aligns with the existing root formatter major; CLI formatting, builds and browser flows pass.                                                                                                                                              |
+| [#26](https://github.com/DannyShayH/MTGO/pull/26) | [`0bd5cca`](https://github.com/DannyShayH/MTGO/commit/0bd5cca842c30d7b8a101f2e637bb0bc1a9bd250) | checkout 7                 | Accept with CI evidence   | Used by branch/dependency verification on ubuntu-latest. No pull_request_target or workflow_run checkout path is used here.                                                                                                                |
+| [#24](https://github.com/DannyShayH/MTGO/pull/24) | [`c336ec3`](https://github.com/DannyShayH/MTGO/commit/c336ec3888ddd8a7391f18c2185d2981443707a9) | setup-node 7               | Accept with CI evidence   | The prep-runner action exercises Node 24, npm cache and clean dependency installation.                                                                                                                                                     |
+| [#25](https://github.com/DannyShayH/MTGO/pull/25) | [`13ee6c3`](https://github.com/DannyShayH/MTGO/commit/13ee6c35b32bd08c1da983c90ea6969e36411ac5) | upload-pages-artifact 5    | Defer publisher adoption  | Candidate version 5 is exercised only in the non-deploying dependency workflow: built docs are uploaded, downloaded and checked. Keep the scheduled publisher on upload/deploy version 4 until their full publishing flow can be verified. |
+| [#27](https://github.com/DannyShayH/MTGO/pull/27) | [`4df80f4`](https://github.com/DannyShayH/MTGO/commit/4df80f4b90f06228917a7a530b23e34e52648d92) | deploy-pages 5             | Defer                     | Publishing a candidate to the live Pages environment has not been verified. Retain version 4; artifact packaging alone does not prove deployment.                                                                                          |
+| [#30](https://github.com/DannyShayH/MTGO/pull/30) | [`0e7ec10`](https://github.com/DannyShayH/MTGO/commit/0e7ec1011877975bdc37d699777fb05696fd9155) | React Stripe.js 7.0.1      | Defer                     | Requires Stripe.js >=10 <11, while the project declares ^8.2.0. A coordinated SDK migration and Stripe sandbox verification are needed; manual-payment success does not verify Stripe.                                                     |
+| [#32](https://github.com/DannyShayH/MTGO/pull/32) | [`32a788d`](https://github.com/DannyShayH/MTGO/commit/32a788d55bcbee85dd9ba3f31042ac27fb68b175) | babel-loader 10.1.1        | Defer                     | The app uses Turbopack, has no standalone webpack dependency and no active Babel loader configuration. A normal app build cannot exercise this loader major; keep 8.4.1 until a supported pipeline or removal is reviewed.                 |
+
+Actual runner and artifact evidence is available in the
+[Dependency verification runs](https://github.com/DannyShayH/MTGO/actions/workflows/dependency-verification.yml).
+The first issue-branch run must pass before this work is considered verified.
+The workflow performs no deployment or merge. The original bot PRs remain for the
+developer to close or defer after this issue is delivered; do not deliver them
+again on top of the same accepted updates.
+
+The Medusa [2.22.4 release notes](https://github.com/medusajs/medusa/releases/tag/v2.22.4)
+add optional TypeScript 7 support, dashboard fixes and security dependency changes.
+This project keeps its existing TypeScript version; it does not enable TypeScript 7.
+The isolated database is migrated using the installed CLI before browser testing.
+Both initial creation and an upgrade of the disposable 2.22.3 database are exercised.
+This does not establish that every possible merchant database migration is safe.
+
+The new `@medusajs/telemetry@2.22.4` postinstall source was inspected before its
+version-pinned approval. It checks local telemetry configuration and shows the
+notification outside CI; CI disables telemetry. The old 2.22.3 approval is replaced.
+The explicit `fsevents: false` policy is retained even when pruning on Linux would
+remove the entry for that uninstalled macOS-only package.
+
+A fresh root audit after the Medusa update reports 26 findings: 10 low, 16 moderate,
+zero high and zero critical. The reviewed advisory backlog above remains relevant;
+passing browser checks does not resolve those advisories.
+
+Upstream review sources:
+
+- [React Query release](https://github.com/TanStack/query/releases/tag/%40tanstack%2Freact-query%405.106.1)
+- [Prettier 3 migration changes](https://prettier.io/blog/2023/07/05/3.0.0) and [3.9.10 release](https://github.com/prettier/prettier/releases/tag/3.9.10)
+- [Checkout 7](https://github.com/actions/checkout/releases/tag/v7.0.0) and [setup-node 7](https://github.com/actions/setup-node/releases/tag/v7.0.0)
+- [Pages upload 5](https://github.com/actions/upload-pages-artifact/releases/tag/v5.0.0) and [Pages deploy 5](https://github.com/actions/deploy-pages/releases/tag/v5.0.0)
+- [Babel loader 10 breaking changes](https://github.com/babel/babel-loader/releases/tag/v10.0.0)
+- [React Stripe.js 6](https://github.com/stripe/react-stripe-js/releases/tag/v6.0.0) and [7](https://github.com/stripe/react-stripe-js/releases/tag/v7.0.0); exact 7.0.1 peer requirements checked with `npm view @stripe/react-stripe-js@7.0.1 peerDependencies`

@@ -1,0 +1,97 @@
+---
+title: Browser verification
+description: Real admin, cart and manual-payment checks for dependency updates.
+---
+
+[Issue #36](https://github.com/DannyShayH/MTGO/issues/36) adds browser verification
+to the required `application-builds` ready check. A build proves compilation;
+these Playwright scenarios exercise the production-built applications through
+Chromium. They use real Medusa services and synthetic data, without API mocks.
+
+## What is checked
+
+- An administrator signs in through the UI, loads the product list and a seeded
+  product, edits its subtitle, reloads and sees the saved value.
+- A shopper discovers a product from the store listing, selects its variant, adds
+  it to the cart, changes quantity, verifies the visible total after reload and
+  removes the item.
+- The shopper adds the product again, enters checkout, verifies the product and
+  visible total, supplies a synthetic shipping address, chooses shipping and the
+  seeded **Manual Payment** provider, places the order and sees its confirmation,
+  email, order number, payment method and final total.
+- Both scenarios fail on uncaught browser errors. There are no automatic retries
+  and no skipped critical scenarios. Locator/assertion waits and the overall test
+  duration are bounded.
+
+This is a focused desktop Chromium smoke suite, not exhaustive browser, visual,
+accessibility or payment-provider certification. The reports include screenshots
+of the admin product, checkout summary and manual order confirmation for review.
+Stripe card entry, Stripe authentication/redirects, Adyen, refunds and real money
+movement are **not verified** by the manual provider scenario.
+
+## Run locally
+
+Install dependencies with `npm ci`, then install the matching browser:
+
+```bash
+cd apps/storefront
+npm exec -- playwright install chromium
+```
+
+On a clean Linux machine, use `npm exec -- playwright install --with-deps chromium`
+to install system dependencies too. The ready and dependency workflows do this.
+
+From the repository root, set the public CI fixture variables documented in
+[application build verification](/MTGO/quality/application-builds/), point
+`DATABASE_URL` at a disposable loopback PostgreSQL database whose name starts
+with `medusa_ci_`, and run:
+
+```bash
+npm run verify:applications
+```
+
+The wrapper copies repository source into an ignored temporary snapshot, excludes
+`.env` files, and links installed dependencies inside that snapshot. It forwards
+only the environment variables needed by this runtime. It does not load or alter
+your developer environment files or use a shared/live store. Ports 9000 and 8000
+must be free. The helper requires Linux tools including Bash, curl, cp and setsid.
+
+It compiles the backend/admin, applies migrations and the existing initial seed,
+exports the real seeded publishable key through a temporary file, starts and
+health-checks the backend, builds and starts the storefront, creates a synthetic
+administrator, and runs Playwright. The temporary snapshot and both servers are
+cleaned up on success or failure. The disposable database belongs to the caller;
+the helper never drops or resets a database. Repeated runs create new synthetic
+users/orders, so discard that database when finished.
+
+The runtime uses `NODE_ENV=production`. `MEDUSA_CI_HTTP=1` is set only inside this
+local harness to allow the admin session cookie over loopback HTTP; normal
+production cookie security remains the default. The initial browser test caught
+the missing session on HTTP despite successful login responses. No token or API
+login substitutes for the UI login test.
+
+## Reports and failure evidence
+
+Open `apps/storefront/playwright-report/index.html` after verification, or run
+`npm exec -- playwright show-report` from the storefront directory. Reports and
+`test-results` are ignored by Git, formatting, lint and architecture tools.
+
+Admin tracing/video are disabled to avoid recording login credentials. Storefront
+failure traces contain only the disposable shopper flow. Authentication state is
+never committed. CI uploads browser reports/results for three days, including
+when a test fails; all fixture values are disposable and no production secrets
+are supplied to these workflows.
+
+The ready flow remains the authority for merge to main. The separate
+[Dependency verification workflow](https://github.com/DannyShayH/MTGO/actions/workflows/dependency-verification.yml)
+runs the full ready-check wave for dependency proposals and relevant issue-branch
+changes without deploying or merging. It also uploads the built docs through the
+Pages artifact action, downloads the resulting archive and verifies that its
+index and flow metrics are present. Packaging is tested separately from publishing
+to the live Pages site.
+
+Normal `npm run build` commands retain Turbo caching. The verification helper
+forces compilation so that a temporary source snapshot cannot reuse stale cached
+output. A deliberate temporary cart-removal regression is used during this issue
+to demonstrate that a browser failure makes the verification gate fail; the probe
+is removed before delivery.

@@ -131,9 +131,19 @@ In Markdown pages, write internal links as absolute links with the base (`/MTGO/
 
 The rules enforce: no circular dependencies, no imports between `apps/storefront` and `apps/backend`, custom modules never import each other (use module links and workflows), and the layering Module → Workflow → API route. A violation means the design is wrong: fix the code, never loosen or delete a rule to make it pass.
 
-### Test (backend only; the storefront has no test suite)
+### Tests and browser verification
 
 Run the suites from `apps/backend` — it defines no plain `test` script, so the root `<pm> run test` runs nothing there.
+
+For backend/admin or storefront behavior, run `<pm> run verify:applications` from
+the root with the disposable CI variables in
+[application build verification](apps/docs/src/content/docs/quality/application-builds.md).
+It runs production builds and Playwright against a source snapshot without
+developer `.env` files. Use a loopback PostgreSQL database named `medusa_ci_*`,
+install Chromium first, and keep ports 9000/8000 free. See
+[browser verification](apps/docs/src/content/docs/quality/browser-verification.md)
+for coverage, reports and payment-provider limits. Do not aim browser tests at a
+live store. The ready flow requires this check.
 
 ```bash
 cd apps/backend && <pm> run test:unit                      # **/src/**/__tests__/**/*.unit.spec.ts
