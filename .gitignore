@@ -81,6 +81,7 @@ version.txt
 # Docs site pages generated from the root documents and the architecture rules
 # by apps/docs/scripts/copy-root-docs.ts at every dev, check and build
 apps/docs/src/content/docs/architecture/glossary.md
+apps/docs/src/content/docs/product/case.md
 apps/docs/src/content/docs/architecture/dependency-graph.md
 apps/docs/src/content/docs/architecture/decisions/
 apps/docs/src/content/docs/architecture/modules/

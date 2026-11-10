@@ -51,6 +51,25 @@ describe("copyRootDocs", () => {
     expect(glossary).not.toContain("# MTOGO")
   })
 
+  it("copies the case into the product section when docs/case.md exists", () => {
+    write("GLOSSARY.md", "# MTOGO\n")
+    write("docs/case.md", "# MTOGO case\n\n## Scenario\n\nFood delivery.\n")
+
+    const paths = copy()
+
+    expect(paths).toContain("product/case.md")
+    const theCase = page("product/case.md")
+    expect(theCase).toContain(`\ntitle: "MTOGO case"\n`)
+    expect(theCase).toContain("# Source: docs/case.md")
+    expect(theCase).toContain("## Scenario\n\nFood delivery.")
+  })
+
+  it("leaves out the case page when docs/case.md does not exist", () => {
+    write("GLOSSARY.md", "# MTOGO\n")
+
+    expect(copy()).not.toContain("product/case.md")
+  })
+
   it("copies every ADR and rewrites a link to another ADR to its page on the site", () => {
     write("GLOSSARY.md", "# MTOGO\n")
     write("docs/adr/0001-use-vitest.md", "# Use Vitest\n\nWe use Vitest.\n")

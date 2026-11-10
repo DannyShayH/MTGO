@@ -1,4 +1,5 @@
-// Copies the root documents (GLOSSARY.md, the ADRs in docs/adr and module READMEs)
+// Copies the root documents (GLOSSARY.md, the case in docs/case.md, the ADRs in docs/adr
+// and module READMEs)
 // into the docs site as generated pages. The repository file stays the only source.
 import {
   existsSync,
@@ -70,6 +71,16 @@ function collectPages(
     title: "Glossary",
     body: glossary.body,
   })
+
+  if (existsSync(join(repoRoot, "docs/case.md"))) {
+    const theCase = readSource(repoRoot, "docs/case.md")
+    pages.push({
+      path: "product/case.md",
+      source: "docs/case.md",
+      title: theCase.heading ?? "MTOGO case",
+      body: theCase.body,
+    })
+  }
 
   const adrDir = join(repoRoot, "docs/adr")
   const adrs = existsSync(adrDir)

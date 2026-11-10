@@ -1,4 +1,4 @@
-// Runs before every dev, check and build of the docs site: copies GLOSSARY.md, the ADRs
+// Runs before every dev, check and build of the docs site: copies GLOSSARY.md, the case, the ADRs
 // and module READMEs into src/content/docs, and generates the dependency graph page.
 // The generated pages are git-ignored. See root-docs.ts for the rules.
 import { execFileSync } from "node:child_process"
