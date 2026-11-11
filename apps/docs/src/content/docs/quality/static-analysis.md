@@ -15,8 +15,10 @@ review and does not necessarily represent a vulnerability.
 
 The `sonar` job in `.github/workflows/on_main.yml` runs on each push to `main`.
 It can also be rerun with the Deploy workflow's manual trigger on `main`.
-It checks out the full Git history, installs dependencies, generates backend Jest
-unit coverage and submits the analysis with the official SonarQube scan action.
+It checks out the full Git history, installs dependencies, starts a throwaway
+PostgreSQL service, generates backend coverage with `npm run test:coverage` (unit
+and HTTP integration tests in one report) and submits the analysis with the
+official SonarQube scan action.
 `sonar-project.properties` holds the public project keys and analysis scope.
 
 The scanner waits for the quality gate and fails the job if the gate fails or
@@ -35,11 +37,13 @@ The storefront and docs are analyzed but excluded from coverage calculations.
 The workflow makes Jest's backend-relative LCOV paths relative to the repository
 root so the scanner can resolve them without confusing them with other apps.
 
-There are currently no backend unit tests. Jest permits this initial state and
-does not generate an LCOV report; the workflow warns and still submits static
-analysis. No Jest coverage is reported until tests exist. Once tests exist, a
-missing or empty report fails the job, and the existing four 80% Jest thresholds
-apply before scanning. Coverage is never fabricated for the empty suite.
+The job runs the same coverage command as the ready flow's `coverage` check, so a
+delivery that passed the ready flow also passes this step. Unit tests alone cannot
+meet the four 80% thresholds, because workflows and routes are only exercised
+through HTTP; an earlier version of this job ran only the unit tests and failed
+after every delivery. Run `npm run test:coverage` from `apps/backend` with a
+disposable PostgreSQL to reproduce the step locally. A missing or empty LCOV
+report fails the job before scanning.
 
 ## Service setup
 

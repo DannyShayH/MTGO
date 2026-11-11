@@ -1,6 +1,13 @@
 import { MedusaService } from "@medusajs/framework/utils"
-import Restaurant from "./models/restaurant"
+import Restaurant, {
+  CommercialTermsAgreement,
+  DeliveryAreaPostalCode,
+} from "./models/restaurant"
 
-class RestaurantModuleService extends MedusaService({ Restaurant }) {}
+class RestaurantModuleService extends MedusaService({
+  Restaurant,
+  DeliveryAreaPostalCode,
+  CommercialTermsAgreement,
+}) {}
 
 export default RestaurantModuleService

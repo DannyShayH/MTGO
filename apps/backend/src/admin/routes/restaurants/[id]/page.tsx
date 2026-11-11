@@ -3,12 +3,17 @@ import { useQuery } from "@tanstack/react-query"
 import { useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import {
-  Restaurant,
+  RestaurantDetailResponse,
   sdk,
   restaurantFields,
   restaurantMessages,
 } from "../../../lib/restaurant-api"
 import { RestaurantForm } from "../../../components/restaurant-form"
+import { DeliveryAreaSection } from "../../../components/delivery-area-section"
+import {
+  CommercialTermsSection,
+  ReadinessSection,
+} from "../../../components/restaurant-setup"
 
 const RestaurantPage = () => {
   const { id } = useParams()
@@ -16,7 +21,7 @@ const RestaurantPage = () => {
   const { data, isLoading, error } = useQuery({
     queryKey: ["restaurant", id],
     queryFn: () =>
-      sdk.client.fetch<{ restaurant: Restaurant }>(`/admin/restaurants/${id}`),
+      sdk.client.fetch<RestaurantDetailResponse>(`/admin/restaurants/${id}`),
   })
   if (isLoading) return <Text role="status">Loading Restaurant…</Text>
   if (error || !data)
@@ -58,6 +63,9 @@ const RestaurantPage = () => {
           ))}
         </dl>
       </Container>
+      <ReadinessSection restaurant={restaurant} />
+      <DeliveryAreaSection restaurant={restaurant} />
+      <CommercialTermsSection restaurant={restaurant} />
       {editing && (
         <RestaurantForm
           restaurant={restaurant}

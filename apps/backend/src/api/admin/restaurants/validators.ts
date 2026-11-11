@@ -1,4 +1,6 @@
 import { z } from "@medusajs/framework/zod"
+import { COMMON_MVP_TERMS_V1 } from "../../../workflows/restaurants/commercial-terms"
+import { isDanishPostalCode } from "../../../workflows/restaurants/postal-code"
 
 const required = z
   .string()
@@ -38,3 +40,39 @@ export const PickupAddressSchema = z.strictObject({
   exclude_id: z.string().optional(),
 })
 export type PickupAddressBody = z.infer<typeof PickupAddressSchema>
+const postalCode = z
+  .string({ error: "postal_code:postal_code_invalid" })
+  .refine(isDanishPostalCode, "postal_code:postal_code_invalid")
+export const PostAdminAddDeliveryAreaPostalCodeSchema = z.strictObject({
+  postal_code: postalCode,
+})
+export type PostAdminAddDeliveryAreaPostalCodeBody = z.infer<
+  typeof PostAdminAddDeliveryAreaPostalCodeSchema
+>
+export const PostAdminRecordCommercialTermsSchema = z.strictObject({
+  terms_version: z.literal(COMMON_MVP_TERMS_V1.terms_version, {
+    error: "terms_version:terms_version_invalid",
+  }),
+})
+export type PostAdminRecordCommercialTermsBody = z.infer<
+  typeof PostAdminRecordCommercialTermsSchema
+>
+// The Danish register has about a thousand codes, so one list never needs more.
+const postalCodeList = z.array(postalCode).max(1100, "postal_codes_too_many")
+export const PostAdminChangeDeliveryAreaSchema = z
+  .strictObject({
+    add: postalCodeList.default([]),
+    remove: postalCodeList.default([]),
+  })
+  .refine((body) => body.add.length + body.remove.length > 0, "fields_required")
+  .refine(
+    (body) => !body.add.some((code) => body.remove.includes(code)),
+    "postal_code_added_and_removed",
+  )
+export type PostAdminChangeDeliveryAreaBody = z.infer<
+  typeof PostAdminChangeDeliveryAreaSchema
+>
+export const GetAdminPostalCodesSchema = z.object({
+  q: z.string().trim().max(255).optional(),
+})
+export type GetAdminPostalCodesQuery = z.infer<typeof GetAdminPostalCodesSchema>

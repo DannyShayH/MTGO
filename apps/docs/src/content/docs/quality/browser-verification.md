@@ -104,6 +104,12 @@ and saves a separate kitchen after seeing the same-address warning. It runs in
 the existing disposable verification harness and fails on uncaught browser errors.
 The harness also seeds Pizzeria Nørrebro without terms, staff or menu.
 
+The Admin setup journey creates a Restaurant, searches the postal code register,
+adds all 213 codes of København K and then 2100, sees an unknown town find
+nothing, records the Common MVP terms v1 and checks that the readiness checklist
+marks delivery area and terms as met while staff and menu stay missing. After a
+reload it removes one København K code, then the rest of the town.
+
 The harness also runs `npm run verify:admin-development`. It starts Medusa's real
 Admin development bundler in a temporary frontend workspace and transforms both
 Restaurant pages with React Refresh enabled. It needs no database, API server or

@@ -6,10 +6,22 @@ import {
 import { RestaurantDetails } from "./types"
 import { createRestaurantStep } from "./steps/create-restaurant"
 import { updateRestaurantStep } from "./steps/update-restaurant"
+import { acquireLockStep, releaseLockStep } from "@medusajs/medusa/core-flows"
 import {
   readRestaurantsStep,
+  retrieveRestaurantDetailStep,
   checkPickupAddressStep,
 } from "./steps/read-restaurants"
+import {
+  changeDeliveryAreaStep,
+  DeliveryAreaChange,
+  validateRegisteredPostalCodesStep,
+} from "./steps/delivery-area"
+import {
+  recordCommercialTermsStep,
+  removeCommercialTermsStep,
+} from "./steps/commercial-terms"
+import { TermsVersion } from "./commercial-terms"
 
 export const listRestaurantsWorkflow = createWorkflow(
   "list-restaurants",
@@ -20,12 +32,9 @@ export const listRestaurantsWorkflow = createWorkflow(
 export const retrieveRestaurantWorkflow = createWorkflow(
   "retrieve-restaurant",
   function (input: { id: string }) {
-    const result = readRestaurantsStep({ id: input.id, limit: 1, offset: 0 })
-    const restaurant = transform(
-      { result },
-      ({ result }) => result.restaurants[0],
-    )
-    return new WorkflowResponse({ restaurant })
+    return new WorkflowResponse({
+      restaurant: retrieveRestaurantDetailStep({ id: input.id }),
+    })
   },
 )
 export const checkPickupAddressWorkflow = createWorkflow(
@@ -45,8 +54,8 @@ export const createRestaurantWorkflow = createWorkflow(
   function (input: RestaurantDetails) {
     const warnings = checkPickupAddressStep({ address: input })
     const id = createRestaurantStep(input)
-    const result = readRestaurantsStep({ id, limit: 1, offset: 0 })
-    return new WorkflowResponse({ restaurant: result.restaurants[0], warnings })
+    const restaurant = retrieveRestaurantDetailStep({ id })
+    return new WorkflowResponse({ restaurant, warnings })
   },
 )
 export const updateRestaurantWorkflow = createWorkflow(
@@ -57,7 +66,63 @@ export const updateRestaurantWorkflow = createWorkflow(
       address: updated,
       exclude_id: input.id,
     })
-    const result = readRestaurantsStep({ id: updated.id, limit: 1, offset: 0 })
-    return new WorkflowResponse({ restaurant: result.restaurants[0], warnings })
+    const restaurant = retrieveRestaurantDetailStep({ id: input.id })
+    return new WorkflowResponse({ restaurant, warnings })
+  },
+)
+
+/** Setup changes to one Restaurant are serialized so later guards cannot race them. */
+const restaurantLock = (restaurant_id: string) => ({
+  key: `restaurant:${restaurant_id}`,
+  timeout: 5,
+  ttl: 30,
+})
+
+/** Single-code and batch routes share this workflow: one locked, all-or-nothing change. */
+export const changeDeliveryAreaWorkflow = createWorkflow(
+  "change-delivery-area",
+  function (input: DeliveryAreaChange) {
+    const lock = transform({ input }, ({ input }) =>
+      restaurantLock(input.restaurant_id),
+    )
+    acquireLockStep(lock)
+    validateRegisteredPostalCodesStep({ postal_codes: input.add })
+    changeDeliveryAreaStep(input)
+    releaseLockStep(lock)
+    return new WorkflowResponse({
+      restaurant: retrieveRestaurantDetailStep({ id: input.restaurant_id }),
+    })
+  },
+)
+export const recordCommercialTermsWorkflow = createWorkflow(
+  "record-commercial-terms",
+  function (input: {
+    restaurant_id: string
+    terms_version: TermsVersion
+    recorded_by: string
+  }) {
+    const lock = transform({ input }, ({ input }) =>
+      restaurantLock(input.restaurant_id),
+    )
+    acquireLockStep(lock)
+    recordCommercialTermsStep(input)
+    releaseLockStep(lock)
+    return new WorkflowResponse({
+      restaurant: retrieveRestaurantDetailStep({ id: input.restaurant_id }),
+    })
+  },
+)
+export const removeCommercialTermsWorkflow = createWorkflow(
+  "remove-commercial-terms",
+  function (input: { restaurant_id: string }) {
+    const lock = transform({ input }, ({ input }) =>
+      restaurantLock(input.restaurant_id),
+    )
+    acquireLockStep(lock)
+    removeCommercialTermsStep(input)
+    releaseLockStep(lock)
+    return new WorkflowResponse({
+      restaurant: retrieveRestaurantDetailStep({ id: input.restaurant_id }),
+    })
   },
 )

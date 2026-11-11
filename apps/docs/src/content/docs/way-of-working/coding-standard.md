@@ -71,19 +71,19 @@ Prefer `type` for data shapes and union types for fixed sets of values (`type De
 
 The file and its main export describe its role.
 
-| Element         | Convention                                            | Example                                                |
-| --------------- | ----------------------------------------------------- | ------------------------------------------------------ |
-| Module folder   | `src/modules/<name>`, singular, kebab-case            | `src/modules/restaurant`                               |
-| Module constant | UPPER_SNAKE_CASE + `_MODULE`                          | `RESTAURANT_MODULE`                                    |
-| Data model      | PascalCase in code, snake_case table and fields       | `Restaurant`, `is_open`, `created_at`                  |
-| Service         | `<Name>ModuleService`, extends `MedusaService`        | `RestaurantModuleService`                              |
-| Workflow        | `<verb>-<noun>` id, `<verb><Noun>Workflow`            | `"create-restaurant"`, `createRestaurantWorkflow`      |
-| Step            | `<verb>-<noun>-step` id, `<verb><Noun>Step`           | `"validate-restaurant-step"`, `validateRestaurantStep` |
-| Link            | `src/links/<module-a>-<module-b>.ts`                  | `src/links/restaurant-product.ts`                      |
-| API route       | `src/api/<store, admin or partner>/<plural>/route.ts` | `src/api/admin/restaurants/[id]/route.ts`              |
-| Validator       | `<Method><Resource>Schema` in `validators.ts`         | `PostAdminCreateRestaurantSchema`                      |
-| Subscriber      | file named after the event's effect                   | `src/subscribers/notify-restaurant.ts`                 |
-| Event           | `<entity>.<past-tense verb>`                          | `delivery.claimed`                                     |
+| Element         | Convention                                            | Example                                           |
+| --------------- | ----------------------------------------------------- | ------------------------------------------------- |
+| Module folder   | `src/modules/<name>`, singular, kebab-case            | `src/modules/restaurant`                          |
+| Module constant | UPPER_SNAKE_CASE + `_MODULE`                          | `RESTAURANT_MODULE`                               |
+| Data model      | PascalCase in code, snake_case table and fields       | `Restaurant`, `is_open`, `created_at`             |
+| Service         | `<Name>ModuleService`, extends `MedusaService`        | `RestaurantModuleService`                         |
+| Workflow        | `<verb>-<noun>` id, `<verb><Noun>Workflow`            | `"create-restaurant"`, `createRestaurantWorkflow` |
+| Step            | `<verb>-<noun>` id, `<verb><Noun>Step`                | `"validate-restaurant"`, `validateRestaurantStep` |
+| Link            | `src/links/<module-a>-<module-b>.ts`                  | `src/links/restaurant-product.ts`                 |
+| API route       | `src/api/<store, admin or partner>/<plural>/route.ts` | `src/api/admin/restaurants/[id]/route.ts`         |
+| Validator       | `<Method><Resource>Schema` in `validators.ts`         | `PostAdminCreateRestaurantSchema`                 |
+| Subscriber      | file named after the event's effect                   | `src/subscribers/notify-restaurant.ts`            |
+| Event           | `<entity>.<past-tense verb>`                          | `delivery.claimed`                                |
 
 ### 4.3 Storefront (Next.js)
 

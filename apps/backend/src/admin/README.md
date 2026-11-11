@@ -35,7 +35,11 @@ This inserts a widget with the text “Product Widget” at the end of a product
 ## Restaurants
 
 The Restaurants route registers and edits pickup details and contacts through
-the authenticated Restaurant APIs. React Query is pinned to the Dashboard version
+the authenticated Restaurant APIs. The Restaurant page also shows the activation
+readiness checklist with the read-only menu status, the delivery area (search
+the postal code register, add or remove a whole town or single codes) and the commercial terms (record or remove the agreement,
+with the commission tiers and service fee read-only). Requirement and error codes
+are turned into English text in `lib/restaurant-api.ts` (ADR-0018). React Query is pinned to the Dashboard version
 (5.64.2). The Admin Vite configuration deduplicates React Query and its core so
 Dashboard and extensions share one provider even with nested npm installations.
 The operator journey in the disposable browser suite guards this integration.

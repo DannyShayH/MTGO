@@ -69,3 +69,80 @@ test("operator registers, finds and edits a Restaurant and sees a nonblocking ad
     contentType: "image/png",
   })
 })
+
+test("operator sets the delivery area and commercial terms and sees the readiness checklist update", async ({
+  page,
+}, testInfo) => {
+  expect(process.env.E2E_DISPOSABLE).toBe("1")
+  const errors: string[] = []
+  page.on("pageerror", (error) => errors.push(error.message))
+  const backend = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL!
+  await page.goto(`${backend}/app/login`)
+  await page
+    .getByPlaceholder("Email", { exact: true })
+    .fill(process.env.E2E_ADMIN_EMAIL!)
+  await page
+    .getByPlaceholder("Password", { exact: true })
+    .fill(process.env.E2E_ADMIN_PASSWORD!)
+  await page.getByRole("button", { name: "Continue with email" }).click()
+  await expect(page).not.toHaveURL(/\/login/)
+  await page.getByRole("link", { name: "Restaurants", exact: true }).click()
+  const name = `Setup journey kitchen ${randomUUID()}`
+  await page.getByRole("button", { name: "Create", exact: true }).click()
+  await page.getByLabel("Name", { exact: true }).fill(name)
+  await page.getByLabel("Pickup street").fill(`Setup street ${randomUUID()}`)
+  await page.getByLabel("Pickup postal code").fill("2200")
+  await page.getByLabel("Pickup city").fill("København N")
+  await page.getByLabel("Contact phone").fill("+45 12 34 56 78")
+  await page.getByLabel("Contact email").fill("setup@pizzeria.example")
+  await page.getByRole("button", { name: "Save", exact: true }).click()
+  await expect(page.getByRole("heading", { name, exact: true })).toBeVisible()
+
+  const checklist = page.getByRole("list", { name: "Activation requirements" })
+  const requirement = (label: string) =>
+    checklist.getByRole("listitem").filter({ hasText: label })
+  await expect(requirement("Delivery area")).toContainText("Missing")
+  await expect(requirement("Commercial terms")).toContainText("Missing")
+
+  const search = page.getByLabel("Find a town or postal code")
+  const results = page.getByRole("list", { name: "Matching towns" })
+  const area = page.getByRole("list", { name: "Delivery area towns" })
+  await search.fill("København K")
+  await expect(results.getByRole("listitem")).toHaveCount(1)
+  await expect(results).toContainText("213 postal codes, 1050–1473")
+  await results.getByRole("button", { name: "Add København K" }).click()
+  await expect(area).toContainText("København K")
+  await expect(results).toContainText("Added")
+  await search.fill("2100")
+  await results.getByRole("button", { name: "Add København Ø" }).click()
+  await expect(page.getByText("214 postal codes in 2 towns.")).toBeVisible()
+  await search.fill("Atlantis")
+  await expect(
+    page.getByText(/No Danish town or postal code matches/),
+  ).toBeVisible()
+  await expect(requirement("Delivery area")).toContainText("Met")
+
+  await page.getByRole("button", { name: "Record agreement" }).click()
+  await expect(
+    page.getByText(/Agreed to Common MVP terms v1 on/),
+  ).toContainText(`recorded by ${process.env.E2E_ADMIN_EMAIL}`)
+  await expect(page.getByText(/Monthly service fee: DKK 100 per/)).toBeVisible()
+  await expect(requirement("Commercial terms")).toContainText("Met")
+  await expect(requirement("Authorized staff")).toContainText("Missing")
+  await expect(requirement("Published menu")).toContainText("Missing")
+  await expect(page.getByText("Menu: 0 published dishes")).toBeVisible()
+
+  await page.reload()
+  await expect(requirement("Delivery area")).toContainText("Met")
+  await area.getByRole("button", { name: "Show codes" }).click()
+  await area.getByRole("button", { name: "Remove 1050", exact: true }).click()
+  await expect(page.getByText("213 postal codes in 2 towns.")).toBeVisible()
+  await area.getByRole("button", { name: "Remove København K" }).click()
+  await expect(page.getByText("1 postal code in 1 town.")).toBeVisible()
+  await expect(area).toContainText("København Ø")
+  expect(errors).toEqual([])
+  await testInfo.attach("restaurant-setup", {
+    body: await page.screenshot({ fullPage: true }),
+    contentType: "image/png",
+  })
+})

@@ -15,15 +15,47 @@ export type Restaurant = RestaurantDetails & {
   is_open: boolean
   receiving_new_orders: boolean
   reason: string | null
+  delivery_area_postal_codes: string[]
+}
+export type RegisteredPostalCode = {
+  postal_code: string
+  name: string
+  municipality: string
+}
+export type CommissionTier = {
+  from_amount: number
+  to_amount: number | null
+  rate_percent: number
+}
+export type CommercialTerms = {
+  terms_version: string
+  commission_tiers: CommissionTier[]
+  monthly_service_fee: { amount: number; currency_code: string }
+  agreement: {
+    terms_version: string
+    agreed_at: string
+    recorded_by: { id: string; email: string | null }
+  } | null
+}
+export type Readiness = {
+  can_activate: boolean
+  requirements: { code: string; missing: boolean }[]
+}
+export type RestaurantDetail = Restaurant & {
+  delivery_area: { postal_code: string; name: string | null }[]
+  commercial_terms: CommercialTerms
+  menu: { published_dish_count: number }
+  readiness: Readiness
 }
 export type AddressWarning = {
   code: "same_pickup_address"
   restaurant_ids: string[]
 }
 export type RestaurantResponse = {
-  restaurant: Restaurant
+  restaurant: RestaurantDetail
   warnings: AddressWarning[]
 }
+export type RestaurantDetailResponse = { restaurant: RestaurantDetail }
 export const restaurantMessages: Record<string, string> = {
   same_pickup_address:
     "Another Restaurant has this pickup address. You can still save separate kitchens at the same address.",
@@ -31,6 +63,18 @@ export const restaurantMessages: Record<string, string> = {
   restaurant_closed: "Restaurant is closed",
   delivery_area_missing: "No delivery area",
   destination_not_served: "Destination is outside the delivery area",
+}
+export const termsVersionNames: Record<string, string> = {
+  common_mvp_v1: "Common MVP terms v1",
+}
+/** Checklist labels for the activation requirement codes (ADR-0018: English only). */
+export const requirementLabels: Record<string, string> = {
+  pickup_address_missing: "Pickup address",
+  contacts_missing: "Contact phone and email",
+  authorized_staff_missing: "Authorized staff",
+  commercial_terms_missing: "Commercial terms",
+  published_menu_missing: "Published menu",
+  delivery_area_missing: "Delivery area",
 }
 export const restaurantFields = [
   { key: "name", label: "Name", type: "text" },

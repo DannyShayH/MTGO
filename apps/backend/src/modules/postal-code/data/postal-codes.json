@@ -1,0 +1,5316 @@
+{
+  "source": "https://api.statbank.dk/v1/tableinfo/POSTNR1?lang=da&format=JSON",
+  "source_updated": "2026-02-12T08:00:00",
+  "postal_codes": [
+    {
+      "postal_code": "1050",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1051",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1052",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1053",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1054",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1055",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1056",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1057",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1058",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1059",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1061",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1062",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1063",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1064",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1065",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1066",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1067",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1068",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1069",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1070",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1071",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1072",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1073",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1074",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1100",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1101",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1102",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1103",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1104",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1105",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1106",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1107",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1110",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1111",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1112",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1113",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1114",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1115",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1116",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1117",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1118",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1119",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1123",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1124",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1125",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1126",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1127",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1128",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1129",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1130",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1131",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1150",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1151",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1152",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1153",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1154",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1156",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1157",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1158",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1159",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1160",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1161",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1164",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1165",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1166",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1169",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1170",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1171",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1172",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1173",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1174",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1175",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1200",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1201",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1202",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1203",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1204",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1205",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1206",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1207",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1208",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1209",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1210",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1211",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1212",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1218",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1219",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1220",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1250",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1251",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1253",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1254",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1255",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1256",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1257",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1259",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1260",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1261",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1263",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1264",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1265",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1266",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1267",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1268",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1270",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1271",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1300",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1302",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1303",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1304",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1306",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1307",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1308",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1309",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1310",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1311",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1312",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1313",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1314",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1315",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1316",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1317",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1318",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1319",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1320",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1321",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1322",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1323",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1324",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1325",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1326",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1327",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1328",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1329",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1350",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1352",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1353",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1354",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1355",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1356",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1357",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1358",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1359",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1360",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1361",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1362",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1363",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1364",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1365",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1366",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1367",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1368",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1369",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1370",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1400",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1401",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1402",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1403",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1406",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1407",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1408",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1410",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1411",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1412",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1413",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1414",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1415",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1416",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1417",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1418",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1419",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1420",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1421",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1422",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1423",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1424",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1425",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1426",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1427",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1428",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1429",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1430",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1431",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1432",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1433",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1434",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1435",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1436",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1437",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1439",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1440",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1441",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1450",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1451",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1452",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1453",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1454",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1455",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1456",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1457",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1458",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1459",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1460",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1462",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1463",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1464",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1466",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1467",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1468",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1470",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1471",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1472",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1473",
+      "name": "København K",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1500",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1550",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1551",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1552",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1553",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1554",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1555",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1556",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1557",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1558",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1559",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1560",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1561",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1562",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1563",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1564",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1568",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1569",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1570",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1571",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1572",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1573",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1574",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1575",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1576",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1577",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1600",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1601",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1602",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1603",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1605",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1606",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1608",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1609",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1610",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1611",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1614",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1615",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1616",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1617",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1618",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1619",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1620",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1621",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1622",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1623",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1624",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1631",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1632",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1633",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1634",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1635",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1650",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1651",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1652",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1653",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1654",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1655",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1656",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1657",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1658",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1659",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1660",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1661",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1662",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1663",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1664",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1665",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1666",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1667",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1668",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1669",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1670",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1671",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1672",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1673",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1674",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1675",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1676",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1677",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1700",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1701",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1702",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1703",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1704",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1705",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1706",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1707",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1708",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1709",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1710",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1715",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1717",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1718",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1719",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1720",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1721",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1722",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1723",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1724",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1725",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1726",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1727",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1728",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1729",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1730",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1731",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1732",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1733",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1734",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1735",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1736",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1737",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1738",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1739",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1748",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1749",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1750",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1751",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1752",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1753",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1754",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1755",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1756",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1757",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1758",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1759",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1760",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1761",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1762",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1763",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1764",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1765",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1766",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1770",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1771",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1772",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1773",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1774",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1775",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1777",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1799",
+      "name": "København V",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "1800",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1801",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1802",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1803",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1804",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1805",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1806",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1807",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1808",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1809",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1810",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1811",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1812",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1813",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1814",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1815",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1816",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1817",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1818",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1819",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1820",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1822",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1823",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1824",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1825",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1826",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1827",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1828",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1829",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1850",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1851",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1852",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1853",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1854",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1855",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1856",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1857",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1860",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1861",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1862",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1863",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1864",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1865",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1866",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1867",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1868",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1870",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1871",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1872",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1873",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1874",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1875",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1876",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1877",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1878",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1879",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1900",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1901",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1902",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1903",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1904",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1905",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1906",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1908",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1909",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1910",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1911",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1912",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1913",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1914",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1915",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1916",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1917",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1920",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1921",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1922",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1923",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1924",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1925",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1926",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1927",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1928",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1950",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1951",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1952",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1953",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1954",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1955",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1956",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1957",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1958",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1959",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1960",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1961",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1962",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1963",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1964",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1965",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1966",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1967",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1970",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1971",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1972",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1973",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "1974",
+      "name": "Frederiksberg C",
+      "municipality": "Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "2000",
+      "name": "Frederiksberg",
+      "municipality": "Københavns Kommune, Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "2100",
+      "name": "København Ø",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "2150",
+      "name": "Nordhavn",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "2200",
+      "name": "København N",
+      "municipality": "Københavns Kommune, Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "2300",
+      "name": "København S",
+      "municipality": "Københavns Kommune, Tårnby Kommune"
+    },
+    {
+      "postal_code": "2400",
+      "name": "København NV",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "2450",
+      "name": "København SV",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "2500",
+      "name": "Valby",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "2600",
+      "name": "Glostrup",
+      "municipality": "Glostrup Kommune, Albertslund Kommune"
+    },
+    {
+      "postal_code": "2605",
+      "name": "Brøndby",
+      "municipality": "Brøndby Kommune, Glostrup Kommune"
+    },
+    {
+      "postal_code": "2610",
+      "name": "Rødovre",
+      "municipality": "Københavns Kommune, Hvidovre Kommune, Rødovre Kommune"
+    },
+    {
+      "postal_code": "2620",
+      "name": "Albertslund",
+      "municipality": "Albertslund Kommune"
+    },
+    {
+      "postal_code": "2625",
+      "name": "Vallensbæk",
+      "municipality": "Vallensbæk Kommune"
+    },
+    {
+      "postal_code": "2630",
+      "name": "Taastrup",
+      "municipality": "Høje-Taastrup Kommune"
+    },
+    {
+      "postal_code": "2635",
+      "name": "Ishøj",
+      "municipality": "Ishøj Kommune"
+    },
+    {
+      "postal_code": "2640",
+      "name": "Hedehusene",
+      "municipality": "Høje-Taastrup Kommune, Ishøj Kommune, Greve Kommune, Roskilde Kommune"
+    },
+    {
+      "postal_code": "2650",
+      "name": "Hvidovre",
+      "municipality": "Brøndby Kommune, Hvidovre Kommune"
+    },
+    {
+      "postal_code": "2660",
+      "name": "Brøndby Strand",
+      "municipality": "Brøndby Kommune, Hvidovre Kommune"
+    },
+    {
+      "postal_code": "2665",
+      "name": "Vallensbæk Strand",
+      "municipality": "Vallensbæk Kommune"
+    },
+    {
+      "postal_code": "2670",
+      "name": "Greve",
+      "municipality": "Greve Kommune"
+    },
+    {
+      "postal_code": "2680",
+      "name": "Solrød Strand",
+      "municipality": "Solrød Kommune"
+    },
+    {
+      "postal_code": "2690",
+      "name": "Karlslunde",
+      "municipality": "Greve Kommune, Solrød Kommune"
+    },
+    {
+      "postal_code": "2700",
+      "name": "Brønshøj",
+      "municipality": "Københavns Kommune"
+    },
+    {
+      "postal_code": "2720",
+      "name": "Vanløse",
+      "municipality": "Københavns Kommune, Frederiksberg Kommune"
+    },
+    {
+      "postal_code": "2730",
+      "name": "Herlev",
+      "municipality": "Ballerup Kommune, Gladsaxe Kommune, Herlev Kommune"
+    },
+    {
+      "postal_code": "2740",
+      "name": "Skovlunde",
+      "municipality": "Ballerup Kommune, Herlev Kommune"
+    },
+    {
+      "postal_code": "2750",
+      "name": "Ballerup",
+      "municipality": "Ballerup Kommune, Albertslund Kommune, Egedal Kommune"
+    },
+    {
+      "postal_code": "2760",
+      "name": "Måløv",
+      "municipality": "Ballerup Kommune"
+    },
+    {
+      "postal_code": "2765",
+      "name": "Smørum",
+      "municipality": "Egedal Kommune"
+    },
+    {
+      "postal_code": "2770",
+      "name": "Kastrup",
+      "municipality": "Københavns Kommune, Tårnby Kommune"
+    },
+    {
+      "postal_code": "2791",
+      "name": "Dragør",
+      "municipality": "Dragør Kommune, Tårnby Kommune"
+    },
+    {
+      "postal_code": "2800",
+      "name": "Kgs. Lyngby",
+      "municipality": "Gentofte Kommune, Gladsaxe Kommune, Lyngby-Taarbæk Kommune, Rudersdal Kommune"
+    },
+    {
+      "postal_code": "2820",
+      "name": "Gentofte",
+      "municipality": "Gentofte Kommune, Gladsaxe Kommune"
+    },
+    {
+      "postal_code": "2830",
+      "name": "Virum",
+      "municipality": "Lyngby-Taarbæk Kommune, Rudersdal Kommune"
+    },
+    {
+      "postal_code": "2840",
+      "name": "Holte",
+      "municipality": "Lyngby-Taarbæk Kommune, Rudersdal Kommune"
+    },
+    {
+      "postal_code": "2850",
+      "name": "Nærum",
+      "municipality": "Rudersdal Kommune"
+    },
+    {
+      "postal_code": "2860",
+      "name": "Søborg",
+      "municipality": "Københavns Kommune, Gladsaxe Kommune"
+    },
+    {
+      "postal_code": "2870",
+      "name": "Dyssegård",
+      "municipality": "Gentofte Kommune"
+    },
+    {
+      "postal_code": "2880",
+      "name": "Bagsværd",
+      "municipality": "Gladsaxe Kommune, Herlev Kommune, Furesø Kommune"
+    },
+    {
+      "postal_code": "2900",
+      "name": "Hellerup",
+      "municipality": "Københavns Kommune, Gentofte Kommune"
+    },
+    {
+      "postal_code": "2920",
+      "name": "Charlottenlund",
+      "municipality": "Gentofte Kommune"
+    },
+    {
+      "postal_code": "2930",
+      "name": "Klampenborg",
+      "municipality": "Gentofte Kommune, Lyngby-Taarbæk Kommune"
+    },
+    {
+      "postal_code": "2942",
+      "name": "Skodsborg",
+      "municipality": "Rudersdal Kommune"
+    },
+    {
+      "postal_code": "2950",
+      "name": "Vedbæk",
+      "municipality": "Hørsholm Kommune, Rudersdal Kommune"
+    },
+    {
+      "postal_code": "2960",
+      "name": "Rungsted Kyst",
+      "municipality": "Hørsholm Kommune"
+    },
+    {
+      "postal_code": "2970",
+      "name": "Hørsholm",
+      "municipality": "Fredensborg Kommune, Hørsholm Kommune, Rudersdal Kommune"
+    },
+    {
+      "postal_code": "2980",
+      "name": "Kokkedal",
+      "municipality": "Fredensborg Kommune, Hørsholm Kommune"
+    },
+    {
+      "postal_code": "2990",
+      "name": "Nivå",
+      "municipality": "Fredensborg Kommune"
+    },
+    {
+      "postal_code": "3000",
+      "name": "Helsingør",
+      "municipality": "Helsingør Kommune"
+    },
+    {
+      "postal_code": "3050",
+      "name": "Humlebæk",
+      "municipality": "Fredensborg Kommune, Helsingør Kommune"
+    },
+    {
+      "postal_code": "3060",
+      "name": "Espergærde",
+      "municipality": "Fredensborg Kommune, Helsingør Kommune"
+    },
+    {
+      "postal_code": "3070",
+      "name": "Snekkersten",
+      "municipality": "Helsingør Kommune"
+    },
+    {
+      "postal_code": "3080",
+      "name": "Tikøb",
+      "municipality": "Helsingør Kommune"
+    },
+    {
+      "postal_code": "3100",
+      "name": "Hornbæk",
+      "municipality": "Helsingør Kommune, Gribskov Kommune"
+    },
+    {
+      "postal_code": "3120",
+      "name": "Dronningmølle",
+      "municipality": "Gribskov Kommune"
+    },
+    {
+      "postal_code": "3140",
+      "name": "Ålsgårde",
+      "municipality": "Helsingør Kommune"
+    },
+    {
+      "postal_code": "3150",
+      "name": "Hellebæk",
+      "municipality": "Helsingør Kommune"
+    },
+    {
+      "postal_code": "3200",
+      "name": "Helsinge",
+      "municipality": "Hillerød Kommune, Gribskov Kommune"
+    },
+    {
+      "postal_code": "3210",
+      "name": "Vejby",
+      "municipality": "Gribskov Kommune"
+    },
+    {
+      "postal_code": "3220",
+      "name": "Tisvildeleje",
+      "municipality": "Gribskov Kommune"
+    },
+    {
+      "postal_code": "3230",
+      "name": "Græsted",
+      "municipality": "Helsingør Kommune, Hillerød Kommune, Gribskov Kommune"
+    },
+    {
+      "postal_code": "3250",
+      "name": "Gilleleje",
+      "municipality": "Gribskov Kommune"
+    },
+    {
+      "postal_code": "3300",
+      "name": "Frederiksværk",
+      "municipality": "Halsnæs Kommune, Gribskov Kommune"
+    },
+    {
+      "postal_code": "3310",
+      "name": "Ølsted",
+      "municipality": "Hillerød Kommune, Halsnæs Kommune"
+    },
+    {
+      "postal_code": "3320",
+      "name": "Skævinge",
+      "municipality": "Hillerød Kommune, Halsnæs Kommune"
+    },
+    {
+      "postal_code": "3330",
+      "name": "Gørløse",
+      "municipality": "Hillerød Kommune"
+    },
+    {
+      "postal_code": "3360",
+      "name": "Liseleje",
+      "municipality": "Halsnæs Kommune"
+    },
+    {
+      "postal_code": "3370",
+      "name": "Melby",
+      "municipality": "Halsnæs Kommune"
+    },
+    {
+      "postal_code": "3390",
+      "name": "Hundested",
+      "municipality": "Halsnæs Kommune"
+    },
+    {
+      "postal_code": "3400",
+      "name": "Hillerød",
+      "municipality": "Allerød Kommune, Fredensborg Kommune, Hillerød Kommune"
+    },
+    {
+      "postal_code": "3450",
+      "name": "Allerød",
+      "municipality": "Allerød Kommune, Fredensborg Kommune, Hillerød Kommune"
+    },
+    {
+      "postal_code": "3460",
+      "name": "Birkerød",
+      "municipality": "Furesø Kommune, Allerød Kommune, Rudersdal Kommune"
+    },
+    {
+      "postal_code": "3480",
+      "name": "Fredensborg",
+      "municipality": "Fredensborg Kommune, Helsingør Kommune, Hillerød Kommune"
+    },
+    {
+      "postal_code": "3490",
+      "name": "Kvistgård",
+      "municipality": "Fredensborg Kommune, Helsingør Kommune"
+    },
+    {
+      "postal_code": "3500",
+      "name": "Værløse",
+      "municipality": "Ballerup Kommune, Gladsaxe Kommune, Lyngby-Taarbæk Kommune, Furesø Kommune, Egedal Kommune"
+    },
+    {
+      "postal_code": "3520",
+      "name": "Farum",
+      "municipality": "Furesø Kommune, Allerød Kommune, Egedal Kommune"
+    },
+    {
+      "postal_code": "3540",
+      "name": "Lynge",
+      "municipality": "Furesø Kommune, Allerød Kommune, Hillerød Kommune, Egedal Kommune"
+    },
+    {
+      "postal_code": "3550",
+      "name": "Slangerup",
+      "municipality": "Allerød Kommune, Hillerød Kommune, Egedal Kommune, Frederikssund Kommune"
+    },
+    {
+      "postal_code": "3600",
+      "name": "Frederikssund",
+      "municipality": "Hillerød Kommune, Frederikssund Kommune, Halsnæs Kommune"
+    },
+    {
+      "postal_code": "3630",
+      "name": "Jægerspris",
+      "municipality": "Frederikssund Kommune"
+    },
+    {
+      "postal_code": "3650",
+      "name": "Ølstykke",
+      "municipality": "Egedal Kommune, Frederikssund Kommune"
+    },
+    {
+      "postal_code": "3660",
+      "name": "Stenløse",
+      "municipality": "Egedal Kommune"
+    },
+    {
+      "postal_code": "3670",
+      "name": "Veksø Sjælland",
+      "municipality": "Egedal Kommune, Roskilde Kommune"
+    },
+    {
+      "postal_code": "3700",
+      "name": "Rønne",
+      "municipality": "Bornholm Kommune"
+    },
+    {
+      "postal_code": "3720",
+      "name": "Aakirkeby",
+      "municipality": "Bornholm Kommune"
+    },
+    {
+      "postal_code": "3730",
+      "name": "Nexø",
+      "municipality": "Bornholm Kommune"
+    },
+    {
+      "postal_code": "3740",
+      "name": "Svaneke",
+      "municipality": "Bornholm Kommune"
+    },
+    {
+      "postal_code": "3751",
+      "name": "Østermarie",
+      "municipality": "Bornholm Kommune"
+    },
+    {
+      "postal_code": "3760",
+      "name": "Gudhjem",
+      "municipality": "Bornholm Kommune, Christiansø Kommune"
+    },
+    {
+      "postal_code": "3770",
+      "name": "Allinge",
+      "municipality": "Bornholm Kommune"
+    },
+    {
+      "postal_code": "3782",
+      "name": "Klemensker",
+      "municipality": "Bornholm Kommune"
+    },
+    {
+      "postal_code": "3790",
+      "name": "Hasle",
+      "municipality": "Bornholm Kommune"
+    },
+    {
+      "postal_code": "4000",
+      "name": "Roskilde",
+      "municipality": "Høje-Taastrup Kommune, Greve Kommune, Køge Kommune, Roskilde Kommune, Lejre Kommune"
+    },
+    {
+      "postal_code": "4030",
+      "name": "Tune",
+      "municipality": "Greve Kommune, Roskilde Kommune"
+    },
+    {
+      "postal_code": "4040",
+      "name": "Jyllinge",
+      "municipality": "Roskilde Kommune"
+    },
+    {
+      "postal_code": "4050",
+      "name": "Skibby",
+      "municipality": "Frederikssund Kommune"
+    },
+    {
+      "postal_code": "4060",
+      "name": "Kirke Såby",
+      "municipality": "Lejre Kommune"
+    },
+    {
+      "postal_code": "4070",
+      "name": "Kirke Hyllinge",
+      "municipality": "Lejre Kommune"
+    },
+    {
+      "postal_code": "4100",
+      "name": "Ringsted",
+      "municipality": "Køge Kommune, Holbæk Kommune, Faxe Kommune, Ringsted Kommune, Sorø Kommune, Næstved Kommune"
+    },
+    {
+      "postal_code": "4130",
+      "name": "Viby Sjælland",
+      "municipality": "Køge Kommune, Roskilde Kommune"
+    },
+    {
+      "postal_code": "4140",
+      "name": "Borup",
+      "municipality": "Køge Kommune, Roskilde Kommune, Ringsted Kommune, Lejre Kommune"
+    },
+    {
+      "postal_code": "4160",
+      "name": "Herlufmagle",
+      "municipality": "Faxe Kommune, Næstved Kommune"
+    },
+    {
+      "postal_code": "4171",
+      "name": "Glumsø",
+      "municipality": "Næstved Kommune"
+    },
+    {
+      "postal_code": "4173",
+      "name": "Fjenneslev",
+      "municipality": "Ringsted Kommune, Sorø Kommune"
+    },
+    {
+      "postal_code": "4174",
+      "name": "Jystrup Midtsj",
+      "municipality": "Køge Kommune, Ringsted Kommune"
+    },
+    {
+      "postal_code": "4180",
+      "name": "Sorø",
+      "municipality": "Ringsted Kommune, Slagelse Kommune, Sorø Kommune"
+    },
+    {
+      "postal_code": "4190",
+      "name": "Munke Bjergby",
+      "municipality": "Slagelse Kommune, Sorø Kommune"
+    },
+    {
+      "postal_code": "4200",
+      "name": "Slagelse",
+      "municipality": "Kalundborg Kommune, Slagelse Kommune, Sorø Kommune, Næstved Kommune"
+    },
+    {
+      "postal_code": "4220",
+      "name": "Korsør",
+      "municipality": "Slagelse Kommune"
+    },
+    {
+      "postal_code": "4230",
+      "name": "Skælskør",
+      "municipality": "Slagelse Kommune"
+    },
+    {
+      "postal_code": "4241",
+      "name": "Vemmelev",
+      "municipality": "Slagelse Kommune"
+    },
+    {
+      "postal_code": "4242",
+      "name": "Boeslunde",
+      "municipality": "Slagelse Kommune"
+    },
+    {
+      "postal_code": "4243",
+      "name": "Rude",
+      "municipality": "Slagelse Kommune, Næstved Kommune"
+    },
+    {
+      "postal_code": "4244",
+      "name": "Agersø",
+      "municipality": "Slagelse Kommune"
+    },
+    {
+      "postal_code": "4245",
+      "name": "Omø",
+      "municipality": "Slagelse Kommune"
+    },
+    {
+      "postal_code": "4250",
+      "name": "Fuglebjerg",
+      "municipality": "Slagelse Kommune, Næstved Kommune"
+    },
+    {
+      "postal_code": "4261",
+      "name": "Dalmose",
+      "municipality": "Slagelse Kommune, Næstved Kommune"
+    },
+    {
+      "postal_code": "4262",
+      "name": "Sandved",
+      "municipality": "Slagelse Kommune, Næstved Kommune"
+    },
+    {
+      "postal_code": "4270",
+      "name": "Høng",
+      "municipality": "Kalundborg Kommune, Slagelse Kommune"
+    },
+    {
+      "postal_code": "4281",
+      "name": "Gørlev",
+      "municipality": "Kalundborg Kommune"
+    },
+    {
+      "postal_code": "4291",
+      "name": "Ruds Vedby",
+      "municipality": "Kalundborg Kommune, Sorø Kommune"
+    },
+    {
+      "postal_code": "4293",
+      "name": "Dianalund",
+      "municipality": "Kalundborg Kommune, Sorø Kommune"
+    },
+    {
+      "postal_code": "4295",
+      "name": "Stenlille",
+      "municipality": "Holbæk Kommune, Sorø Kommune"
+    },
+    {
+      "postal_code": "4296",
+      "name": "Nyrup",
+      "municipality": "Holbæk Kommune, Sorø Kommune"
+    },
+    {
+      "postal_code": "4300",
+      "name": "Holbæk",
+      "municipality": "Holbæk Kommune"
+    },
+    {
+      "postal_code": "4305",
+      "name": "Orø",
+      "municipality": "Holbæk Kommune"
+    },
+    {
+      "postal_code": "4320",
+      "name": "Lejre",
+      "municipality": "Køge Kommune, Roskilde Kommune, Lejre Kommune"
+    },
+    {
+      "postal_code": "4330",
+      "name": "Hvalsø",
+      "municipality": "Holbæk Kommune, Ringsted Kommune, Lejre Kommune"
+    },
+    {
+      "postal_code": "4340",
+      "name": "Tølløse",
+      "municipality": "Holbæk Kommune, Lejre Kommune"
+    },
+    {
+      "postal_code": "4350",
+      "name": "Ugerløse",
+      "municipality": "Holbæk Kommune"
+    },
+    {
+      "postal_code": "4360",
+      "name": "Kirke Eskilstrup",
+      "municipality": "Holbæk Kommune, Ringsted Kommune"
+    },
+    {
+      "postal_code": "4370",
+      "name": "Store Merløse",
+      "municipality": "Holbæk Kommune, Ringsted Kommune, Sorø Kommune"
+    },
+    {
+      "postal_code": "4390",
+      "name": "Vipperød",
+      "municipality": "Holbæk Kommune"
+    },
+    {
+      "postal_code": "4400",
+      "name": "Kalundborg",
+      "municipality": "Kalundborg Kommune"
+    },
+    {
+      "postal_code": "4420",
+      "name": "Regstrup",
+      "municipality": "Holbæk Kommune"
+    },
+    {
+      "postal_code": "4440",
+      "name": "Mørkøv",
+      "municipality": "Holbæk Kommune"
+    },
+    {
+      "postal_code": "4450",
+      "name": "Jyderup",
+      "municipality": "Holbæk Kommune, Kalundborg Kommune"
+    },
+    {
+      "postal_code": "4460",
+      "name": "Snertinge",
+      "municipality": "Holbæk Kommune, Kalundborg Kommune"
+    },
+    {
+      "postal_code": "4470",
+      "name": "Svebølle",
+      "municipality": "Holbæk Kommune, Kalundborg Kommune"
+    },
+    {
+      "postal_code": "4480",
+      "name": "Store Fuglede",
+      "municipality": "Kalundborg Kommune"
+    },
+    {
+      "postal_code": "4490",
+      "name": "Jerslev Sjælland",
+      "municipality": "Kalundborg Kommune"
+    },
+    {
+      "postal_code": "4500",
+      "name": "Nykøbing Sj",
+      "municipality": "Odsherred Kommune"
+    },
+    {
+      "postal_code": "4520",
+      "name": "Svinninge",
+      "municipality": "Holbæk Kommune"
+    },
+    {
+      "postal_code": "4532",
+      "name": "Gislinge",
+      "municipality": "Holbæk Kommune"
+    },
+    {
+      "postal_code": "4534",
+      "name": "Hørve",
+      "municipality": "Odsherred Kommune, Kalundborg Kommune"
+    },
+    {
+      "postal_code": "4540",
+      "name": "Fårevejle",
+      "municipality": "Odsherred Kommune"
+    },
+    {
+      "postal_code": "4550",
+      "name": "Asnæs",
+      "municipality": "Odsherred Kommune"
+    },
+    {
+      "postal_code": "4560",
+      "name": "Vig",
+      "municipality": "Odsherred Kommune"
+    },
+    {
+      "postal_code": "4571",
+      "name": "Grevinge",
+      "municipality": "Odsherred Kommune"
+    },
+    {
+      "postal_code": "4572",
+      "name": "Nørre Asmindrup",
+      "municipality": "Odsherred Kommune"
+    },
+    {
+      "postal_code": "4573",
+      "name": "Højby",
+      "municipality": "Odsherred Kommune"
+    },
+    {
+      "postal_code": "4581",
+      "name": "Rørvig",
+      "municipality": "Odsherred Kommune"
+    },
+    {
+      "postal_code": "4583",
+      "name": "Sjællands Odde",
+      "municipality": "Odsherred Kommune"
+    },
+    {
+      "postal_code": "4591",
+      "name": "Føllenslev",
+      "municipality": "Odsherred Kommune, Kalundborg Kommune"
+    },
+    {
+      "postal_code": "4592",
+      "name": "Sejerø",
+      "municipality": "Kalundborg Kommune"
+    },
+    {
+      "postal_code": "4593",
+      "name": "Eskebjerg",
+      "municipality": "Kalundborg Kommune"
+    },
+    {
+      "postal_code": "4600",
+      "name": "Køge",
+      "municipality": "Køge Kommune, Stevns Kommune"
+    },
+    {
+      "postal_code": "4621",
+      "name": "Gadstrup",
+      "municipality": "Roskilde Kommune"
+    },
+    {
+      "postal_code": "4622",
+      "name": "Havdrup",
+      "municipality": "Roskilde Kommune, Solrød Kommune"
+    },
+    {
+      "postal_code": "4623",
+      "name": "Lille Skensved",
+      "municipality": "Køge Kommune, Roskilde Kommune, Solrød Kommune"
+    },
+    {
+      "postal_code": "4632",
+      "name": "Bjæverskov",
+      "municipality": "Køge Kommune"
+    },
+    {
+      "postal_code": "4640",
+      "name": "Faxe",
+      "municipality": "Faxe Kommune, Næstved Kommune"
+    },
+    {
+      "postal_code": "4652",
+      "name": "Hårlev",
+      "municipality": "Faxe Kommune, Stevns Kommune"
+    },
+    {
+      "postal_code": "4653",
+      "name": "Karise",
+      "municipality": "Faxe Kommune, Stevns Kommune"
+    },
+    {
+      "postal_code": "4654",
+      "name": "Faxe Ladeplads",
+      "municipality": "Faxe Kommune"
+    },
+    {
+      "postal_code": "4660",
+      "name": "Store Heddinge",
+      "municipality": "Stevns Kommune"
+    },
+    {
+      "postal_code": "4671",
+      "name": "Strøby",
+      "municipality": "Stevns Kommune"
+    },
+    {
+      "postal_code": "4672",
+      "name": "Klippinge",
+      "municipality": "Stevns Kommune"
+    },
+    {
+      "postal_code": "4673",
+      "name": "Rødvig Stevns",
+      "municipality": "Stevns Kommune"
+    },
+    {
+      "postal_code": "4681",
+      "name": "Herfølge",
+      "municipality": "Køge Kommune"
+    },
+    {
+      "postal_code": "4682",
+      "name": "Tureby",
+      "municipality": "Køge Kommune, Faxe Kommune, Stevns Kommune"
+    },
+    {
+      "postal_code": "4683",
+      "name": "Rønnede",
+      "municipality": "Faxe Kommune, Næstved Kommune"
+    },
+    {
+      "postal_code": "4684",
+      "name": "Holmegaard",
+      "municipality": "Faxe Kommune, Næstved Kommune"
+    },
+    {
+      "postal_code": "4690",
+      "name": "Haslev",
+      "municipality": "Faxe Kommune, Ringsted Kommune, Næstved Kommune"
+    },
+    {
+      "postal_code": "4700",
+      "name": "Næstved",
+      "municipality": "Næstved Kommune"
+    },
+    {
+      "postal_code": "4720",
+      "name": "Præstø",
+      "municipality": "Vordingborg Kommune"
+    },
+    {
+      "postal_code": "4733",
+      "name": "Tappernøje",
+      "municipality": "Faxe Kommune, Næstved Kommune, Vordingborg Kommune"
+    },
+    {
+      "postal_code": "4735",
+      "name": "Mern",
+      "municipality": "Vordingborg Kommune"
+    },
+    {
+      "postal_code": "4736",
+      "name": "Karrebæksminde",
+      "municipality": "Næstved Kommune"
+    },
+    {
+      "postal_code": "4750",
+      "name": "Lundby",
+      "municipality": "Næstved Kommune, Vordingborg Kommune"
+    },
+    {
+      "postal_code": "4760",
+      "name": "Vordingborg",
+      "municipality": "Vordingborg Kommune"
+    },
+    {
+      "postal_code": "4771",
+      "name": "Kalvehave",
+      "municipality": "Vordingborg Kommune"
+    },
+    {
+      "postal_code": "4772",
+      "name": "Langebæk",
+      "municipality": "Vordingborg Kommune"
+    },
+    {
+      "postal_code": "4773",
+      "name": "Stensved",
+      "municipality": "Vordingborg Kommune"
+    },
+    {
+      "postal_code": "4780",
+      "name": "Stege",
+      "municipality": "Vordingborg Kommune"
+    },
+    {
+      "postal_code": "4791",
+      "name": "Borre",
+      "municipality": "Vordingborg Kommune"
+    },
+    {
+      "postal_code": "4792",
+      "name": "Askeby",
+      "municipality": "Vordingborg Kommune"
+    },
+    {
+      "postal_code": "4793",
+      "name": "Bogø By",
+      "municipality": "Vordingborg Kommune"
+    },
+    {
+      "postal_code": "4800",
+      "name": "Nykøbing F",
+      "municipality": "Guldborgsund Kommune"
+    },
+    {
+      "postal_code": "4840",
+      "name": "Nørre Alslev",
+      "municipality": "Guldborgsund Kommune"
+    },
+    {
+      "postal_code": "4850",
+      "name": "Stubbekøbing",
+      "municipality": "Guldborgsund Kommune"
+    },
+    {
+      "postal_code": "4862",
+      "name": "Guldborg",
+      "municipality": "Guldborgsund Kommune"
+    },
+    {
+      "postal_code": "4863",
+      "name": "Eskilstrup",
+      "municipality": "Guldborgsund Kommune"
+    },
+    {
+      "postal_code": "4871",
+      "name": "Horbelev",
+      "municipality": "Guldborgsund Kommune"
+    },
+    {
+      "postal_code": "4872",
+      "name": "Idestrup",
+      "municipality": "Guldborgsund Kommune"
+    },
+    {
+      "postal_code": "4873",
+      "name": "Væggerløse",
+      "municipality": "Guldborgsund Kommune"
+    },
+    {
+      "postal_code": "4874",
+      "name": "Gedser",
+      "municipality": "Guldborgsund Kommune"
+    },
+    {
+      "postal_code": "4880",
+      "name": "Nysted",
+      "municipality": "Guldborgsund Kommune"
+    },
+    {
+      "postal_code": "4891",
+      "name": "Toreby L",
+      "municipality": "Guldborgsund Kommune"
+    },
+    {
+      "postal_code": "4892",
+      "name": "Kettinge",
+      "municipality": "Guldborgsund Kommune"
+    },
+    {
+      "postal_code": "4894",
+      "name": "Øster Ulslev",
+      "municipality": "Lolland Kommune, Guldborgsund Kommune"
+    },
+    {
+      "postal_code": "4895",
+      "name": "Errindlev",
+      "municipality": "Lolland Kommune"
+    },
+    {
+      "postal_code": "4900",
+      "name": "Nakskov",
+      "municipality": "Lolland Kommune"
+    },
+    {
+      "postal_code": "4912",
+      "name": "Harpelunde",
+      "municipality": "Lolland Kommune"
+    },
+    {
+      "postal_code": "4913",
+      "name": "Horslunde",
+      "municipality": "Lolland Kommune"
+    },
+    {
+      "postal_code": "4920",
+      "name": "Søllested",
+      "municipality": "Lolland Kommune"
+    },
+    {
+      "postal_code": "4930",
+      "name": "Maribo",
+      "municipality": "Lolland Kommune, Guldborgsund Kommune"
+    },
+    {
+      "postal_code": "4941",
+      "name": "Bandholm",
+      "municipality": "Lolland Kommune"
+    },
+    {
+      "postal_code": "4942",
+      "name": "Askø",
+      "municipality": "Lolland Kommune"
+    },
+    {
+      "postal_code": "4943",
+      "name": "Torrig L",
+      "municipality": "Lolland Kommune"
+    },
+    {
+      "postal_code": "4944",
+      "name": "Fejø",
+      "municipality": "Lolland Kommune"
+    },
+    {
+      "postal_code": "4945",
+      "name": "Femø",
+      "municipality": "Lolland Kommune"
+    },
+    {
+      "postal_code": "4951",
+      "name": "Nørreballe",
+      "municipality": "Lolland Kommune"
+    },
+    {
+      "postal_code": "4952",
+      "name": "Stokkemarke",
+      "municipality": "Lolland Kommune"
+    },
+    {
+      "postal_code": "4953",
+      "name": "Vesterborg",
+      "municipality": "Lolland Kommune"
+    },
+    {
+      "postal_code": "4960",
+      "name": "Holeby",
+      "municipality": "Lolland Kommune"
+    },
+    {
+      "postal_code": "4970",
+      "name": "Rødby",
+      "municipality": "Lolland Kommune"
+    },
+    {
+      "postal_code": "4983",
+      "name": "Dannemare",
+      "municipality": "Lolland Kommune"
+    },
+    {
+      "postal_code": "4990",
+      "name": "Sakskøbing",
+      "municipality": "Guldborgsund Kommune"
+    },
+    {
+      "postal_code": "5000",
+      "name": "Odense C",
+      "municipality": "Odense Kommune"
+    },
+    {
+      "postal_code": "5200",
+      "name": "Odense V",
+      "municipality": "Odense Kommune"
+    },
+    {
+      "postal_code": "5210",
+      "name": "Odense NV",
+      "municipality": "Odense Kommune"
+    },
+    {
+      "postal_code": "5220",
+      "name": "Odense SØ",
+      "municipality": "Odense Kommune"
+    },
+    {
+      "postal_code": "5230",
+      "name": "Odense M",
+      "municipality": "Odense Kommune"
+    },
+    {
+      "postal_code": "5240",
+      "name": "Odense NØ",
+      "municipality": "Odense Kommune"
+    },
+    {
+      "postal_code": "5250",
+      "name": "Odense SV",
+      "municipality": "Odense Kommune"
+    },
+    {
+      "postal_code": "5260",
+      "name": "Odense S",
+      "municipality": "Odense Kommune"
+    },
+    {
+      "postal_code": "5270",
+      "name": "Odense N",
+      "municipality": "Odense Kommune, Nordfyns Kommune"
+    },
+    {
+      "postal_code": "5290",
+      "name": "Marslev",
+      "municipality": "Kerteminde Kommune"
+    },
+    {
+      "postal_code": "5300",
+      "name": "Kerteminde",
+      "municipality": "Kerteminde Kommune"
+    },
+    {
+      "postal_code": "5320",
+      "name": "Agedrup",
+      "municipality": "Odense Kommune"
+    },
+    {
+      "postal_code": "5330",
+      "name": "Munkebo",
+      "municipality": "Kerteminde Kommune, Odense Kommune"
+    },
+    {
+      "postal_code": "5350",
+      "name": "Rynkeby",
+      "municipality": "Kerteminde Kommune"
+    },
+    {
+      "postal_code": "5370",
+      "name": "Mesinge",
+      "municipality": "Kerteminde Kommune"
+    },
+    {
+      "postal_code": "5380",
+      "name": "Dalby",
+      "municipality": "Kerteminde Kommune"
+    },
+    {
+      "postal_code": "5390",
+      "name": "Martofte",
+      "municipality": "Kerteminde Kommune"
+    },
+    {
+      "postal_code": "5400",
+      "name": "Bogense",
+      "municipality": "Nordfyns Kommune"
+    },
+    {
+      "postal_code": "5450",
+      "name": "Otterup",
+      "municipality": "Nordfyns Kommune"
+    },
+    {
+      "postal_code": "5462",
+      "name": "Morud",
+      "municipality": "Nordfyns Kommune"
+    },
+    {
+      "postal_code": "5463",
+      "name": "Harndrup",
+      "municipality": "Middelfart Kommune"
+    },
+    {
+      "postal_code": "5464",
+      "name": "Brenderup Fyn",
+      "municipality": "Middelfart Kommune"
+    },
+    {
+      "postal_code": "5466",
+      "name": "Asperup",
+      "municipality": "Middelfart Kommune"
+    },
+    {
+      "postal_code": "5471",
+      "name": "Søndersø",
+      "municipality": "Nordfyns Kommune"
+    },
+    {
+      "postal_code": "5474",
+      "name": "Veflinge",
+      "municipality": "Nordfyns Kommune"
+    },
+    {
+      "postal_code": "5485",
+      "name": "Skamby",
+      "municipality": "Nordfyns Kommune"
+    },
+    {
+      "postal_code": "5491",
+      "name": "Blommenslyst",
+      "municipality": "Odense Kommune, Nordfyns Kommune"
+    },
+    {
+      "postal_code": "5492",
+      "name": "Vissenbjerg",
+      "municipality": "Assens Kommune, Odense Kommune, Nordfyns Kommune"
+    },
+    {
+      "postal_code": "5500",
+      "name": "Middelfart",
+      "municipality": "Middelfart Kommune"
+    },
+    {
+      "postal_code": "5540",
+      "name": "Ullerslev",
+      "municipality": "Kerteminde Kommune, Nyborg Kommune"
+    },
+    {
+      "postal_code": "5550",
+      "name": "Langeskov",
+      "municipality": "Faaborg-Midtfyn Kommune, Kerteminde Kommune, Nyborg Kommune"
+    },
+    {
+      "postal_code": "5560",
+      "name": "Aarup",
+      "municipality": "Middelfart Kommune, Assens Kommune, Nordfyns Kommune"
+    },
+    {
+      "postal_code": "5580",
+      "name": "Nørre Aaby",
+      "municipality": "Middelfart Kommune"
+    },
+    {
+      "postal_code": "5591",
+      "name": "Gelsted",
+      "municipality": "Middelfart Kommune"
+    },
+    {
+      "postal_code": "5592",
+      "name": "Ejby",
+      "municipality": "Middelfart Kommune"
+    },
+    {
+      "postal_code": "5600",
+      "name": "Faaborg",
+      "municipality": "Faaborg-Midtfyn Kommune"
+    },
+    {
+      "postal_code": "5601",
+      "name": "Lyø",
+      "municipality": "Faaborg-Midtfyn Kommune"
+    },
+    {
+      "postal_code": "5602",
+      "name": "Avernakø",
+      "municipality": "Faaborg-Midtfyn Kommune"
+    },
+    {
+      "postal_code": "5603",
+      "name": "Bjørnø",
+      "municipality": "Faaborg-Midtfyn Kommune"
+    },
+    {
+      "postal_code": "5610",
+      "name": "Assens",
+      "municipality": "Assens Kommune"
+    },
+    {
+      "postal_code": "5620",
+      "name": "Glamsbjerg",
+      "municipality": "Assens Kommune"
+    },
+    {
+      "postal_code": "5631",
+      "name": "Ebberup",
+      "municipality": "Assens Kommune"
+    },
+    {
+      "postal_code": "5642",
+      "name": "Millinge",
+      "municipality": "Assens Kommune, Faaborg-Midtfyn Kommune"
+    },
+    {
+      "postal_code": "5672",
+      "name": "Broby",
+      "municipality": "Faaborg-Midtfyn Kommune"
+    },
+    {
+      "postal_code": "5683",
+      "name": "Haarby",
+      "municipality": "Assens Kommune"
+    },
+    {
+      "postal_code": "5690",
+      "name": "Tommerup",
+      "municipality": "Assens Kommune"
+    },
+    {
+      "postal_code": "5700",
+      "name": "Svendborg",
+      "municipality": "Svendborg Kommune"
+    },
+    {
+      "postal_code": "5750",
+      "name": "Ringe",
+      "municipality": "Faaborg-Midtfyn Kommune"
+    },
+    {
+      "postal_code": "5762",
+      "name": "Vester Skerninge",
+      "municipality": "Faaborg-Midtfyn Kommune, Svendborg Kommune"
+    },
+    {
+      "postal_code": "5771",
+      "name": "Stenstrup",
+      "municipality": "Faaborg-Midtfyn Kommune, Svendborg Kommune"
+    },
+    {
+      "postal_code": "5772",
+      "name": "Kværndrup",
+      "municipality": "Faaborg-Midtfyn Kommune, Svendborg Kommune"
+    },
+    {
+      "postal_code": "5792",
+      "name": "Årslev",
+      "municipality": "Faaborg-Midtfyn Kommune"
+    },
+    {
+      "postal_code": "5800",
+      "name": "Nyborg",
+      "municipality": "Nyborg Kommune"
+    },
+    {
+      "postal_code": "5853",
+      "name": "Ørbæk",
+      "municipality": "Faaborg-Midtfyn Kommune, Nyborg Kommune"
+    },
+    {
+      "postal_code": "5854",
+      "name": "Gislev",
+      "municipality": "Faaborg-Midtfyn Kommune"
+    },
+    {
+      "postal_code": "5856",
+      "name": "Ryslinge",
+      "municipality": "Faaborg-Midtfyn Kommune"
+    },
+    {
+      "postal_code": "5863",
+      "name": "Ferritslev Fyn",
+      "municipality": "Faaborg-Midtfyn Kommune"
+    },
+    {
+      "postal_code": "5871",
+      "name": "Frørup",
+      "municipality": "Nyborg Kommune"
+    },
+    {
+      "postal_code": "5874",
+      "name": "Hesselager",
+      "municipality": "Nyborg Kommune, Svendborg Kommune"
+    },
+    {
+      "postal_code": "5881",
+      "name": "Skårup Fyn",
+      "municipality": "Svendborg Kommune"
+    },
+    {
+      "postal_code": "5882",
+      "name": "Vejstrup",
+      "municipality": "Svendborg Kommune"
+    },
+    {
+      "postal_code": "5883",
+      "name": "Oure",
+      "municipality": "Svendborg Kommune"
+    },
+    {
+      "postal_code": "5884",
+      "name": "Gudme",
+      "municipality": "Svendborg Kommune"
+    },
+    {
+      "postal_code": "5892",
+      "name": "Gudbjerg Sydfyn",
+      "municipality": "Svendborg Kommune"
+    },
+    {
+      "postal_code": "5900",
+      "name": "Rudkøbing",
+      "municipality": "Langeland Kommune"
+    },
+    {
+      "postal_code": "5932",
+      "name": "Humble",
+      "municipality": "Langeland Kommune"
+    },
+    {
+      "postal_code": "5935",
+      "name": "Bagenkop",
+      "municipality": "Langeland Kommune"
+    },
+    {
+      "postal_code": "5943",
+      "name": "Strynø",
+      "municipality": "Langeland Kommune"
+    },
+    {
+      "postal_code": "5953",
+      "name": "Tranekær",
+      "municipality": "Langeland Kommune"
+    },
+    {
+      "postal_code": "5960",
+      "name": "Marstal",
+      "municipality": "Ærø Kommune"
+    },
+    {
+      "postal_code": "5965",
+      "name": "Birkholm",
+      "municipality": "Ærø Kommune"
+    },
+    {
+      "postal_code": "5970",
+      "name": "Ærøskøbing",
+      "municipality": "Ærø Kommune"
+    },
+    {
+      "postal_code": "5985",
+      "name": "Søby Ærø",
+      "municipality": "Ærø Kommune"
+    },
+    {
+      "postal_code": "6000",
+      "name": "Kolding",
+      "municipality": "Kolding Kommune"
+    },
+    {
+      "postal_code": "6040",
+      "name": "Egtved",
+      "municipality": "Kolding Kommune, Vejle Kommune"
+    },
+    {
+      "postal_code": "6051",
+      "name": "Almind",
+      "municipality": "Kolding Kommune"
+    },
+    {
+      "postal_code": "6052",
+      "name": "Viuf",
+      "municipality": "Kolding Kommune, Vejle Kommune"
+    },
+    {
+      "postal_code": "6064",
+      "name": "Jordrup",
+      "municipality": "Kolding Kommune"
+    },
+    {
+      "postal_code": "6070",
+      "name": "Christiansfeld",
+      "municipality": "Haderslev Kommune, Kolding Kommune"
+    },
+    {
+      "postal_code": "6091",
+      "name": "Bjert",
+      "municipality": "Kolding Kommune"
+    },
+    {
+      "postal_code": "6092",
+      "name": "Sønder Stenderup",
+      "municipality": "Kolding Kommune"
+    },
+    {
+      "postal_code": "6093",
+      "name": "Sjølund",
+      "municipality": "Kolding Kommune"
+    },
+    {
+      "postal_code": "6094",
+      "name": "Hejls",
+      "municipality": "Haderslev Kommune, Kolding Kommune"
+    },
+    {
+      "postal_code": "6100",
+      "name": "Haderslev",
+      "municipality": "Haderslev Kommune, Kolding Kommune"
+    },
+    {
+      "postal_code": "6200",
+      "name": "Aabenraa",
+      "municipality": "Aabenraa Kommune"
+    },
+    {
+      "postal_code": "6210",
+      "name": "Barsø",
+      "municipality": "Aabenraa Kommune"
+    },
+    {
+      "postal_code": "6230",
+      "name": "Rødekro",
+      "municipality": "Aabenraa Kommune"
+    },
+    {
+      "postal_code": "6240",
+      "name": "Løgumkloster",
+      "municipality": "Tønder Kommune"
+    },
+    {
+      "postal_code": "6261",
+      "name": "Bredebro",
+      "municipality": "Tønder Kommune"
+    },
+    {
+      "postal_code": "6270",
+      "name": "Tønder",
+      "municipality": "Tønder Kommune"
+    },
+    {
+      "postal_code": "6280",
+      "name": "Højer",
+      "municipality": "Tønder Kommune"
+    },
+    {
+      "postal_code": "6300",
+      "name": "Gråsten",
+      "municipality": "Sønderborg Kommune"
+    },
+    {
+      "postal_code": "6310",
+      "name": "Broager",
+      "municipality": "Sønderborg Kommune"
+    },
+    {
+      "postal_code": "6320",
+      "name": "Egernsund",
+      "municipality": "Sønderborg Kommune"
+    },
+    {
+      "postal_code": "6330",
+      "name": "Padborg",
+      "municipality": "Aabenraa Kommune"
+    },
+    {
+      "postal_code": "6340",
+      "name": "Kruså",
+      "municipality": "Aabenraa Kommune"
+    },
+    {
+      "postal_code": "6360",
+      "name": "Tinglev",
+      "municipality": "Aabenraa Kommune"
+    },
+    {
+      "postal_code": "6372",
+      "name": "Bylderup-Bov",
+      "municipality": "Aabenraa Kommune"
+    },
+    {
+      "postal_code": "6392",
+      "name": "Bolderslev",
+      "municipality": "Aabenraa Kommune"
+    },
+    {
+      "postal_code": "6400",
+      "name": "Sønderborg",
+      "municipality": "Sønderborg Kommune"
+    },
+    {
+      "postal_code": "6430",
+      "name": "Nordborg",
+      "municipality": "Sønderborg Kommune"
+    },
+    {
+      "postal_code": "6440",
+      "name": "Augustenborg",
+      "municipality": "Sønderborg Kommune"
+    },
+    {
+      "postal_code": "6470",
+      "name": "Sydals",
+      "municipality": "Sønderborg Kommune"
+    },
+    {
+      "postal_code": "6500",
+      "name": "Vojens",
+      "municipality": "Haderslev Kommune"
+    },
+    {
+      "postal_code": "6510",
+      "name": "Gram",
+      "municipality": "Haderslev Kommune, Esbjerg Kommune, Vejen Kommune"
+    },
+    {
+      "postal_code": "6520",
+      "name": "Toftlund",
+      "municipality": "Haderslev Kommune, Tønder Kommune"
+    },
+    {
+      "postal_code": "6534",
+      "name": "Agerskov",
+      "municipality": "Haderslev Kommune, Tønder Kommune, Aabenraa Kommune"
+    },
+    {
+      "postal_code": "6535",
+      "name": "Branderup J",
+      "municipality": "Tønder Kommune"
+    },
+    {
+      "postal_code": "6541",
+      "name": "Bevtoft",
+      "municipality": "Haderslev Kommune, Tønder Kommune"
+    },
+    {
+      "postal_code": "6560",
+      "name": "Sommersted",
+      "municipality": "Haderslev Kommune, Kolding Kommune"
+    },
+    {
+      "postal_code": "6580",
+      "name": "Vamdrup",
+      "municipality": "Kolding Kommune"
+    },
+    {
+      "postal_code": "6600",
+      "name": "Vejen",
+      "municipality": "Vejen Kommune"
+    },
+    {
+      "postal_code": "6621",
+      "name": "Gesten",
+      "municipality": "Vejen Kommune"
+    },
+    {
+      "postal_code": "6622",
+      "name": "Bække",
+      "municipality": "Vejen Kommune"
+    },
+    {
+      "postal_code": "6623",
+      "name": "Vorbasse",
+      "municipality": "Billund Kommune, Vejen Kommune, Vejle Kommune"
+    },
+    {
+      "postal_code": "6630",
+      "name": "Rødding",
+      "municipality": "Haderslev Kommune, Vejen Kommune"
+    },
+    {
+      "postal_code": "6640",
+      "name": "Lunderskov",
+      "municipality": "Kolding Kommune"
+    },
+    {
+      "postal_code": "6650",
+      "name": "Brørup",
+      "municipality": "Vejen Kommune"
+    },
+    {
+      "postal_code": "6660",
+      "name": "Lintrup",
+      "municipality": "Vejen Kommune"
+    },
+    {
+      "postal_code": "6670",
+      "name": "Holsted",
+      "municipality": "Esbjerg Kommune, Vejen Kommune"
+    },
+    {
+      "postal_code": "6682",
+      "name": "Hovborg",
+      "municipality": "Varde Kommune, Vejen Kommune"
+    },
+    {
+      "postal_code": "6683",
+      "name": "Føvling",
+      "municipality": "Esbjerg Kommune, Vejen Kommune"
+    },
+    {
+      "postal_code": "6690",
+      "name": "Gørding",
+      "municipality": "Esbjerg Kommune, Vejen Kommune"
+    },
+    {
+      "postal_code": "6700",
+      "name": "Esbjerg",
+      "municipality": "Esbjerg Kommune"
+    },
+    {
+      "postal_code": "6705",
+      "name": "Esbjerg Ø",
+      "municipality": "Esbjerg Kommune"
+    },
+    {
+      "postal_code": "6710",
+      "name": "Esbjerg V",
+      "municipality": "Esbjerg Kommune"
+    },
+    {
+      "postal_code": "6715",
+      "name": "Esbjerg N",
+      "municipality": "Esbjerg Kommune"
+    },
+    {
+      "postal_code": "6720",
+      "name": "Fanø",
+      "municipality": "Fanø Kommune"
+    },
+    {
+      "postal_code": "6731",
+      "name": "Tjæreborg",
+      "municipality": "Esbjerg Kommune"
+    },
+    {
+      "postal_code": "6740",
+      "name": "Bramming",
+      "municipality": "Esbjerg Kommune"
+    },
+    {
+      "postal_code": "6752",
+      "name": "Glejbjerg",
+      "municipality": "Vejen Kommune"
+    },
+    {
+      "postal_code": "6753",
+      "name": "Agerbæk",
+      "municipality": "Varde Kommune, Vejen Kommune"
+    },
+    {
+      "postal_code": "6760",
+      "name": "Ribe",
+      "municipality": "Esbjerg Kommune"
+    },
+    {
+      "postal_code": "6771",
+      "name": "Gredstedbro",
+      "municipality": "Esbjerg Kommune"
+    },
+    {
+      "postal_code": "6780",
+      "name": "Skærbæk",
+      "municipality": "Tønder Kommune"
+    },
+    {
+      "postal_code": "6792",
+      "name": "Rømø",
+      "municipality": "Tønder Kommune"
+    },
+    {
+      "postal_code": "6800",
+      "name": "Varde",
+      "municipality": "Varde Kommune"
+    },
+    {
+      "postal_code": "6818",
+      "name": "Årre",
+      "municipality": "Esbjerg Kommune, Varde Kommune"
+    },
+    {
+      "postal_code": "6823",
+      "name": "Ansager",
+      "municipality": "Billund Kommune, Varde Kommune"
+    },
+    {
+      "postal_code": "6830",
+      "name": "Nørre Nebel",
+      "municipality": "Varde Kommune, Ringkøbing-Skjern Kommune"
+    },
+    {
+      "postal_code": "6840",
+      "name": "Oksbøl",
+      "municipality": "Varde Kommune"
+    },
+    {
+      "postal_code": "6851",
+      "name": "Janderup Vestj",
+      "municipality": "Varde Kommune"
+    },
+    {
+      "postal_code": "6852",
+      "name": "Billum",
+      "municipality": "Varde Kommune"
+    },
+    {
+      "postal_code": "6853",
+      "name": "Vejers Strand",
+      "municipality": "Varde Kommune"
+    },
+    {
+      "postal_code": "6854",
+      "name": "Henne",
+      "municipality": "Varde Kommune"
+    },
+    {
+      "postal_code": "6855",
+      "name": "Outrup",
+      "municipality": "Varde Kommune"
+    },
+    {
+      "postal_code": "6857",
+      "name": "Blåvand",
+      "municipality": "Varde Kommune"
+    },
+    {
+      "postal_code": "6862",
+      "name": "Tistrup",
+      "municipality": "Varde Kommune"
+    },
+    {
+      "postal_code": "6870",
+      "name": "Ølgod",
+      "municipality": "Varde Kommune, Ringkøbing-Skjern Kommune"
+    },
+    {
+      "postal_code": "6880",
+      "name": "Tarm",
+      "municipality": "Varde Kommune, Ringkøbing-Skjern Kommune"
+    },
+    {
+      "postal_code": "6893",
+      "name": "Hemmet",
+      "municipality": "Ringkøbing-Skjern Kommune"
+    },
+    {
+      "postal_code": "6900",
+      "name": "Skjern",
+      "municipality": "Ringkøbing-Skjern Kommune"
+    },
+    {
+      "postal_code": "6920",
+      "name": "Videbæk",
+      "municipality": "Ringkøbing-Skjern Kommune"
+    },
+    {
+      "postal_code": "6933",
+      "name": "Kibæk",
+      "municipality": "Herning Kommune, Ringkøbing-Skjern Kommune"
+    },
+    {
+      "postal_code": "6940",
+      "name": "Lem St",
+      "municipality": "Ringkøbing-Skjern Kommune"
+    },
+    {
+      "postal_code": "6950",
+      "name": "Ringkøbing",
+      "municipality": "Ringkøbing-Skjern Kommune"
+    },
+    {
+      "postal_code": "6960",
+      "name": "Hvide Sande",
+      "municipality": "Ringkøbing-Skjern Kommune"
+    },
+    {
+      "postal_code": "6971",
+      "name": "Spjald",
+      "municipality": "Ringkøbing-Skjern Kommune"
+    },
+    {
+      "postal_code": "6973",
+      "name": "Ørnhøj",
+      "municipality": "Herning Kommune, Ringkøbing-Skjern Kommune"
+    },
+    {
+      "postal_code": "6980",
+      "name": "Tim",
+      "municipality": "Ringkøbing-Skjern Kommune"
+    },
+    {
+      "postal_code": "6990",
+      "name": "Ulfborg",
+      "municipality": "Herning Kommune, Holstebro Kommune, Lemvig Kommune, Ringkøbing-Skjern Kommune"
+    },
+    {
+      "postal_code": "7000",
+      "name": "Fredericia",
+      "municipality": "Fredericia Kommune, Vejle Kommune"
+    },
+    {
+      "postal_code": "7080",
+      "name": "Børkop",
+      "municipality": "Vejle Kommune"
+    },
+    {
+      "postal_code": "7100",
+      "name": "Vejle",
+      "municipality": "Vejle Kommune, Hedensted Kommune"
+    },
+    {
+      "postal_code": "7120",
+      "name": "Vejle Øst",
+      "municipality": "Vejle Kommune, Hedensted Kommune"
+    },
+    {
+      "postal_code": "7130",
+      "name": "Juelsminde",
+      "municipality": "Hedensted Kommune"
+    },
+    {
+      "postal_code": "7140",
+      "name": "Stouby",
+      "municipality": "Hedensted Kommune"
+    },
+    {
+      "postal_code": "7150",
+      "name": "Barrit",
+      "municipality": "Hedensted Kommune"
+    },
+    {
+      "postal_code": "7160",
+      "name": "Tørring",
+      "municipality": "Vejle Kommune, Hedensted Kommune"
+    },
+    {
+      "postal_code": "7171",
+      "name": "Uldum",
+      "municipality": "Hedensted Kommune"
+    },
+    {
+      "postal_code": "7173",
+      "name": "Vonge",
+      "municipality": "Vejle Kommune, Hedensted Kommune"
+    },
+    {
+      "postal_code": "7182",
+      "name": "Bredsten",
+      "municipality": "Vejle Kommune"
+    },
+    {
+      "postal_code": "7183",
+      "name": "Randbøl",
+      "municipality": "Vejle Kommune"
+    },
+    {
+      "postal_code": "7184",
+      "name": "Vandel",
+      "municipality": "Vejle Kommune"
+    },
+    {
+      "postal_code": "7190",
+      "name": "Billund",
+      "municipality": "Billund Kommune, Vejle Kommune"
+    },
+    {
+      "postal_code": "7200",
+      "name": "Grindsted",
+      "municipality": "Billund Kommune, Varde Kommune, Vejle Kommune"
+    },
+    {
+      "postal_code": "7250",
+      "name": "Hejnsvig",
+      "municipality": "Billund Kommune"
+    },
+    {
+      "postal_code": "7260",
+      "name": "Sønder Omme",
+      "municipality": "Billund Kommune, Herning Kommune"
+    },
+    {
+      "postal_code": "7270",
+      "name": "Stakroge",
+      "municipality": "Billund Kommune, Herning Kommune, Ringkøbing-Skjern Kommune"
+    },
+    {
+      "postal_code": "7280",
+      "name": "Sønder Felding",
+      "municipality": "Herning Kommune, Ringkøbing-Skjern Kommune"
+    },
+    {
+      "postal_code": "7300",
+      "name": "Jelling",
+      "municipality": "Vejle Kommune"
+    },
+    {
+      "postal_code": "7321",
+      "name": "Gadbjerg",
+      "municipality": "Vejle Kommune"
+    },
+    {
+      "postal_code": "7323",
+      "name": "Give",
+      "municipality": "Vejle Kommune, Ikast-Brande Kommune"
+    },
+    {
+      "postal_code": "7330",
+      "name": "Brande",
+      "municipality": "Vejle Kommune, Herning Kommune, Ikast-Brande Kommune"
+    },
+    {
+      "postal_code": "7361",
+      "name": "Ejstrupholm",
+      "municipality": "Vejle Kommune, Ikast-Brande Kommune"
+    },
+    {
+      "postal_code": "7362",
+      "name": "Hampen",
+      "municipality": "Silkeborg Kommune, Ikast-Brande Kommune"
+    },
+    {
+      "postal_code": "7400",
+      "name": "Herning",
+      "municipality": "Herning Kommune, Ikast-Brande Kommune, Ringkøbing-Skjern Kommune"
+    },
+    {
+      "postal_code": "7430",
+      "name": "Ikast",
+      "municipality": "Ikast-Brande Kommune"
+    },
+    {
+      "postal_code": "7441",
+      "name": "Bording",
+      "municipality": "Silkeborg Kommune, Ikast-Brande Kommune"
+    },
+    {
+      "postal_code": "7442",
+      "name": "Engesvang",
+      "municipality": "Silkeborg Kommune, Ikast-Brande Kommune"
+    },
+    {
+      "postal_code": "7451",
+      "name": "Sunds",
+      "municipality": "Herning Kommune, Ikast-Brande Kommune"
+    },
+    {
+      "postal_code": "7470",
+      "name": "Karup J",
+      "municipality": "Herning Kommune, Silkeborg Kommune, Viborg Kommune"
+    },
+    {
+      "postal_code": "7480",
+      "name": "Vildbjerg",
+      "municipality": "Herning Kommune, Ringkøbing-Skjern Kommune"
+    },
+    {
+      "postal_code": "7490",
+      "name": "Aulum",
+      "municipality": "Herning Kommune"
+    },
+    {
+      "postal_code": "7500",
+      "name": "Holstebro",
+      "municipality": "Herning Kommune, Holstebro Kommune, Struer Kommune"
+    },
+    {
+      "postal_code": "7540",
+      "name": "Haderup",
+      "municipality": "Herning Kommune, Holstebro Kommune"
+    },
+    {
+      "postal_code": "7550",
+      "name": "Sørvad",
+      "municipality": "Herning Kommune"
+    },
+    {
+      "postal_code": "7560",
+      "name": "Hjerm",
+      "municipality": "Holstebro Kommune, Struer Kommune"
+    },
+    {
+      "postal_code": "7570",
+      "name": "Vemb",
+      "municipality": "Holstebro Kommune, Lemvig Kommune"
+    },
+    {
+      "postal_code": "7600",
+      "name": "Struer",
+      "municipality": "Holstebro Kommune, Lemvig Kommune, Struer Kommune"
+    },
+    {
+      "postal_code": "7620",
+      "name": "Lemvig",
+      "municipality": "Lemvig Kommune"
+    },
+    {
+      "postal_code": "7650",
+      "name": "Bøvlingbjerg",
+      "municipality": "Lemvig Kommune"
+    },
+    {
+      "postal_code": "7660",
+      "name": "Bækmarksbro",
+      "municipality": "Lemvig Kommune, Struer Kommune"
+    },
+    {
+      "postal_code": "7673",
+      "name": "Harboøre",
+      "municipality": "Lemvig Kommune"
+    },
+    {
+      "postal_code": "7680",
+      "name": "Thyborøn",
+      "municipality": "Lemvig Kommune"
+    },
+    {
+      "postal_code": "7700",
+      "name": "Thisted",
+      "municipality": "Thisted Kommune"
+    },
+    {
+      "postal_code": "7730",
+      "name": "Hanstholm",
+      "municipality": "Thisted Kommune"
+    },
+    {
+      "postal_code": "7741",
+      "name": "Frøstrup",
+      "municipality": "Thisted Kommune"
+    },
+    {
+      "postal_code": "7742",
+      "name": "Vesløs",
+      "municipality": "Thisted Kommune"
+    },
+    {
+      "postal_code": "7752",
+      "name": "Snedsted",
+      "municipality": "Thisted Kommune"
+    },
+    {
+      "postal_code": "7755",
+      "name": "Bedsted Thy",
+      "municipality": "Thisted Kommune"
+    },
+    {
+      "postal_code": "7760",
+      "name": "Hurup Thy",
+      "municipality": "Struer Kommune, Thisted Kommune"
+    },
+    {
+      "postal_code": "7770",
+      "name": "Vestervig",
+      "municipality": "Thisted Kommune"
+    },
+    {
+      "postal_code": "7790",
+      "name": "Thyholm",
+      "municipality": "Struer Kommune"
+    },
+    {
+      "postal_code": "7800",
+      "name": "Skive",
+      "municipality": "Holstebro Kommune, Skive Kommune, Viborg Kommune"
+    },
+    {
+      "postal_code": "7830",
+      "name": "Vinderup",
+      "municipality": "Holstebro Kommune, Struer Kommune, Skive Kommune"
+    },
+    {
+      "postal_code": "7840",
+      "name": "Højslev",
+      "municipality": "Skive Kommune, Viborg Kommune"
+    },
+    {
+      "postal_code": "7850",
+      "name": "Stoholm Jyll",
+      "municipality": "Viborg Kommune"
+    },
+    {
+      "postal_code": "7860",
+      "name": "Spøttrup",
+      "municipality": "Skive Kommune"
+    },
+    {
+      "postal_code": "7870",
+      "name": "Roslev",
+      "municipality": "Skive Kommune"
+    },
+    {
+      "postal_code": "7884",
+      "name": "Fur",
+      "municipality": "Skive Kommune"
+    },
+    {
+      "postal_code": "7900",
+      "name": "Nykøbing M",
+      "municipality": "Morsø Kommune"
+    },
+    {
+      "postal_code": "7950",
+      "name": "Erslev",
+      "municipality": "Morsø Kommune"
+    },
+    {
+      "postal_code": "7960",
+      "name": "Karby",
+      "municipality": "Morsø Kommune"
+    },
+    {
+      "postal_code": "7970",
+      "name": "Redsted M",
+      "municipality": "Morsø Kommune"
+    },
+    {
+      "postal_code": "7980",
+      "name": "Vils",
+      "municipality": "Morsø Kommune"
+    },
+    {
+      "postal_code": "7990",
+      "name": "Øster Assels",
+      "municipality": "Morsø Kommune"
+    },
+    {
+      "postal_code": "8000",
+      "name": "Aarhus C",
+      "municipality": "Århus Kommune"
+    },
+    {
+      "postal_code": "8200",
+      "name": "Aarhus N",
+      "municipality": "Århus Kommune"
+    },
+    {
+      "postal_code": "8210",
+      "name": "Aarhus V",
+      "municipality": "Århus Kommune"
+    },
+    {
+      "postal_code": "8220",
+      "name": "Brabrand",
+      "municipality": "Århus Kommune"
+    },
+    {
+      "postal_code": "8230",
+      "name": "Åbyhøj",
+      "municipality": "Århus Kommune"
+    },
+    {
+      "postal_code": "8240",
+      "name": "Risskov",
+      "municipality": "Århus Kommune"
+    },
+    {
+      "postal_code": "8250",
+      "name": "Egå",
+      "municipality": "Århus Kommune"
+    },
+    {
+      "postal_code": "8260",
+      "name": "Viby J",
+      "municipality": "Århus Kommune"
+    },
+    {
+      "postal_code": "8270",
+      "name": "Højbjerg",
+      "municipality": "Århus Kommune"
+    },
+    {
+      "postal_code": "8300",
+      "name": "Odder",
+      "municipality": "Horsens Kommune, Odder Kommune, Århus Kommune"
+    },
+    {
+      "postal_code": "8305",
+      "name": "Samsø",
+      "municipality": "Samsø Kommune"
+    },
+    {
+      "postal_code": "8310",
+      "name": "Tranbjerg J",
+      "municipality": "Århus Kommune"
+    },
+    {
+      "postal_code": "8320",
+      "name": "Mårslet",
+      "municipality": "Århus Kommune"
+    },
+    {
+      "postal_code": "8330",
+      "name": "Beder",
+      "municipality": "Århus Kommune"
+    },
+    {
+      "postal_code": "8340",
+      "name": "Malling",
+      "municipality": "Odder Kommune, Århus Kommune"
+    },
+    {
+      "postal_code": "8350",
+      "name": "Hundslund",
+      "municipality": "Odder Kommune"
+    },
+    {
+      "postal_code": "8355",
+      "name": "Solbjerg",
+      "municipality": "Århus Kommune"
+    },
+    {
+      "postal_code": "8361",
+      "name": "Hasselager",
+      "municipality": "Århus Kommune"
+    },
+    {
+      "postal_code": "8362",
+      "name": "Hørning",
+      "municipality": "Skanderborg Kommune, Århus Kommune"
+    },
+    {
+      "postal_code": "8370",
+      "name": "Hadsten",
+      "municipality": "Syddjurs Kommune, Favrskov Kommune"
+    },
+    {
+      "postal_code": "8380",
+      "name": "Trige",
+      "municipality": "Favrskov Kommune, Århus Kommune"
+    },
+    {
+      "postal_code": "8381",
+      "name": "Tilst",
+      "municipality": "Århus Kommune"
+    },
+    {
+      "postal_code": "8382",
+      "name": "Hinnerup",
+      "municipality": "Favrskov Kommune, Århus Kommune"
+    },
+    {
+      "postal_code": "8400",
+      "name": "Ebeltoft",
+      "municipality": "Syddjurs Kommune"
+    },
+    {
+      "postal_code": "8410",
+      "name": "Rønde",
+      "municipality": "Syddjurs Kommune"
+    },
+    {
+      "postal_code": "8420",
+      "name": "Knebel",
+      "municipality": "Syddjurs Kommune"
+    },
+    {
+      "postal_code": "8444",
+      "name": "Balle",
+      "municipality": "Syddjurs Kommune, Norddjurs Kommune"
+    },
+    {
+      "postal_code": "8450",
+      "name": "Hammel",
+      "municipality": "Favrskov Kommune, Silkeborg Kommune"
+    },
+    {
+      "postal_code": "8462",
+      "name": "Harlev J",
+      "municipality": "Århus Kommune"
+    },
+    {
+      "postal_code": "8464",
+      "name": "Galten",
+      "municipality": "Favrskov Kommune, Skanderborg Kommune, Århus Kommune"
+    },
+    {
+      "postal_code": "8471",
+      "name": "Sabro",
+      "municipality": "Favrskov Kommune, Skanderborg Kommune, Århus Kommune"
+    },
+    {
+      "postal_code": "8472",
+      "name": "Sporup",
+      "municipality": "Favrskov Kommune, Silkeborg Kommune, Skanderborg Kommune"
+    },
+    {
+      "postal_code": "8500",
+      "name": "Grenaa",
+      "municipality": "Norddjurs Kommune"
+    },
+    {
+      "postal_code": "8520",
+      "name": "Lystrup",
+      "municipality": "Århus Kommune"
+    },
+    {
+      "postal_code": "8530",
+      "name": "Hjortshøj",
+      "municipality": "Århus Kommune"
+    },
+    {
+      "postal_code": "8541",
+      "name": "Skødstrup",
+      "municipality": "Århus Kommune"
+    },
+    {
+      "postal_code": "8543",
+      "name": "Hornslet",
+      "municipality": "Syddjurs Kommune, Århus Kommune"
+    },
+    {
+      "postal_code": "8544",
+      "name": "Mørke",
+      "municipality": "Syddjurs Kommune, Norddjurs Kommune"
+    },
+    {
+      "postal_code": "8550",
+      "name": "Ryomgård",
+      "municipality": "Syddjurs Kommune, Norddjurs Kommune"
+    },
+    {
+      "postal_code": "8560",
+      "name": "Kolind",
+      "municipality": "Syddjurs Kommune, Norddjurs Kommune"
+    },
+    {
+      "postal_code": "8570",
+      "name": "Trustrup",
+      "municipality": "Syddjurs Kommune, Norddjurs Kommune"
+    },
+    {
+      "postal_code": "8581",
+      "name": "Nimtofte",
+      "municipality": "Syddjurs Kommune, Norddjurs Kommune"
+    },
+    {
+      "postal_code": "8585",
+      "name": "Glesborg",
+      "municipality": "Norddjurs Kommune"
+    },
+    {
+      "postal_code": "8586",
+      "name": "Ørum Djurs",
+      "municipality": "Norddjurs Kommune"
+    },
+    {
+      "postal_code": "8592",
+      "name": "Anholt",
+      "municipality": "Norddjurs Kommune"
+    },
+    {
+      "postal_code": "8600",
+      "name": "Silkeborg",
+      "municipality": "Silkeborg Kommune, Skanderborg Kommune, Ikast-Brande Kommune"
+    },
+    {
+      "postal_code": "8620",
+      "name": "Kjellerup",
+      "municipality": "Silkeborg Kommune, Viborg Kommune"
+    },
+    {
+      "postal_code": "8632",
+      "name": "Lemming",
+      "municipality": "Silkeborg Kommune"
+    },
+    {
+      "postal_code": "8641",
+      "name": "Sorring",
+      "municipality": "Favrskov Kommune, Silkeborg Kommune"
+    },
+    {
+      "postal_code": "8643",
+      "name": "Ans By",
+      "municipality": "Silkeborg Kommune, Viborg Kommune"
+    },
+    {
+      "postal_code": "8653",
+      "name": "Them",
+      "municipality": "Silkeborg Kommune"
+    },
+    {
+      "postal_code": "8654",
+      "name": "Bryrup",
+      "municipality": "Horsens Kommune, Silkeborg Kommune, Ikast-Brande Kommune"
+    },
+    {
+      "postal_code": "8660",
+      "name": "Skanderborg",
+      "municipality": "Horsens Kommune, Odder Kommune, Skanderborg Kommune, Århus Kommune"
+    },
+    {
+      "postal_code": "8670",
+      "name": "Låsby",
+      "municipality": "Skanderborg Kommune"
+    },
+    {
+      "postal_code": "8680",
+      "name": "Ry",
+      "municipality": "Horsens Kommune, Silkeborg Kommune, Skanderborg Kommune"
+    },
+    {
+      "postal_code": "8700",
+      "name": "Horsens",
+      "municipality": "Horsens Kommune, Hedensted Kommune"
+    },
+    {
+      "postal_code": "8721",
+      "name": "Daugård",
+      "municipality": "Vejle Kommune, Hedensted Kommune"
+    },
+    {
+      "postal_code": "8722",
+      "name": "Hedensted",
+      "municipality": "Vejle Kommune, Hedensted Kommune"
+    },
+    {
+      "postal_code": "8723",
+      "name": "Løsning",
+      "municipality": "Hedensted Kommune"
+    },
+    {
+      "postal_code": "8732",
+      "name": "Hovedgård",
+      "municipality": "Horsens Kommune"
+    },
+    {
+      "postal_code": "8740",
+      "name": "Brædstrup",
+      "municipality": "Horsens Kommune, Silkeborg Kommune"
+    },
+    {
+      "postal_code": "8751",
+      "name": "Gedved",
+      "municipality": "Horsens Kommune, Skanderborg Kommune"
+    },
+    {
+      "postal_code": "8752",
+      "name": "Østbirk",
+      "municipality": "Horsens Kommune"
+    },
+    {
+      "postal_code": "8762",
+      "name": "Flemming",
+      "municipality": "Horsens Kommune, Hedensted Kommune"
+    },
+    {
+      "postal_code": "8763",
+      "name": "Rask Mølle",
+      "municipality": "Hedensted Kommune"
+    },
+    {
+      "postal_code": "8765",
+      "name": "Klovborg",
+      "municipality": "Horsens Kommune, Ikast-Brande Kommune"
+    },
+    {
+      "postal_code": "8766",
+      "name": "Nørre Snede",
+      "municipality": "Ikast-Brande Kommune, Hedensted Kommune"
+    },
+    {
+      "postal_code": "8781",
+      "name": "Stenderup",
+      "municipality": "Horsens Kommune, Hedensted Kommune"
+    },
+    {
+      "postal_code": "8783",
+      "name": "Hornsyld",
+      "municipality": "Horsens Kommune, Hedensted Kommune"
+    },
+    {
+      "postal_code": "8789",
+      "name": "Endelave",
+      "municipality": "Horsens Kommune"
+    },
+    {
+      "postal_code": "8799",
+      "name": "Tunø",
+      "municipality": "Odder Kommune"
+    },
+    {
+      "postal_code": "8800",
+      "name": "Viborg",
+      "municipality": "Silkeborg Kommune, Viborg Kommune"
+    },
+    {
+      "postal_code": "8830",
+      "name": "Tjele",
+      "municipality": "Viborg Kommune"
+    },
+    {
+      "postal_code": "8831",
+      "name": "Løgstrup",
+      "municipality": "Viborg Kommune"
+    },
+    {
+      "postal_code": "8832",
+      "name": "Skals",
+      "municipality": "Viborg Kommune"
+    },
+    {
+      "postal_code": "8840",
+      "name": "Rødkærsbro",
+      "municipality": "Silkeborg Kommune, Viborg Kommune"
+    },
+    {
+      "postal_code": "8850",
+      "name": "Bjerringbro",
+      "municipality": "Favrskov Kommune, Viborg Kommune"
+    },
+    {
+      "postal_code": "8860",
+      "name": "Ulstrup",
+      "municipality": "Favrskov Kommune, Randers Kommune, Viborg Kommune"
+    },
+    {
+      "postal_code": "8870",
+      "name": "Langå",
+      "municipality": "Favrskov Kommune, Randers Kommune"
+    },
+    {
+      "postal_code": "8881",
+      "name": "Thorsø",
+      "municipality": "Favrskov Kommune, Silkeborg Kommune"
+    },
+    {
+      "postal_code": "8882",
+      "name": "Fårvang",
+      "municipality": "Favrskov Kommune, Silkeborg Kommune"
+    },
+    {
+      "postal_code": "8883",
+      "name": "Gjern",
+      "municipality": "Silkeborg Kommune"
+    },
+    {
+      "postal_code": "8900",
+      "name": "Randers C",
+      "municipality": "Favrskov Kommune, Randers Kommune, Viborg Kommune"
+    },
+    {
+      "postal_code": "8920",
+      "name": "Randers NV",
+      "municipality": "Randers Kommune, Viborg Kommune"
+    },
+    {
+      "postal_code": "8930",
+      "name": "Randers NØ",
+      "municipality": "Randers Kommune"
+    },
+    {
+      "postal_code": "8940",
+      "name": "Randers SV",
+      "municipality": "Favrskov Kommune, Randers Kommune"
+    },
+    {
+      "postal_code": "8950",
+      "name": "Ørsted",
+      "municipality": "Norddjurs Kommune"
+    },
+    {
+      "postal_code": "8960",
+      "name": "Randers SØ",
+      "municipality": "Favrskov Kommune, Randers Kommune"
+    },
+    {
+      "postal_code": "8961",
+      "name": "Allingåbro",
+      "municipality": "Norddjurs Kommune"
+    },
+    {
+      "postal_code": "8963",
+      "name": "Auning",
+      "municipality": "Syddjurs Kommune, Norddjurs Kommune"
+    },
+    {
+      "postal_code": "8970",
+      "name": "Havndal",
+      "municipality": "Randers Kommune, Mariagerfjord Kommune"
+    },
+    {
+      "postal_code": "8981",
+      "name": "Spentrup",
+      "municipality": "Randers Kommune"
+    },
+    {
+      "postal_code": "8983",
+      "name": "Gjerlev J",
+      "municipality": "Randers Kommune"
+    },
+    {
+      "postal_code": "8990",
+      "name": "Fårup",
+      "municipality": "Randers Kommune, Mariagerfjord Kommune"
+    },
+    {
+      "postal_code": "9000",
+      "name": "Aalborg",
+      "municipality": "Aalborg Kommune"
+    },
+    {
+      "postal_code": "9200",
+      "name": "Aalborg SV",
+      "municipality": "Aalborg Kommune"
+    },
+    {
+      "postal_code": "9210",
+      "name": "Aalborg SØ",
+      "municipality": "Aalborg Kommune"
+    },
+    {
+      "postal_code": "9220",
+      "name": "Aalborg Øst",
+      "municipality": "Aalborg Kommune"
+    },
+    {
+      "postal_code": "9230",
+      "name": "Svenstrup J",
+      "municipality": "Rebild Kommune, Aalborg Kommune"
+    },
+    {
+      "postal_code": "9240",
+      "name": "Nibe",
+      "municipality": "Vesthimmerlands Kommune, Rebild Kommune, Aalborg Kommune"
+    },
+    {
+      "postal_code": "9260",
+      "name": "Gistrup",
+      "municipality": "Rebild Kommune, Aalborg Kommune"
+    },
+    {
+      "postal_code": "9270",
+      "name": "Klarup",
+      "municipality": "Aalborg Kommune"
+    },
+    {
+      "postal_code": "9280",
+      "name": "Storvorde",
+      "municipality": "Aalborg Kommune"
+    },
+    {
+      "postal_code": "9293",
+      "name": "Kongerslev",
+      "municipality": "Rebild Kommune, Aalborg Kommune"
+    },
+    {
+      "postal_code": "9300",
+      "name": "Sæby",
+      "municipality": "Frederikshavn Kommune"
+    },
+    {
+      "postal_code": "9310",
+      "name": "Vodskov",
+      "municipality": "Aalborg Kommune"
+    },
+    {
+      "postal_code": "9320",
+      "name": "Hjallerup",
+      "municipality": "Brønderslev Kommune, Aalborg Kommune"
+    },
+    {
+      "postal_code": "9330",
+      "name": "Dronninglund",
+      "municipality": "Brønderslev Kommune, Frederikshavn Kommune"
+    },
+    {
+      "postal_code": "9340",
+      "name": "Asaa",
+      "municipality": "Brønderslev Kommune, Frederikshavn Kommune"
+    },
+    {
+      "postal_code": "9352",
+      "name": "Dybvad",
+      "municipality": "Brønderslev Kommune, Frederikshavn Kommune"
+    },
+    {
+      "postal_code": "9362",
+      "name": "Gandrup",
+      "municipality": "Aalborg Kommune"
+    },
+    {
+      "postal_code": "9370",
+      "name": "Hals",
+      "municipality": "Brønderslev Kommune, Aalborg Kommune"
+    },
+    {
+      "postal_code": "9380",
+      "name": "Vestbjerg",
+      "municipality": "Aalborg Kommune"
+    },
+    {
+      "postal_code": "9381",
+      "name": "Sulsted",
+      "municipality": "Jammerbugt Kommune, Aalborg Kommune"
+    },
+    {
+      "postal_code": "9382",
+      "name": "Tylstrup",
+      "municipality": "Brønderslev Kommune, Jammerbugt Kommune, Aalborg Kommune"
+    },
+    {
+      "postal_code": "9400",
+      "name": "Nørresundby",
+      "municipality": "Aalborg Kommune"
+    },
+    {
+      "postal_code": "9430",
+      "name": "Vadum",
+      "municipality": "Jammerbugt Kommune, Aalborg Kommune"
+    },
+    {
+      "postal_code": "9440",
+      "name": "Aabybro",
+      "municipality": "Brønderslev Kommune, Jammerbugt Kommune, Aalborg Kommune"
+    },
+    {
+      "postal_code": "9460",
+      "name": "Brovst",
+      "municipality": "Jammerbugt Kommune"
+    },
+    {
+      "postal_code": "9480",
+      "name": "Løkken",
+      "municipality": "Brønderslev Kommune, Jammerbugt Kommune, Hjørring Kommune"
+    },
+    {
+      "postal_code": "9490",
+      "name": "Pandrup",
+      "municipality": "Jammerbugt Kommune"
+    },
+    {
+      "postal_code": "9492",
+      "name": "Blokhus",
+      "municipality": "Jammerbugt Kommune"
+    },
+    {
+      "postal_code": "9493",
+      "name": "Saltum",
+      "municipality": "Jammerbugt Kommune"
+    },
+    {
+      "postal_code": "9500",
+      "name": "Hobro",
+      "municipality": "Viborg Kommune, Rebild Kommune, Mariagerfjord Kommune"
+    },
+    {
+      "postal_code": "9510",
+      "name": "Arden",
+      "municipality": "Rebild Kommune, Mariagerfjord Kommune"
+    },
+    {
+      "postal_code": "9520",
+      "name": "Skørping",
+      "municipality": "Rebild Kommune"
+    },
+    {
+      "postal_code": "9530",
+      "name": "Støvring",
+      "municipality": "Rebild Kommune, Aalborg Kommune"
+    },
+    {
+      "postal_code": "9541",
+      "name": "Suldrup",
+      "municipality": "Vesthimmerlands Kommune, Rebild Kommune"
+    },
+    {
+      "postal_code": "9550",
+      "name": "Mariager",
+      "municipality": "Randers Kommune, Mariagerfjord Kommune"
+    },
+    {
+      "postal_code": "9560",
+      "name": "Hadsund",
+      "municipality": "Rebild Kommune, Mariagerfjord Kommune"
+    },
+    {
+      "postal_code": "9574",
+      "name": "Bælum",
+      "municipality": "Rebild Kommune"
+    },
+    {
+      "postal_code": "9575",
+      "name": "Terndrup",
+      "municipality": "Rebild Kommune"
+    },
+    {
+      "postal_code": "9600",
+      "name": "Aars",
+      "municipality": "Vesthimmerlands Kommune, Rebild Kommune"
+    },
+    {
+      "postal_code": "9610",
+      "name": "Nørager",
+      "municipality": "Vesthimmerlands Kommune, Rebild Kommune"
+    },
+    {
+      "postal_code": "9620",
+      "name": "Aalestrup",
+      "municipality": "Viborg Kommune, Vesthimmerlands Kommune, Rebild Kommune, Mariagerfjord Kommune"
+    },
+    {
+      "postal_code": "9631",
+      "name": "Gedsted",
+      "municipality": "Viborg Kommune, Vesthimmerlands Kommune"
+    },
+    {
+      "postal_code": "9632",
+      "name": "Møldrup",
+      "municipality": "Viborg Kommune, Mariagerfjord Kommune"
+    },
+    {
+      "postal_code": "9640",
+      "name": "Farsø",
+      "municipality": "Vesthimmerlands Kommune"
+    },
+    {
+      "postal_code": "9670",
+      "name": "Løgstør",
+      "municipality": "Vesthimmerlands Kommune, Jammerbugt Kommune"
+    },
+    {
+      "postal_code": "9681",
+      "name": "Ranum",
+      "municipality": "Vesthimmerlands Kommune"
+    },
+    {
+      "postal_code": "9690",
+      "name": "Fjerritslev",
+      "municipality": "Jammerbugt Kommune"
+    },
+    {
+      "postal_code": "9700",
+      "name": "Brønderslev",
+      "municipality": "Brønderslev Kommune, Jammerbugt Kommune"
+    },
+    {
+      "postal_code": "9740",
+      "name": "Jerslev J",
+      "municipality": "Brønderslev Kommune, Hjørring Kommune"
+    },
+    {
+      "postal_code": "9750",
+      "name": "Østervrå",
+      "municipality": "Brønderslev Kommune, Frederikshavn Kommune, Hjørring Kommune"
+    },
+    {
+      "postal_code": "9760",
+      "name": "Vrå",
+      "municipality": "Brønderslev Kommune, Hjørring Kommune"
+    },
+    {
+      "postal_code": "9800",
+      "name": "Hjørring",
+      "municipality": "Hjørring Kommune"
+    },
+    {
+      "postal_code": "9830",
+      "name": "Tårs",
+      "municipality": "Frederikshavn Kommune, Hjørring Kommune"
+    },
+    {
+      "postal_code": "9850",
+      "name": "Hirtshals",
+      "municipality": "Hjørring Kommune"
+    },
+    {
+      "postal_code": "9870",
+      "name": "Sindal",
+      "municipality": "Frederikshavn Kommune, Hjørring Kommune"
+    },
+    {
+      "postal_code": "9881",
+      "name": "Bindslev",
+      "municipality": "Frederikshavn Kommune, Hjørring Kommune"
+    },
+    {
+      "postal_code": "9900",
+      "name": "Frederikshavn",
+      "municipality": "Frederikshavn Kommune, Hjørring Kommune"
+    },
+    {
+      "postal_code": "9940",
+      "name": "Læsø",
+      "municipality": "Læsø Kommune"
+    },
+    {
+      "postal_code": "9970",
+      "name": "Strandby",
+      "municipality": "Frederikshavn Kommune"
+    },
+    {
+      "postal_code": "9981",
+      "name": "Jerup",
+      "municipality": "Frederikshavn Kommune"
+    },
+    {
+      "postal_code": "9982",
+      "name": "Ålbæk",
+      "municipality": "Frederikshavn Kommune, Hjørring Kommune"
+    },
+    {
+      "postal_code": "9990",
+      "name": "Skagen",
+      "municipality": "Frederikshavn Kommune"
+    }
+  ]
+}

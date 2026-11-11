@@ -13,14 +13,15 @@ import "../../../styles/review-documents.css"
 
 <aside class="review-intro not-content" aria-label="Document status">
   <strong>
-    Registration implemented; remaining onboarding journeys agreed
+    Registration and setup implemented; remaining onboarding journeys agreed
   </strong>
   <p>
     Refined on 11 November 2026 in discovery #67 for Feature #43. The journeys
     are agreed at the level of who does what and where. Screen design is left to
     implementation. Issue #71 implements Restaurant registration, search and
-    details editing in Medusa Admin. Setup, staff access and activation remain
-    later slices.
+    details editing in Medusa Admin. Issue #72 adds the delivery area, picked by
+    town from the Danish postal code register, the commercial terms and the
+    readiness checklist. Staff access and activation remain later slices.
   </p>
 </aside>
 
@@ -63,7 +64,7 @@ Every Medusa Admin user is an MTOGO operator. Restaurant staff never get Admin a
     {
       title: "Set the delivery area",
       detail:
-        "Add or remove Danish postal codes of exactly four digits. Duplicates are ignored, and the pickup address's postal code is not added automatically.",
+        "Search the Danish postal code register by town or code and add a whole town at once, for example all 213 codes of København K, or single codes. Remove a town or a single code the same way. Only codes in the register can be added, duplicates are ignored, and the pickup address's postal code is not added automatically.",
     },
     {
       title: "Record the commercial terms",
@@ -125,7 +126,7 @@ Every Medusa Admin user is an MTOGO operator. Restaurant staff never get Admin a
 | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | Activation with requirements missing                     | Admin refuses and names each missing requirement, for example "Published menu missing".                                              |
 | Same pickup address as another Restaurant                | A warning on Create; saving is still possible.                                                                                       |
-| Postal code not four digits                              | A validation message; the code is not added.                                                                                         |
+| Postal code not in the Danish register                   | Admin only offers codes from the register; the API refuses others and adds nothing.                                                  |
 | Removing the last postal code of an active Restaurant    | Refused, with the reason.                                                                                                            |
 | Removing commercial terms of an active Restaurant        | Refused, with the reason.                                                                                                            |
 | Revoking the last authorized staff member                | Allowed. Admin warns that nobody can open the Restaurant or accept Orders, and suggests deactivation.                                |

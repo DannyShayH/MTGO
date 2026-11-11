@@ -11,6 +11,8 @@
     "**/.agents/**",
     "**/.claude/skills/**",
     "apps/docs/scripts/fixtures/**",
+    // Official Danish place names from Statistics Denmark, not prose.
+    "apps/backend/src/modules/postal-code/data/**",
     "**/skills-lock.json",
     "**/package-lock.json",
     "**/bower_components/**",

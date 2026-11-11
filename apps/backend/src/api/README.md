@@ -125,7 +125,7 @@ export default defineMiddlewares({
 
 The `matcher` property can be either a string or a regular expression. The `middlewares` property accepts an array of middleware functions.
 
-## Restaurant registration
+## Restaurant registration and setup
 
 Every `/admin/restaurants` route requires a `user` actor (MTOGO operator), using
 session or bearer authentication. Missing authentication returns `401`; Customer
@@ -193,9 +193,62 @@ participation, opening and Receiving new Orders status as above. **Failure:**
 
 ### GET /admin/restaurants/{id}
 
-**Actor:** MTOGO operator. **Success:** `200` with `{ "restaurant": { ... } }`,
-including the registration fields and status. **Failure:** `404` if unknown.
-Later slices extend this response with setup and activation facts.
+**Actor:** MTOGO operator. **Success:** `200` with `{ "restaurant": { ... } }`:
+the registration fields and status, plus the setup below. **Failure:** `404` if
+unknown. Create, update and every setup route return this same Restaurant.
+
+```json
+{
+  "restaurant": {
+    "id": "res_01...",
+    "name": "Pizzeria Nørrebro",
+    "is_active": false,
+    "is_open": false,
+    "receiving_new_orders": false,
+    "reason": "restaurant_inactive",
+    "delivery_area_postal_codes": ["2100", "2200"],
+    "delivery_area": [
+      { "postal_code": "2100", "name": "København Ø" },
+      { "postal_code": "2200", "name": "København N" }
+    ],
+    "commercial_terms": {
+      "terms_version": "common_mvp_v1",
+      "amounts_exclude_vat": true,
+      "commission_tiers": [
+        { "from_amount": 0, "to_amount": 100, "rate_percent": 6 },
+        { "from_amount": 100, "to_amount": 500, "rate_percent": 5 },
+        { "from_amount": 500, "to_amount": 1000, "rate_percent": 4 },
+        { "from_amount": 1000, "to_amount": null, "rate_percent": 3 }
+      ],
+      "monthly_service_fee": { "amount": 100, "currency_code": "dkk" },
+      "agreement": {
+        "terms_version": "common_mvp_v1",
+        "agreed_at": "2026-11-11T20:30:00.000Z",
+        "recorded_by": { "id": "user_01...", "email": "operator@example.test" }
+      }
+    },
+    "menu": { "published_dish_count": 0 },
+    "readiness": {
+      "can_activate": false,
+      "requirements": [
+        { "code": "pickup_address_missing", "missing": false },
+        { "code": "contacts_missing", "missing": false },
+        { "code": "authorized_staff_missing", "missing": true },
+        { "code": "commercial_terms_missing", "missing": false },
+        { "code": "published_menu_missing", "missing": true },
+        { "code": "delivery_area_missing", "missing": false }
+      ]
+    }
+  }
+}
+```
+
+Postal codes are sorted. `delivery_area` names each code from the postal code
+register; `name` is `null` for a code the register no longer has. `agreement` is `null` until terms are recorded; the
+tiers and fee are always present for display. `recorded_by.email` is `null` if
+the operator no longer exists. `readiness.requirements` always lists all six
+requirements in this order. Staff and the published-dish count arrive with #74
+and #77, so those requirements are missing until then.
 
 ### POST /admin/restaurants/{id}
 
@@ -204,7 +257,116 @@ at least one is required, and supplied fields follow the creation rules.
 Omitted fields remain unchanged. **Success:** `200` with
 `{ "restaurant": { ... }, "warnings": [] }`. Address warnings exclude the edited
 Restaurant itself. **Failures:** `400` for invalid, empty or unknown fields;
-`404` for an unknown Restaurant. There is no state-changing or delete endpoint.
+`404` for an unknown Restaurant. Participation and opening cannot be changed here.
+
+### POST /admin/restaurants/{id}/delivery-area-postal-codes
+
+**Actor:** MTOGO operator. Adds one postal code to the delivery area. The code
+must exist in the Danish postal code register. Adding one the Restaurant already
+serves changes nothing.
+
+| Field         | Type   | Required | Rules                                    |
+| ------------- | ------ | -------- | ---------------------------------------- |
+| `postal_code` | string | yes      | Exactly four ASCII digits, no whitespace |
+
+```json
+{ "postal_code": "2200" }
+```
+
+**Success:** `200` with `{ "restaurant": { ... } }` as in the GET above.
+
+| Status | When                                                                                                      |
+| ------ | --------------------------------------------------------------------------------------------------------- |
+| `400`  | Not four digits or not in the register (message contains `postal_code_invalid`), missing or unknown field |
+| `404`  | Unknown Restaurant                                                                                        |
+
+### POST /admin/restaurants/{id}/delivery-area-postal-codes/batch
+
+**Actor:** MTOGO operator. Adds and removes postal codes in one all-or-nothing
+change, for example a whole town. Codes already served are not added twice, and
+codes the Restaurant does not serve are ignored on removal.
+
+| Field    | Type     | Required              | Rules                                                |
+| -------- | -------- | --------------------- | ---------------------------------------------------- |
+| `add`    | string[] | one of `add`/`remove` | At most 1,100 four-digit codes, each in the register |
+| `remove` | string[] | one of `add`/`remove` | At most 1,100 four-digit codes; none also in `add`   |
+
+```json
+{ "add": ["1050", "1051", "2100"], "remove": ["2200"] }
+```
+
+**Success:** `200` with `{ "restaurant": { ... } }` as in the GET above.
+
+| Status | When                                                                                                                                               |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `400`  | Both lists empty, a code in both, too many codes, unknown field, or codes not in the register (`postal_code_invalid: 0000, 9999`, nothing changes) |
+| `404`  | Unknown Restaurant                                                                                                                                 |
+
+### GET /admin/postal-codes
+
+**Actor:** MTOGO operator. Searches the Danish postal code register, which the
+`postal-code` module documents. Without `q` it returns the whole register.
+
+| Query | Type   | Default | Rules                                                                                   |
+| ----- | ------ | ------- | --------------------------------------------------------------------------------------- |
+| `q`   | string | absent  | At most 255 chars. Matches the phrase in a town or municipality name, or a code's start |
+
+**Success:** `200` with every match, sorted by code:
+
+```json
+{
+  "postal_codes": [
+    {
+      "postal_code": "2200",
+      "name": "København N",
+      "municipality": "Københavns Kommune, Frederiksberg Kommune"
+    }
+  ]
+}
+```
+
+**Failure:** `400` for a `q` over 255 characters.
+
+### DELETE /admin/restaurants/{id}/delivery-area-postal-codes/{postal_code}
+
+**Actor:** MTOGO operator. Removes one postal code. Removing one the Restaurant
+does not serve changes nothing. The guard for the last postal code of an active
+Restaurant arrives with deactivation (#78). **Success:** `200` with
+`{ "restaurant": { ... } }`.
+
+| Status | When                                                                 |
+| ------ | -------------------------------------------------------------------- |
+| `400`  | `postal_code` in the path is not four digits (`postal_code_invalid`) |
+| `404`  | Unknown Restaurant                                                   |
+
+### POST /admin/restaurants/{id}/commercial-terms
+
+**Actor:** MTOGO operator. Records that the Restaurant agreed to the Common MVP
+terms v1, with the current time as `agreed_at` and the signed-in operator as
+`recorded_by`. Recording again while an agreement exists changes nothing.
+
+| Field           | Type   | Required | Rules                   |
+| --------------- | ------ | -------- | ----------------------- |
+| `terms_version` | string | yes      | Exactly `common_mvp_v1` |
+
+```json
+{ "terms_version": "common_mvp_v1" }
+```
+
+**Success:** `200` with `{ "restaurant": { ... } }`.
+
+| Status | When                                       |
+| ------ | ------------------------------------------ |
+| `400`  | Missing or other version, or unknown field |
+| `404`  | Unknown Restaurant                         |
+
+### DELETE /admin/restaurants/{id}/commercial-terms
+
+**Actor:** MTOGO operator. Removes the current agreement; it stays soft-deleted
+in the database. Removing when none is recorded changes nothing. The guard
+against removing the terms of an active Restaurant arrives with deactivation
+(#78). **Success:** `200` with `{ "restaurant": { ... } }`. **Failure:** `404`
+for an unknown Restaurant.
 
 ### POST /admin/restaurants/check-pickup-address
 

@@ -36,5 +36,9 @@ module.exports = defineConfig({
       cookieSecret: process.env.COOKIE_SECRET,
     },
   },
-  modules: [...redisModules(redisUrl), { resolve: "./src/modules/restaurant" }],
+  modules: [
+    ...redisModules(redisUrl),
+    { resolve: "./src/modules/restaurant" },
+    { resolve: "./src/modules/postal-code" },
+  ],
 })

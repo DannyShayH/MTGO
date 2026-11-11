@@ -17,6 +17,20 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    # Throwaway database for the HTTP integration tests that feed coverage
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - name: Checkout full history for analysis
         uses: actions/checkout@v7
@@ -33,24 +47,26 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Generate backend unit coverage
+      # The same gate as the ready flow: unit and HTTP tests in one coverage
+      # report. Unit tests alone cannot reach the 80% threshold, because
+      # workflows and routes are only exercised through HTTP.
+      - name: Generate backend unit and HTTP coverage
         working-directory: apps/backend
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USERNAME: postgres
+          DB_PASSWORD: postgres
         run: |
-          npm run --silent test:unit -- --listTests --json > "$RUNNER_TEMP/sonar-unit-tests.json"
-          npm run test:unit -- --passWithNoTests --coverage
+          npm run test:coverage
           node <<'NODE'
           const fs = require("node:fs")
-          const tests = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/sonar-unit-tests.json`, "utf8"))
-          if (tests.length > 0) {
-            if (!fs.existsSync("coverage/lcov.info") || fs.statSync("coverage/lcov.info").size === 0) {
-              throw new Error("Backend tests ran without producing a nonempty coverage/lcov.info")
-            }
-            // Jest uses backend-relative paths; the scanner runs at the repository root.
-            const report = fs.readFileSync("coverage/lcov.info", "utf8")
-            fs.writeFileSync("coverage/lcov.info", report.replace(/^SF:src\//gm, "SF:apps/backend/src/"))
-          } else {
-            console.log("::warning::No backend unit tests exist yet; this analysis has no Jest coverage report.")
+          if (!fs.existsSync("coverage/lcov.info") || fs.statSync("coverage/lcov.info").size === 0) {
+            throw new Error("Backend tests ran without producing a nonempty coverage/lcov.info")
           }
+          // Jest uses backend-relative paths; the scanner runs at the repository root.
+          const report = fs.readFileSync("coverage/lcov.info", "utf8")
+          fs.writeFileSync("coverage/lcov.info", report.replace(/^SF:src\//gm, "SF:apps/backend/src/"))
           NODE
 
       - name: Analyze main and wait for the quality gate
