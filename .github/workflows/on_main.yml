@@ -11,6 +11,55 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  sonar:
+    name: SonarQube Cloud analysis and quality gate
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout full history for analysis
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate backend unit coverage
+        working-directory: apps/backend
+        run: |
+          npm run --silent test:unit -- --listTests --json > "$RUNNER_TEMP/sonar-unit-tests.json"
+          npm run test:unit -- --passWithNoTests --coverage
+          node <<'NODE'
+          const fs = require("node:fs")
+          const tests = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/sonar-unit-tests.json`, "utf8"))
+          if (tests.length > 0) {
+            if (!fs.existsSync("coverage/lcov.info") || fs.statSync("coverage/lcov.info").size === 0) {
+              throw new Error("Backend tests ran without producing a nonempty coverage/lcov.info")
+            }
+            // Jest uses backend-relative paths; the scanner runs at the repository root.
+            const report = fs.readFileSync("coverage/lcov.info", "utf8")
+            fs.writeFileSync("coverage/lcov.info", report.replace(/^SF:src\//gm, "SF:apps/backend/src/"))
+          } else {
+            console.log("::warning::No backend unit tests exist yet; this analysis has no Jest coverage report.")
+          }
+          NODE
+
+      - name: Analyze main and wait for the quality gate
+        uses: SonarSource/sonarqube-scan-action@e805d875275f728fac1885b413934be6d7c63f65 # v8.4.1
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: -Dsonar.qualitygate.wait=true
+
   deploy_artifact_to_pages:
     name: Deploy the docs site when a new commit is pushed to main
     runs-on: ubuntu-latest

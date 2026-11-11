@@ -9,7 +9,10 @@ tableOfContents: false
 
 import SectionLinks from "../../../components/section-links.astro"
 
-This section will show the CI results, the code coverage and the static code analysis, including the quality gates.
+The ready flow checks changes before delivery. SonarQube Cloud analyzes `main`
+after each delivery and publishes the latest quality gate below.
+
+[![SonarQube Cloud quality gate](https://sonarcloud.io/api/project_badges/measure?project=DannyShayH_MTGO&metric=alert_status)](https://sonarcloud.io/project/overview?id=DannyShayH_MTGO)
 
 <SectionLinks
   label="Quality resources"
@@ -45,8 +48,9 @@ This section will show the CI results, the code coverage and the static code ana
     },
     {
       title: "Static analysis",
-      href: "https://github.com/DannyShayH/MTGO/issues/7",
-      description: "Follow the SonarQube Cloud integration in issue #7.",
+      href: "/MTGO/quality/static-analysis/",
+      description:
+        "SonarQube Cloud findings, coverage and the main quality gate.",
     },
   ]}
 />
