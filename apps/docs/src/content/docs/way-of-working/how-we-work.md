@@ -36,6 +36,14 @@ Admin on GitHub (secrets, branch protection): Danny.
 - **Labels:** only the type of work (`development`, `ad hoc`, `rework`) and `blocked`. A blocked issue stays in its column.
 - **Stop starting, start finishing:** help get something to Done before starting something new.
 
+### Blocked work
+
+- A work item that cannot continue gets the `blocked` label and a comment saying why and what is needed. It stays in its column and still counts as WIP.
+- Unblocking comes before new work: whoever has capacity helps the blocked item first (swarming) instead of pulling from Ready.
+- A work item that waits for another issue gets a native blocking link and is not pulled until its blocker is closed.
+- A work item blocked for more than one working day is raised with the PL, and every blocked item is discussed at the weekly flow review.
+- When the WIP limit is full, nobody pulls new work. Help finish, review or unblock instead.
+
 ### Features and work items
 
 The issue #10 business review agreed that a Feature is a parent issue for a demonstrable business capability. Its sub-issues are the work items; Features are excluded from work-item WIP and throughput even before they have sub-issues. A Feature stays open until its business outcome is accepted and all required work items are delivered. The size-M entry policy applies to work items; Features are decomposed when pulled, rather than being treated as one implementation item.
@@ -61,7 +69,7 @@ gh deliver                    # squash into one commit on ready/<nr>, issue → 
 git sweep                     # after Done: back to main, delete the old branch
 ```
 
-The ready flow on GitHub runs the full checks, merges to `main` as one commit and closes the issue. A merge to `main` deploys to stage, and a SemVer tag on `main` deploys to production.
+The ready flow on GitHub runs the full checks, merges to `main` as one commit and closes the issue. A merge to `main` deploys the docs site and runs the SonarQube analysis. Deploying the applications to staging comes with [issue #35](https://github.com/DannyShayH/MTGO/issues/35), and the release practice for SemVer tags with [issue #68](https://github.com/DannyShayH/MTGO/issues/68).
 
 Things that are easy to get wrong:
 
@@ -78,6 +86,17 @@ Things that are easy to get wrong:
 | Before merge to `main` (ready flow)           | ESLint, coverage, module and HTTP integration tests, backend/admin and storefront builds, docs tests and build/link checks | `ready-checks` in `.insitu.yml` |
 
 Fix the code, never the rule. After editing files, run `gh insitu run fix-all`.
+
+### Review
+
+Proposed review policy, for the team to agree in issue #9.
+
+- **The automated gates are the first review** of every change: formatting, spelling, lint, architecture rules, tests, coverage and the SonarQube quality gate.
+- **The developer owns the change.** When an agent wrote the code, the developer reads the whole diff and can explain it before running `gh deliver`. The `/code-review` skill helps, but does not replace reading.
+- **A second person reviews risky changes before delivery:** data models and migrations, money (commission, service fees, bonuses), authentication and access, architecture rules and CI workflows. The tech lead reviews architecture changes. The developer asks for the review in a comment on the issue, and the reviewer reads the issue branch the same working day.
+- **Other changes need no mandatory second review.** Ask for one when unsure, or pair on the work instead.
+
+Why: we deliver small changes to `main` every day, without pull requests. A mandatory review of every change would add waiting time and longer cycle time, while the automated gates already catch most mistakes. A second pair of eyes is spent where an error is expensive or hard to detect. TakT's `RESPONSIBLES` file, which mentions the responsible person automatically, is a possible later experiment.
 
 See [application build verification](/MTGO/quality/application-builds/) for local
 commands, disposable CI variables and the difference between verification builds

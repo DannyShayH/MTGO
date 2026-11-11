@@ -288,6 +288,8 @@ AI agents commit their work on the issue branch with `gh wrapup "<message>"`, wh
 
 ## Code Style
 
+The team's [coding standard](apps/docs/src/content/docs/way-of-working/coding-standard.md) is the full set of rules for naming, layering, errors, tests, endpoint documentation and review. Follow it; the points below are the essentials.
+
 - **The backend must satisfy `@medusajs/eslint-plugin`'s recommended config** (`eslint.config.ts`). Its rules encode Medusa framework requirements — correct route/workflow/module shapes, not just cosmetics — so a lint failure usually means the code is actually wrong, not just badly formatted. Never disable a `@medusajs/*` rule to make lint pass; fix the code.
 - No semicolons. Double quotes, 2-space indent.
 - Files: kebab-case. Types/classes: PascalCase. Functions/variables: camelCase. DB columns: snake_case.

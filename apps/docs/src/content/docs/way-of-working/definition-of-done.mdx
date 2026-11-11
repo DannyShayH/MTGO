@@ -15,17 +15,19 @@ import "../../../styles/review-documents.css"
     Proposed completion criteria for{" "}
     <a href="https://github.com/DannyShayH/MTGO/issues/9">issue #9</a>. The team
     has not approved this definition. Review it together with the explicit
-    policies and coding standard.
+    policies and{" "}
+    <a href="/MTGO/way-of-working/coding-standard/">coding standard</a>.
   </p>
 </aside>
 
-A user story is done when its functionality works, its quality is verified, its documentation is current and its delivery succeeds. Use the four sections below to review all applicable criteria.
+A work item is done when its functionality works, its quality is verified, its documentation is current and its delivery succeeds. Use the four sections below to review all applicable criteria. A Feature has its own definition, in [When a Feature is done](#when-a-feature-is-done).
 
 <nav class="review-jump not-content" aria-label="Definition of Done sections">
   <a href="#functionality">Functionality</a>
   <a href="#quality">Quality</a>
   <a href="#documentation">Documentation</a>
   <a href="#delivery">Delivery</a>
+  <a href="#when-a-feature-is-done">Feature done</a>
   <a href="#decisions-still-needed">Team decisions</a>
 </nav>
 
@@ -41,12 +43,18 @@ Check the behavior against the story and its acceptance criteria.
 </li>
 <li>
   **Validation and errors.** Input validation and error handling are
-  implemented. Errors use the project's standard error response.
+  implemented. Errors use the project's standard error response, as described in
+  [the coding standard](/MTGO/way-of-working/coding-standard/#71-backend).
 </li>
 <li>**Authorization.** Access rules are enforced where applicable.</li>
 <li>
   **Integration.** The feature is integrated into the application without
   breaking existing functionality.
+</li>
+<li>**Both languages.** User-facing text exists in Danish and English.</li>
+<li>
+  **Verified in the app.** The change has been checked in the running
+  application with synthetic data and can be demonstrated.
 </li>
 
 </ul>
@@ -60,15 +68,35 @@ Review the test evidence and the code that supports the behavior.
 <li>
   **Relevant tests.** Cover the happy path, validation failures and
   authorization where applicable. Test design uses equivalence partitioning,
-  boundary value analysis and decision tables as described in the agreed coding
-  standard.
+  boundary value analysis and decision tables as described in [the coding
+  standard](/MTGO/way-of-working/coding-standard/#8-testing).
 </li>
 <li>
   **Rule coverage.** Every input rule and business rule has data-driven test
   cases. Each case identifies its test-design technique and the rule or behavior
   it checks.
 </li>
-<li>**Passing checks.** All tests pass locally and in CI.</li>
+<li>
+  **Passing checks.** All tests pass locally and in CI, and the quality gates
+  pass: lint, architecture rules, the coverage threshold and the SonarQube
+  quality gate.
+</li>
+<li>
+  **Coding standard.** The code follows [the coding
+  standard](/MTGO/way-of-working/coding-standard/).
+</li>
+<li>
+  **Key journeys.** When a key Customer, Restaurant or Delivery agent journey
+  changes, a browser smoke test covers it.
+</li>
+<li>
+  **Data model changes.** A changed data model comes with a new migration.
+  Existing migrations are unchanged.
+</li>
+<li>
+  **Security and privacy.** No secrets in code, configuration or commits. No
+  passwords, tokens, payment details or personal data in logs or error messages.
+</li>
 <li>
   **Readable code.** Code explains itself where possible. Comments explain
   complex domain logic or implementation choices whose reasons are not obvious.
@@ -90,7 +118,8 @@ Make the change understandable to the next developer and the team.
 <li>**Current documentation.** Documentation is updated for the change.</li>
 <li>
   **Endpoint reference.** New or changed endpoints follow the endpoint
-  documentation template in the agreed coding standard.
+  documentation template in [the coding
+  standard](/MTGO/way-of-working/coding-standard/#9-documentation-of-endpoints-and-modules).
 </li>
 
 </ul>
@@ -106,12 +135,18 @@ Verify review, required checks and deployment through the existing flow.
   practice.
 </li>
 <li>
+  **Traceability.** The acceptance criteria are checked off in the issue, and
+  the commits reference it.
+</li>
+<li>
   **TakT delivery.** The developer delivers through `gh deliver`. The ready flow
   passes the required quality checks and merges to `main`.
 </li>
 <li>
   **Deployment.** The relevant deployment succeeds. The docs site uses GitHub
-  Pages; application deployment criteria still need team agreement.
+  Pages. Once the staging environment from [issue
+  #35](https://github.com/DannyShayH/MTGO/issues/35) exists, application changes
+  are deployed to staging.
 </li>
 
 </ul>
@@ -125,13 +160,39 @@ The supplied draft said “reviewed and merged to the main branch via pull reque
 </div>
 </details>
 
+## When a Feature is done
+
+A Feature is a parent issue for a business capability; its sub-issues are the
+work items. Following
+[ADR-0007](/MTGO/architecture/decisions/0007-features-and-work-item-flow-measures/),
+a Feature is done when:
+
+<ul class="review-criteria">
+
+<li>
+  **Required work delivered.** Every required work item is done by the criteria
+  above. Work removed from scope is closed with a reason.
+</li>
+<li>
+  **Outcome accepted.** The team has demonstrated the capability and accepts
+  that it meets the Feature's acceptance criteria and business rules.
+</li>
+<li>
+  **Knowledge current.** The glossary, ADRs and module documentation describe
+  the capability as built.
+</li>
+
+</ul>
+
+Later improvements after acceptance are new scope, not a reopened Feature.
+
 ## Decisions still needed
 
 Agree on these points before adopting this page as the team's Definition of Done. Publishing the draft does not record approval.
 
-- [ ] **Error contract:** Agree on the standard error response and where it is documented.
+- [ ] **Error contract:** Agree on the standard error response. Proposed in [the coding standard](/MTGO/way-of-working/coding-standard/#71-backend): Medusa's error shape.
 - [ ] **Coding standard:** Agree on the coding standard, endpoint documentation template and test-design guidance referenced above.
-- [ ] **Review and deployment:** Agree on the review practice and deployment evidence required for each type of change.
+- [ ] **Review and deployment:** Agree on the review practice, proposed in [How we work](/MTGO/way-of-working/how-we-work/#review), and on the deployment evidence once staging exists.
 - [ ] **Team approval:** Approve this Definition of Done together with the explicit policies and coding standard in [issue #9](https://github.com/DannyShayH/MTGO/issues/9).
 
 </div>

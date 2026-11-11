@@ -23,7 +23,7 @@ File issues only into `DannyShayH/MTGO`. Never file into `mattpocock/skills` (th
 
 ## Pull requests
 
-AI agents never push or open PRs in this repo. PRs are not a triage surface.
+AI agents push only through `gh wrapup` on the issue branch and never open PRs in this repo. PRs are not a triage surface.
 
 ## When a skill says "publish to the issue tracker"
 
