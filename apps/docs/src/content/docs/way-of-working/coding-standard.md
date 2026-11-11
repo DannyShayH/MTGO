@@ -71,19 +71,19 @@ Prefer `type` for data shapes and union types for fixed sets of values (`type De
 
 The file and its main export describe its role.
 
-| Element         | Convention                                      | Example                                                |
-| --------------- | ----------------------------------------------- | ------------------------------------------------------ |
-| Module folder   | `src/modules/<name>`, singular, kebab-case      | `src/modules/restaurant`                               |
-| Module constant | UPPER_SNAKE_CASE + `_MODULE`                    | `RESTAURANT_MODULE`                                    |
-| Data model      | PascalCase in code, snake_case table and fields | `Restaurant`, `is_open`, `created_at`                  |
-| Service         | `<Name>ModuleService`, extends `MedusaService`  | `RestaurantModuleService`                              |
-| Workflow        | `<verb>-<noun>` id, `<verb><Noun>Workflow`      | `"create-restaurant"`, `createRestaurantWorkflow`      |
-| Step            | `<verb>-<noun>-step` id, `<verb><Noun>Step`     | `"validate-restaurant-step"`, `validateRestaurantStep` |
-| Link            | `src/links/<module-a>-<module-b>.ts`            | `src/links/restaurant-product.ts`                      |
-| API route       | `src/api/<store or admin>/<plural>/route.ts`    | `src/api/admin/restaurants/[id]/route.ts`              |
-| Validator       | `<Method><Resource>Schema` in `validators.ts`   | `PostAdminCreateRestaurantSchema`                      |
-| Subscriber      | file named after the event's effect             | `src/subscribers/notify-restaurant.ts`                 |
-| Event           | `<entity>.<past-tense verb>`                    | `delivery.claimed`                                     |
+| Element         | Convention                                            | Example                                                |
+| --------------- | ----------------------------------------------------- | ------------------------------------------------------ |
+| Module folder   | `src/modules/<name>`, singular, kebab-case            | `src/modules/restaurant`                               |
+| Module constant | UPPER_SNAKE_CASE + `_MODULE`                          | `RESTAURANT_MODULE`                                    |
+| Data model      | PascalCase in code, snake_case table and fields       | `Restaurant`, `is_open`, `created_at`                  |
+| Service         | `<Name>ModuleService`, extends `MedusaService`        | `RestaurantModuleService`                              |
+| Workflow        | `<verb>-<noun>` id, `<verb><Noun>Workflow`            | `"create-restaurant"`, `createRestaurantWorkflow`      |
+| Step            | `<verb>-<noun>-step` id, `<verb><Noun>Step`           | `"validate-restaurant-step"`, `validateRestaurantStep` |
+| Link            | `src/links/<module-a>-<module-b>.ts`                  | `src/links/restaurant-product.ts`                      |
+| API route       | `src/api/<store, admin or partner>/<plural>/route.ts` | `src/api/admin/restaurants/[id]/route.ts`              |
+| Validator       | `<Method><Resource>Schema` in `validators.ts`         | `PostAdminCreateRestaurantSchema`                      |
+| Subscriber      | file named after the event's effect                   | `src/subscribers/notify-restaurant.ts`                 |
+| Event           | `<entity>.<past-tense verb>`                          | `delivery.claimed`                                     |
 
 ### 4.3 Storefront (Next.js)
 
@@ -98,6 +98,7 @@ The file and its main export describe its role.
 
 ### 4.4 REST API and JSON
 
+- There are three namespaces: `/store` for Customers, `/admin` for MTOGO operators and `/partner` for Restaurant staff and Delivery agents, who use the partner app ([ADR-0017](/MTGO/architecture/decisions/0017-partner-app-for-restaurant-staff-and-delivery-agents/)). Medusa gives `/partner` no default authentication, so every partner route declares its actor in `middlewares.ts`.
 - Paths are lowercase plural nouns in kebab-case: `/store/restaurants`, `/admin/delivery-agents/{id}`. The HTTP method carries the action, not the path. A state change that is not plain CRUD is a sub-resource: `POST /store/deliveries/{id}/claim`.
 - JSON fields are **snake_case**, like the rest of Medusa's API (`is_open`, `restaurant_id`).
 - Enum values are lowercase snake_case strings, like Medusa's own (`ready_for_pickup`).

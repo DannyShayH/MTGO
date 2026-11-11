@@ -24,6 +24,26 @@ _Avoid_: Open Restaurant (when referring to platform participation)
 An active Restaurant currently accepting new Orders within its delivery area.
 _Avoid_: Active Restaurant (when referring to current ordering availability)
 
+**Delivery area**:
+The set of Danish postal codes a Restaurant delivers to. A destination is served when its postal code is in the set.
+_Avoid_: Operating area (that is the Delivery agent's), radius, zone
+
+**Activation requirements**:
+The six things an active Restaurant must have at activation: a pickup address, contact details, authorized Restaurant staff, agreed common commercial terms, a published menu and a delivery area.
+_Avoid_: Onboarding checklist, approval criteria
+
+**Published menu**:
+A Restaurant menu with at least one published dish named in Danish and English, sold out or not.
+_Avoid_: Approved menu, draft menu
+
+**Common commercial terms**:
+The one named version of the commission tiers and service fee that every Restaurant agrees to in the MVP, such as "Common MVP terms v1".
+_Avoid_: Contract, price list, individual terms
+
+**Staff invitation**:
+An operator's offer of Restaurant staff access to one named person. The person becomes authorized Restaurant staff only when they accept it.
+_Avoid_: Signup, registration
+
 **Delivery agent**:
 An MTOGO employee responsible for collecting food from a Restaurant and delivering it to a Customer.
 _Avoid_: Driver, courier partner, contractor

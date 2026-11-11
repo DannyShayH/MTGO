@@ -19,23 +19,23 @@ Each Feature is an aggregate and may exceed effort M. Its work items must satisf
 
 Order is a pull preference; only listed blockers become native blocking links. An unblocked Feature can be pulled while another is in progress, within the human-owned WIP policy. Week groups are provisional demo goals for five developers, without fixed time budgets or delivery promises. Should have and Could have scope follows the Must have capability; the list can change by explicit agreement.
 
-| Order                                                     | Feature                                         | MoSCoW      | Demo group | Native blockers |
-| --------------------------------------------------------- | ----------------------------------------------- | ----------- | ---------- | --------------- |
-| [F01 / #42](https://github.com/DannyShayH/MTGO/issues/42) | Measure Feature delivery and work item flow     | Must have   | Week 47    | None            |
-| [F02 / #43](https://github.com/DannyShayH/MTGO/issues/43) | Onboard and operate Restaurants                 | Must have   | Week 47    | None            |
-| [F03 / #44](https://github.com/DannyShayH/MTGO/issues/44) | Publish bilingual Restaurant menus              | Must have   | Week 47    | F02             |
-| [F04 / #45](https://github.com/DannyShayH/MTGO/issues/45) | Manage Customer accounts and delivery details   | Must have   | Week 47    | None            |
-| [F05 / #46](https://github.com/DannyShayH/MTGO/issues/46) | Order from one Restaurant and pay               | Must have   | Week 47    | F03, F04        |
-| [F06 / #47](https://github.com/DannyShayH/MTGO/issues/47) | Accept and prepare Restaurant Orders            | Must have   | Week 48    | F05             |
-| [F07 / #48](https://github.com/DannyShayH/MTGO/issues/48) | Claim and complete deliveries                   | Must have   | Week 48    | F06             |
-| [F08 / #49](https://github.com/DannyShayH/MTGO/issues/49) | Resolve operational exceptions and full refunds | Must have   | Week 48    | F07             |
-| [F09 / #50](https://github.com/DannyShayH/MTGO/issues/50) | Follow Orders through a timeline and SMS        | Must have   | Week 48    | F07             |
-| [F10 / #51](https://github.com/DannyShayH/MTGO/issues/51) | Rate delivered Orders                           | Must have   | Week 49    | F07             |
-| [F11 / #52](https://github.com/DannyShayH/MTGO/issues/52) | Explain Restaurant fees and monthly statements  | Must have   | Week 49    | F07             |
-| [F12 / #53](https://github.com/DannyShayH/MTGO/issues/53) | Award and explain sustainable agent bonuses     | Must have   | Week 49    | F10, F11        |
-| [F13 / #54](https://github.com/DannyShayH/MTGO/issues/54) | Monitor MTOGO operations                        | Should have | Week 49    | F07             |
-| [F14 / #55](https://github.com/DannyShayH/MTGO/issues/55) | Apply Restaurant opening schedules              | Could have  | Week 49    | F02             |
-| [F15 / #56](https://github.com/DannyShayH/MTGO/issues/56) | Show estimated arrival times                    | Could have  | Week 49    | F09             |
+| Order                                                     | Feature                                         | MoSCoW      | Demo group | Native blockers         |
+| --------------------------------------------------------- | ----------------------------------------------- | ----------- | ---------- | ----------------------- |
+| [F01 / #42](https://github.com/DannyShayH/MTGO/issues/42) | Measure Feature delivery and work item flow     | Must have   | Week 47    | None                    |
+| [F02 / #43](https://github.com/DannyShayH/MTGO/issues/43) | Onboard and operate Restaurants                 | Must have   | Week 47    | None                    |
+| [F03 / #44](https://github.com/DannyShayH/MTGO/issues/44) | Publish bilingual Restaurant menus              | Must have   | Week 47    | F02 work items #71, #73 |
+| [F04 / #45](https://github.com/DannyShayH/MTGO/issues/45) | Manage Customer accounts and delivery details   | Must have   | Week 47    | None                    |
+| [F05 / #46](https://github.com/DannyShayH/MTGO/issues/46) | Order from one Restaurant and pay               | Must have   | Week 47    | F03, F04                |
+| [F06 / #47](https://github.com/DannyShayH/MTGO/issues/47) | Accept and prepare Restaurant Orders            | Must have   | Week 48    | F05                     |
+| [F07 / #48](https://github.com/DannyShayH/MTGO/issues/48) | Claim and complete deliveries                   | Must have   | Week 48    | F06                     |
+| [F08 / #49](https://github.com/DannyShayH/MTGO/issues/49) | Resolve operational exceptions and full refunds | Must have   | Week 48    | F07                     |
+| [F09 / #50](https://github.com/DannyShayH/MTGO/issues/50) | Follow Orders through a timeline and SMS        | Must have   | Week 48    | F07                     |
+| [F10 / #51](https://github.com/DannyShayH/MTGO/issues/51) | Rate delivered Orders                           | Must have   | Week 49    | F07                     |
+| [F11 / #52](https://github.com/DannyShayH/MTGO/issues/52) | Explain Restaurant fees and monthly statements  | Must have   | Week 49    | F07                     |
+| [F12 / #53](https://github.com/DannyShayH/MTGO/issues/53) | Award and explain sustainable agent bonuses     | Must have   | Week 49    | F10, F11                |
+| [F13 / #54](https://github.com/DannyShayH/MTGO/issues/54) | Monitor MTOGO operations                        | Should have | Week 49    | F07                     |
+| [F14 / #55](https://github.com/DannyShayH/MTGO/issues/55) | Apply Restaurant opening schedules              | Could have  | Week 49    | F02                     |
+| [F15 / #56](https://github.com/DannyShayH/MTGO/issues/56) | Show estimated arrival times                    | Could have  | Week 49    | F09                     |
 
 ## Published milestones
 
@@ -122,7 +122,9 @@ MTOGO needs to register participating food locations, arrange Restaurant staff a
 #### Acceptance examples to refine
 
 - A Restaurant without a published menu cannot be activated; complete synthetic setup can be activated.
-- Closing a Restaurant prevents a new Order while an existing paid Order remains visible and actionable.
+- Only an active, open Restaurant whose delivery area contains the destination can receive a new Order; operators and staff see why it cannot.
+
+Refined in discovery [#67](https://github.com/DannyShayH/MTGO/issues/67): see [Restaurant onboarding](/MTGO/product/restaurant-onboarding/). By agreement, refusing a new Order for a closed or inactive Restaurant moved to F05 (#46), and an existing paid Order staying actionable after closing moved to F06 (#47).
 
 #### References
 
@@ -132,7 +134,9 @@ MTOGO needs to register participating food locations, arrange Restaurant staff a
 
 GitHub Feature: [#44](https://github.com/DannyShayH/MTGO/issues/44).
 
-**Must have · Supervision week 47: paid ordering · Blocked by: F02**
+**Must have · Supervision week 47: paid ordering · Blocked by: F02 work items #71 and #73**
+
+Agreed in discovery #67: the Feature-level blocker F03 → F02 was replaced. F03's work items are blocked by F02's work items [#71](https://github.com/DannyShayH/MTGO/issues/71) (Operator registers a Restaurant in Medusa Admin) and [#73](https://github.com/DannyShayH/MTGO/issues/73) (Partner app walking skeleton), because F03 needs only a Restaurant and a signed-in staff member, not the rest of F02.
 
 #### Problem
 

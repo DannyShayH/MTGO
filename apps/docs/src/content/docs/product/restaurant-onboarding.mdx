@@ -1,6 +1,6 @@
 ---
 title: MTOGO restaurant onboarding
-description: The proposed internal workflow for adding restaurants and arranging staff access through Medusa Admin.
+description: Agreed operator and Restaurant staff journeys, acceptance examples and recipe adaptation for Feature #43.
 sidebar:
   order: 4
 ---
@@ -12,122 +12,216 @@ import "../../../styles/review-documents.css"
 <div class="review-document">
 
 <aside class="review-intro not-content" aria-label="Document status">
-  <strong>Business rules agreed; interactions to refine</strong>
+  <strong>Journeys and acceptance examples agreed; not yet implemented</strong>
   <p>
-    The team has chosen Medusa Admin for MTOGO's internal restaurant setup. The
-    steps below are a proposed business workflow. They do not claim that
-    restaurant management screens or custom functionality already exist.
+    Refined on 11 November 2026 in discovery #67 for Feature #43. The journeys
+    are agreed at the level of who does what and where. Screen design is left to
+    implementation, and nothing on this page exists in the application yet.
   </p>
 </aside>
 
-An internal MTOGO employee adds a restaurant to the platform and arranges the access needed for its staff to maintain the menu. This is separate from the restaurant's everyday menu management.
+MTOGO operators register Restaurants, authorize their staff and decide whether each Restaurant takes part in the platform. Restaurant staff decide when their Restaurant is open. This page holds the agreed journeys for both actors, the acceptance examples, and how the work follows and changes the Medusa recipe.
 
 <nav
   class="review-jump not-content"
   aria-label="Restaurant onboarding sections"
 >
-  <a href="#case-requirements-and-team-direction">Requirements and direction</a>
-  <a href="#proposed-workflow">Onboarding workflow</a>
-  <a href="#exceptions-to-discuss">Exceptions</a>
-  <a href="#open-decisions">Open decisions</a>
+  <a href="#where-each-actor-works">Where each actor works</a>
+  <a href="#operator-journey">Operator journey</a>
+  <a href="#restaurant-staff-journey">Staff journey</a>
+  <a href="#when-something-is-missing-or-fails">Failures</a>
+  <a href="#acceptance-examples">Acceptance examples</a>
+  <a href="#how-we-use-the-recipe">Recipe</a>
+  <a href="#agreed-slicing">Slicing</a>
 </nav>
 
-## Case requirements and team direction
+## Where each actor works
 
-**From the case:** Restaurants supply the food and choose their own menus. They pay MTOGO a service fee and commission on order value excluding VAT. Marginal commission tiers, a DKK 100 excluding VAT monthly service fee and a commission-funded bonus cap are agreed; billing, bonus allocation and food-credit responsibility are recorded in the shared domain rules.
+| Actor            | Where                                                  | Language                                                                                                                 |
+| ---------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| MTOGO operator   | Medusa Admin, a **Restaurants** page                   | English only in the MVP ([ADR-0018](/MTGO/architecture/decisions/0018-english-only-medusa-admin-for-operators/))         |
+| Restaurant staff | The partner app (`apps/partner`), with its own sign-in | Danish and English ([ADR-0017](/MTGO/architecture/decisions/0017-partner-app-for-restaurant-staff-and-delivery-agents/)) |
+| Customer         | No view in Feature #43                                 | Not applicable                                                                                                           |
 
-**Team direction:** Internal MTOGO staff use Medusa Admin to add restaurants. The case does not specify the onboarding screens, required fields, staff invitations or the conditions for accepting orders.
+Every Medusa Admin user is an MTOGO operator. Restaurant staff never get Admin access. They sign in with their own actor type, and each staff account belongs to one Restaurant. The API reports outcomes as codes, such as one code per missing activation requirement, and each UI turns the codes into text.
 
-**Boundary:** MTOGO operator and Restaurant staff are agreed, distinct business roles. Setting up restaurant staff access does not imply giving those users general access to Medusa Admin.
-
-## Proposed workflow
-
-**Actor:** Authorized MTOGO employee using Medusa Admin. **Goal:** A correctly identified restaurant can maintain its menu and, once ready, receive customer orders.
+## Operator journey
 
 <WorkflowTimeline
-  id="restaurant-onboarding"
-  title="From restaurant setup to readiness for orders"
+  id="operator-onboarding"
+  title="From a new Restaurant to an active Restaurant"
   steps={[
     {
-      title: "Open Medusa Admin",
+      title: "Find or create the Restaurant",
       detail:
-        "Sign in as an MTOGO operator authorized to create and activate Restaurants. Detailed access administration remains for the Feature grill.",
+        "The Restaurants list shows name, pickup postal code, Active/Inactive, Open/Closed and Receiving new Orders, and can be searched by name or postal code. Create needs a name, a structured pickup address (street, postal code, city), one contact phone and one contact email. If another Restaurant has the same address, a warning appears but saving is still possible. A new Restaurant starts Inactive and Closed.",
     },
     {
-      title: "Check for an existing restaurant",
+      title: "Set the delivery area",
       detail:
-        "Look for the Restaurant before creating another record. One preparation and pickup location is one Restaurant; separate branches are separate Restaurants. Duplicate-detection interactions are refined in the Feature grill without changing that identity boundary.",
+        "Add or remove Danish postal codes of exactly four digits. Duplicates are ignored, and the pickup address's postal code is not added automatically.",
     },
     {
-      title: "Enter restaurant details",
+      title: "Record the commercial terms",
       detail:
-        "Record the pickup address, contact details and postal-code delivery area needed for activation. The MVP uses manual open/closed decisions; additional form and validation details are refined in the Feature grill.",
+        "Record that the Restaurant agreed to Common MVP terms v1. The date and the operator are stored, and the commission tiers and the DKK 100 monthly service fee are shown read-only.",
     },
     {
-      title: "Confirm commercial terms",
+      title: "Invite the Restaurant staff",
       detail:
-        "Record the common MVP policy: marginal commission tiers and DKK 100 excluding VAT per active Restaurant per month. The monthly fee is prorated by active Copenhagen calendar days; future policy changes preserve historical amounts.",
+        "Enter the person's name and email. The invitation shows as Pending with a Copy invite link button, and the operator sends the link themselves. The link works once and expires after 24 hours. Resend gives a new link and the old one stops working. Cancel withdraws the invitation. If the email already has an MTOGO login, Admin asks for a different one.",
     },
     {
-      title: "Arrange restaurant staff access",
+      title: "Check readiness and activate",
       detail:
-        "Associate authorized restaurant staff with this restaurant. Invitation, account creation and role assignment are still to be designed.",
+        "The readiness checklist always shows the six activation requirements as present or missing. Activate checks them again on the server. If any are missing, activation is refused and each missing requirement is named. A Restaurant that becomes active stays Closed until its staff open it.",
     },
     {
-      title: "Prepare the first menu",
+      title: "Operate the Restaurant",
       detail:
-        "Restaurant staff enter and check their own categories, dishes, prices and availability. MTOGO displays the menu rather than selecting its offerings.",
-    },
-    {
-      title: "Check readiness for orders",
-      detail:
-        "An MTOGO operator explicitly activates the Restaurant after checking the pickup address, contacts, staff, commercial terms, published menu and delivery area. Open/closed availability is a separate decision.",
+        "Deactivate with a required reason, which also closes the Restaurant. Reactivating leaves it Closed. Revoke staff access, which keeps the person under Former staff. The History section shows every activation, deactivation, opening and closing with time, actor and, for deactivation, the reason.",
     },
   ]}
-  note="Proposed onboarding sequence. Restaurant management will need project-specific Medusa Admin functionality; this page does not prescribe its API or implementation. No unagreed commission or service-fee values are assumed."
+  note="Operators cannot open or close a Restaurant; deactivation is their lever. Admin text is English only in the MVP."
 />
 
-## Exceptions to discuss
+## Restaurant staff journey
 
-<ul class="review-criteria">
-  <li>
-    **A restaurant already exists.** Confirm whether this is the same business,
-    a separate branch or a duplicate before creating another record.
-  </li>
-  <li>
-    **Setup is incomplete.** Decide whether a partial record can be saved and
-    how staff can see what remains before orders are accepted.
-  </li>
-  <li>
-    **Staff access cannot be completed.** Decide how invitations are retried,
-    corrected or revoked without exposing another restaurant's information.
-  </li>
-  <li>
-    **Commercial terms are unresolved.** Decide what blocks readiness until the
-    team and restaurant have agreed on the applicable fees.
-  </li>
-  <li>
-    **The restaurant stops operating.** Decide how it stops receiving new orders
-    while existing orders, financial records and settlements remain accessible.
-  </li>
-  <li>
-    **An unauthorized user attempts a change.** Enforce the agreed internal and
-    restaurant-specific access boundaries.
-  </li>
-</ul>
+<WorkflowTimeline
+  id="staff-onboarding"
+  title="From an invitation to an open Restaurant"
+  steps={[
+    {
+      title: "Accept the invitation",
+      detail:
+        "The invite link opens the partner app. The person sets a password and becomes authorized Restaurant staff.",
+    },
+    {
+      title: "Sign in to the partner app",
+      detail:
+        "The partner app has a sidebar layout. In Feature #43 the sidebar has only Overview. The language comes from the browser at first, falls back to Danish, and the Dansk/English choice is remembered.",
+    },
+    {
+      title: "See the Restaurant's status",
+      detail:
+        "The Restaurant status card shows participation (Awaiting activation by MTOGO, or Active), the Open/Closed switch and the Receiving new Orders line with its reason. The Restaurant details card shows the address, contacts and delivery area, read-only.",
+    },
+    {
+      title: "Open and close the Restaurant",
+      detail:
+        "The switch works only while the Restaurant is active. Each change is recorded with the staff member and the time.",
+    },
+  ]}
+  note="Later Features add their own sidebar items and overview cards: Menu in #44, and Orders with an Active Orders card in #47. Nothing appears before it works, so there are no placeholders."
+/>
 
-## Open decisions
+## When something is missing or fails
 
-- [x] **Creation and activation:** MTOGO operators create and explicitly activate Restaurants.
-- [x] **Access administration:** Operators manage Restaurant staff and agent access, operating areas, activation/deactivation and commercial terms.
-- [x] **Restaurant identity:** One preparation/pickup location per Restaurant, with separate branches represented separately. Activation requires address, contacts, staff, commercial terms, menu and delivery area; extra form and duplicate-detection interactions belong to the Feature grill.
-- [x] **Commercial terms:** Marginal commission tiers and a fixed monthly service fee per active Restaurant are agreed. The common MVP service fee is DKK 100 excluding VAT per active Restaurant per month. Prorate by active calendar days, including temporary closure, and preserve historical amounts when terms change.
-- [x] **Staff access:** Operators manage access. Restaurant staff manage only their own menus, opening, acceptance and preparation; revocation preserves history.
-- [x] **Readiness:** Explicit operator activation requires a pickup address, contact details, authorized staff, agreed terms, a published menu and postal-code delivery area.
-- [x] **Opening:** Active/inactive participation is separate from manual open/closed availability. Closing or deactivating a Restaurant does not abandon existing Orders.
-- [x] **Deactivation:** Operators control active/inactive participation; Restaurant staff control manual opening. Stopping new Orders does not abandon existing Orders or remove history.
+| Situation                                                | What the actor sees                                                                                                                  |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Activation with requirements missing                     | Admin refuses and names each missing requirement, for example "Published menu missing".                                              |
+| Same pickup address as another Restaurant                | A warning on Create; saving is still possible.                                                                                       |
+| Postal code not four digits                              | A validation message; the code is not added.                                                                                         |
+| Removing the last postal code of an active Restaurant    | Refused, with the reason.                                                                                                            |
+| Removing commercial terms of an active Restaurant        | Refused, with the reason.                                                                                                            |
+| Revoking the last authorized staff member                | Allowed. Admin warns that nobody can open the Restaurant or accept Orders, and suggests deactivation.                                |
+| Inviting an email that already has a login               | Admin asks for a different email.                                                                                                    |
+| Expired, used or cancelled invite link                   | Partner app: "This invitation is no longer valid. Ask MTOGO for a new one." (Danish or English).                                     |
+| Revoked staff member acts or signs in                    | The next request fails. Partner app: "Your access to [Restaurant name] has ended" (Danish or English), and the person is signed out. |
+| Open/Closed while inactive                               | The switch is disabled with its reason.                                                                                              |
+| Open/Closed toggle fails, for example after deactivation | The reason is shown with the real current state, not the position the switch was moved to.                                           |
 
-The case also asks for a management dashboard of order status and processing measures. Its daily operational workflow is separate from onboarding and is covered by the agreed management measures in the domain model. Complaint management remains a future extension.
+## Acceptance examples
+
+The examples use synthetic data. Restaurant "Pizzeria Nørrebro" has pickup address Nørrebrogade 1, 2200 København N, contact phone +45 12 34 56 78, contact email `kontakt@pizzeria.example`, and delivery area 2200 and 2100.
+
+### Activation
+
+A missing requirement refuses activation with its code. Staff count only after accepting their invitation and while not revoked. A published menu is at least one published dish linked to the Restaurant with Danish and English names; sold-out dishes count. Until Feature #44 delivers menu editing, a seed script creates the synthetic menu. ADR-0012 already prevents a dish from being published without Danish and English names, so the activation check counts published dishes. The example of a dish named only in Danish belongs to #44.
+
+| Rule | Pickup address | Contacts | Authorized staff                | Commercial terms | Published menu           | Delivery area   | Result                            |
+| ---- | -------------- | -------- | ------------------------------- | ---------------- | ------------------------ | --------------- | --------------------------------- |
+| A1   | Yes            | Yes      | None, only a pending invitation | Yes              | Yes                      | Yes             | Refused: authorized staff missing |
+| A2   | Yes            | Yes      | Yes, but every one revoked      | Yes              | Yes                      | Yes             | Refused: authorized staff missing |
+| A3   | Yes            | Yes      | Yes                             | No               | Yes                      | Yes             | Refused: commercial terms missing |
+| A4   | Yes            | Yes      | Yes                             | Yes              | No dishes                | Yes             | Refused: published menu missing   |
+| A5   | Yes            | Yes      | Yes                             | Yes              | Only unpublished dishes  | Yes             | Refused: published menu missing   |
+| A6   | Yes            | Yes      | Yes                             | Yes              | Yes                      | No postal codes | Refused: delivery area missing    |
+| A7   | Yes            | Yes      | No                              | No               | No                       | No              | Refused, naming all four missing  |
+| A8   | Yes            | Yes      | Yes                             | Yes              | Yes, every dish sold out | Yes             | Active and Closed                 |
+| A9   | Yes            | Yes      | Yes                             | Yes              | Yes                      | Yes             | Active and Closed                 |
+
+Pickup address and contacts are required when the Restaurant is created and cannot be emptied afterwards, so the server check covers them without an example of its own.
+
+### Eligibility for a new Order
+
+Feature #43 delivers this rule and the Receiving new Orders line. Feature #46 applies it at checkout, and Feature #47 shows that existing Orders stay actionable.
+
+| Rule | Active? | Open? | Delivery area contains the destination? | Receiving new Orders                   |
+| ---- | ------- | ----- | --------------------------------------- | -------------------------------------- |
+| E1   | No      | -     | -                                       | No, because the Restaurant is inactive |
+| E2   | Yes     | No    | -                                       | No, because the Restaurant is closed   |
+| E3   | Yes     | Yes   | No (destination 8000)                   | No, for that destination               |
+| E4   | Yes     | Yes   | Yes (destination 2200)                  | Yes                                    |
+
+### Opening, participation and history
+
+- An inactive Restaurant cannot be opened. Activation leaves it Closed.
+- Deactivating an open Restaurant without a reason is refused. With a reason, it becomes Inactive and Closed, and reactivating leaves it Closed.
+- Each activation, deactivation, opening and closing appears in History with time and actor, and deactivation also shows the reason. Billing the service fee by active days (ADR-0006) uses this history.
+
+### Staff access
+
+- An invitation accepted within 24 hours makes the person authorized staff of exactly one Restaurant.
+- After Resend, the old link is refused and the new one works once.
+- A revoked staff member's next request fails. They appear under Former staff, and History keeps their name on earlier openings and closings.
+- Staff of one Restaurant cannot read or change another Restaurant, and cannot call any `/admin` route.
+
+## How we use the recipe
+
+We follow the [Restaurant-Delivery Marketplace recipe](https://docs.medusajs.com/resources/recipes/marketplace/examples/restaurant-delivery) (pinned example commit `aae7665`, Medusa 2.14.0), checked against the installed Medusa 2.22.4.
+
+| Recipe                                                                              | MTOGO                                                                                    | Why                                                                                |
+| ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| A `restaurant` module with `Restaurant` and `RestaurantAdmin`, in a `MedusaService` | Followed, with `RestaurantStaff` as the glossary name                                    | Coding standard: one concept keeps one name                                        |
+| A staff actor type with Medusa auth and `authenticate()`                            | Followed, as the `restaurant_staff` actor, through `@medusajs/js-sdk` in the partner app | Reuses Medusa auth                                                                 |
+| Restaurant ↔ product link                                                           | Followed. It defines the published-menu check                                            | The domain model maps dishes to Medusa products. #44's grill may replace the check |
+| Staff sign up themselves and attach to any `restaurant_id`                          | Replaced by operator invitations following Medusa's admin invite pattern                 | ADR-0008: operators manage staff access                                            |
+| `POST /restaurants` without authentication                                          | `/admin/restaurants` for operators only                                                  | ADR-0008: operators create Restaurants                                             |
+| Removing staff hard-deletes the row                                                 | Revocation keeps the record as former staff                                              | ADR-0008: revocation preserves history                                             |
+| Routes at `/restaurants` and `/users`, with bodies parsed in the handler            | `/admin/*` and `/partner/*`, with body validation in middleware                          | Coding standard §4.4 and §7.1                                                      |
+| `address` as one text field; `description`, `image_url`, `handle`                   | A structured pickup address. Description, image and handle are dropped from #43          | A postal code is needed; Customer presentation belongs to #44 and #46              |
+| Only `is_open`                                                                      | Active/Inactive participation, a delivery area, commercial terms and history added       | ADR-0006 and ADR-0008                                                              |
+| No Admin UI                                                                         | Our own Restaurants page in Medusa Admin, built with the Admin SDK and Medusa UI         | The operator journey above                                                         |
+
+The installed `@medusajs/rbac` module could restrict Admin users, but it is licensed, which is why staff work in the partner app instead of Medusa Admin. Medusa Admin 2.22.4 has no Danish translation of its own screens, which is the background to ADR-0018.
+
+## Agreed slicing
+
+These work items are sub-issues of #43, created from the [specification](https://github.com/DannyShayH/MTGO/issues/43#issuecomment-6803106769). Each one carries its own UI and text, with Admin text in English and partner text in Danish and English.
+
+| Slice                                                    | Behavior shown in the demo                                                                                                                                                                                                                 | Blocked by |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
+| [S1 / #71](https://github.com/DannyShayH/MTGO/issues/71) | Operator registers a Restaurant: list, Create with the same-address warning, Details; starts Inactive and Closed.                                                                                                                          | None       |
+| [S2 / #72](https://github.com/DannyShayH/MTGO/issues/72) | Operator completes the setup: delivery area, commercial terms, and the readiness checklist with its six requirements.                                                                                                                      | S1         |
+| [S3 / #73](https://github.com/DannyShayH/MTGO/issues/73) | Partner app walking skeleton: `apps/partner`, `packages/i18n`, `packages/ui`, the "apps import packages, never each other" rule; a seeded staff member signs in and out; Overview shell and Dansk/English switch; CI build and smoke test. | S1         |
+| [S4 / #74](https://github.com/DannyShayH/MTGO/issues/74) | Operator invites Restaurant staff: Pending, Copy invite link, Resend, Cancel, existing-login warning.                                                                                                                                      | S1         |
+| [S5 / #75](https://github.com/DannyShayH/MTGO/issues/75) | Invited staff accept and reach the Overview with the Restaurant details card and "Awaiting activation by MTOGO".                                                                                                                           | S3, S4     |
+| [S6 / #76](https://github.com/DannyShayH/MTGO/issues/76) | Operator revokes staff access: effective on the next request, Former staff, last-staff warning.                                                                                                                                            | S5         |
+| [S7 / #77](https://github.com/DannyShayH/MTGO/issues/77) | Operator activates a Restaurant: server check with one code per missing requirement, Restaurant ↔ product link, seeded synthetic menu, history.                                                                                            | S2, S4     |
+| [S8 / #78](https://github.com/DannyShayH/MTGO/issues/78) | Operator deactivates and reactivates with a reason; the guards on the last postal code and the commercial terms; History section.                                                                                                          | S7         |
+| [S9 / #79](https://github.com/DannyShayH/MTGO/issues/79) | Staff open and close their Restaurant; the Receiving new Orders line in both apps; the eligibility decision table for #46.                                                                                                                 | S5, S7     |
+
+If S3 grows beyond effort M, the staff sign-in becomes its own slice right after it. The Feature-level blocker #44 → #43 was removed; #44's work items are blocked by S1 (#71) and S3 (#73) instead.
+
+## Left for the specification
+
+These are implementation questions only; no business rule is open.
+
+- The exact `/admin` and `/partner` paths and the codes for missing requirements and refusals.
+- How invitations and staff status are stored, following Medusa's invite token pattern.
+- The seed data for the synthetic Restaurant, staff member and menu.
+- Playwright coverage for the partner app in `verify:applications`.
 
 ## Related workflows
 
@@ -154,7 +248,5 @@ The case also asks for a management dashboard of order status and processing mea
     },
   ]}
 />
-
-Record agreed answers and follow-up requirements in [issue #10](https://github.com/DannyShayH/MTGO/issues/10). The business rules and scope were agreed on 11 November 2026. Refine detailed interactions during the Feature grill while preserving the shared domain rules.
 
 </div>
