@@ -1,6 +1,6 @@
 ---
 title: Product
-description: The MTOGO domain model and proposed customer, restaurant, driver and internal staff workflows.
+description: The agreed MTOGO business model, actor workflows and evolving Feature backlog.
 sidebar:
   label: Overview
   order: 0
@@ -9,10 +9,10 @@ tableOfContents: false
 
 import SectionLinks from "../../../components/section-links.astro"
 
-MTOGO connects customers, restaurants and employed delivery agents. These drafts help the team and teacher discuss how ordering, restaurant content, delivery work and internal setup fit together.
+MTOGO connects customers, restaurants and employed delivery agents. These documents record how ordering, Restaurant content, delivery work and internal setup fit together, with implementation refined per Feature.
 
-:::note[Drafts for shared understanding]
-The workflows use the supplied MTOGO case, the domain-model draft and the team's choice of Medusa Admin for internal restaurant setup. They separate case requirements from proposed behavior. Open questions remain for the team; these pages do not claim that the workflows are implemented or approved.
+:::note[Business model agreed on 11 November 2026]
+The team has agreed the business rules, shared language, MVP boundary, evolving Feature backlog and provisional supervision milestones. The glossary and ADRs record decisions; explicitly parked optional questions have reasons. Detailed interactions and implementation are refined in later Feature grills. These documents do not claim implemented functionality.
 :::
 
 ## Model and workflows
@@ -53,16 +53,16 @@ Start with the domain model for the concepts and relationships. Use the workflow
         "How internal staff propose to add restaurants and arrange staff access through Medusa Admin.",
     },
     {
-      title: "Driver delivery workflow",
+      title: "Delivery agent workflow",
       href: "/MTGO/product/driver-delivery/",
       description:
-        "Follow the driver from receiving a delivery to pickup, customer handover and completion.",
+        "Follow the delivery agent from receiving a delivery to pickup, customer handover and completion.",
     },
   ]}
 />
 
-## Review together
+## Refine one Feature at a time
 
-For each workflow, walk through the normal path, then test the exceptions. Confirm the actor's permissions, the information they need and the result of each action. Record agreed answers or follow-up requirements in [issue #10](https://github.com/DannyShayH/MTGO/issues/10).
+When a Feature is pulled, walk through its user stories and exceptions with an agent, preserving the shared business rules. The team then calls `/to-spec` for that existing Feature parent and `/to-tickets` for its vertical work-item sub-issues. New issues remain in Backlog; humans move work to Ready and start it.
 
-The case permits a coherent working subset of the product. Describing a workflow here does not commit every step or channel to the MVP. The MVP boundary, roadmap and remaining user journeys still need agreement. The prioritised [project board](https://github.com/users/DannyShayH/projects/2) tracks the work selected for implementation.
+The case permits a coherent working subset of the product. Describing a workflow here does not commit every step or channel to the MVP. The [MVP boundary and provisional demo goals](/MTGO/product/mvp-and-roadmap/) are agreed; the [Feature backlog](/MTGO/product/feature-backlog-proposal/) records agreed MoSCoW scope, stories and native blockers. The prioritised [project board](https://github.com/users/DannyShayH/projects/2) tracks the work selected for implementation.

@@ -1,5 +1,5 @@
 ---
-title: Driver delivery workflow (draft)
+title: Delivery agent workflow
 description: The proposed delivery agent journey from receiving a delivery to pickup, handover and completion.
 sidebar:
   order: 5
@@ -12,31 +12,35 @@ import "../../../styles/review-documents.css"
 <div class="review-document">
 
 <aside class="review-intro not-content" aria-label="Document status">
-  <strong>Draft for team review</strong>
+  <strong>Business rules agreed; interactions to refine</strong>
   <p>
-    Based on the supplied MTOGO case and domain-model draft. A driver-facing
-    workspace is proposed here; its interface, assignment rules and permissions
-    are not yet agreed or implemented.
+    Based on the supplied MTOGO case and agreed domain model. A delivery agent
+    website journey is agreed for the MVP. Area-based claiming and core access
+    rules and failure handling are agreed; detailed interactions are refined
+    during the Feature grill; functionality is not yet implemented.
   </p>
 </aside>
 
-The driver collects food from the restaurant and delivers it to the customer. This page follows the driver's actions. The [delivery lifecycle](/MTGO/product/domain-model/#proposed-delivery-lifecycle) describes the delivery's states across the restaurant, driver and customer interactions.
+The delivery agent collects food from the restaurant and delivers it to the customer. This page follows the delivery agent's actions. The [delivery lifecycle](/MTGO/product/domain-model/#delivery-lifecycle) describes the delivery's states across the restaurant, delivery agent and customer interactions.
 
-<nav class="review-jump not-content" aria-label="Driver delivery sections">
-  <a href="#case-requirements-and-draft-scope">Requirements and scope</a>
-  <a href="#proposed-workflow">Driver workflow</a>
+<nav
+  class="review-jump not-content"
+  aria-label="Delivery agent delivery sections"
+>
+  <a href="#case-requirements-and-agreed-scope">Requirements and scope</a>
+  <a href="#proposed-workflow">Delivery agent workflow</a>
   <a href="#connection-to-delivery-states">Delivery states</a>
   <a href="#exceptions-to-discuss">Exceptions</a>
   <a href="#open-decisions">Open decisions</a>
 </nav>
 
-## Case requirements and draft scope
+## Case requirements and agreed scope
 
-**From the case:** MTOGO employs local delivery agents to collect food from restaurants and deliver it to customers. Customers pay with the order; drivers do not handle payment. Customers receive preparation and delivery updates through SMS or the app, then a feedback request that includes a rating for the individual driver.
+**From the case:** MTOGO employs local delivery agents to collect food from restaurants and deliver it to customers. Customers pay with the order; delivery agents do not handle payment. Customers receive preparation and delivery updates through SMS or the app, then a feedback request that includes a rating for the individual delivery agent.
 
 The team must design a financially sustainable bonus scheme. The case suggests delivered order value, early or late hours and customer ratings as possible factors; it does not prescribe the calculation or amounts.
 
-**Proposed interface:** A driver workspace for viewing delivery details and reporting progress. The case does not specify whether it is a web page or app, how drivers obtain deliveries, or whether they see ratings and bonus information. Those decisions remain open. Driver access does not imply general access to the internal MTOGO Medusa Admin.
+**Proposed interface:** A delivery agent workspace for viewing delivery details and reporting progress. The case does not specify whether it is a web page or app, how delivery agents obtain deliveries, or whether they see ratings and bonus information. The MVP uses a website; area-based claiming and the core access boundary are agreed, and agents can see their own completed work, points and provisional/final awards. Delivery agent access does not imply general access to the internal MTOGO Medusa Admin.
 
 ## Proposed workflow
 
@@ -47,14 +51,14 @@ The team must design a financially sustainable bonus scheme. The case suggests d
   title="From receiving a delivery to completed handover"
   steps={[
     {
-      title: "Open the driver workspace",
+      title: "Open the delivery agent workspace",
       detail:
-        "Sign in and see the delivery work available to this driver. Agree on account setup, work availability and access to customer information.",
+        "Sign in using access created by an MTOGO operator. See available work in the operating area and assigned deliveries; Customer contact details become visible only after assignment.",
     },
     {
-      title: "Receive or claim a delivery",
+      title: "Claim a delivery",
       detail:
-        "Obtain responsibility for a delivery. Whether the driver claims it or the system assigns it remains an open domain decision.",
+        "Claim one available delivery in the operating area. Hold at most one active delivery; competing claims produce one responsible agent and operators may intervene.",
     },
     {
       title: "Review the pickup and destination",
@@ -69,12 +73,12 @@ The team must design a financially sustainable bonus scheme. The case suggests d
     {
       title: "Deliver to the customer",
       detail:
-        "Travel to the delivery address and follow the agreed contact or exception procedure if handover is difficult. The driver does not collect payment.",
+        "Travel to the delivery address and follow the agreed contact or exception procedure if handover is difficult. The delivery agent does not collect payment.",
     },
     {
       title: "Confirm the handover",
       detail:
-        "Mark the delivery as delivered after the agreed handover condition is met. The exact confirmation method and any required evidence need agreement.",
+        "Mark the delivery as delivered after the agreed handover condition is met. Detailed confirmation interactions and evidence are refined during the Feature grill, preserving the agreed handover condition.",
     },
     {
       title: "Return to delivery work",
@@ -82,73 +86,82 @@ The team must design a financially sustainable bonus scheme. The case suggests d
         "See that the delivery is complete and return to the next available or assigned delivery. Completion feeds the customer feedback request and the agreed bonus calculation.",
     },
   ]}
-  note="Proposed happy path. A driver action must be distinguished from restaurant preparation and system notifications. This workflow does not select assignment, handover, routing or bonus rules."
+  note="Proposed happy path. A delivery agent action must be distinguished from restaurant preparation and system notifications. Claiming, independent preparation, handover, cancellation and bonus points are agreed. Release and reassignment are outside the MVP; Feature scope is agreed; implementation refinement belongs to the later Feature grill."
 />
 
 ## Connection to delivery states
 
-The domain draft proposes the following connections. These state names are proposed business vocabulary, not a claim about implemented API values.
+The agreed business lifecycle has the following connections. These describe business progress; concrete API values are decided during the Feature grill.
 
-- **Taking responsibility:** The proposed lifecycle uses `PickupClaimed`. It currently assumes a driver claims a delivery before the restaurant begins preparation; both the assignment method and that ordering need team review.
-- **Collecting food:** The restaurant indicates `ReadyForPickup`. The driver's pickup confirmation moves the delivery to `InTransit` in the proposed lifecycle.
-- **Completing handover:** The driver's confirmation moves the delivery to `Delivered`, after which a feedback request is sent.
+- **Taking responsibility:** Agents claim accepted delivery work in their operating area, holding at most one active delivery. Preparation proceeds independently after acceptance; pickup requires both ready food and an assigned agent.
+- **Collecting food:** The restaurant indicates `ReadyForPickup`. The delivery agent's pickup confirmation moves the delivery to `InTransit` in the proposed lifecycle.
+- **Completing handover:** The delivery agent's confirmation moves the delivery to `Delivered`, after which a feedback request is sent.
 
-Signing in, viewing a destination and returning to the work list are driver actions; they do not require additional delivery states. Restaurant acceptance and preparation remain restaurant actions. The system sends customer notifications as progress is recorded.
+Signing in, viewing a destination and returning to the work list are delivery agent actions; they do not require additional delivery states. Restaurant acceptance and preparation remain restaurant actions. The system sends customer notifications as progress is recorded.
 
 ## Exceptions to discuss
 
 <ul class="review-criteria">
   <li>
-    **Two drivers try to claim the same delivery.** Agree on how one driver
-    obtains responsibility and how the other is informed.
+    **Two delivery agents try to claim the same delivery.** Only one obtains
+    responsibility. The losing agent must not appear assigned; detailed
+    interaction design belongs to the Feature grill.
   </li>
   <li>
-    **Food is not ready or the order cannot be found.** Define how the driver
-    reports the problem, who resolves it and what the customer is told.
+    **Food is not ready or the order cannot be found.** Define how the delivery
+    agent reports the problem, who resolves it and what the customer is told.
   </li>
   <li>
-    **The driver can no longer complete the delivery.** Agree on reassignment
-    before and after pickup, including responsibility for food already
-    collected.
+    **The delivery agent can no longer complete the delivery.** Escalate to an
+    MTOGO operator. Agent release and reassignment are outside the MVP, before
+    and after pickup. The workflow must not silently transfer responsibility.
   </li>
   <li>
-    **The address or handover fails.** Decide what happens when the customer is
-    unreachable, the address is incorrect or delivery cannot be completed. Do
-    not treat the delivery as successfully handed over without the agreed
-    condition.
+    **The handover fails.** Confirm delivery only after handing food to the
+    Customer or designated recipient. Contact attempts and operator escalation
+    after ten minutes at the destination are required for an unreachable
+    Customer. Customer-caused failure has no automatic refund; MTOGO-caused
+    failure requires a full refund.
   </li>
   <li>
     **A status update fails or is repeated.** Preserve an accurate pickup and
-    handover record when connectivity is lost or the driver retries an action.
+    handover record when connectivity is lost or the delivery agent retries an
+    action.
   </li>
   <li>
-    **Recorded information is disputed or corrected.** Agree on who can correct
-    delivery events and how changes affect reporting and bonus calculations.
+    **Recorded information is corrected.** An operator records the reason and
+    retains original events and who made the change. Financial consequences of
+    corrections must be reconciled rather than silently rewriting history.
   </li>
 </ul>
 
 ## Open decisions
 
-- [ ] **Driver access:** Who creates driver accounts, which deliveries may a driver see, and when are customer contact details visible?
-- [ ] **Assignment and availability:** Does the driver claim work or receive assignments? Can drivers decline or hold more than one delivery, and how is availability recorded?
-- [ ] **Preparation sequence:** Must a driver take responsibility before the restaurant begins preparing food?
-- [ ] **Handover and failure:** What confirms delivery, and how are unreachable customers, failed deliveries and reassignment handled?
-- [ ] **Status corrections:** Who may correct pickup and handover events, and what history is retained?
-- [ ] **Driver interface:** Web page or app? What delivery, contact and route information is needed for the first working increment?
-- [ ] **Bonuses and ratings:** Which sustainable rules, time windows and rating scale apply? What, if anything, can drivers see about ratings, completed work and bonuses?
+- [x] **Delivery agent access:** Operators create access. Agents see available work in their area and assigned deliveries; Customer contact details become visible after assignment.
+- [x] **Assignment:** Agents claim available work in their operating area, with at most one active delivery and one responsible agent per delivery; operators can intervene.
+- [x] **Unclaimed work:** Alert an operator after ten minutes and cancel after twenty if still unassigned, from acceptance. MTOGO bears prepared-food loss and the Customer receives a full refund.
+- [x] **Release and reassignment:** Outside the MVP, before and after pickup.
+- [x] **Stalled assigned work and operating areas:** Operators manage areas. Attention is required after thirty minutes from acceptance without pickup or thirty minutes from pickup without delivery; operators record continuation or failure.
+- [x] **Preparation sequence:** Preparation and assignment proceed independently after acceptance. Pickup requires ready food and an assigned agent.
+- [x] **Handover and failure:** Handover to the Customer or designated recipient; contact attempts and operator escalation after ten minutes for an unreachable Customer. Customer-caused failure has no automatic refund; MTOGO-caused failure requires a full refund.
+- [x] **Status corrections:** Operators may correct mistakes with a reason, retaining original events and the identity of the person making the correction.
+- [x] **Delivery agent journey:** Website access to eligible work, assigned pickup/destination/contact details and own work/bonus history. Detailed presentation and navigation interactions are refined in the Feature grill.
+- [x] **Bonus funding and rating subjects:** The monthly pool is capped at 20% of commission after refunds/reversals, excluding service fees. Only the separate 1–5 agent rating may influence the individual rating-based bonus.
+- [x] **Bonus points and finalization:** Delivered Order value excluding VAT, multiplied by 1.25 for early/late pickup and 1.10 for agent ratings of 4 or 5. Share the pool proportionally and finalize on the 8th; later refunds affect future funding without wage deductions.
+- [x] **Bonus financial details and visibility:** Approved refund obligations, food compensation and carried losses reduce funding; full pre-finalization refunds remove points. Awards round down to DKK 0.01 increments. Agents see their own completed work, points and clearly distinguished provisional/final awards.
 
-Live location tracking, route optimization, proof-of-delivery uploads and a driver earnings dashboard are not requirements specified by the case. Add them only if the team chooses and justifies them. Complaint management remains a future extension.
+Live location tracking, route optimization, proof-of-delivery uploads and a delivery agent earnings dashboard are not requirements specified by the case. Add them only if the team chooses and justifies them. Complaint management remains a future extension.
 
 ## Related workflows
 
 <SectionLinks
-  label="Driver delivery references"
+  label="Delivery agent delivery references"
   links={[
     {
       title: "Domain model and delivery lifecycle",
       href: "/MTGO/product/domain-model/",
       description:
-        "Delivery states, Driver, Feedback and BonusAward, plus the shared assignment and bonus questions.",
+        "Delivery states, Delivery agent, Feedback and BonusAward, plus the shared assignment and bonus questions.",
     },
     {
       title: "Customer ordering",
@@ -160,11 +173,11 @@ Live location tracking, route optimization, proof-of-delivery uploads and a driv
       title: "Restaurant menu management",
       href: "/MTGO/product/restaurant-menu-management/",
       description:
-        "How restaurants keep their offerings accurate before customers order. Restaurant order preparation still needs its own workflow agreement.",
+        "How restaurants keep their offerings accurate before customers order. Restaurant acceptance and preparation follow the shared lifecycle rules.",
     },
   ]}
 />
 
-Record agreed answers and follow-up requirements in [issue #10](https://github.com/DannyShayH/MTGO/issues/10). This page does not resolve the existing assignment and bonus questions or record team approval.
+Record agreed answers and follow-up requirements in [issue #10](https://github.com/DannyShayH/MTGO/issues/10). Core claiming, access and funding rules are recorded in the domain model and ADRs; business rules and MVP boundaries are agreed; detailed interactions are refined when the Feature is pulled.
 
 </div>

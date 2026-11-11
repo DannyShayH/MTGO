@@ -1,0 +1,5 @@
+# A website MVP with mocked payment and SMS services
+
+Agreed on 11 November 2026 in the issue #10 domain review. The MVP covers website journeys for Customers, Restaurant staff, Delivery agents and MTOGO operators in Danish and English, using mocked external payment and SMS services that demonstrate both successful and failed outcomes. Native apps, telephone ordering and scheduled orders are outside the MVP so the team can deliver a coherent ordering-to-feedback journey before adding channels; complaint management remains outside the project as required by the case.
+
+The customer website includes an Order timeline carrying the same business progress information as mocked SMS. Agent release and reassignment, both before and after pickup, are outside the MVP by team choice. Dish options, meal customization, promotions and tips are also outside the MVP. This decision establishes the product boundary and does not prescribe feature implementation; the evolving MoSCoW Feature backlog is agreed in the product documentation, with optional opening schedules and arrival estimates as Could have candidates.

@@ -1,5 +1,5 @@
 ---
-title: Customer ordering (draft)
+title: Customer ordering
 description: The proposed customer journey from choosing food to payment, delivery updates and feedback.
 sidebar:
   order: 2
@@ -12,15 +12,16 @@ import "../../../styles/review-documents.css"
 <div class="review-document">
 
 <aside class="review-intro not-content" aria-label="Document status">
-  <strong>Draft for team review</strong>
+  <strong>Business rules agreed; interactions to refine</strong>
   <p>
-    Based on the supplied MTOGO case and the domain-model draft. The case
-    requirements below are separated from proposed interaction details. This
-    page does not describe an implemented feature or record team approval.
+    Based on the supplied MTOGO case and the agreed domain model. The case
+    requirements below are separated from proposed interaction details. The core
+    access, payment, acceptance and Feedback rules are agreed; remaining
+    exceptions still need review. Functionality is not yet implemented.
   </p>
 </aside>
 
-A customer chooses food, pays with the order, follows its progress and rates the experience after delivery. This journey focuses on website ordering; the case also describes app and telephone ordering channels. Their interfaces and inclusion in the first delivery need separate agreement.
+A customer chooses food, pays with the order, follows its progress and rates the experience after delivery. The agreed MVP uses website ordering with mocked payment and SMS services, in Danish and English. Native apps, telephone ordering and scheduled orders are outside the MVP; see the [MVP boundary](/MTGO/product/mvp-and-roadmap/).
 
 <nav class="review-jump not-content" aria-label="Customer ordering sections">
   <a href="#case-requirements">Case requirements</a>
@@ -34,9 +35,9 @@ A customer chooses food, pays with the order, follows its progress and rates the
 - Customers have personal accounts. MTOGO supports Danish and English.
 - Restaurants choose their own menus. MTOGO displays their offerings.
 - Customers pay with the order through an external payment supplier. A mock of that service is permitted.
-- There is no additional delivery charge; delivery is included in menu prices. Drivers do not handle payment.
+- There is no additional delivery charge; delivery is included in menu prices. Delivery agents do not handle payment.
 - Customers receive SMS or app updates during preparation and delivery.
-- After delivery, customers are asked to rate the food, overall experience and individual driver.
+- After delivery, customers are asked to rate the food, overall experience and individual delivery agent.
 
 ## Proposed journey
 
@@ -59,12 +60,12 @@ A customer chooses food, pays with the order, follows its progress and rates the
     {
       title: "Review the basket",
       detail:
-        "Check the items, quantities and total. The draft assumes one restaurant per order; that rule still needs agreement.",
+        "Check the items, quantities and total. The agreed rule is one Restaurant per Order, for one Customer, one destination and one intended delivery.",
     },
     {
       title: "Use a personal account",
       detail:
-        "Sign in or create an account and provide delivery and contact details. The team must agree on where account creation appears in checkout.",
+        "Browse freely, then sign in or create a personal account before submitting the Order. Provide delivery and contact details.",
     },
     {
       title: "Confirm the order details",
@@ -74,25 +75,25 @@ A customer chooses food, pays with the order, follows its progress and rates the
     {
       title: "Pay with the order",
       detail:
-        "Complete payment through the external supplier or its mock. Confirmation and retry behavior must avoid a second charge or duplicate order.",
+        "Pay at submission through the mocked external supplier. Successful payment places the Order awaiting Restaurant acceptance. Uncertain results stay pending while checked; retries must not duplicate charges or purchases.",
     },
     {
       title: "Receive confirmation and updates",
       detail:
-        "See the order reference and follow restaurant preparation and delivery progress. Updates arrive by SMS or app according to the agreed channel rules.",
+        "See the Order reference awaiting acceptance. Rejection or no acceptance within five minutes cancels it with a full refund owed. Follow the same business progress in the website Order timeline and mocked SMS, using the language recorded with the Order.",
     },
     {
       title: "Receive the food",
       detail:
-        "The driver delivers the food without collecting payment. Delivery status is updated.",
+        "The delivery agent delivers the food without collecting payment. Delivery status is updated.",
     },
     {
       title: "Give feedback",
       detail:
-        "Respond to the post-delivery request with ratings for the food, overall experience and individual driver.",
+        "Optionally submit separate 1–5 food, experience and agent ratings within seven days of delivery. Only the ordering Customer may submit once, without later editing in the MVP.",
     },
   ]}
-  note="Proposed happy path. Restaurant acceptance, payment timing and failure recovery must be agreed together; the case does not define their exact sequence."
+  note="Core ordering, menu-change, cancellation, handover, timeline and Feedback rules are agreed. Financial credits and operational escalation are agreed; Feature scope is agreed and detailed interactions are refined when pulled."
 />
 
 ## Exceptions to discuss
@@ -102,37 +103,46 @@ Use these scenarios to test the journey before splitting it into implementation 
 <ul class="review-criteria">
   <li>
     **A dish changes during checkout.** Its price or availability changes after
-    it enters the basket. Decide what the customer must review before paying.
+    it enters the basket. Recheck before payment and require review of the
+    updated basket; do not silently substitute food or increase a charge.
   </li>
   <li>
     **Payment fails or times out.** Keep the customer informed and allow
-    recovery without duplicate charges or orders. Agree on how an uncertain
-    provider result is resolved.
+    recovery without duplicate charges or Orders. An uncertain provider result
+    stays pending while checked; an unresolved result after five minutes
+    requires operator attention.
   </li>
   <li>
-    **The restaurant cannot fulfil the order.** Decide how rejection or
-    cancellation affects the payment and customer notification.
+    **The Restaurant rejects the Order.** Rejection or five minutes without
+    acceptance cancels it with a full refund owed. Failed refunds stay
+    unresolved. Customers may cancel before acceptance; operator handling is
+    required afterward, with no automatic change-of-mind refund once preparation
+    starts.
   </li>
   <li>
-    **Delivery details cannot be used.** Decide how an invalid address or
-    unreachable customer is handled and who takes the next action.
+    **Handover cannot be completed.** Contact attempts and operator escalation
+    after ten minutes at the destination are required for an unreachable
+    Customer. Never report a false delivery. Customer-caused failure has no
+    automatic refund; MTOGO-caused failure requires a full refund.
   </li>
   <li>
-    **An update cannot be delivered.** Decide what happens when an SMS or app
-    notification fails and where the customer can still check order status.
+    **An SMS cannot be delivered.** The website timeline remains available.
+    Notification failure does not block food preparation or delivery; unresolved
+    messages stay visible to operators and retries avoid duplicates.
   </li>
 </ul>
 
 ## Open decisions
 
-- [ ] **Account flow:** When must the customer sign in or create an account? How does telephone ordering use that account?
-- [ ] **Order scope:** Is one restaurant per order the agreed rule?
-- [ ] **Availability:** Which opening-hours, service-area and sold-out checks prevent checkout?
-- [ ] **Payment and acceptance:** When does the restaurant accept relative to payment, and how are rejection and refunds handled?
-- [ ] **Scheduling:** Immediate orders only, or ordering for a later time?
-- [ ] **Updates and feedback:** How is the notification channel chosen, what rating scale is used, and can feedback be edited?
+- [x] **Account flow:** Free browsing and sign-in before Order submission. Telephone ordering remains outside the MVP.
+- [x] **Order scope:** One Restaurant location per Order, one Customer, one destination and one intended delivery. Ordered names, quantities, prices and the destination remain historical facts after later changes.
+- [x] **Availability:** New Orders require an active, manually open Restaurant serving the postal-code destination and offering the selected items. Changes before payment require Customer review of the updated basket.
+- [x] **Payment and acceptance:** Charge at submission and place the Order on success; Restaurant rejection or five-minute acceptance timeout cancels it with a full refund owed. Failed refunds stay visibly unresolved.
+- [x] **Scheduling:** Immediate delivery in the MVP; scheduled orders are outside it.
+- [x] **Feedback:** One voluntary, uneditable submission by the ordering Customer within seven days of delivery, with separate 1–5 food, experience and agent ratings.
+- [x] **Updates:** The website timeline and mocked SMS cover placement, acceptance, preparation, readiness, pickup, delivery, cancellation and the Feedback invitation, in the Order language. Failed SMS does not block fulfilment and stays visible for operator attention.
 
-The case requires Danish and English support; which menu fields and messages need both languages is still an implementation decision. Complaint management is a future extension, outside the current project scope.
+Danish and English category and dish names are required; descriptions need both languages when supplied. Status messages use the language recorded with the Order. Complaint management is a future extension, outside the current project scope.
 
 ## Related workflows
 
@@ -152,10 +162,10 @@ The case requires Danish and English support; which menu fields and messages nee
         "How restaurants maintain the food and prices customers see.",
     },
     {
-      title: "Driver delivery workflow",
+      title: "Delivery agent workflow",
       href: "/MTGO/product/driver-delivery/",
       description:
-        "Follow the driver from receiving a delivery to pickup, customer handover and completion.",
+        "Follow the delivery agent from receiving a delivery to pickup, customer handover and completion.",
     },
   ]}
 />

@@ -1,5 +1,5 @@
 ---
-title: MTOGO restaurant onboarding (draft)
+title: MTOGO restaurant onboarding
 description: The proposed internal workflow for adding restaurants and arranging staff access through Medusa Admin.
 sidebar:
   order: 4
@@ -12,7 +12,7 @@ import "../../../styles/review-documents.css"
 <div class="review-document">
 
 <aside class="review-intro not-content" aria-label="Document status">
-  <strong>Draft for team review</strong>
+  <strong>Business rules agreed; interactions to refine</strong>
   <p>
     The team has chosen Medusa Admin for MTOGO's internal restaurant setup. The
     steps below are a proposed business workflow. They do not claim that
@@ -34,11 +34,11 @@ An internal MTOGO employee adds a restaurant to the platform and arranges the ac
 
 ## Case requirements and team direction
 
-**From the case:** Restaurants supply the food and choose their own menus. They pay MTOGO a service fee and commission on order value excluding VAT. The commission scale and bonus scheme are not fully defined; the team must choose sustainable rules.
+**From the case:** Restaurants supply the food and choose their own menus. They pay MTOGO a service fee and commission on order value excluding VAT. Marginal commission tiers, a DKK 100 excluding VAT monthly service fee and a commission-funded bonus cap are agreed; billing, bonus allocation and food-credit responsibility are recorded in the shared domain rules.
 
 **Team direction:** Internal MTOGO staff use Medusa Admin to add restaurants. The case does not specify the onboarding screens, required fields, staff invitations or the conditions for accepting orders.
 
-**Boundary:** An MTOGO internal user and a restaurant staff user are different roles in the domain draft. Setting up restaurant staff access does not imply giving those users general access to Medusa Admin.
+**Boundary:** MTOGO operator and Restaurant staff are agreed, distinct business roles. Setting up restaurant staff access does not imply giving those users general access to Medusa Admin.
 
 ## Proposed workflow
 
@@ -51,22 +51,22 @@ An internal MTOGO employee adds a restaurant to the platform and arranges the ac
     {
       title: "Open Medusa Admin",
       detail:
-        "Sign in as an internal MTOGO user with permission to manage restaurants. Exact roles and permissions need agreement.",
+        "Sign in as an MTOGO operator authorized to create and activate Restaurants. Detailed access administration remains for the Feature grill.",
     },
     {
       title: "Check for an existing restaurant",
       detail:
-        "Look for the restaurant before creating another record. Agree on how branches, shared names and duplicates are identified.",
+        "Look for the Restaurant before creating another record. One preparation and pickup location is one Restaurant; separate branches are separate Restaurants. Duplicate-detection interactions are refined in the Feature grill without changing that identity boundary.",
     },
     {
       title: "Enter restaurant details",
       detail:
-        "Record the proposed restaurant name, address and opening hours from the domain draft. Required contact and business-identification fields remain open.",
+        "Record the pickup address, contact details and postal-code delivery area needed for activation. The MVP uses manual open/closed decisions; additional form and validation details are refined in the Feature grill.",
     },
     {
       title: "Confirm commercial terms",
       detail:
-        "Record or reference the agreed service fee and commission policy. The case requires both, but their values and configuration level are not settled.",
+        "Record the common MVP policy: marginal commission tiers and DKK 100 excluding VAT per active Restaurant per month. The monthly fee is prorated by active Copenhagen calendar days; future policy changes preserve historical amounts.",
     },
     {
       title: "Arrange restaurant staff access",
@@ -81,7 +81,7 @@ An internal MTOGO employee adds a restaurant to the platform and arranges the ac
     {
       title: "Check readiness for orders",
       detail:
-        "Confirm that the agreed information, staff access, menu and commercial terms are ready. Whether a separate activation or approval step is required remains open.",
+        "An MTOGO operator explicitly activates the Restaurant after checking the pickup address, contacts, staff, commercial terms, published menu and delivery area. Open/closed availability is a separate decision.",
     },
   ]}
   note="Proposed onboarding sequence. Restaurant management will need project-specific Medusa Admin functionality; this page does not prescribe its API or implementation. No unagreed commission or service-fee values are assumed."
@@ -118,14 +118,16 @@ An internal MTOGO employee adds a restaurant to the platform and arranges the ac
 
 ## Open decisions
 
-- [ ] **Internal permissions:** Which MTOGO roles may add, edit or deactivate restaurants?
-- [ ] **Restaurant identity:** Which fields are mandatory, what identifies a duplicate, and how are multiple branches represented?
-- [ ] **Commercial terms:** What are the service fee and commission calculation, and are they shared or restaurant-specific?
-- [ ] **Staff access:** Who invites restaurant users, what roles do they have, and how is access removed?
-- [ ] **Readiness:** Is there an explicit draft/active state or approval gate, and what must be true before orders are accepted?
-- [ ] **Deactivation:** Who may stop new orders, and how are active orders and historical records handled?
+- [x] **Creation and activation:** MTOGO operators create and explicitly activate Restaurants.
+- [x] **Access administration:** Operators manage Restaurant staff and agent access, operating areas, activation/deactivation and commercial terms.
+- [x] **Restaurant identity:** One preparation/pickup location per Restaurant, with separate branches represented separately. Activation requires address, contacts, staff, commercial terms, menu and delivery area; extra form and duplicate-detection interactions belong to the Feature grill.
+- [x] **Commercial terms:** Marginal commission tiers and a fixed monthly service fee per active Restaurant are agreed. The common MVP service fee is DKK 100 excluding VAT per active Restaurant per month. Prorate by active calendar days, including temporary closure, and preserve historical amounts when terms change.
+- [x] **Staff access:** Operators manage access. Restaurant staff manage only their own menus, opening, acceptance and preparation; revocation preserves history.
+- [x] **Readiness:** Explicit operator activation requires a pickup address, contact details, authorized staff, agreed terms, a published menu and postal-code delivery area.
+- [x] **Opening:** Active/inactive participation is separate from manual open/closed availability. Closing or deactivating a Restaurant does not abandon existing Orders.
+- [x] **Deactivation:** Operators control active/inactive participation; Restaurant staff control manual opening. Stopping new Orders does not abandon existing Orders or remove history.
 
-The case also asks for a management dashboard of order status and processing measures. Its daily operational workflow is separate from onboarding and is not specified by this draft. Complaint management remains a future extension.
+The case also asks for a management dashboard of order status and processing measures. Its daily operational workflow is separate from onboarding and is covered by the agreed management measures in the domain model. Complaint management remains a future extension.
 
 ## Related workflows
 
@@ -153,6 +155,6 @@ The case also asks for a management dashboard of order status and processing mea
   ]}
 />
 
-Record agreed answers and follow-up requirements in [issue #10](https://github.com/DannyShayH/MTGO/issues/10). The workflow does not resolve the domain model's open questions or record team approval.
+Record agreed answers and follow-up requirements in [issue #10](https://github.com/DannyShayH/MTGO/issues/10). The business rules and scope were agreed on 11 November 2026. Refine detailed interactions during the Feature grill while preserving the shared domain rules.
 
 </div>

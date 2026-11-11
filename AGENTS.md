@@ -274,7 +274,7 @@ Issues live in GitHub Issues on `DannyShayH/MTGO`. Status lives on the Project b
 
 ### Domain docs
 
-Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root, both created when first needed. See [docs/agents/domain.md](docs/agents/domain.md).
+Before grilling, specifying, breaking down or implementing an MTOGO Feature, read [docs/agents/domain.md](docs/agents/domain.md). It requires the agreed domain model, relevant ADRs and the Medusa Restaurant-Delivery Marketplace recipe compatibility review.
 
 ## Git & commits
 

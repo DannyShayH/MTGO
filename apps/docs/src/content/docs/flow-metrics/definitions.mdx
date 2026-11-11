@@ -22,7 +22,13 @@ Charts use Copenhagen calendar dates. Weeks run Monday to Sunday. Empty throughp
 
 ## Work item
 
-An issue on the project board with no sub-issues. Parent issues are left out, because their sub-issues are counted instead. Source: the sub-issue count of each issue on the board.
+The agreed policy is an issue on the project board with no sub-issues that is not a Feature. Parent issues and Features awaiting sub-issues are excluded; their work items are counted instead.
+
+**Current implementation gap:** The collector only uses the sub-issue count and cannot yet distinguish an empty Feature from a work item. The current charts therefore do not fully implement this policy. See [ADR-0007](/MTGO/architecture/decisions/0007-features-and-work-item-flow-measures/).
+
+## Feature lead time
+
+The agreed delivery measure uses Copenhagen calendar days from the earliest sub-issue Start date, including a discovery work item if it starts first, to completion of the last required work item. Discussion only on the parent does not supply a start, and Features do not contribute to work-item WIP or throughput. The Feature stays open until its business outcome is accepted and required work items are delivered. Removed scope and its reason are recorded without resetting the original start; not-planned closures are not delivered work, and missing dates stay unavailable. Reopened required work reopens completion and moves the finish to eventual completion; later enhancements after accepted completion are new scope. Wholly withdrawn Features have no completed Feature lead time and are shown separately. This metric is not implemented or shown in the charts.
 
 ## WIP
 

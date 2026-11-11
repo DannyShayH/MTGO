@@ -2,10 +2,100 @@
 
 MTOGO is the team's food-ordering platform. This glossary holds the language of the product and of the way the team works.
 
+## Product
+
+**Customer**:
+A person with a personal MTOGO account who orders food.
+_Avoid_: Buyer, client, user (when the customer role matters)
+
+**Restaurant**:
+One food preparation and pickup location supplying its own menu through MTOGO, including a catering business operating that way. Separate branches are separate Restaurants.
+_Avoid_: Chain, supplier account (when referring to one location)
+
+**Restaurant staff**:
+People authorized to operate a Restaurant on MTOGO.
+_Avoid_: Restaurant admin, platform admin
+
+**Active Restaurant**:
+A Restaurant explicitly approved by MTOGO to participate in the platform. It can temporarily be closed for new Orders while remaining active.
+_Avoid_: Open Restaurant (when referring to platform participation)
+
+**Open Restaurant**:
+An active Restaurant currently accepting new Orders within its delivery area.
+_Avoid_: Active Restaurant (when referring to current ordering availability)
+
+**Delivery agent**:
+An MTOGO employee responsible for collecting food from a Restaurant and delivering it to a Customer.
+_Avoid_: Driver, courier partner, contractor
+
+**MTOGO operator**:
+An internal employee responsible for operating the MTOGO platform.
+_Avoid_: Admin, user (when the operator role matters)
+
+**Order**:
+A Customer's paid purchase of food from exactly one Restaurant for one delivery destination and one intended delivery. It awaits Restaurant acceptance when first placed.
+_Avoid_: Basket, payment, delivery (when referring to the purchase)
+
+**Delivery**:
+The collection and transport of an Order's food from its Restaurant to its Customer's destination.
+_Avoid_: Order, payment
+
+**Feedback**:
+The ordering Customer's voluntary assessment of a delivered Order, with separate ratings for food, overall experience and the individual Delivery agent.
+_Avoid_: Complaint, agent rating (when referring to the whole assessment)
+
+**Order timeline**:
+The Customer's website view of the recorded progress of one Order, carrying the same business status information as its SMS updates.
+_Avoid_: SMS delivery history, live location tracking
+
+**Commission**:
+The variable fee a Restaurant owes MTOGO on a successfully delivered Order's value excluding VAT.
+_Avoid_: Service fee, delivery charge
+
+**Food credit**:
+The food value owed to a Restaurant for an Order, excluding VAT, determined by its outcome and who bears any failure loss.
+_Avoid_: Commission, Customer refund, bank payout
+
+**Restaurant statement**:
+A calendar month's commercial account of a Restaurant's food credits, commission, service fees, adjustments and resulting balance, excluding VAT.
+_Avoid_: Tax invoice, completed bank payout, settlement (when referring to an actual transfer)
+
+**Service fee**:
+A fixed monthly fee per active Restaurant, separate from Commission.
+_Avoid_: Commission, per-order fee, customer delivery charge
+
+**Bonus pool**:
+The monthly budget available for Delivery agent bonuses, capped by positive commission remaining after refunds, reversals, MTOGO-funded food compensation and carried losses.
+_Avoid_: Payroll, salary, total revenue
+
+**Bonus points**:
+A Delivery agent's weighted share of successfully delivered Order value, reflecting pickup hours and agent ratings when calculating a share of the Bonus pool.
+_Avoid_: Feedback points, salary, money
+
+**Bonus award**:
+A finalized monetary bonus for a Delivery agent for a calendar month.
+_Avoid_: Bonus points, salary
+
+**Open Order**:
+A paid Order that has not been delivered, cancelled or marked failed.
+_Avoid_: Pending payment, unresolved refund
+
+**Order processing time**:
+The elapsed time from placing a paid Order to confirmed handover of its food.
+_Avoid_: Work item cycle time, Feature lead time
+
 ## Way of working
 
+**Feature**:
+A demonstrable business capability represented by a parent issue whose eventual sub-issues are the work items. It remains a Feature while it has no sub-issues and is complete when its agreed business outcome is accepted and all required work items are delivered.
+_Avoid_: Work item, task (when referring to the capability)
+
+**Feature lead time**:
+The Copenhagen calendar days from the earliest Start date of a Feature's sub-issues, including discovery work items, to completion of its last required work item. Discussion only on the parent does not supply a start.
+_Avoid_: Work item cycle time, time since the parent was created
+
 **Work item**:
-An issue on the project board that has no sub-issues. Parent issues are not work items, because their sub-issues are counted instead.
+An issue on the project board that has no sub-issues and is not a Feature. Parent issues and Features awaiting sub-issues are excluded; their work items are counted instead.
 _Avoid_: Task, card, ticket (when counting flow)
 
 **WIP**:

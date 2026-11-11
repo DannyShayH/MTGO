@@ -1,0 +1,11 @@
+# Measure Features separately from their work items
+
+Agreed on 11 November 2026 in the issue #10 domain review. A Feature is a parent issue describing a demonstrable business capability; its eventual sub-issues are the work items. Features are excluded from work-item throughput and WIP even before sub-issues exist, avoiding double counting and changes in classification when decomposition happens.
+
+Feature lead time uses Copenhagen calendar days from the earliest sub-issue Start date to completion of the last required work item. Discovery tracked as a sub-issue counts if it starts first; discussion only on the parent does not supply a start. A Feature is complete when its agreed business outcome is accepted and all required work items are delivered; removed scope and its reason are recorded without resetting the original start, and work closed as not planned is not delivered work. Missing dates remain unavailable. Reopening required work reopens Feature completion and moves the measured finish to eventual completion; a later enhancement after accepted completion is new scope. A wholly withdrawn Feature has no completed Feature lead time and is shown separately.
+
+The Feature parent remains open until the capability is delivered. TakT closes the issue attached to a delivered branch, so delivering discovery from the Feature parent's own branch would close it too early; discovery that requires a branch is tracked as a work item when the Feature is pulled. This session creates no sub-issues.
+
+Each Feature must be documented with user stories before implementation. When pulled, the team refines those stories and breaks them down with an agent, preserving the agreed business rules. Refinement does not silently override business decisions; changes require explicit team agreement and corresponding documentation updates. This session does not run `/to-spec` or `/to-tickets`.
+
+The current collector only distinguishes parents by sub-issue count and therefore classifies an empty Feature as a work item. Explicit Feature recognition and Feature lead-time reporting require later implementation; the documentation records policy, not an implemented metric. Feature discovery, specifications and vertical-slice work items will be developed when a Feature is pulled, rather than decomposing the entire backlog in advance.

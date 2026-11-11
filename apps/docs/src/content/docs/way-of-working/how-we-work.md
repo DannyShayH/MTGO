@@ -36,6 +36,20 @@ Admin on GitHub (secrets, branch protection): Danny.
 - **Labels:** only the type of work (`development`, `ad hoc`, `rework`) and `blocked`. A blocked issue stays in its column.
 - **Stop starting, start finishing:** help get something to Done before starting something new.
 
+### Features and work items
+
+The issue #10 business review agreed that a Feature is a parent issue for a demonstrable business capability. Its sub-issues are the work items; Features are excluded from work-item WIP and throughput even before they have sub-issues. A Feature stays open until its business outcome is accepted and all required work items are delivered. The size-M entry policy applies to work items; Features are decomposed when pulled, rather than being treated as one implementation item.
+
+Each Feature needs documented user stories before implementation. When pulled, the team refines and breaks down those stories with an agent while preserving the agreed business rules. Refinement cannot silently override the rules: changes require explicit team agreement and updated documentation. Feature lead time includes discovery tracked as a work item, starts at the earliest sub-issue Start date and uses Copenhagen calendar days; discussion only on the parent supplies no start.
+
+TakT closes the issue attached to a delivered branch. Discovery requiring a branch therefore uses a work item when the Feature is pulled, so delivering discovery does not close the Feature parent early. This business review creates Feature parents only after team agreement, with no sub-issues; later Feature grills precede the team's own `/to-spec` and `/to-tickets` calls. See [ADR-0007](/MTGO/architecture/decisions/0007-features-and-work-item-flow-measures/) and the [evolving roadmap](/MTGO/product/mvp-and-roadmap/).
+
+### From Feature to the board
+
+The Project has enabled auto-add workflows for new issues and sub-issues, plus an item-added workflow. Creating an issue is the publishing step; the skills are not a separate board-registration mechanism. Verify new issues appear in Backlog without changing board fields.
+
+For one pulled Feature, run its Feature grill, then `/to-spec` to deepen the existing Feature parent with implementation and testing decisions, then `/to-tickets` to create its work-item sub-issues and native blockers. User stories and the shared business rules are the starting point. Repository policy overrides generic skill templates and triage labels: use MoM, work-type labels and Backlog, without `ready-for-agent`. Humans move work items to Ready and start them with `gh workon`; agents do not move board items.
+
 ## 3. TakT: from issue to main
 
 Based on Lars Kruse's TakT ([mindovermachine-dev/how-we-work](https://github.com/mindovermachine-dev/how-we-work)). Run inside the devcontainer.
@@ -90,8 +104,8 @@ Not used here: `implement-spec`, `pr`, `triage`, `setup-pre-commit`, `git-guardr
 
 ### Example: from idea to Done
 
-1. `gh workon -i 5` on the epic, then `/grill-with-docs` with the plan as input, `/to-spec` and `/to-tickets`.
-2. `gh wrapup` and `gh deliver` for the epic: the glossary and ADRs land on `main`, and the new tickets wait in Backlog.
+1. When a Feature is pulled, use a discovery work item if the grill and documentation need a branch. Start that work item with `gh workon -i <nr>`, run `/grill-with-docs`, then the team calls `/to-spec` and `/to-tickets`.
+2. `gh wrapup` and `gh deliver` for the discovery work item: the glossary and ADRs land on `main`, the new work items wait in Backlog, and the Feature parent stays open.
 3. The team moves the first ticket to Ready. Someone runs `gh workon -i <nr>`.
 4. The agent runs `/implement` with `/tdd`, then `/code-review`, and commits with `gh wrapup`.
 5. The developer reads the result, runs `gh deliver`, and watches the ready flow.

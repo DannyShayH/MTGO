@@ -1,5 +1,5 @@
 ---
-title: Restaurant menu management (draft)
+title: Restaurant menu management
 description: The proposed restaurant workflow for maintaining categories, dishes, prices and availability.
 sidebar:
   order: 3
@@ -12,11 +12,12 @@ import "../../../styles/review-documents.css"
 <div class="review-document">
 
 <aside class="review-intro not-content" aria-label="Document status">
-  <strong>Draft for team review</strong>
+  <strong>Business rules agreed; interactions to refine</strong>
   <p>
     The case gives restaurants ownership of their menus. The self-service
-    workflow below is a proposal based on the domain-model draft; its screens,
-    permissions and publishing rules have not been agreed or implemented.
+    workflow incorporates agreed ownership, content and publishing rules.
+    Detailed interactions remain for the Feature grill; functionality is not yet
+    implemented.
   </p>
 </aside>
 
@@ -26,17 +27,17 @@ Restaurant staff maintain what customers can order. MTOGO provides the platform 
   class="review-jump not-content"
   aria-label="Restaurant menu management sections"
 >
-  <a href="#case-requirements-and-draft-scope">Requirements and scope</a>
+  <a href="#case-requirements-and-agreed-scope">Requirements and scope</a>
   <a href="#proposed-workflow">Menu workflow</a>
   <a href="#exceptions-to-discuss">Exceptions</a>
   <a href="#open-decisions">Open decisions</a>
 </nav>
 
-## Case requirements and draft scope
+## Case requirements and agreed scope
 
 **From the case:** Each restaurant chooses its own menu. Customers can view it on the website or app. Menu prices include delivery; customers pay no additional delivery charge. MTOGO supports Danish and English.
 
-**From the domain draft:** RestaurantStaff maintain categories and dishes, including prices, descriptions, allergens and sold-out status. These fields and the restaurant workspace below are proposals. The restaurant workspace is distinct from the internal MTOGO Medusa Admin workflow; the case does not prescribe its interface.
+**From the agreed domain model:** RestaurantStaff maintain categories and dishes, including prices, descriptions, allergens and sold-out status. The team has agreed bilingual names, descriptions in both languages when supplied, Restaurant-provided allergen information with missing information visibly unknown, positive DKK prices including VAT and delivery, and immediately published valid changes. The restaurant workspace is distinct from the internal MTOGO Medusa Admin workflow; the case does not prescribe its interface.
 
 ## Proposed workflow
 
@@ -59,17 +60,17 @@ Restaurant staff maintain what customers can order. MTOGO provides the platform 
     {
       title: "Add or edit a dish",
       detail:
-        "Maintain the dish name, description, category and allergen information. Agree on required fields and Danish/English content before implementation.",
+        "Maintain Danish and English category and dish names. Optional descriptions require both languages. Supply allergen information or show that it is unknown.",
     },
     {
       title: "Set the price",
       detail:
-        "Enter the customer-facing price including VAT and delivery. Agree on currency, validation and rounding rules.",
+        "Enter a positive DKK price including VAT and delivery. The exercise uses 25% VAT on menu prices; commission rounding follows the shared financial rules.",
     },
     {
       title: "Set availability",
       detail:
-        "Mark a dish as available or sold out so the ordering experience reflects what the restaurant can prepare.",
+        "Mark a dish as available or sold out. Sold-out dishes remain visible but cannot be ordered.",
     },
     {
       title: "Check the customer view",
@@ -79,10 +80,10 @@ Restaurant staff maintain what customers can order. MTOGO provides the platform 
     {
       title: "Make the changes visible",
       detail:
-        "Save the menu changes. Whether saving publishes immediately or requires a separate publish action remains open.",
+        "Save valid menu changes to make them visible immediately, without MTOGO approving individual dishes.",
     },
   ]}
-  note="Proposed workflow. No separate approval gate, draft status or publish button is assumed to exist. Agree on those rules before implementing the interface."
+  note="The Restaurant owns menu decisions and valid saved changes publish immediately. Dish options, meal customization, promotions and tips are outside the MVP; detailed interactions belong to the Feature grill."
 />
 
 ## Exceptions to discuss
@@ -93,13 +94,14 @@ Restaurant staff maintain what customers can order. MTOGO provides the platform 
     preserve the staff member's edits.
   </li>
   <li>
-    **A dish is sold out while a customer checks out.** Agree on the final
-    availability check and the message shown to the customer.
+    **A dish is sold out while a Customer checks out.** Recheck availability
+    before payment and require review of the updated basket; no silent
+    substitutions.
   </li>
   <li>
-    **The price of an ordered dish changes.** Agree that historical order
-    information remains understandable and define how in-progress baskets are
-    treated.
+    **A dish price changes.** Historical Order names, quantities and prices
+    remain unchanged. A price change before payment requires Customer review of
+    the updated basket, never a silently increased charge.
   </li>
   <li>
     **Two staff members edit the same dish.** Decide how conflicting changes are
@@ -117,12 +119,14 @@ Restaurant staff maintain what customers can order. MTOGO provides the platform 
 
 ## Open decisions
 
-- [ ] **Access:** Who can invite restaurant staff, and what roles may edit or publish menu content?
-- [ ] **Required content:** Which dish fields are mandatory, and which need Danish and English versions?
-- [ ] **Price rules:** What currency, VAT handling, rounding and valid price range apply?
-- [ ] **Publishing:** Are saved changes immediately visible, or is there a draft/publish step? Is any review needed?
-- [ ] **Availability:** Does sold-out status hide a dish or keep it visible but unavailable? How do opening hours affect ordering?
-- [ ] **Change history:** How are price changes, deletion and simultaneous edits handled without losing order history?
+- [x] **Access:** Operators manage Restaurant staff access; authorized staff manage and publish only their own Restaurant menu.
+- [x] **Required content:** Danish and English category and dish names; optional descriptions in both languages when supplied. Restaurants supply allergens; missing information stays visibly unknown.
+- [x] **Price boundary:** Positive DKK amounts including VAT and delivery.
+- [x] **Financial detail:** Exercise menu VAT is 25%; commission uses the food value excluding VAT and is rounded once to two decimals.
+- [x] **Publishing:** Valid saved changes become visible immediately, without MTOGO dish approval.
+- [x] **Availability:** Sold-out dishes remain visible but unavailable. Ordering requires an active, manually open Restaurant serving the destination.
+- [x] **Historical Orders:** Preserve ordered names, quantities and prices after price changes or deletion; checkout changes require Customer review.
+- [ ] **Concurrent staff edits:** Agree the user-visible conflict behavior during the Feature grill.
 
 The restaurant owns the menu decisions. Any proposed MTOGO approval or restriction needs an explicit reason and team agreement; it is not specified by the case.
 
@@ -152,6 +156,6 @@ The restaurant owns the menu decisions. Any proposed MTOGO approval or restricti
   ]}
 />
 
-Record agreed answers and follow-up requirements in [issue #10](https://github.com/DannyShayH/MTGO/issues/10). Publishing this draft does not approve its proposed rules.
+Record agreed answers and follow-up requirements in [issue #10](https://github.com/DannyShayH/MTGO/issues/10). The business rules and scope were agreed on 11 November 2026. Refine detailed interactions during the Feature grill while preserving Restaurant ownership and historical Order facts.
 
 </div>
