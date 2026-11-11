@@ -94,6 +94,10 @@ _Avoid_: Work item, task (when referring to the capability)
 The Copenhagen calendar days from the earliest Start date of a Feature's sub-issues, including discovery work items, to completion of its last required work item. Discussion only on the parent does not supply a start.
 _Avoid_: Work item cycle time, time since the parent was created
 
+**Feature age**:
+The Copenhagen calendar days since an unfinished Feature's earliest work item Start date. It measures ongoing time, not completed delivery.
+_Avoid_: Feature lead time (before completion), work item age
+
 **Work item**:
 An issue on the project board that has no sub-issues and is not a Feature. Parent issues and Features awaiting sub-issues are excluded; their work items are counted instead.
 _Avoid_: Task, card, ticket (when counting flow)
@@ -133,7 +137,7 @@ A work item closed as "not planned". It counts in neither throughput nor cycle t
 _Avoid_: Cancelled, dropped
 
 **Data problem**:
-A fact about a work item that prevents a metric from being calculated honestly, such as a missing, invalid or later-than-close start date, a missing start moment for elapsed time, a work item closed without a close reason, or an open work item without a status. A data problem is shown, never filled in with an invented value.
+A fact about a work item or Feature that prevents a metric from being calculated honestly, such as a missing or invalid required date, missing start moment for elapsed time, missing close reason or status, or a Feature marked complete while required work remains undelivered. A data problem is shown, never filled in with an invented value.
 _Avoid_: Bad data, error
 
 **Flow review**:
