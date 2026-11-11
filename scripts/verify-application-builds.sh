@@ -43,6 +43,7 @@ npm run build -- --filter=@dtc/backend --force
 (
   cd apps/backend
   npm exec medusa db:migrate
+  npm exec medusa exec ./src/scripts/seed-demo-restaurant.ts
   CI_PUBLISHABLE_KEY_FILE="$build_tmp/publishable-key" \
     npm exec medusa exec ./src/scripts/export-ci-publishable-key.ts
 )
@@ -86,4 +87,5 @@ if [ "${1:-}" = "--browser" ]; then
     cd apps/storefront
     npm run test:e2e
   )
+  timeout --signal=TERM --kill-after=5s 30s node scripts/verify-admin-development.mjs
 fi

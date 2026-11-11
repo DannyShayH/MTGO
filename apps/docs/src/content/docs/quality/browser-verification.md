@@ -95,3 +95,18 @@ forces compilation so that a temporary source snapshot cannot reuse stale cached
 output. A deliberate temporary cart-removal regression is used during this issue
 to demonstrate that a browser failure makes the verification gate fail; the probe
 is removed before delivery.
+
+## Restaurant registration journey
+
+The Admin Restaurant journey registers a Restaurant, verifies Inactive and Closed
+state after reload, edits its contact phone, searches by name and postal code,
+and saves a separate kitchen after seeing the same-address warning. It runs in
+the existing disposable verification harness and fails on uncaught browser errors.
+The harness also seeds Pizzeria Nørrebro without terms, staff or menu.
+
+The harness also runs `npm run verify:admin-development`. It starts Medusa's real
+Admin development bundler in a temporary frontend workspace and transforms both
+Restaurant pages with React Refresh enabled. It needs no database, API server or
+browser. This catches development-only compilation failures, such as duplicate
+React Refresh plugins, which production builds cannot expose. Dependency bundling
+and application behavior remain covered by the production browser journeys.

@@ -5,9 +5,23 @@ loadEnv(process.env.NODE_ENV || "development", process.cwd())
 
 // Also moves Medusa's session store to Redis. Unset in CI, which keeps the
 // local fallbacks.
-const redisUrl = process.env.REDIS_URL || undefined
+const redisUrl =
+  process.env.NODE_ENV === "test"
+    ? undefined
+    : process.env.REDIS_URL || undefined
 
 module.exports = defineConfig({
+  admin: {
+    // Dashboard and extensions must share one React Query context, even when npm
+    // retains nested copies of the same version.
+    // Medusa merges this override with its base config; returning base plugins
+    // would run React Refresh twice during development.
+    vite: () => ({
+      resolve: {
+        dedupe: ["@tanstack/react-query", "@tanstack/query-core"],
+      },
+    }),
+  },
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,
     redisUrl,
@@ -22,5 +36,5 @@ module.exports = defineConfig({
       cookieSecret: process.env.COOKIE_SECRET,
     },
   },
-  modules: redisModules(redisUrl),
+  modules: [...redisModules(redisUrl), { resolve: "./src/modules/restaurant" }],
 })

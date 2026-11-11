@@ -17,7 +17,8 @@
     "storefront:dev": "turbo dev --filter=@dtc/storefront",
     "arch": "depcruise apps --config .dependency-cruiser.cjs",
     "arch:graph": "depcruise apps/backend/src --config .dependency-cruiser.cjs --output-type mermaid --collapse \"^apps/backend/src/[^/]+\"",
-    "verify:applications": "node scripts/verify-applications.mjs"
+    "verify:applications": "node scripts/verify-applications.mjs",
+    "verify:admin-development": "node scripts/verify-admin-development.mjs"
   },
   "pnpm": {
     "overrides": {

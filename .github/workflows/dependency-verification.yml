@@ -73,9 +73,21 @@ jobs:
       - name: Install Chromium
         working-directory: apps/storefront
         run: npm exec -- playwright install chromium
-      - name: Run full verification with synthetic data
-        # Fork/Dependabot tokens cannot post commit statuses; the job reports its own result.
-        run: GITHUB_ACTIONS=false gh insitu run ready-checks --verbose
+      # Keep these stages aligned with ready-checks in .insitu.yml. Run the
+      # application harness directly so server output streams instead of being
+      # buffered until the entire application check exits.
+      - name: Run lint and backend tests
+        run: |
+          for check in lint coverage integration-modules integration-http; do
+            GITHUB_ACTIONS=false gh insitu task "$check" --verbose
+          done
+      - name: Build applications and run browser journeys
+        run: npm run verify:applications
+      - name: Verify documentation
+        run: |
+          for check in docs-tests docs-build; do
+            GITHUB_ACTIONS=false gh insitu task "$check" --verbose
+          done
       - name: Upload browser evidence
         if: always()
         uses: actions/upload-artifact@v7

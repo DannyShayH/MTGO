@@ -76,9 +76,9 @@ inventory:
     command: npm run arch
 
   - id: coverage
-    name: Run backend unit tests with coverage (lcov in apps/backend/coverage)
+    name: Run backend unit and HTTP tests with coverage (lcov in apps/backend/coverage)
     command: |
-      cd apps/backend && npm run test:unit -- --passWithNoTests --coverage
+      cd apps/backend && npm run test:coverage
 
   - id: lint
     name: Run ESLint for all apps (medusa lint + storefront eslint)

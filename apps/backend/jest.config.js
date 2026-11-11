@@ -2,6 +2,7 @@ const { loadEnv } = require("@medusajs/utils")
 loadEnv("test", process.cwd())
 
 module.exports = {
+  preset: "@medusajs/test-utils",
   transform: {
     "^.+\\.[jt]s$": [
       "@swc/jest",
@@ -37,7 +38,12 @@ module.exports = {
   },
 }
 
-if (process.env.TEST_TYPE === "integration:http") {
+if (process.env.TEST_TYPE === "coverage") {
+  module.exports.testMatch = [
+    "**/src/**/__tests__/**/*.unit.spec.[jt]s",
+    "**/integration-tests/http/*.spec.[jt]s",
+  ]
+} else if (process.env.TEST_TYPE === "integration:http") {
   module.exports.testMatch = ["**/integration-tests/http/*.spec.[jt]s"]
 } else if (process.env.TEST_TYPE === "integration:modules") {
   module.exports.testMatch = ["**/src/modules/*/__tests__/**/*.[jt]s"]

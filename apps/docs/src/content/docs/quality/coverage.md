@@ -1,9 +1,9 @@
 ---
 title: Coverage threshold
-description: Backend unit test coverage required before delivery.
+description: Backend unit and HTTP integration coverage required before delivery.
 ---
 
-Once backend unit tests exist, the ready flow requires at least
+The ready flow requires at least
 **80% statements, branches, functions and lines**
 across the backend source selected by `collectCoverageFrom` in
 `apps/backend/jest.config.js`. Each metric must pass independently. The threshold
@@ -22,15 +22,17 @@ included, so adding untested code can lower coverage. Tests, migrations, admin U
 one-off scripts and migration scripts are excluded by the existing configuration.
 The threshold does not measure Medusa dependencies, the storefront or the docs app.
 
-Only unit tests contribute to this gate. Module and HTTP integration tests run as
-separate ready-flow checks and do not add to the unit coverage report.
+Unit and HTTP integration tests contribute to one coverage report. This follows
+the agreed seams: pure business rules are unit tested, while routes and workflows
+are exercised through HTTP against disposable PostgreSQL. Module integration
+tests remain a separate ready-flow check. The 80% thresholds are unchanged.
 
 ## Run the gate locally
 
 From `apps/backend`, run:
 
 ```bash
-npm run test:unit -- --passWithNoTests --coverage
+npm run test:coverage
 ```
 
 Jest prints a coverage summary and writes the LCOV report to
@@ -40,17 +42,12 @@ below 80%.
 The `coverage` check in `.insitu.yml` runs this command as part of `ready-checks`.
 A failure stops the ready flow before merging to `main`.
 
-## Before the first tests exist
+## Test database and fast checks
 
-The threshold is configured ahead of the first backend unit tests. The ready-flow
-coverage command uses `--passWithNoTests`, so an empty suite succeeds and
-development and delivery can continue. No coverage percentage is enforced while
-there are no tests.
+The combined coverage command needs reachable disposable PostgreSQL, using
+`DB_HOST`, `DB_PORT`, `DB_USERNAME` and `DB_PASSWORD`, like the HTTP integration
+suite. The test runner creates its own isolated `medusa_ci_*` database. Never aim
+integration tests at a shared store. CI supplies its local PostgreSQL service.
 
-Enforcement starts automatically when the first matching backend unit test is
-added: Jest runs the tests, collects coverage and applies all four 80% thresholds.
-The first tests must therefore meet the threshold across the selected source.
-`--passWithNoTests` does not bypass failed tests or low coverage when tests exist.
-
-The fast `unit-tests` check used during development also allows an empty suite.
-Running tests without `--coverage` does not enforce the percentage threshold.
+The fast `unit-tests` check used during development stays database-free. Running
+unit tests without `--coverage` does not enforce the percentage threshold.

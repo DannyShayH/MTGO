@@ -10,6 +10,19 @@ storefront, using the repository's npm/Turbo commands. It then runs the required
 storefront TypeScript errors and bundling failures fail delivery. Next.js performs
 its normal TypeScript check; `ignoreBuildErrors` is not enabled.
 
+The storefront maps `@medusajs/types` to its declared local dependency in
+`tsconfig.json`. The npm workspace install hoists the Medusa SDK to the repository
+root, while the response types live under the storefront. The mapping keeps SDK
+response types available in clean CI installs as well as development containers.
+
+Dependency verification runs lint and backend tests, application verification,
+and documentation as separate GitHub Actions steps. These stages mirror the
+`ready-checks` wave; application output streams directly to the job log so a
+stalled build or browser journey can be located. The standalone Admin development
+check exits after its assertions and Vite/workspace cleanup, because the bundler
+can retain process handles. A 30-second timeout makes a future lifecycle failure
+fail verification rather than hold the CI runner indefinitely.
+
 The existing lint, coverage, module and HTTP integration tests, architecture rules,
 docs tests, docs type check, docs build and link checks still apply. The ready job
 uploads the docs artifact only after all checks pass, and the existing merge flow

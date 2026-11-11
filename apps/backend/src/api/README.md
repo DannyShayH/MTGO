@@ -124,3 +124,92 @@ export default defineMiddlewares({
 ```
 
 The `matcher` property can be either a string or a regular expression. The `middlewares` property accepts an array of middleware functions.
+
+## Restaurant registration
+
+Every `/admin/restaurants` route requires a `user` actor (MTOGO operator), using
+session or bearer authentication. Missing authentication returns `401`; Customer
+and Restaurant staff tokens are refused (`401` or `403`). All mutations run
+compensated workflows. Admin turns warning and eligibility codes into English.
+
+### POST /admin/restaurants
+
+Registers an Inactive, Closed Restaurant. All fields are required.
+
+| Field                 | Type   | Required | Rules                                |
+| --------------------- | ------ | -------- | ------------------------------------ |
+| `name`                | string | yes      | Trimmed, nonblank, at most 255 chars |
+| `address_street`      | string | yes      | Trimmed, nonblank, at most 255 chars |
+| `address_postal_code` | string | yes      | Exactly four ASCII digits            |
+| `address_city`        | string | yes      | Trimmed, nonblank, at most 255 chars |
+| `contact_phone`       | string | yes      | Trimmed, nonblank, at most 255 chars |
+| `contact_email`       | string | yes      | Valid email, at most 255 chars       |
+
+```json
+{
+  "name": "Pizzeria Nørrebro",
+  "address_street": "Nørrebrogade 1",
+  "address_postal_code": "2200",
+  "address_city": "København N",
+  "contact_phone": "+45 12 34 56 78",
+  "contact_email": "kontakt@pizzeria.example"
+}
+```
+
+**Success:** `200` with `{ "restaurant": { ... }, "warnings": [] }`. Restaurant
+includes `id`, the registration fields, `is_active`, `is_open`, timestamps,
+`receiving_new_orders` and `reason` (`restaurant_inactive` initially). The internal
+address-comparison key is never returned. No delivery area is inferred from the
+pickup address. Participation/opening fields are rejected in request bodies.
+
+A matching address still saves successfully, with:
+
+```json
+{
+  "warnings": [
+    { "code": "same_pickup_address", "restaurant_ids": ["res_existing"] }
+  ]
+}
+```
+
+**Failures:** `400` for invalid/missing fields or unknown properties. Validation
+messages name the field; email and postal-code errors include
+`contact_email:email_invalid` or `address_postal_code:postal_code_invalid`.
+
+### GET /admin/restaurants
+
+**Actor:** MTOGO operator. **Success:** `200` with
+`{ "restaurants": [...], "count": 1, "limit": 20, "offset": 0 }`.
+
+| Query    | Type    | Default | Rules                                     |
+| -------- | ------- | ------- | ----------------------------------------- |
+| `q`      | string  | absent  | Name or pickup postal code, max 255 chars |
+| `limit`  | integer | 20      | 1–100                                     |
+| `offset` | integer | 0       | Zero or greater                           |
+
+Results are newest first, with ID as the tie breaker. Each result includes
+participation, opening and Receiving new Orders status as above. **Failure:**
+`400` for invalid pagination or query input.
+
+### GET /admin/restaurants/{id}
+
+**Actor:** MTOGO operator. **Success:** `200` with `{ "restaurant": { ... } }`,
+including the registration fields and status. **Failure:** `404` if unknown.
+Later slices extend this response with setup and activation facts.
+
+### POST /admin/restaurants/{id}
+
+**Actor:** MTOGO operator. Updates any subset of the six registration fields;
+at least one is required, and supplied fields follow the creation rules.
+Omitted fields remain unchanged. **Success:** `200` with
+`{ "restaurant": { ... }, "warnings": [] }`. Address warnings exclude the edited
+Restaurant itself. **Failures:** `400` for invalid, empty or unknown fields;
+`404` for an unknown Restaurant. There is no state-changing or delete endpoint.
+
+### POST /admin/restaurants/check-pickup-address
+
+**Actor:** MTOGO operator. Previews a duplicate warning before saving. Takes
+`address_street`, `address_postal_code`, `address_city` with the rules above and
+optional `exclude_id` for edits. **Success:** `200` with `{ "warnings": [] }` or
+the `same_pickup_address` warning shown above. **Failure:** `400` for invalid input.
+The create/update response checks again; a preview never reserves an address.
