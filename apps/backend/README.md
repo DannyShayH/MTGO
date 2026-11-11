@@ -12,6 +12,7 @@ The MTOGO backend and admin dashboard, built on [Medusa](https://docs.medusajs.c
 | `src/links/`                       | Module links between our modules and Medusa's commerce modules                               |
 | `src/subscribers/` and `src/jobs/` | Event subscribers and scheduled jobs                                                         |
 | `src/admin/`                       | Admin dashboard widgets and pages                                                            |
+| `src/config/`                      | Helpers for `medusa-config.ts`, such as the Redis modules registered when `REDIS_URL` is set |
 
 Each folder has its own README with Medusa's conventions. Layering is Module → Workflow → API route, enforced by `npm run arch` from the repository root.
 

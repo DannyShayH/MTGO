@@ -9,14 +9,14 @@ MTOGO is a food delivery platform: customers order food from restaurants, MTOGO'
 
 | Part              | Technology                                                                                             |
 | ----------------- | ------------------------------------------------------------------------------------------------------ |
-| Backend and admin | [Medusa](https://docs.medusajs.com) v2 as a modular monolith, PostgreSQL                               |
+| Backend and admin | [Medusa](https://docs.medusajs.com) v2 as a modular monolith, PostgreSQL, Redis                        |
 | Storefront        | Next.js with the Medusa starter storefront and Medusa UI                                               |
 | Documentation     | Astro Starlight, Mermaid and Apache ECharts, published on GitHub Pages                                 |
 | Monorepo          | npm workspaces and Turborepo                                                                           |
 | Workflow          | [TakT](https://github.com/mindovermachine-dev/how-we-work) trunk-based development with a devcontainer |
 | Quality           | Prettier, ESLint, cspell, markdownlint, dependency-cruiser, Jest                                       |
 
-The applications use TypeScript. Development uses Docker Compose and a VS Code devcontainer; GitHub Actions runs the TakT checks and publishes the docs. Payment is a mock solution. Redis is planned, and application hosting is a DigitalOcean Droplet with deployment automation still to implement.
+The applications use TypeScript. Development uses Docker Compose and a VS Code devcontainer; GitHub Actions runs the TakT checks and publishes the docs. Payment is a mock solution. Application hosting is a DigitalOcean Droplet with deployment automation still to implement.
 
 See the [Technology Stack](https://dannyshayh.github.io/MTGO/architecture/technology-stack/) for the verified inventory, responsibilities, rationale and unresolved decisions.
 
@@ -35,14 +35,14 @@ Development happens inside the devcontainer, so everyone has the same Node, tool
 
 1. Install Docker Desktop, VS Code and the Dev Containers extension. On Windows, clone into the WSL2 filesystem or use **Dev Containers: Clone Repository in Container Volume** for better file performance.
 2. Set the environment variable `GH_TOKEN` to a GitHub token with the scopes `repo`, `project` and `workflow`.
-3. Clone the repository, open it in VS Code and run **Dev Containers: Reopen in Container**. If you switched to this issue branch while already inside a devcontainer, run **Dev Containers: Rebuild and Reopen in Container** instead; changing branches does not recreate the running container. Docker Compose starts PostgreSQL 16 and waits for it to become healthy before the devcontainer starts. Its data lives in a named volume. The first start installs the TakT tools and runs `npm ci`.
-4. Copy the backend environment template. It already points to the PostgreSQL service on the Compose network:
+3. Clone the repository, open it in VS Code and run **Dev Containers: Reopen in Container**. If you switched to this issue branch while already inside a devcontainer, run **Dev Containers: Rebuild and Reopen in Container** instead; changing branches does not recreate the running container. Docker Compose starts PostgreSQL 16 and Redis 7 and waits for both to become healthy before the devcontainer starts. The PostgreSQL data lives in a named volume; Redis keeps no data between restarts. The first start installs the TakT tools and runs `npm ci`.
+4. Copy the backend environment template. It already points to the PostgreSQL and Redis services on the Compose network:
 
    ```bash
    test -f apps/backend/.env || cp apps/backend/.env.template apps/backend/.env
    ```
 
-   If you already have `apps/backend/.env`, update its `DATABASE_URL` and `DB_*` values to match the template. The hostname `postgres` works inside the devcontainer; a database on the host is not required.
+   If you already have `apps/backend/.env`, update its `DATABASE_URL`, `DB_*` and `REDIS_URL` values to match the template. The hostnames `postgres` and `redis` work inside the devcontainer; a database or Redis on the host is not required. With `REDIS_URL` set, Medusa uses Redis for its event bus, workflow engine and locking, and the startup log reports the Redis connections. Without it, Medusa logs `redisUrl not found` and uses its local fallbacks.
 
 5. Initialize the database schema with Medusa migrations, which also seed the initial store data. Write its publishable API key and the backend URL to the storefront's ignored `.env.local` file, then create an admin user:
 

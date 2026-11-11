@@ -42,6 +42,7 @@ Medusa DTC Starter — a Turborepo workspace monorepo containing a Medusa backen
 │   │   └── src/
 │   │       ├── admin/            # Admin dashboard extensions (widgets/, routes/, i18n/)
 │   │       ├── api/              # API routes: api/store/*, api/admin/* (file-based) + middlewares.ts
+│   │       ├── config/           # Helpers for medusa-config.ts (Redis modules when REDIS_URL is set)
 │   │       ├── jobs/             # Scheduled jobs
 │   │       ├── links/            # Module links between modules
 │   │       ├── migration-scripts/# Data migrations run by db:migrate (e.g. initial-data-seed.ts)

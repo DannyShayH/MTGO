@@ -35,10 +35,11 @@ This is an implemented search path, rather than an installed but unused dependen
 | Medusa 2.22.3                  | Commerce API and admin dashboard. Custom business logic follows the API route → workflow → module layering.                                  |
 | React 18 and Medusa UI         | Admin interface, separate from the React 19 storefront.                                                                                      |
 | PostgreSQL 16                  | Local commerce database in Docker Compose and disposable database for CI integration tests. Medusa reads its connection from `DATABASE_URL`. |
+| Redis 7                        | Event bus, workflow engine and locking for Medusa in the devcontainer. Medusa reads its connection from `REDIS_URL`.                         |
 | Medusa migrations              | Database schema changes and initial data setup, run with the Medusa CLI.                                                                     |
 | Medusa system payment provider | Mock checkout using `pp_system_default`, enabled by the initial data seed.                                                                   |
 
-Medusa supplies the commerce modules and workflow model that the project extends as a modular monolith. PostgreSQL provides persistent commerce storage; the same major version in development and integration CI reduces environment differences. These are practical benefits of the implementation; the original selection rationale is [not yet recorded](#unresolved-decisions).
+Medusa supplies the commerce modules and workflow model that the project extends as a modular monolith. PostgreSQL provides persistent commerce storage; the same major version in development and integration CI reduces environment differences. Redis replaces Medusa's local event bus, in-memory workflow engine and in-memory locking, which Medusa does not recommend for production, so event, workflow and locking problems show up in development. Without `REDIS_URL`, as in CI and the browser verification harness, Medusa keeps those local fallbacks. These are practical benefits of the implementation; the original selection rationale is [not yet recorded](#unresolved-decisions).
 
 **Payment is a mock solution.** The storefront contains Stripe and Adyen integration code and dependencies inherited from the starter, but the backend configuration registers no real payment provider. They are not confirmed live payment technologies. No real payment provider needs to be selected for the current scope.
 
@@ -46,13 +47,13 @@ See [backend documentation](/MTGO/architecture/modules/backend/) for code locati
 
 ## Shared development environment
 
-| Technology in use                         | Responsibility and practical benefit                                                                                                                                                                                       |
-| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| TypeScript                                | Application code, docs tooling and metric calculations use static types. A shared language makes the applications and automation easier to work across.                                                                    |
-| Node.js 24 and npm 11                     | The devcontainer and CI use Node 24. The root package requires Node `>=22.23.4` and declares `npm@11.19.1`; `package-lock.json` supplies reproducible dependency installs with `npm ci`.                                   |
-| npm workspaces and Turborepo              | Workspaces manage the apps together; Turbo coordinates development, lint and build tasks while each app keeps its own scripts.                                                                                             |
-| Docker Compose and VS Code Dev Containers | An Ubuntu 24.04 development container and PostgreSQL service give developers the same runtime and tooling. A named volume preserves local database data. This is a development setup, not a production Compose deployment. |
-| GitHub CLI, TakT and gh-insitu            | Issue-branch workflow and shared quality commands. `.insitu.yml` defines the checks used locally and in CI, so the two environments run the same quality gates.                                                            |
+| Technology in use                         | Responsibility and practical benefit                                                                                                                                                                                                    |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TypeScript                                | Application code, docs tooling and metric calculations use static types. A shared language makes the applications and automation easier to work across.                                                                                 |
+| Node.js 24 and npm 11                     | The devcontainer and CI use Node 24. The root package requires Node `>=22.23.4` and declares `npm@11.19.1`; `package-lock.json` supplies reproducible dependency installs with `npm ci`.                                                |
+| npm workspaces and Turborepo              | Workspaces manage the apps together; Turbo coordinates development, lint and build tasks while each app keeps its own scripts.                                                                                                          |
+| Docker Compose and VS Code Dev Containers | An Ubuntu 24.04 development container with PostgreSQL and Redis services gives developers the same runtime and tooling. A named volume preserves local database data. This is a development setup, not a production Compose deployment. |
+| GitHub CLI, TakT and gh-insitu            | Issue-branch workflow and shared quality commands. `.insitu.yml` defines the checks used locally and in CI, so the two environments run the same quality gates.                                                                         |
 
 The devcontainer also installs Python 3.14 as tooling. No application Python runtime is demonstrated by the application code; it is not part of the product stack.
 
@@ -99,17 +100,16 @@ These checks automate the team's trunk-based workflow and keep the deployed docu
 
 ### Decided and planned
 
-| Technology or decision               | Status                                                                                                                                                                                                                 |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| DigitalOcean Droplet                 | Decided application host. The repository has no working application deployment automation yet. The [architecture overview](/MTGO/architecture/#planned-application-hosting) contains the proposed topology.            |
-| Redis                                | Planned in [issue #21](https://github.com/DannyShayH/MTGO/issues/21). It is not configured in `medusa-config.ts` or local Compose. Its responsibilities and selection rationale should be documented when implemented. |
-| Caddy and production Docker services | Proposed in the architecture overview. No production proxy or Compose configuration is implemented here.                                                                                                               |
+| Technology or decision               | Status                                                                                                                                                                                                      |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DigitalOcean Droplet                 | Decided application host. The repository has no working application deployment automation yet. The [architecture overview](/MTGO/architecture/#planned-application-hosting) contains the proposed topology. |
+| Caddy and production Docker services | Proposed in the architecture overview. No production proxy or Compose configuration is implemented here.                                                                                                    |
 
 ## Unresolved decisions
 
 - **Search:** evaluate the current PostgreSQL-backed Medusa search implementation and decide whether to keep it or use another engine. InstantSearch is the UI integration already in code, not evidence of a final engine decision.
-- **Selection rationale:** record the team's reasons and considered alternatives for TypeScript, Medusa, Next.js, PostgreSQL, npm/Turborepo, Astro/Starlight, ECharts and the DigitalOcean Droplet. Their responsibilities and practical benefits are described above; those are not substitutes for a confirmed historical rationale. The old docs site brief is superseded draft input, not an approved decision record.
-- **Application operations:** decide persistent storage, backups and deployment automation for the Droplet. The architecture page remains the source for the hosting proposal.
+- **Selection rationale:** record the team's reasons and considered alternatives for TypeScript, Medusa, Next.js, PostgreSQL, Redis, npm/Turborepo, Astro/Starlight, ECharts and the DigitalOcean Droplet. Their responsibilities and practical benefits are described above; those are not substitutes for a confirmed historical rationale. The old docs site brief is superseded draft input, not an approved decision record.
+- **Application operations:** decide persistent storage, backups, production Redis hosting and deployment automation for the Droplet. The architecture page remains the source for the hosting proposal.
 
 ## Sources and maintenance
 

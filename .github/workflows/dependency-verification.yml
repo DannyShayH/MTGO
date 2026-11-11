@@ -72,7 +72,7 @@ jobs:
           report-statuses: "false"
       - name: Install Chromium
         working-directory: apps/storefront
-        run: npm exec -- playwright install --with-deps chromium
+        run: npm exec -- playwright install chromium
       - name: Run full verification with synthetic data
         # Fork/Dependabot tokens cannot post commit statuses; the job reports its own result.
         run: GITHUB_ACTIONS=false gh insitu run ready-checks --verbose

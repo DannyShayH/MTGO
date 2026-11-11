@@ -49,7 +49,7 @@ jobs:
 
       - name: Install Chromium for browser smoke tests
         working-directory: apps/storefront
-        run: npm exec -- playwright install --with-deps chromium
+        run: npm exec -- playwright install chromium
 
       - name: Configure Pages
         id: pages
