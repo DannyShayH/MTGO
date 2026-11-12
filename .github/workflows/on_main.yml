@@ -17,20 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    # Throwaway database for the HTTP integration tests that feed coverage
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
+      actions: read # download coverage from the Ready run
     steps:
       - name: Checkout full history for analysis
         uses: actions/checkout@v7
@@ -47,27 +34,26 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # The same gate as the ready flow: unit and HTTP tests in one coverage
-      # report. Unit tests alone cannot reach the 80% threshold, because
-      # workflows and routes are only exercised through HTTP.
-      - name: Generate backend unit and HTTP coverage
-        working-directory: apps/backend
+      - name: Download backend coverage for the delivered commit
         env:
-          DB_HOST: localhost
-          DB_PORT: 5432
-          DB_USERNAME: postgres
-          DB_PASSWORD: postgres
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          npm run test:coverage
-          node <<'NODE'
-          const fs = require("node:fs")
-          if (!fs.existsSync("coverage/lcov.info") || fs.statSync("coverage/lcov.info").size === 0) {
-            throw new Error("Backend tests ran without producing a nonempty coverage/lcov.info")
-          }
-          // Jest uses backend-relative paths; the scanner runs at the repository root.
-          const report = fs.readFileSync("coverage/lcov.info", "utf8")
-          fs.writeFileSync("coverage/lcov.info", report.replace(/^SF:src\//gm, "SF:apps/backend/src/"))
-          NODE
+          artifact_name="backend-coverage-${GITHUB_SHA}"
+          run_id=$(gh api --method GET "repos/${GITHUB_REPOSITORY}/actions/artifacts" \
+            -f name="$artifact_name" \
+            --jq '.artifacts[] | select(.expired == false and .workflow_run.head_sha == env.GITHUB_SHA) | .workflow_run.id' | head -n 1)
+          if [ -z "$run_id" ]; then
+            echo "::error::Missing or expired ${artifact_name}. Rerun Ready for this commit to produce coverage."
+            exit 1
+          fi
+          gh run download "$run_id" --repo "$GITHUB_REPOSITORY" \
+            --name "$artifact_name" --dir apps/backend/coverage
+          if [ ! -s apps/backend/coverage/lcov.info ]; then
+            echo "::error::${artifact_name} contains no nonempty lcov.info."
+            exit 1
+          fi
+          # Jest uses backend-relative paths; the scanner runs at the repository root.
+          sed -i 's|^SF:src/|SF:apps/backend/src/|' apps/backend/coverage/lcov.info
 
       - name: Analyze main and wait for the quality gate
         uses: SonarSource/sonarqube-scan-action@e805d875275f728fac1885b413934be6d7c63f65 # v8.4.1

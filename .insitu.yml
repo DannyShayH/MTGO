@@ -177,16 +177,37 @@ waves:
       - lint
       - shellcheck
 
-  # Runs in the ready flow (on_ready.yml) before anything is merged to main.
-  # Needs a reachable Postgres (DB_HOST, DB_PORT, DB_USERNAME, DB_PASSWORD).
-  - id: ready-checks
-    name: Lint, tests and application builds before merge to trunk
+  # Separate CI jobs own disjoint check statuses. Only backend needs trunk-worthy too.
+  - id: ready-backend
+    name: Lint and backend tests before merge to trunk
     parallel: false
     checks:
       - lint
       - coverage
       - integration-modules
-      - integration-http
+
+  - id: ready-applications
+    name: Application builds and browser tests before merge to trunk
+    parallel: false
+    checks:
+      - application-builds
+
+  - id: ready-docs
+    name: Docs tests and build before merge to trunk
+    parallel: false
+    checks:
+      - docs-tests
+      - docs-build
+
+  # Local aggregate; dependency verification mirrors these checks. HTTP runs through coverage.
+  # Needs a reachable disposable Postgres and Chromium installed.
+  - id: ready-checks
+    name: All checks before merge to trunk
+    parallel: false
+    checks:
+      - lint
+      - coverage
+      - integration-modules
       - application-builds
       - docs-tests
       - docs-build

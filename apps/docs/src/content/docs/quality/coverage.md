@@ -39,8 +39,11 @@ Jest prints a coverage summary and writes the LCOV report to
 `apps/backend/coverage/lcov.info`. It exits unsuccessfully if any metric falls
 below 80%.
 
-The `coverage` check in `.insitu.yml` runs this command as part of `ready-checks`.
-A failure stops the ready flow before merging to `main`.
+The `coverage` check in `.insitu.yml` runs this command in `ready-backend` (and the local `ready-checks` aggregate).
+A failure stops the ready flow before merging to `main`. HTTP suites are not
+run again as a separate ready check. The backend job uploads the LCOV report as
+`backend-coverage-<commit SHA>` for the post-delivery
+[Sonar analysis](/MTGO/quality/static-analysis/).
 
 ## Test database and fast checks
 

@@ -15,10 +15,12 @@ review and does not necessarily represent a vulnerability.
 
 The `sonar` job in `.github/workflows/on_main.yml` runs on each push to `main`.
 It can also be rerun with the Deploy workflow's manual trigger on `main`.
-It checks out the full Git history, installs dependencies, starts a throwaway
-PostgreSQL service, generates backend coverage with `npm run test:coverage` (unit
-and HTTP integration tests in one report) and submits the analysis with the
-official SonarQube scan action.
+It checks out the full Git history, downloads `backend-coverage-<commit SHA>`
+from the Ready run for the delivered commit and submits the analysis with the
+official SonarQube scan action. Node setup and dependency installation remain
+so analysis can resolve imported types and extended TypeScript configurations.
+It does not start PostgreSQL or rerun tests. The Ready backend job produces the
+report from unit and HTTP integration tests in one coverage run.
 `sonar-project.properties` holds the public project keys and analysis scope.
 
 The scanner waits for the quality gate and fails the job if the gate fails or
@@ -110,13 +112,17 @@ The storefront and docs are analyzed but excluded from coverage calculations.
 The workflow makes Jest's backend-relative LCOV paths relative to the repository
 root so the scanner can resolve them without confusing them with other apps.
 
-The job runs the same coverage command as the ready flow's `coverage` check, so a
-delivery that passed the ready flow also passes this step. Unit tests alone cannot
-meet the four 80% thresholds, because workflows and routes are only exercised
-through HTTP; an earlier version of this job ran only the unit tests and failed
-after every delivery. Run `npm run test:coverage` from `apps/backend` with a
-disposable PostgreSQL to reproduce the step locally. A missing or empty LCOV
-report fails the job before scanning.
+Ready uploads `backend-coverage-<commit SHA>` only after the backend checks pass.
+The artifact is retained for three days, like the docs site artifact. The merge
+fast-forwards `main`, so the delivered SHA matches the report's Ready SHA. Sonar
+selects an unexpired artifact with both the exact name and matching source SHA;
+it never falls back to another commit. Missing, expired or empty coverage fails
+the job visibly before scanning. To recover, rerun Ready for the same commit to
+produce the artifact, then rerun Deploy on that commit.
+
+Unit tests alone cannot meet the four 80% thresholds, because workflows and routes
+are exercised through HTTP. Run `npm run test:coverage` from `apps/backend` with a
+disposable PostgreSQL to reproduce coverage locally.
 
 ## Service setup
 

@@ -78,7 +78,7 @@ jobs:
       # buffered until the entire application check exits.
       - name: Run lint and backend tests
         run: |
-          for check in lint coverage integration-modules integration-http; do
+          for check in lint coverage integration-modules; do
             GITHUB_ACTIONS=false gh insitu task "$check" --verbose
           done
       - name: Build applications and run browser journeys

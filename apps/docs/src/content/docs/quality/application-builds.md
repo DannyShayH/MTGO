@@ -3,7 +3,7 @@ title: Application build verification
 description: Backend, admin, storefront and partner app production builds required before merge.
 ---
 
-Every delivery runs `application-builds` in the TakT `ready-checks` wave before
+Every delivery runs `application-builds` in the TakT `ready-applications` wave before
 merging to `main`. It builds the Medusa backend and admin, then the Next.js
 storefront and the Next.js partner app, using the repository's npm/Turbo
 commands. It then runs the required
@@ -25,9 +25,42 @@ can retain process handles. A 30-second timeout makes a future lifecycle failure
 fail verification rather than hold the CI runner indefinitely.
 
 The existing lint, coverage, module and HTTP integration tests, architecture rules,
-docs tests, docs type check, docs build and link checks still apply. The ready job
-uploads the docs artifact only after all checks pass, and the existing merge flow
-still owns the merge to `main`.
+docs tests, docs type check, docs build and link checks still apply. Ready runs
+three parallel jobs; all three must succeed before `merge-to-trunk` can run.
+
+| Job          | Insitu wave          | Checks and evidence                                                                                                                   |
+| ------------ | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Backend      | `ready-backend`      | Full `trunk-worthy` verification, lint, combined unit/HTTP coverage and module integration tests; PostgreSQL; SHA-named LCOV artifact |
+| Applications | `ready-applications` | Production builds and browser tests; PostgreSQL and Chromium; browser reports                                                         |
+| Docs         | `ready-docs`         | Board collection, docs tests, type check, build and link checks, token leakage check; SHA-named Pages artifact                        |
+
+Each wave reports its own check statuses. Only the backend job repeats the full
+`trunk-worthy` verification; its failure still prevents merging. Each job prepares
+its own runner. HTTP suites run once through `coverage`; `integration-http` remains
+in the inventory for local use. Docs can upload their artifact while the other
+jobs run, but neither artifact allows a merge until all three jobs succeed.
+Deploy on `main` publishes the same docs artifact and imports the Ready LCOV into
+[SonarQube Cloud](/MTGO/quality/static-analysis/) without rerunning tests.
+
+`gh insitu run ready-checks` remains the single local command for all ready checks,
+with disposable PostgreSQL and Chromium available. Preview it with
+`gh insitu run ready-checks --plan`. The aggregate has the same checks as the three
+CI waves; keep their check lists in sync. `trunk-worthy` runs separately as the
+pre-commit gate.
+
+## Delivery timing
+
+Issue [#97](https://github.com/DannyShayH/MTGO/issues/97) records the baseline:
+Ready run `43220674537` took about 7.5 minutes, with about 80 seconds of setup
+and 355 seconds of sequential checks. Deploy took 3–4 minutes. The target is
+Ready within four minutes, with roughly 1–1.5 minutes for Deploy. These are
+targets, not measured results for the new layout.
+
+After delivering #97 and one later issue, record the Ready and Deploy run links,
+total durations, per-job durations and setup times in #97. Confirm that Pages
+deployed and Sonar analyzed the delivered SHA with imported coverage. These
+measurements require the human-run delivery; local checks cannot establish
+GitHub-hosted runner timings.
 
 ## Local commands
 
