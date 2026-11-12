@@ -111,6 +111,14 @@ nothing, records the Common MVP terms v1 and checks that the readiness checklist
 marks delivery area and terms as met while staff and menu stay missing. After a
 reload it removes one København K code, then the rest of the town.
 
+The Restaurant staff journey creates a Restaurant and invites a staff member,
+who shows as Pending with an expiry. Copy invite link puts a link to the partner
+app's `/invite` page on the clipboard (the test grants clipboard access to the
+Admin origin). Resend gives a different link. A second invitation is cancelled
+and disappears. Inviting the operator's own email shows the existing-login
+refusal in the dialog. Authorized and former staff stay empty, and the pending
+invitation is still there after a reload.
+
 The harness also runs `npm run verify:admin-development`. It starts Medusa's real
 Admin development bundler in a temporary frontend workspace and transforms both
 Restaurant pages with React Refresh enabled. It needs no database, API server or

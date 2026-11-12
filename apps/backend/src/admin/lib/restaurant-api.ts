@@ -41,7 +41,35 @@ export type Readiness = {
   can_activate: boolean
   requirements: { code: string; missing: boolean }[]
 }
+export type StaffMember = {
+  id: string
+  name: string
+  email: string
+  status: "pending" | "authorized" | "revoked"
+  invited_by: string | null
+  created_at: string
+  accepted_at: string | null
+  revoked_at: string | null
+  revoked_by: string | null
+  invitation: { expires_at: string; invite_link: string } | null
+}
+export type RestaurantStaffGroups = {
+  pending: StaffMember[]
+  authorized: StaffMember[]
+  former: StaffMember[]
+}
+export type IssuedStaffInvitation = {
+  staff_id: string
+  expires_at: string
+  invite_link: string
+}
+export type StaffInvitationResponse = {
+  staff: Pick<StaffMember, "id" | "name" | "email" | "status">
+  invitation: IssuedStaffInvitation
+  restaurant: RestaurantDetail
+}
 export type RestaurantDetail = Restaurant & {
+  staff: RestaurantStaffGroups
   delivery_area: { postal_code: string; name: string | null }[]
   commercial_terms: CommercialTerms
   menu: { published_dish_count: number }
@@ -63,6 +91,10 @@ export const restaurantMessages: Record<string, string> = {
   restaurant_closed: "Restaurant is closed",
   delivery_area_missing: "No delivery area",
   destination_not_served: "Destination is outside the delivery area",
+  email_has_login:
+    "This email already has an MTOGO login or belongs to Restaurant staff. Ask the person for a different email.",
+  staff_invitation_not_found:
+    "This invitation no longer exists. Reload to see the current staff.",
 }
 export const termsVersionNames: Record<string, string> = {
   common_mvp_v1: "Common MVP terms v1",

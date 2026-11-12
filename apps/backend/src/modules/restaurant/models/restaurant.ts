@@ -66,10 +66,28 @@ export const RestaurantStaff = model
     revoked_at: model.dateTime().nullable(),
     revoked_by: model.text().nullable(),
     restaurant: model.belongsTo(() => Restaurant, { mappedBy: "staff" }),
+    invitation: model
+      .hasOne(() => StaffInvitation, { mappedBy: "staff" })
+      .nullable(),
   })
+  .cascades({ delete: ["invitation"] })
   .indexes([
     { on: ["email"], unique: true, where: "status != 'revoked'" },
     { on: ["restaurant_id"] },
   ])
+
+/**
+ * The current invite token of one pending staff member, as in Medusa's admin
+ * invite pattern. Resending replaces the token; cancelling deletes the
+ * invitation with its pending staff member.
+ */
+export const StaffInvitation = model
+  .define("staff_invitation", {
+    id: model.id({ prefix: "rsinv" }).primaryKey(),
+    token: model.text(),
+    expires_at: model.dateTime(),
+    staff: model.belongsTo(() => RestaurantStaff, { mappedBy: "invitation" }),
+  })
+  .indexes([{ on: ["staff_id"], unique: true }])
 
 export default Restaurant

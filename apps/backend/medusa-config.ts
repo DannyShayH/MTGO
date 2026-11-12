@@ -38,7 +38,11 @@ module.exports = defineConfig({
   },
   modules: [
     ...redisModules(redisUrl),
-    { resolve: "./src/modules/restaurant" },
+    {
+      resolve: "./src/modules/restaurant",
+      // Invite links point to the partner app's invitation page.
+      options: { partner_url: process.env.PARTNER_PUBLIC_URL },
+    },
     { resolve: "./src/modules/postal-code" },
   ],
 })

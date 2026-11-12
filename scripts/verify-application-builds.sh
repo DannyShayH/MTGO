@@ -51,6 +51,10 @@ SEED_STAFF_EMAIL="partner-smoke-$(node -p 'require("node:crypto").randomUUID()')
 export SEED_STAFF_EMAIL
 export SEED_STAFF_PASSWORD="ci-only-partner-password"
 
+# Invite links copied in Admin point to the partner app started below.
+export PARTNER_BASE_URL="${PARTNER_BASE_URL:-http://localhost:8100}"
+export PARTNER_PUBLIC_URL="$PARTNER_BASE_URL"
+
 npm run build -- --filter=@dtc/backend --force
 (
   cd apps/backend
@@ -81,7 +85,6 @@ npm run build -- --filter=@dtc/storefront --force
 
 # The partner app calls the backend only from its server side.
 export MEDUSA_BACKEND_URL="$NEXT_PUBLIC_MEDUSA_BACKEND_URL"
-export PARTNER_BASE_URL="${PARTNER_BASE_URL:-http://localhost:8100}"
 npm run build -- --filter=@dtc/partner --force
 
 if [[ "${1:-}" = "--browser" ]]; then

@@ -227,6 +227,27 @@ unknown. Create, update and every setup route return this same Restaurant.
         "recorded_by": { "id": "user_01...", "email": "operator@example.test" }
       }
     },
+    "staff": {
+      "pending": [
+        {
+          "id": "rstf_01...",
+          "name": "Mette Jensen",
+          "email": "mette@pizzeria.example",
+          "status": "pending",
+          "invited_by": "user_01...",
+          "created_at": "2026-11-12T09:00:00.000Z",
+          "accepted_at": null,
+          "revoked_at": null,
+          "revoked_by": null,
+          "invitation": {
+            "expires_at": "2026-11-13T09:00:00.000Z",
+            "invite_link": "http://localhost:8100/invite?token=eyJ..."
+          }
+        }
+      ],
+      "authorized": [],
+      "former": []
+    },
     "menu": { "published_dish_count": 0 },
     "readiness": {
       "can_activate": false,
@@ -247,8 +268,11 @@ Postal codes are sorted. `delivery_area` names each code from the postal code
 register; `name` is `null` for a code the register no longer has. `agreement` is `null` until terms are recorded; the
 tiers and fee are always present for display. `recorded_by.email` is `null` if
 the operator no longer exists. `readiness.requirements` always lists all six
-requirements in this order. Staff and the published-dish count arrive with #74
-and #77, so those requirements are missing until then.
+requirements in this order. `staff` groups staff oldest first: `pending` with
+their invitation's expiry and link, `authorized`, and `former` (revoked).
+`invitation` is `null` for authorized and former staff. Only authorized staff
+meet `authorized_staff_missing`. The published-dish count arrives with #77, so
+that requirement is missing until then.
 
 ### POST /admin/restaurants/{id}
 
@@ -367,6 +391,68 @@ in the database. Removing when none is recorded changes nothing. The guard
 against removing the terms of an active Restaurant arrives with deactivation
 (#78). **Success:** `200` with `{ "restaurant": { ... } }`. **Failure:** `404`
 for an unknown Restaurant.
+
+### POST /admin/restaurants/{id}/staff-invitations
+
+**Actor:** MTOGO operator. Invites a person as pending staff and returns a
+one-time invite link to the partner app, valid for 24 hours. The operator sends
+the link themselves; no email is sent. `invited_by` is the signed-in operator.
+
+| Field   | Type   | Required | Rules                                |
+| ------- | ------ | -------- | ------------------------------------ |
+| `name`  | string | yes      | Trimmed, nonblank, at most 255 chars |
+| `email` | string | yes      | Trimmed, valid email, max 255 chars  |
+
+```json
+{ "name": "Mette Jensen", "email": "mette@pizzeria.example" }
+```
+
+**Success:** `200` with the pending staff member, the invitation and the
+Restaurant as in the GET above:
+
+```json
+{
+  "staff": {
+    "id": "rstf_01...",
+    "name": "Mette Jensen",
+    "email": "mette@pizzeria.example",
+    "status": "pending"
+  },
+  "invitation": {
+    "staff_id": "rstf_01...",
+    "expires_at": "2026-11-13T09:00:00.000Z",
+    "invite_link": "http://localhost:8100/invite?token=eyJ..."
+  },
+  "restaurant": { "...": "..." }
+}
+```
+
+The link is `<PARTNER_PUBLIC_URL>/invite?token=<token>`; see the backend
+environment template.
+
+| Status | When                                                                                                                                             |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `400`  | `code: "email_has_login"`: the email (ignoring case) has an MTOGO login of any kind, or belongs to pending or authorized staff of any Restaurant |
+| `400`  | Missing or blank name, missing or invalid email (`email:email_invalid`), or unknown field                                                        |
+| `404`  | Unknown Restaurant                                                                                                                               |
+
+### POST /admin/restaurants/{id}/staff-invitations/{staff_id}/resend
+
+**Actor:** MTOGO operator. Issues a new token and a new 24-hour expiry for a
+pending invitation. The previous link stops working. No body. **Success:** `200`
+with `{ "staff": { ... }, "invitation": { ... }, "restaurant": { ... } }` as
+above.
+
+| Status | When                                                                                                          |
+| ------ | ------------------------------------------------------------------------------------------------------------- |
+| `404`  | Unknown Restaurant, or `code: "staff_invitation_not_found"`: no pending staff with that id at this Restaurant |
+
+### DELETE /admin/restaurants/{id}/staff-invitations/{staff_id}
+
+**Actor:** MTOGO operator. Cancels a pending invitation: the pending staff
+member is deleted with the invitation and its token, so the link stops working
+and the email can be invited again. **Success:** `200` with
+`{ "restaurant": { ... } }`. **Failure:** `404` as for resend.
 
 ### POST /admin/restaurants/check-pickup-address
 

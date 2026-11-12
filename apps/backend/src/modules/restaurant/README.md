@@ -5,7 +5,8 @@ email, separate participation (`is_active`) and opening (`is_open`) flags, the
 delivery area, the commercial terms agreement and the Restaurant's staff. Both
 flags default to false. The first migration creates the Restaurant table and a
 pickup address index that allows duplicates. The second adds the delivery-area
-and terms tables. The third adds the staff table.
+and terms tables. The third adds the staff table, and the fourth the staff
+invitation table.
 
 ## Data models
 
@@ -15,6 +16,7 @@ and terms tables. The third adds the staff table.
 | `DeliveryAreaPostalCode`   | One four-digit `postal_code` the Restaurant delivers to. Unique per Restaurant among rows that are not soft-deleted                                                                                                                                                      |
 | `CommercialTermsAgreement` | The agreement to `terms_version` `common_mvp_v1`, with `agreed_at` (UTC, set when recorded) and `recorded_by` (the operator's user id). At most one current agreement per Restaurant; removed ones are soft-deleted                                                      |
 | `RestaurantStaff`          | A person who may operate the Restaurant: `name`, `email`, `status` (`pending`, `authorized` or `revoked`), `invited_by`, `accepted_at`, `revoked_at`, `revoked_by`. The email is unique among pending and authorized staff; revoked staff stay on record as former staff |
+| `StaffInvitation`          | The current invite `token` and `expires_at` of one pending staff member. Deleting the staff member deletes the invitation                                                                                                                                                |
 
 `RestaurantModuleService` extends `MedusaService` with generated CRUD. Workflows
 under `src/workflows/restaurants` own registration, edits, duplicate warnings,
@@ -22,8 +24,8 @@ the delivery area and the commercial terms. API routes and Admin never mutate th
 module directly. Every mutation step has compensation, and each delivery-area or
 terms change takes a lock on `restaurant:<id>` so the guards for active
 Restaurants (#78) cannot race it. The module has no cross-module links and emits
-no domain events yet. Invitations, revocation, menus and state transitions belong
-to later onboarding slices.
+no domain events yet. Accepting invitations, revocation, menus and state
+transitions belong to later onboarding slices.
 
 ## Restaurant staff
 
@@ -31,8 +33,45 @@ Staff sign in to the partner app (`apps/partner`, ADR-0017) with the
 `restaurant_staff` actor type and Medusa's email and password provider. The
 staff member's auth identity holds their staff id in its app metadata
 (`restaurant_staff_id`), set by `createAuthorizedStaffWorkflow` with core-flows'
-`setAuthAppMetadataStep`. Until invitations exist (#74), only the demonstration
-seed creates staff, and it creates them `authorized`.
+`setAuthAppMetadataStep`. Until invited staff can accept (#75), only the
+demonstration seed creates authorized staff.
+
+### Invitations
+
+Only MTOGO operators give staff access (ADR-0008). Invitations follow Medusa's
+admin invite pattern, without an email service: the operator copies the link
+from Admin and sends it themselves.
+
+- `inviteRestaurantStaffWorkflow` creates a `pending` staff member with
+  `invited_by` set to the operator and a `StaffInvitation`. Its token is a JWT
+  signed with the backend's `JWT_SECRET`, holding `staff_id` and `email` and a
+  fresh JWT ID, valid for 24 hours (`expires_at`). Pending staff and their
+  invitation are created in separate steps with compensation. If token generation,
+  invitation persistence or a later workflow step fails, rollback removes the
+  new records so the operator can retry the same email.
+- An email is refused with `email_has_login` (`INVALID_DATA`, `400`) when it
+  already has an MTOGO email and password login of any actor type, or belongs to
+  pending or authorized staff of any Restaurant. The comparison ignores case.
+- `resendStaffInvitationWorkflow` issues a new token and expiry, so the previous
+  link stops working. `cancelStaffInvitationWorkflow` deletes the pending staff
+  member together with the invitation and its token.
+- Resend and cancel apply only to pending staff of that Restaurant; anything
+  else is `staff_invitation_not_found` (`NOT_FOUND`).
+- All three take the `restaurant:<id>` lock. Inviting also takes a
+  `staff-email:<lowercased email>` lock, so two Restaurants cannot invite the
+  same email at once.
+- The pure `isStaffInvitationUsable` rule decides whether a token still works: it
+  must be the invitation's current token and not yet expired. Accepting (#75)
+  uses it, then deletes the invitation, so a used link stops working too.
+
+Invite links are `<partner_url>/invite?token=<token>` (`staffInvitationLink`).
+The module option `partner_url` comes from `PARTNER_PUBLIC_URL` in
+`medusa-config.ts` and defaults to `http://localhost:8100`; set it to the
+partner app's public URL in every deployed environment.
+
+The Restaurant detail lists staff grouped by the pure `groupRestaurantStaff`
+rule, oldest first: `pending` (with the invitation's expiry and link), `authorized`
+and `former` (revoked).
 
 `retrieveAuthorizedStaffWorkflow` starts every partner request: it refuses with
 `staff_access_revoked` (`FORBIDDEN`, `403`) unless the staff record exists and is
@@ -60,9 +99,9 @@ published dish count, delivery-area postal-code count). It returns the missing
 codes in checklist order: `pickup_address_missing`, `contacts_missing`,
 `authorized_staff_missing`, `commercial_terms_missing`, `published_menu_missing`,
 `delivery_area_missing`. An empty list means the Restaurant may be activated.
-Readiness does not count staff yet (the staff access slices will), and the
-Restaurant ↔ product link (#77) does not exist yet, so both counts are zero and
-those two requirements always show as missing.
+Readiness counts authorized staff only: pending invitations and former staff do
+not count. The Restaurant ↔ product link (#77) does not exist yet, so the
+published dish count is zero and that requirement always shows as missing.
 
 `COMMON_MVP_TERMS_V1` holds the terms shown read-only in Admin (ADR-0006):
 marginal commission of 6% up to DKK 100, 5% to DKK 500, 4% to DKK 1,000 and 3%
@@ -110,11 +149,15 @@ harness runs it after migrations in its isolated source snapshot.
 
 ## Verification
 
-- Pure eligibility, activation-requirement, postal-code and seed-safety decision
-  tables: `npm run test:unit`.
+- Pure eligibility, activation-requirement, postal-code, seed-safety and staff
+  invitation (link, token usability, grouping) decision tables:
+  `npm run test:unit`.
 - HTTP registration, edits, address warnings, validation, search, pagination and
   operator-only access, plus the delivery area, commercial terms and readiness:
   `npm run test:integration:http` with disposable PostgreSQL.
+- HTTP staff invitations: invite, resend (new token and later expiry), cancel,
+  `email_has_login` for operator, Customer and staff emails, validation, `404`s
+  and operator-only access.
 - HTTP staff sign-in and `GET /partner/me` access: Admin user, Customer and
   malformed tokens, a login without staff, and revoked staff.
 - Partner journey (Danish sign-in, wrong password, Overview, English kept after
@@ -122,5 +165,6 @@ harness runs it after migrations in its isolated source snapshot.
   same root `npm run verify:applications`.
 - Operator journey: root `npm run verify:applications`, following the documented
   disposable database setup. Admin navigation: **Restaurants**, **Create**, then
-  **Details → Edit**, then the **Delivery area**, **Commercial terms** and
-  **Activation readiness** sections. Text is English only (ADR-0018).
+  **Details → Edit**, then the **Delivery area**, **Commercial terms**,
+  **Staff** and **Activation readiness** sections. The staff journey invites,
+  copies the link, resends, cancels and is refused an email with a login. Text is English only (ADR-0018).

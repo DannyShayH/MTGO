@@ -76,3 +76,13 @@ export const GetAdminPostalCodesSchema = z.object({
   q: z.string().trim().max(255).optional(),
 })
 export type GetAdminPostalCodesQuery = z.infer<typeof GetAdminPostalCodesSchema>
+export const PostAdminInviteStaffSchema = z.strictObject({
+  name: required,
+  email: z
+    .string()
+    .trim()
+    .pipe(z.email("email:email_invalid").max(255, "field_too_long")),
+})
+export type PostAdminInviteStaffBody = z.infer<
+  typeof PostAdminInviteStaffSchema
+>

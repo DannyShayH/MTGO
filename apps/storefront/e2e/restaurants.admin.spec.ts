@@ -146,3 +146,104 @@ test("operator sets the delivery area and commercial terms and sees the readines
     contentType: "image/png",
   })
 })
+
+test("operator invites Restaurant staff, copies the link, resends, cancels and is refused an email with a login", async ({
+  page,
+  context,
+}, testInfo) => {
+  expect(process.env.E2E_DISPOSABLE).toBe("1")
+  const errors: string[] = []
+  page.on("pageerror", (error) => errors.push(error.message))
+  const backend = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL!
+  await context.grantPermissions(["clipboard-read", "clipboard-write"], {
+    origin: backend,
+  })
+  await page.goto(`${backend}/app/login`)
+  await page
+    .getByPlaceholder("Email", { exact: true })
+    .fill(process.env.E2E_ADMIN_EMAIL!)
+  await page
+    .getByPlaceholder("Password", { exact: true })
+    .fill(process.env.E2E_ADMIN_PASSWORD!)
+  await page.getByRole("button", { name: "Continue with email" }).click()
+  await expect(page).not.toHaveURL(/\/login/)
+  await page.getByRole("link", { name: "Restaurants", exact: true }).click()
+  const runId = randomUUID()
+  const name = `Staff journey kitchen ${runId}`
+  await page.getByRole("button", { name: "Create", exact: true }).click()
+  await page.getByLabel("Name", { exact: true }).fill(name)
+  await page.getByLabel("Pickup street").fill(`Staff street ${runId}`)
+  await page.getByLabel("Pickup postal code").fill("2200")
+  await page.getByLabel("Pickup city").fill("København N")
+  await page.getByLabel("Contact phone").fill("+45 12 34 56 78")
+  await page.getByLabel("Contact email").fill("staff@pizzeria.example")
+  await page.getByRole("button", { name: "Save", exact: true }).click()
+  await expect(page.getByRole("heading", { name, exact: true })).toBeVisible()
+
+  const pending = page.getByRole("list", { name: "Pending invitations" })
+  const invite = async (person: string, email: string) => {
+    await page.getByRole("button", { name: "Invite", exact: true }).click()
+    await page.getByLabel("Staff name").fill(person)
+    await page.getByLabel("Staff email").fill(email)
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: "Invite", exact: true })
+      .click()
+  }
+  await expect(page.getByText("No pending invitations.")).toBeVisible()
+  await invite("Mette Jensen", `mette-${runId}@example.test`)
+  const mette = pending
+    .getByRole("listitem")
+    .filter({ hasText: "Mette Jensen" })
+  await expect(mette).toContainText("Pending")
+  await expect(mette).toContainText("Expires")
+
+  const copy = async () => {
+    await page
+      .getByRole("button", { name: "Copy invite link for Mette Jensen" })
+      .click()
+    await expect(page.getByText("Invite link copied").last()).toBeVisible()
+    return page.evaluate(() => navigator.clipboard.readText())
+  }
+  const firstLink = await copy()
+  // The harness sets PARTNER_PUBLIC_URL for the backend it starts.
+  const partnerUrl = process.env.PARTNER_PUBLIC_URL || "http://localhost:8100"
+  expect(firstLink.startsWith(`${partnerUrl}/invite?token=`)).toBe(true)
+
+  // The HTTP suite checks that the expiry moves; here the link must change.
+  await page
+    .getByRole("button", { name: "Resend invitation for Mette Jensen" })
+    .click()
+  await expect(page.getByText(/New invite link created/).last()).toBeVisible()
+  const secondLink = await copy()
+  expect(secondLink).not.toBe(firstLink)
+
+  await invite("Jonas Holm", `jonas-${runId}@example.test`)
+  await page
+    .getByRole("button", { name: "Cancel invitation for Jonas Holm" })
+    .click()
+  await page
+    .getByRole("button", { name: "Cancel invitation", exact: true })
+    .click()
+  await expect(pending).not.toContainText("Jonas Holm")
+  await expect(pending).toContainText("Mette Jensen")
+
+  await invite("Operator Again", process.env.E2E_ADMIN_EMAIL!)
+  await expect(
+    page.getByRole("dialog").getByText(/already has an MTOGO login/),
+  ).toBeVisible()
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Cancel", exact: true })
+    .click()
+  await expect(pending).not.toContainText("Operator Again")
+  await expect(page.getByText("No authorized staff yet.")).toBeVisible()
+  await expect(page.getByText("No former staff.")).toBeVisible()
+  await page.reload()
+  await expect(mette).toContainText("Pending")
+  expect(errors).toEqual([])
+  await testInfo.attach("restaurant-staff", {
+    body: await page.screenshot({ fullPage: true }),
+    contentType: "image/png",
+  })
+})

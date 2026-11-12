@@ -22,6 +22,7 @@ import {
   removeCommercialTermsStep,
 } from "./steps/commercial-terms"
 import { TermsVersion } from "./commercial-terms"
+import { restaurantLock } from "./restaurant-lock"
 
 export const listRestaurantsWorkflow = createWorkflow(
   "list-restaurants",
@@ -70,13 +71,6 @@ export const updateRestaurantWorkflow = createWorkflow(
     return new WorkflowResponse({ restaurant, warnings })
   },
 )
-
-/** Setup changes to one Restaurant are serialized so later guards cannot race them. */
-const restaurantLock = (restaurant_id: string) => ({
-  key: `restaurant:${restaurant_id}`,
-  timeout: 5,
-  ttl: 30,
-})
 
 /** Single-code and batch routes share this workflow: one locked, all-or-nothing change. */
 export const changeDeliveryAreaWorkflow = createWorkflow(

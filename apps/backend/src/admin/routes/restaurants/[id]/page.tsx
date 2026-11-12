@@ -14,6 +14,7 @@ import {
   CommercialTermsSection,
   ReadinessSection,
 } from "../../../components/restaurant-setup"
+import { StaffSection } from "../../../components/staff-section"
 
 const RestaurantPage = () => {
   const { id } = useParams()
@@ -66,6 +67,7 @@ const RestaurantPage = () => {
       <ReadinessSection restaurant={restaurant} />
       <DeliveryAreaSection restaurant={restaurant} />
       <CommercialTermsSection restaurant={restaurant} />
+      <StaffSection restaurant={restaurant} />
       {editing && (
         <RestaurantForm
           restaurant={restaurant}

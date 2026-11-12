@@ -13,6 +13,7 @@ import { evaluateNewOrderEligibility } from "../eligibility"
 import { pickupAddressKey } from "../pickup-address-key"
 import { RestaurantDetails, AddressWarning } from "../types"
 import { restaurantNotFound } from "./restaurant-exists"
+import { presentRestaurantStaff } from "../../restaurant-staff/staff-invitation"
 
 type RestaurantRecord = Awaited<
   ReturnType<RestaurantModuleService["listRestaurants"]>
@@ -23,6 +24,7 @@ function presentRestaurant({
   pickup_address_key: _key,
   delivery_area_postal_codes,
   commercial_terms_agreements: _agreements,
+  staff: _staff,
   ...restaurant
 }: RestaurantRecord) {
   const postalCodes = (delivery_area_postal_codes ?? [])
@@ -75,6 +77,8 @@ export const retrieveRestaurantDetailStep = createStep(
         relations: [
           "delivery_area_postal_codes",
           "commercial_terms_agreements",
+          "staff",
+          "staff.invitation",
         ],
       },
     )
@@ -104,12 +108,15 @@ export const retrieveRestaurantDetailStep = createStep(
       })
       recordedBy = { id: agreement.recorded_by, email: users[0]?.email ?? null }
     }
-    // Staff arrive with invitations (#74) and dishes with the product link (#77);
-    // until then neither can exist, so both requirements stay missing.
+    const staff = presentRestaurantStaff(
+      await service.getPartnerUrl(),
+      record.staff ?? [],
+    )
+    // Dishes arrive with the product link (#77); until then none can exist.
     const published_dish_count = 0
     const missing = evaluateActivationRequirements({
       ...restaurant,
-      authorized_staff_count: 0,
+      authorized_staff_count: staff.authorized.length,
       has_commercial_terms: Boolean(agreement),
       published_dish_count,
       delivery_area_postal_code_count:
@@ -132,6 +139,7 @@ export const retrieveRestaurantDetailStep = createStep(
             }
           : null,
       },
+      staff,
       menu: { published_dish_count },
       readiness: {
         can_activate: missing.length === 0,

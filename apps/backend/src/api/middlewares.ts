@@ -19,6 +19,7 @@ import {
   PostAdminRecordCommercialTermsSchema,
   PostAdminChangeDeliveryAreaSchema,
   GetAdminPostalCodesSchema,
+  PostAdminInviteStaffSchema,
 } from "./admin/restaurants/validators"
 import { isDanishPostalCode } from "../workflows/restaurants/postal-code"
 import { RESTAURANT_STAFF_ACTOR } from "../workflows/restaurant-staff"
@@ -104,6 +105,11 @@ export default defineMiddlewares({
       middlewares: [
         validateAndTransformBody(PostAdminRecordCommercialTermsSchema),
       ],
+    },
+    {
+      matcher: "/admin/restaurants/:id/staff-invitations",
+      method: "POST",
+      middlewares: [validateAndTransformBody(PostAdminInviteStaffSchema)],
     },
     // Partner routes get no default authentication from Medusa (ADR-0017).
     {
