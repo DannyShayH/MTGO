@@ -53,14 +53,51 @@ See [backend documentation](/MTGO/architecture/modules/backend/) for code locati
 | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | TypeScript                                | Application code, docs tooling and metric calculations use static types. A shared language makes the applications and automation easier to work across.                                                                                 |
 | Node.js 24 and npm 11                     | The devcontainer and CI use Node 24. The root package requires Node `>=22.23.4` and declares `npm@11.19.1`; `package-lock.json` supplies reproducible dependency installs with `npm ci`.                                                |
-| Java 21                                   | The devcontainer exposes a cross-architecture Java runtime through SDKMAN so the SonarQube for IDE language server can start consistently. Java is development tooling, not an application runtime.                                     |
+| Java 21                                   | The devcontainer exposes a cross-architecture Java runtime through SDKMAN so the optional SonarQube for IDE language server starts consistently when a developer installs it. Java is development tooling, not an application runtime.  |
 | npm workspaces and Turborepo              | Workspaces manage the apps together; Turbo coordinates development, lint and build tasks while each app keeps its own scripts.                                                                                                          |
 | Docker Compose and VS Code Dev Containers | An Ubuntu 24.04 development container with PostgreSQL and Redis services gives developers the same runtime and tooling. A named volume preserves local database data. This is a development setup, not a production Compose deployment. |
 | GitHub CLI, TakT and gh-insitu            | Issue-branch workflow and shared quality commands. `.insitu.yml` defines the checks used locally and in CI, so the two environments run the same quality gates.                                                                         |
 
-The devcontainer also installs Python 3.14 as tooling. Neither Java nor Python
-is an application runtime demonstrated by the product code; both support the
-development environment.
+The devcontainer installs Python 3.14 because TakT (`gh tt`, behind `gh workon`,
+`gh wrapup` and `gh deliver`) is a Python program. The Ubuntu base image has only
+`python3-minimal`, which lacks standard modules such as `asyncio`. The
+repository itself has no Python source. The Python feature also adds the Python
+extensions, and Pylance alone used about 0.5 GB, so `devcontainer.json` excludes
+them by listing them with a `-` prefix
+([issue #100](https://github.com/DannyShayH/MTGO/issues/100)).
+
+### Memory on a 16 GB laptop
+
+The devcontainer, an agent and the quality checks must fit in the memory WSL
+gives Docker. Measured in [issue #100](https://github.com/DannyShayH/MTGO/issues/100) with WSL limited to 8 GB, the editor tooling
+alone used 5.3 GB before any test ran: the TypeScript server and the VS Code
+extension host about 0.6 GB each, and the optional
+[SonarQube for IDE](/MTGO/quality/static-analysis/#sonarqube-for-ide)
+extension about 1.9 GB. `gh wrapup`, the backend HTTP tests and the application
+builds each need another 1–2 GB. That is why SonarQube for IDE is recommended
+rather than installed. Install it only when you have memory to spare.
+
+On Windows, limit WSL in `%UserProfile%\.wslconfig`, so Windows keeps enough
+memory to stay responsive:
+
+```ini
+[wsl2]
+memory=8GB
+swap=4GB
+
+[experimental]
+autoMemoryReclaim=gradual
+```
+
+Run `wsl --shutdown` in PowerShell and start Docker Desktop again for the setting
+to take effect. With 8 GB, leave `npm run verify:applications` to the ready flow;
+it needs about 12 GB.
+
+If WSL stops responding (for example `Wsl/Service/0x8007274c`) and Docker
+Desktop cannot stop the devcontainer, run `wsl --shutdown` in PowerShell, start
+Docker Desktop again and reopen the folder in the container. Your files and the
+PostgreSQL volume survive; uncommitted work is safe, but running processes are
+lost.
 
 ## Documentation and metrics
 

@@ -6,6 +6,9 @@ import { describe, expect, it } from "vitest"
 const REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url))
 const JAVA_FEATURE = "ghcr.io/devcontainers/features/java:1"
 const JAVA_HOME = "/usr/local/sdkman/candidates/java/current"
+const SONARQUBE_FOR_IDE = "SonarSource.sonarlint-vscode"
+const PYTHON_FEATURE = "ghcr.io/devcontainers/features/python"
+const PYTHON_EXTENSIONS = ["ms-python.python", "ms-python.vscode-pylance"]
 
 function readJson<T>(path: string): T {
   return JSON.parse(readFileSync(join(REPO_ROOT, path), "utf8")) as T
@@ -20,6 +23,39 @@ describe("development container", () => {
 
     expect(devcontainer.features[JAVA_FEATURE]).toEqual({ version: "21" })
     expect(settings["sonarlint.ls.javaHome"]).toBe(JAVA_HOME)
+  })
+
+  it("recommends SonarQube for IDE instead of installing it for everyone", () => {
+    const devcontainer = readJson<{
+      customizations: { vscode: { extensions: string[] } }
+    }>(".devcontainer/devcontainer.json")
+    const recommendations = readJson<{ recommendations: string[] }>(
+      ".vscode/extensions.json",
+    )
+
+    expect(devcontainer.customizations.vscode.extensions).not.toContain(
+      SONARQUBE_FOR_IDE,
+    )
+    expect(recommendations.recommendations).toContain(SONARQUBE_FOR_IDE)
+  })
+
+  it("keeps Python for TakT without installing Pylance", () => {
+    const devcontainer = readJson<{
+      features: Record<string, unknown>
+      customizations: { vscode: { extensions: string[] } }
+    }>(".devcontainer/devcontainer.json")
+    const lockfile = readJson<{ features: Record<string, unknown> }>(
+      ".devcontainer/devcontainer-lock.json",
+    )
+
+    for (const features of [devcontainer.features, lockfile.features]) {
+      expect(Object.keys(features)).toContain(PYTHON_FEATURE)
+    }
+    for (const extension of PYTHON_EXTENSIONS) {
+      expect(devcontainer.customizations.vscode.extensions).toContain(
+        `-${extension}`,
+      )
+    }
   })
 
   it("pins the Java feature to an immutable artifact", () => {

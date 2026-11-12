@@ -72,19 +72,34 @@ to fix in #80, including unused seed code and nested conditionals.
 
 ## SonarQube for IDE
 
-Rebuild the devcontainer to install the recommended
-`SonarSource.sonarlint-vscode` extension, or install it manually in the container.
-The devcontainer installs Java 21 through its cross-architecture Java feature and
-points the extension at the feature's stable SDKMAN path. Rebuild and reopen the
-devcontainer after changing branches to receive that runtime; reloading the VS
-Code window does not install a newly declared devcontainer feature.
+SonarQube for IDE is **optional**. The devcontainer does not install it, because
+its ESLint bridge and Java language server together use about 1.9 GB of memory.
+On a 16 GB laptop that is enough to freeze WSL once tests or builds start; see
+[memory on a 16 GB laptop](/MTGO/architecture/technology-stack/#memory-on-a-16-gb-laptop).
+The checks that block delivery do not depend on it: `npm run lint` runs the
+SonarJS rules [before committing](#before-committing), and SonarQube Cloud runs
+on [every delivery](#every-delivery).
+
+To install it, open the Extensions view inside the devcontainer, filter on
+**Recommended** (`@recommended`) and install `SonarSource.sonarlint-vscode` in
+the container. `.vscode/extensions.json` recommends it. Uninstall it, or disable
+it for the workspace, when you need the memory back.
+
+The devcontainer still installs Java 21 through its cross-architecture Java
+feature, and `.vscode/settings.json` points the extension at the feature's
+stable SDKMAN path, so the extension starts without a Java-runtime error once it
+is installed. Rebuild and reopen the devcontainer after changing branches to
+receive that runtime; reloading the VS Code window does not install a newly
+declared devcontainer feature.
 
 The `Devcontainer runtime acceptance` workflow performs clean x64 and ARM64
 builds when the development-container configuration changes. On each
 architecture it starts the SonarQube for IDE language server with the configured
 Java runtime, opens this workspace's `devcontainer.test.ts` file and waits for
-TypeScript diagnostics. It runs standalone and does not receive a Sonar token.
-After rebuilding locally, reproduce the same runtime check with:
+TypeScript diagnostics. It downloads the extension itself, so it does not depend
+on the devcontainer installing it. It runs standalone and does not receive a
+Sonar token. After installing the extension locally, reproduce the same runtime
+check with:
 
 ```bash
 node scripts/verify-sonarqube-ide.mjs

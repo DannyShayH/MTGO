@@ -12,6 +12,8 @@ const TYPESCRIPT_PATH = join(
   "apps/docs/scripts/devcontainer.test.ts",
 )
 const TIMEOUT_MS = 300_000
+const NOT_INSTALLED_MESSAGE =
+  "SonarQube for IDE is not installed in the remote container. It is optional: install SonarSource.sonarlint-vscode from the recommended extensions, or set SONARQUBE_VSCODE_EXTENSION_DIR, before running this check."
 
 function fail(message) {
   throw new Error(message)
@@ -31,9 +33,7 @@ function findExtensionDirectory() {
     ".vscode-server/extensions",
   )
   if (!existsSync(extensionRoot)) {
-    fail(
-      "SonarQube for IDE is not installed in the remote container. Rebuild and reopen it before running this check.",
-    )
+    fail(NOT_INSTALLED_MESSAGE)
   }
 
   const matches = readdirSync(extensionRoot)
@@ -41,9 +41,7 @@ function findExtensionDirectory() {
     .sort()
 
   if (matches.length === 0) {
-    fail(
-      "SonarQube for IDE is not installed in the remote container. Rebuild and reopen it before running this check.",
-    )
+    fail(NOT_INSTALLED_MESSAGE)
   }
 
   return join(extensionRoot, matches.at(-1))

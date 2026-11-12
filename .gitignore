@@ -49,9 +49,10 @@ yarn-error.log*
 # Turbo
 .turbo
 
-# VS Code: personal settings stay local, the shared TakT settings are committed
+# VS Code: personal settings stay local, the shared settings and recommendations are committed
 .vscode/*
 !.vscode/settings.json
+!.vscode/extensions.json
 
 # vercel
 .vercel

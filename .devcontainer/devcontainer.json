@@ -10,7 +10,8 @@
       "version": "21"
     },
     "ghcr.io/devcontainers/features/python": {
-      "version": "3.14"
+      "version": "3.14",
+      "installTools": false
     },
     "ghcr.io/devcontainers/features/node:2.1.1": {
       "version": "24"
@@ -23,9 +24,12 @@
         "github.copilot",
         "anthropic.claude-code",
         "openai.chatgpt",
-        "SonarSource.sonarlint-vscode",
         "DavidAnson.vscode-markdownlint",
-        "streetsidesoftware.code-spell-checker"
+        "streetsidesoftware.code-spell-checker",
+        "-ms-python.python",
+        "-ms-python.vscode-pylance",
+        "-ms-python.debugpy",
+        "-ms-python.autopep8"
       ]
     }
   },
