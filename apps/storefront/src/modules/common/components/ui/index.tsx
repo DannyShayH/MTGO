@@ -57,6 +57,11 @@ export const Heading = forwardRef<HTMLHeadingElement, HeadingProps>(
 )
 Heading.displayName = "Heading"
 
+// Keyboard focus from the design brief: the offset keeps the ring readable
+// next to the primary teal, which it would not be on its own.
+export const focusRing =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mtogo-focus-ring focus-visible:ring-offset-2"
+
 // Button Component
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "primary" | "secondary" | "transparent"
@@ -82,10 +87,12 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         disabled={disabled || isLoading}
         className={clsx(
-          "inline-flex gap-2 items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
-          variant === "primary" && "bg-black text-white hover:bg-gray-800",
+          "inline-flex gap-2 items-center justify-center rounded-md font-medium transition-colors disabled:pointer-events-none disabled:opacity-50",
+          focusRing,
+          variant === "primary" &&
+            "bg-mtogo-action-primary text-mtogo-text-on-primary hover:bg-mtogo-action-primary-hover active:bg-mtogo-action-primary-pressed",
           variant === "secondary" &&
-            "bg-white text-black border border-gray-200 hover:bg-gray-50",
+            "bg-mtogo-surface-card text-mtogo-text-primary border border-mtogo-border-control hover:bg-mtogo-surface-selected",
           variant === "transparent" && "bg-transparent hover:bg-gray-100",
           size === "small" && "h-8 px-3 text-sm",
           size === "medium" && "h-10 px-4",
@@ -178,7 +185,8 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
       <button
         ref={ref}
         className={clsx(
-          "inline-flex items-center justify-center rounded-md p-2 hover:bg-gray-100 transition-colors focus-visible:outline-none focus-visible:ring-2",
+          "inline-flex items-center justify-center rounded-md p-2 hover:bg-gray-100 transition-colors",
+          focusRing,
           className,
         )}
         {...props}
@@ -221,7 +229,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         <input
           ref={ref}
           className={clsx(
-            "flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+            "flex h-10 w-full rounded-md border border-mtogo-border-control bg-mtogo-surface-card px-3 py-2 text-base text-mtogo-text-primary placeholder:text-mtogo-text-secondary focus:outline-none focus:ring-2 focus:ring-mtogo-focus-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
             className,
           )}
           {...props}

@@ -84,6 +84,7 @@ inventory:
     name: Run the shared package tests (fast, no database)
     command: |
       cd packages/i18n && npm test
+      cd ../ui && npm test
 
   - id: architecture
     name: Check architecture rules with dependency-cruiser (.dependency-cruiser.cjs)

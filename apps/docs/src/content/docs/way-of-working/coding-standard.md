@@ -136,6 +136,7 @@ Rules that follow from this:
 - Data functions run on the server (`"use server"` or server components). Never put secrets in `NEXT_PUBLIC_` variables.
 - Feature modules do not reach into each other. Anything shared moves to `src/modules/common`.
 - Apps never import each other's code; the HTTP API is the contract between them. Apps may import the shared `packages/`, which never import apps. The partner app follows the same rules as the storefront.
+- **User-facing screens follow the [design brief](/MTGO/product/design-brief/):** `mtogo-*` colour tokens instead of raw hex values, the shared components, the empty, loading, error and success states, and the accessibility baseline.
 
 ### 5.3 Money, time and language
 
@@ -343,6 +344,7 @@ The review practice itself (who reviews and when) is part of the team's [policie
 - **Layers respected.** Routes run workflows, business rules are in workflows, modules do not import each other, and `npm run arch` passes (section 5).
 - **Errors handled.** `MedusaError` with the right type, no swallowed errors, safe messages, no personal data in logs (section 7).
 - **Tests designed.** EP, BVA and decision tables are used, each rule set is one `it.each` table, and every row has a reason (section 8).
+- **Design brief followed** for user-facing screens: tokens, both languages, the four states and the accessibility baseline (section 5.2).
 - **Names follow the glossary** and sections 4.1 to 4.4. The tools report no lint or format errors.
 - **Comments explain why.** No `TODO`, no commented-out code (section 6).
 - **Documentation updated:** module README, endpoint documentation and any ADR (section 9).

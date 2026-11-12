@@ -1,3 +1,13 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  /* The html lang follows the chosen language, so Danish hyphenates as
+     Danish (design brief, Typography). */
+  p,
+  li,
+  td {
+    hyphens: auto;
+  }
+}

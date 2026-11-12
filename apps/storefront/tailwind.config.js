@@ -2,7 +2,8 @@ const path = require("path")
 
 module.exports = {
   darkMode: "class",
-  presets: [require("@medusajs/ui-preset")],
+  // MTOGO tokens (packages/ui) on top of the Medusa UI preset.
+  presets: [require("@dtc/ui/tailwind-preset")],
   content: [
     "./src/app/**/*.{js,ts,jsx,tsx}",
     "./src/pages/**/*.{js,ts,jsx,tsx}",

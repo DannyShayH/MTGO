@@ -5,9 +5,13 @@
   "description": "MTOGO design tokens on top of Medusa UI, shared by the apps",
   "exports": {
     "./tailwind-preset": "./tailwind-preset.cjs",
-    "./tokens": "./tokens.cjs"
+    "./tokens": "./tokens.cjs",
+    "./contrast": "./contrast.cjs"
   },
   "dependencies": {
     "@medusajs/ui-preset": "2.22.4"
+  },
+  "scripts": {
+    "test": "node --test \"__tests__/*.unit.spec.ts\""
   }
 }

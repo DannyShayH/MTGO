@@ -280,7 +280,7 @@ Rules for using them in this repo:
 - **Mobile skills (`animate-expo`, `mobile-native`, `write-swift`) are kept for a possible mobile app later.** There is no mobile app yet, so do not use them unless an issue asks for one.
 - **`git-guardrails-claude-code` is not used.** Git rules for every agent live in [Git & commits](#git--commits).
 - **Load the matching Medusa skill before writing Medusa code**, as described in [Medusa Skills & MCP Server](#medusa-skills--mcp-server).
-- **`frontend-design` works inside our design system:** Medusa UI components, our own colours and typography, and the team's design brief. Choose a deliberate direction within those limits instead of a new visual style.
+- **`frontend-design` works inside our design system:** Medusa UI components, our own colours and typography, and the team's [design brief](apps/docs/src/content/docs/product/design-brief.md). Choose a deliberate direction within those limits instead of a new visual style.
 - **`implement` and `tdd` run on the issue branch created by `gh workon`** and follow the rules in [Workflow (TakT + Kanban)](#workflow-takt--kanban) and [Git & commits](#git--commits).
 
 ### Issue tracker

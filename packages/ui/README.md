@@ -15,10 +15,22 @@ module.exports = {
 }
 ```
 
-| Token                | Value     | Use                                    |
-| -------------------- | --------- | -------------------------------------- |
-| `mtogo-brand`        | `#C2410C` | The brand mark and one accent per page |
-| `mtogo-brand-subtle` | `#FFF1E8` | Background behind the brand mark       |
-| `rounded-card`       | `12px`    | Cards in the partner app               |
+Colour tokens are named for their job and prefixed `mtogo-` in Tailwind, for
+example `bg-mtogo-action-primary` or `text-mtogo-text-secondary`. The
+[design brief](https://dannyshayh.github.io/MTGO/product/design-brief/) lists
+every token, where it is used and which pairs are allowed. `rounded-card`
+(`12px`) rounds cards in the partner app.
+
+`contrast.cjs` (`@dtc/ui/contrast`) computes the WCAG contrast ratio of two
+colours. The tests check every pair the brief promises against the tokens, so a
+colour change that breaks contrast fails CI:
+
+```bash
+cd packages/ui && npm test
+```
+
+`assets/` holds the logo as SVG and PNG: `mtogo-logo` (square, also the
+favicon) and `mtogo-logo-wide` (headers). The apps serve a copy of the wide SVG
+from `public/images/` and the square one as `src/app/icon.svg`.
 
 Packages never import apps (`npm run arch`).

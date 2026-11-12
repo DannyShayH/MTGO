@@ -5,6 +5,8 @@ import { getLocale } from "@lib/data/locale-actions"
 import { listRegions } from "@lib/data/regions"
 import { StoreRegion } from "@medusajs/types"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
+import MtogoLogo from "@modules/common/components/mtogo-logo"
+import { clx, focusRing } from "@modules/common/components/ui"
 import CartButton from "@modules/layout/components/cart-button"
 import Search from "@modules/layout/components/search"
 import SideMenu from "@modules/layout/components/side-menu"
@@ -33,10 +35,10 @@ export default async function Nav() {
           <div className="flex items-center h-full">
             <LocalizedClientLink
               href="/"
-              className="txt-compact-xlarge-plus hover:text-ui-fg-base uppercase"
+              className={clx("rounded-md", focusRing)}
               data-testid="nav-store-link"
             >
-              Medusa Store
+              <MtogoLogo />
             </LocalizedClientLink>
           </div>
 

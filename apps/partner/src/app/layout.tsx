@@ -1,5 +1,10 @@
 import type { Metadata } from "next"
 import { getMessages } from "@lib/i18n"
+// Inter, self-hosted: Medusa UI's type classes name it, and no font request
+// leaves for a third party.
+import "@fontsource/inter/400.css"
+import "@fontsource/inter/500.css"
+import "@fontsource/inter/600.css"
 import "./globals.css"
 
 export async function generateMetadata(): Promise<Metadata> {
