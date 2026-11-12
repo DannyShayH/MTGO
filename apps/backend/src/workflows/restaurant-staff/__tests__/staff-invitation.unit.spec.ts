@@ -1,5 +1,6 @@
 import {
   groupRestaurantStaff,
+  isInvitedEmail,
   isStaffInvitationUsable,
   staffInvitationLink,
 } from "../staff-invitation"
@@ -126,4 +127,50 @@ describe("Restaurant staff grouping", () => {
       former: [],
     })
   })
+})
+
+describe("Accepting with a registered email", () => {
+  it.each([
+    {
+      invited: "mette@pizzeria.example",
+      registered: "mette@pizzeria.example",
+      reason: "EP: the invited email",
+      expected: true,
+    },
+    {
+      invited: "mette@pizzeria.example",
+      registered: "Mette@Pizzeria.Example",
+      reason: "EP: the invited email in other case",
+      expected: true,
+    },
+    {
+      invited: "mette@pizzeria.example",
+      registered: " mette@pizzeria.example ",
+      reason: "BVA: surrounding whitespace",
+      expected: true,
+    },
+    {
+      invited: "mette@pizzeria.example",
+      registered: "jonas@pizzeria.example",
+      reason: "EP: another email",
+      expected: false,
+    },
+    {
+      invited: "mette@pizzeria.example",
+      registered: "mette@pizzeria.example.dk",
+      reason: "BVA: the invited email as a prefix",
+      expected: false,
+    },
+    {
+      invited: "mette@pizzeria.example",
+      registered: "",
+      reason: "BVA: no email",
+      expected: false,
+    },
+  ])(
+    "matches the invitation only for the invited email: $reason",
+    ({ invited, registered, expected }) => {
+      expect(isInvitedEmail(invited, registered)).toBe(expected)
+    },
+  )
 })

@@ -24,8 +24,8 @@ the delivery area and the commercial terms. API routes and Admin never mutate th
 module directly. Every mutation step has compensation, and each delivery-area or
 terms change takes a lock on `restaurant:<id>` so the guards for active
 Restaurants (#78) cannot race it. The module has no cross-module links and emits
-no domain events yet. Accepting invitations, revocation, menus and state
-transitions belong to later onboarding slices.
+no domain events yet. Revocation, menus and state transitions belong to
+later onboarding slices.
 
 ## Restaurant staff
 
@@ -33,8 +33,8 @@ Staff sign in to the partner app (`apps/partner`, ADR-0017) with the
 `restaurant_staff` actor type and Medusa's email and password provider. The
 staff member's auth identity holds their staff id in its app metadata
 (`restaurant_staff_id`), set by `createAuthorizedStaffWorkflow` with core-flows'
-`setAuthAppMetadataStep`. Until invited staff can accept (#75), only the
-demonstration seed creates authorized staff.
+`setAuthAppMetadataStep`. Staff become authorized by accepting an invitation;
+the demonstration seed also creates one authorized staff member directly.
 
 ### Invitations
 
@@ -61,8 +61,33 @@ from Admin and sends it themselves.
   `staff-email:<lowercased email>` lock, so two Restaurants cannot invite the
   same email at once.
 - The pure `isStaffInvitationUsable` rule decides whether a token still works: it
-  must be the invitation's current token and not yet expired. Accepting (#75)
-  uses it, then deletes the invitation, so a used link stops working too.
+  must be the invitation's current token and not yet expired.
+
+### Accepting an invitation
+
+Accepting follows Medusa's admin invite accept. The partner app first
+registers an email and password login for the invited email with the
+`restaurant_staff` actor type, then calls accept with that registration token.
+
+- `retrieveStaffInvitationWorkflow` backs the public invitation page. It
+  returns the Restaurant's name and the invited name and email.
+- `acceptStaffInvitationWorkflow` checks the link, then checks that the login is
+  for the invited email (pure `isInvitedEmail`: whole email, case ignored) and
+  is not already staff. Under the `restaurant:<id>` lock it checks the token
+  again, makes the staff member `authorized` with `accepted_at`, deletes the
+  invitation and stores the staff id in the login's app metadata. Every step
+  has compensation, so a failure leaves the invitation pending for a retry.
+- Expired, replaced, used, cancelled and unknown tokens all get
+  `invitation_invalid` (`NOT_ALLOWED`, `400`), so the reason is never revealed.
+  A login for another email, or one that is already staff, is refused the same
+  way.
+- Admin then lists the person under authorized staff, and readiness counts
+  them.
+
+`retrievePartnerRestaurantWorkflow` shows staff their own Restaurant, read-only:
+details, delivery area with town names, `is_active`, `is_open` and Receiving
+new Orders. Any other Restaurant answers `restaurant_not_found` (`NOT_FOUND`),
+exactly like one that does not exist.
 
 Invite links are `<partner_url>/invite?token=<token>` (`staffInvitationLink`).
 The module option `partner_url` comes from `PARTNER_PUBLIC_URL` in
@@ -160,9 +185,18 @@ harness runs it after migrations in its isolated source snapshot.
   and operator-only access.
 - HTTP staff sign-in and `GET /partner/me` access: Admin user, Customer and
   malformed tokens, a login without staff, and revoked staff.
-- Partner journey (Danish sign-in, wrong password, Overview, English kept after
-  reload, sign-out leaving a Customer's cookie alone): `apps/partner/e2e`, in the
-  same root `npm run verify:applications`.
+- HTTP invitation page and accept: a valid link; expired, resent, cancelled,
+  used and unknown links; a login for another email; a login that is already
+  staff; no or wrong actor; rollback when linking the login fails; and Admin
+  counting the accepted person.
+- HTTP `GET /partner/restaurants/{id}`: details, delivery area and
+  participation; another Restaurant and an unknown one answer `404`; no token,
+  wrong actor, a login without staff and revoked staff are refused.
+- Partner journeys (Danish sign-in, wrong password, Overview, English kept after
+  reload, sign-out leaving a Customer's cookie alone; accepting an invitation,
+  seeing the Overview with details and "Afventer aktivering af MTOGO", and the
+  used link showing the invalid message): `apps/partner/e2e`, in the same root
+  `npm run verify:applications`.
 - Operator journey: root `npm run verify:applications`, following the documented
   disposable database setup. Admin navigation: **Restaurants**, **Create**, then
   **Details → Edit**, then the **Delivery area**, **Commercial terms**,

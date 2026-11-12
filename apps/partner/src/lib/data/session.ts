@@ -6,18 +6,10 @@ import { revalidatePath } from "next/cache"
 import { FetchError } from "@medusajs/js-sdk"
 import { isLocale, type MessageCode } from "@dtc/i18n"
 import { LOCALE_COOKIE, PARTNER_TOKEN_COOKIE, sdk } from "@lib/config"
+import { cookieOptions, storePartnerToken } from "@lib/partner-token"
 import { retrieveStaffSession, type StaffSession } from "./staff"
 
 export type SignInState = { error?: MessageCode }
-
-const cookieOptions = (maxAge: number) => ({
-  httpOnly: true,
-  sameSite: "lax" as const,
-  secure: process.env.NODE_ENV === "production",
-  path: "/",
-  maxAge,
-})
-
 /**
  * Signs in on the server and keeps the token in the partner app's own
  * httpOnly cookie. Medusa's session cookie belongs to the backend origin and
@@ -60,12 +52,7 @@ export async function signIn(
           ? "staff_access_revoked"
           : "sign_in_failed",
     }
-  // Medusa's tokens expire after a day by default.
-  ;(await cookies()).set(
-    PARTNER_TOKEN_COOKIE,
-    token,
-    cookieOptions(60 * 60 * 24),
-  )
+  await storePartnerToken(token)
   redirect("/overview")
 }
 

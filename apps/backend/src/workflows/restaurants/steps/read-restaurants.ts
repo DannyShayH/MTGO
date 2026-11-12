@@ -1,3 +1,4 @@
+import { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
 import PostalCodeModuleService from "../../../modules/postal-code/service"
@@ -39,6 +40,27 @@ function presentRestaurant({
       delivery_postal_codes: postalCodes,
     }),
   }
+}
+
+/** Each delivery-area code with its town name from the Danish register. */
+async function nameDeliveryArea(container: MedusaContainer, codes: string[]) {
+  const names = new Map(
+    codes.length
+      ? (
+          await container
+            .resolve<PostalCodeModuleService>(POSTAL_CODE_MODULE)
+            .listPostalCodes(
+              { postal_code: codes },
+              { take: null, select: ["postal_code", "name"] },
+            )
+        ).map(({ postal_code, name }) => [postal_code, name])
+      : [],
+  )
+  // A code dropped from the register keeps its place, without a name.
+  return codes.map((postal_code) => ({
+    postal_code,
+    name: names.get(postal_code) ?? null,
+  }))
 }
 
 type ReadInput = { q?: string; limit: number; offset: number }
@@ -84,18 +106,9 @@ export const retrieveRestaurantDetailStep = createStep(
     )
     if (!record) throw restaurantNotFound()
     const restaurant = presentRestaurant(record)
-    const codes = restaurant.delivery_area_postal_codes
-    const names = new Map(
-      codes.length
-        ? (
-            await container
-              .resolve<PostalCodeModuleService>(POSTAL_CODE_MODULE)
-              .listPostalCodes(
-                { postal_code: codes },
-                { take: null, select: ["postal_code", "name"] },
-              )
-          ).map(({ postal_code, name }) => [postal_code, name])
-        : [],
+    const delivery_area = await nameDeliveryArea(
+      container,
+      restaurant.delivery_area_postal_codes,
     )
     const [agreement] = record.commercial_terms_agreements ?? []
     let recordedBy: { id: string; email: string | null } | null = null
@@ -124,11 +137,7 @@ export const retrieveRestaurantDetailStep = createStep(
     })
     return new StepResponse({
       ...restaurant,
-      // A code dropped from the register keeps its place, without a name.
-      delivery_area: codes.map((postal_code) => ({
-        postal_code,
-        name: names.get(postal_code) ?? null,
-      })),
+      delivery_area,
       commercial_terms: {
         ...COMMON_MVP_TERMS_V1,
         agreement: agreement
@@ -182,5 +191,42 @@ export const checkPickupAddressStep = createStep(
         ]
       : []
     return new StepResponse(warnings)
+  },
+)
+
+/**
+ * What staff see of their own Restaurant: its details read-only, the delivery
+ * area and participation. Any other Restaurant answers NOT_FOUND, exactly as
+ * one that does not exist, so other Restaurants cannot be detected.
+ */
+export const retrievePartnerRestaurantStep = createStep(
+  "retrieve-partner-restaurant",
+  async (input: { id: string; staff_restaurant_id: string }, { container }) => {
+    if (input.id !== input.staff_restaurant_id) throw restaurantNotFound()
+    const [record] = await container
+      .resolve<RestaurantModuleService>(RESTAURANT_MODULE)
+      .listRestaurants(
+        { id: input.id },
+        { relations: ["delivery_area_postal_codes"] },
+      )
+    if (!record) throw restaurantNotFound()
+    const restaurant = presentRestaurant(record)
+    return new StepResponse({
+      id: restaurant.id,
+      name: restaurant.name,
+      address_street: restaurant.address_street,
+      address_postal_code: restaurant.address_postal_code,
+      address_city: restaurant.address_city,
+      contact_phone: restaurant.contact_phone,
+      contact_email: restaurant.contact_email,
+      delivery_area: await nameDeliveryArea(
+        container,
+        restaurant.delivery_area_postal_codes,
+      ),
+      is_active: restaurant.is_active,
+      is_open: restaurant.is_open,
+      receiving_new_orders: restaurant.receiving_new_orders,
+      reason: restaurant.reason,
+    })
   },
 )

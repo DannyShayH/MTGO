@@ -12,3 +12,4 @@ export {
   type MessageCode,
   type Messages,
 } from "./messages.ts"
+export { formatText } from "./format.ts"

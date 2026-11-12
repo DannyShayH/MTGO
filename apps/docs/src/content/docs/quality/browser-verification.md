@@ -146,6 +146,14 @@ Pizzeria Nørrebro (`SEED_STAFF_EMAIL`, `SEED_STAFF_PASSWORD`).
 - With a token the backend no longer accepts, the Overview sends the browser to
   sign-in with the "session has expired" message and the token cookie is gone. A
   wrong password then shows the English sign-in failure.
+- An operator invites a new staff member through the Admin API, with the
+  disposable `E2E_ADMIN_EMAIL` login, and adds 2200 to the delivery area. With a
+  Danish browser, the invite link shows Pizzeria Nørrebro and the invited name
+  and email. Choosing a password opens the Overview with "Afventer aktivering af
+  MTOGO" and the read-only details card. After sign-out the same link shows the
+  invalid-invitation message, and the new login signs in from the sign-in page.
+- With an English browser, an unknown link and a link without a token show
+  "This invitation is no longer valid. Ask MTOGO for a new one."
 
 Every test fails on uncaught browser errors. Tracing and video are off, because
 the journey types a password.

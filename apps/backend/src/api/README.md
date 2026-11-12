@@ -510,3 +510,91 @@ curl http://localhost:9000/partner/me -H "Authorization: Bearer $TOKEN"
 | ------ | ---------------------------------------------------------------------------------------------------------- |
 | `401`  | No token, an invalid or expired token, an Admin user or Customer token, or a login that never became staff |
 | `403`  | `code: "staff_access_revoked"`: the staff member was revoked or no longer exists                           |
+
+### GET /partner/staff-invitations/{token}
+
+**Actor:** none. The invite link's token is the credential, as in Medusa's admin
+invite. Returns what the invitation page shows.
+
+```bash
+curl http://localhost:9000/partner/staff-invitations/$INVITE_TOKEN
+```
+
+**Success:** `200` with
+
+```json
+{
+  "invitation": {
+    "restaurant": { "name": "Pizzeria Nørrebro" },
+    "staff": { "name": "Mette Jensen", "email": "mette@pizzeria.example" }
+  }
+}
+```
+
+| Status | When                                                                                                             |
+| ------ | ---------------------------------------------------------------------------------------------------------------- |
+| `400`  | `code: "invitation_invalid"`: the token expired, was replaced by a resend, was used, was cancelled or is unknown |
+
+### POST /partner/staff-invitations/accept
+
+**Actor:** a `restaurant_staff` email and password login that is not staff yet
+(bearer token from `POST /auth/restaurant_staff/emailpass/register`). Makes the
+invited person authorized staff: the staff id is stored in the login's app
+metadata and the invitation is deleted, so the link stops working. Sign in again
+afterwards to get a token that carries the staff id.
+
+| Field   | Type   | Required | Rules                             |
+| ------- | ------ | -------- | --------------------------------- |
+| `token` | string | yes      | The invite link's token, nonempty |
+
+```bash
+curl -X POST http://localhost:9000/partner/staff-invitations/accept \
+  -H "Authorization: Bearer $REGISTRATION_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "token": "'"$INVITE_TOKEN"'" }'
+```
+
+**Success:** `200` with the staff member and Restaurant as in `GET /partner/me`.
+
+| Status | When                                                                                                                             |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `400`  | `code: "invitation_invalid"`: as above, the login's email is not the invited email (case ignored), or the login is already staff |
+| `400`  | Missing or empty `token`, or an unknown field                                                                                    |
+| `401`  | No token, or a token for another actor type                                                                                      |
+
+### GET /partner/restaurants/{id}
+
+**Actor:** Restaurant staff (`restaurant_staff`, bearer token only). Returns the
+staff member's own Restaurant, read-only, for the Overview.
+
+```bash
+curl http://localhost:9000/partner/restaurants/$RESTAURANT_ID \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Success:** `200` with
+
+```json
+{
+  "restaurant": {
+    "id": "res_01...",
+    "name": "Pizzeria Nørrebro",
+    "address_street": "Nørrebrogade 1",
+    "address_postal_code": "2200",
+    "address_city": "København N",
+    "contact_phone": "+45 12 34 56 78",
+    "contact_email": "kontakt@pizzeria.example",
+    "delivery_area": [{ "postal_code": "2200", "name": "København N" }],
+    "is_active": false,
+    "is_open": false,
+    "receiving_new_orders": false,
+    "reason": "restaurant_inactive"
+  }
+}
+```
+
+| Status | When                                                                                       |
+| ------ | ------------------------------------------------------------------------------------------ |
+| `401`  | As for `GET /partner/me`                                                                   |
+| `403`  | `code: "staff_access_revoked"`: as for `GET /partner/me`                                   |
+| `404`  | `code: "restaurant_not_found"`: another Restaurant or an unknown one, answered identically |

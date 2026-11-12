@@ -11,6 +11,8 @@ import RestaurantModuleService from "../../../modules/restaurant/service"
 import { RESTAURANT_MODULE } from "../../../modules/restaurant"
 import { assertRestaurantExists } from "../../restaurants/steps/restaurant-exists"
 import {
+  isInvitedEmail,
+  isStaffInvitationUsable,
   STAFF_INVITATION_VALID_SECONDS,
   staffInvitationLink,
 } from "../staff-invitation"
@@ -230,5 +232,124 @@ export const cancelStaffInvitationStep = createStep(
     const service = restaurantService(container)
     await service.createRestaurantStaffs(removed.staff)
     await service.createStaffInvitations(removed.invitation)
+  },
+)
+
+/** One refusal for every unusable link, so the reason is never revealed. */
+export const invitationInvalid = () =>
+  new MedusaError(
+    MedusaError.Types.NOT_ALLOWED,
+    "invitation_invalid",
+    "invitation_invalid",
+  )
+
+/** What the invitation page shows: the Restaurant and the invited person. */
+export type OpenedStaffInvitation = {
+  staff_id: string
+  restaurant_id: string
+  restaurant: { name: string }
+  staff: { name: string; email: string }
+}
+
+/**
+ * Finds the pending invitation that holds this token. An expired, replaced,
+ * used, cancelled or unknown token is refused with `invitation_invalid`.
+ */
+export const retrieveUsableStaffInvitationStep = createStep(
+  "retrieve-usable-staff-invitation",
+  async (input: { token: string }, { container }) => {
+    const [invitation] = input.token
+      ? await restaurantService(container).listStaffInvitations(
+          { token: input.token },
+          { relations: ["staff", "staff.restaurant"] },
+        )
+      : []
+    if (
+      !invitation ||
+      invitation.staff.status !== "pending" ||
+      !isStaffInvitationUsable(invitation, input.token, new Date())
+    )
+      throw invitationInvalid()
+    const { staff } = invitation
+    const opened: OpenedStaffInvitation = {
+      staff_id: staff.id,
+      restaurant_id: staff.restaurant.id,
+      restaurant: { name: staff.restaurant.name },
+      staff: { name: staff.name, email: staff.email },
+    }
+    return new StepResponse(opened)
+  },
+)
+
+/**
+ * The accepting login must be a new email and password identity for the
+ * invited email. A login for another email, or one that already acts as staff,
+ * gets the same `invitation_invalid` as an unusable link (spec: one refusal).
+ */
+export const assertAcceptingLoginStep = createStep(
+  "assert-accepting-login",
+  async (
+    input: { auth_identity_id: string; actor_id?: string; email: string },
+    { container },
+  ) => {
+    if (input.actor_id) throw invitationInvalid()
+    const identity = await container
+      .resolve(Modules.AUTH)
+      .retrieveAuthIdentity(input.auth_identity_id, {
+        relations: ["provider_identities"],
+      })
+    const login = identity.provider_identities?.find(
+      ({ provider }) => provider === "emailpass",
+    )
+    if (!isInvitedEmail(input.email, login?.entity_id ?? ""))
+      throw invitationInvalid()
+    return new StepResponse(undefined)
+  },
+)
+
+/**
+ * Makes pending staff authorized and deletes the invitation, so the link stops
+ * working. It runs under the Restaurant's lock and checks the token again, so
+ * a resend, cancel or second accept that got there first wins.
+ */
+export const authorizeInvitedStaffStep = createStep(
+  "authorize-invited-staff",
+  async (input: { staff_id: string; token: string }, { container }) => {
+    const service = restaurantService(container)
+    const [staff] = await service.listRestaurantStaffs(
+      { id: input.staff_id, status: "pending" },
+      { relations: ["invitation"] },
+    )
+    const invitation = staff?.invitation
+    if (
+      !invitation ||
+      !isStaffInvitationUsable(invitation, input.token, new Date())
+    )
+      throw invitationInvalid()
+    await service.updateRestaurantStaffs({
+      id: staff.id,
+      status: "authorized",
+      accepted_at: new Date(),
+    })
+    await service.deleteStaffInvitations(invitation.id)
+    return new StepResponse(undefined, {
+      staff_id: staff.id,
+      invitation: {
+        id: invitation.id,
+        token: invitation.token,
+        expires_at: invitation.expires_at,
+        staff_id: staff.id,
+      },
+    })
+  },
+  async (previous, { container }) => {
+    if (!previous) return
+    const service = restaurantService(container)
+    await service.updateRestaurantStaffs({
+      id: previous.staff_id,
+      status: "pending",
+      accepted_at: null,
+    })
+    await service.createStaffInvitations(previous.invitation)
   },
 )

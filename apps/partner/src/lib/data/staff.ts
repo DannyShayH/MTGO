@@ -43,14 +43,22 @@ export async function retrieveStaffSession(
     })
     return { status: "authorized", current }
   } catch (error) {
-    // Branch on the status only (coding standard 7.2): 403 is the one refusal
-    // /partner/me has for a valid token, staff_access_revoked.
-    if (error instanceof FetchError && error.status === 403)
-      return { status: "ended", code: "staff_access_revoked" }
-    if (error instanceof FetchError && error.status === 401)
-      return { status: "ended", code: "session_expired" }
+    const code = sessionEndedCode(error)
+    if (code) return { status: "ended", code }
     throw error
   }
+}
+
+/**
+ * Why a partner request ended the session, if it did. Branch on the status
+ * only (coding standard 7.2): 403 is the one refusal partner routes have for a
+ * valid token, staff_access_revoked, and 401 means the token stopped working.
+ */
+export function sessionEndedCode(error: unknown): SessionEndedCode | undefined {
+  if (!(error instanceof FetchError)) return undefined
+  if (error.status === 403) return "staff_access_revoked"
+  if (error.status === 401) return "session_expired"
+  return undefined
 }
 
 /** The signed-in staff member of this request, fetched once per render. */

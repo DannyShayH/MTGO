@@ -26,6 +26,17 @@ export function isStaffInvitationUsable(
   )
 }
 
+/**
+ * The login that accepts an invitation must be for the invited email, as in
+ * Medusa's admin invite. Emails are compared whole, ignoring case.
+ */
+export function isInvitedEmail(invited: string, registered: string) {
+  const normalize = (email: string) => email.trim().toLowerCase()
+  return (
+    Boolean(registered.trim()) && normalize(invited) === normalize(registered)
+  )
+}
+
 export type StaffStatus = "pending" | "authorized" | "revoked"
 
 /** Admin shows who has not accepted yet, who can act now and who used to (ADR-0014). */

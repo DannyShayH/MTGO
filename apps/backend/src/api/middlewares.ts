@@ -21,6 +21,7 @@ import {
   GetAdminPostalCodesSchema,
   PostAdminInviteStaffSchema,
 } from "./admin/restaurants/validators"
+import { PostPartnerAcceptStaffInvitationSchema } from "./partner/validators"
 import { isDanishPostalCode } from "../workflows/restaurants/postal-code"
 import { RESTAURANT_STAFF_ACTOR } from "../workflows/restaurant-staff"
 
@@ -115,6 +116,33 @@ export default defineMiddlewares({
     {
       matcher: "/partner/me",
       middlewares: [authenticate(RESTAURANT_STAFF_ACTOR, "bearer")],
+    },
+    {
+      matcher: "/partner/restaurants*",
+      middlewares: [authenticate(RESTAURANT_STAFF_ACTOR, "bearer")],
+    },
+    // Public: the invite link's token is the credential, as in Medusa's
+    // admin invite. A bearer token, when sent, is read but not required.
+    {
+      matcher: "/partner/staff-invitations/:token",
+      method: "GET",
+      middlewares: [
+        authenticate(RESTAURANT_STAFF_ACTOR, "bearer", {
+          allowUnauthenticated: true,
+        }),
+      ],
+    },
+    // The login is registered just before accepting, so it has no staff yet,
+    // as in Medusa's admin invite accept.
+    {
+      matcher: "/partner/staff-invitations/accept",
+      method: "POST",
+      middlewares: [
+        authenticate(RESTAURANT_STAFF_ACTOR, "bearer", {
+          allowUnregistered: true,
+        }),
+        validateAndTransformBody(PostPartnerAcceptStaffInvitationSchema),
+      ],
     },
     {
       method: ["POST"],

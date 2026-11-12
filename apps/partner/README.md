@@ -25,8 +25,20 @@ English text comes from `@dtc/i18n`.
 - **Language.** The first visit follows the browser's `Accept-Language` and falls
   back to Danish. The Dansk/English switch is remembered for a year in the
   `mtogo_partner_locale` cookie.
-- **Dashboard.** A sidebar with only Overview, and an Overview with the
-  Restaurant's name. Later Features add their tools to the sidebar.
+- **Accepting an invitation.** The operator's invite link opens `/invite?token=…`,
+  which shows the Restaurant's name and the invited name and email. The person
+  chooses a password (at least 8 characters). On the server the app registers
+  the invited email (taken from the invitation, never from the form) as a
+  `restaurant_staff` login, calls `POST /partner/staff-invitations/accept` with
+  the registration token, signs in, stores the token and opens the Overview. A
+  retry after a failed accept signs in with the already registered login
+  instead. Any unusable link shows "This invitation is no longer valid. Ask
+  MTOGO for a new one." without saying why.
+- **Dashboard.** A sidebar with only Overview. The Overview shows the
+  participation status ("Awaiting activation by MTOGO" or Active) and the
+  Restaurant details card, read-only: pickup address, phone, email and the
+  delivery area with town names, from `GET /partner/restaurants/{id}`. Later
+  Features add their tools to the sidebar.
 
 ## Run it
 
@@ -53,7 +65,9 @@ The Playwright journey in `e2e/` runs in the root `npm run verify:applications`
 against a production build: Danish sign-in, a wrong password, the Overview,
 English kept after reload, sign-out leaving a Customer's cookie alone, an expired token
 being cleared with its message, an English sign-in failure, and the first-visit
-language for English and unsupported browsers. Its report is in
+language for English and unsupported browsers. The invitation journey invites a
+staff member through the Admin API, accepts in Danish, checks the Overview's
+details and participation, and sees the used and unknown links refused. Its report is in
 `apps/partner/playwright-report`.
 
 The sign-in failure tests start a separate production partner app with a local

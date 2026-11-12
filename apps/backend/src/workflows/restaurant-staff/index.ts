@@ -9,7 +9,10 @@ import {
   releaseLockStep,
   setAuthAppMetadataStep,
 } from "@medusajs/medusa/core-flows"
-import { retrieveRestaurantDetailStep } from "../restaurants/steps/read-restaurants"
+import {
+  retrievePartnerRestaurantStep,
+  retrieveRestaurantDetailStep,
+} from "../restaurants/steps/read-restaurants"
 import { restaurantLock } from "../restaurants/restaurant-lock"
 import {
   AuthorizedStaffInput,
@@ -17,13 +20,16 @@ import {
 } from "./steps/create-authorized-staff"
 import { retrieveAuthorizedStaffStep } from "./steps/retrieve-authorized-staff"
 import {
+  assertAcceptingLoginStep,
   assertStaffEmailAvailableStep,
+  authorizeInvitedStaffStep,
   cancelStaffInvitationStep,
   createPendingStaffStep,
   createStaffInvitationStep,
   IssuedStaffInvitation,
   PendingStaffInput,
   resendStaffInvitationStep,
+  retrieveUsableStaffInvitationStep,
   StaffInvitationInput,
 } from "./steps/staff-invitations"
 
@@ -116,6 +122,74 @@ export const cancelStaffInvitationWorkflow = createWorkflow(
     releaseLockStep(lock)
     return new WorkflowResponse({
       restaurant: retrieveRestaurantDetailStep({ id: input.restaurant_id }),
+    })
+  },
+)
+
+/** The public invitation page: who is invited, to which Restaurant (ADR-0017). */
+export const retrieveStaffInvitationWorkflow = createWorkflow(
+  "retrieve-staff-invitation",
+  function (input: { token: string }) {
+    const opened = retrieveUsableStaffInvitationStep(input)
+    return new WorkflowResponse({
+      invitation: transform({ opened }, ({ opened }) => ({
+        restaurant: opened.restaurant,
+        staff: opened.staff,
+      })),
+    })
+  },
+)
+
+/**
+ * Accepts an invitation as Medusa's admin invite accept does: the partner app
+ * has registered an email and password login, and this makes it authorized
+ * staff by storing the staff id in the login's app metadata (ADR-0008).
+ */
+export const acceptStaffInvitationWorkflow = createWorkflow(
+  "accept-staff-invitation",
+  function (input: {
+    token: string
+    auth_identity_id: string
+    actor_id?: string
+  }) {
+    const opened = retrieveUsableStaffInvitationStep({ token: input.token })
+    const login = transform({ input, opened }, ({ input, opened }) => ({
+      auth_identity_id: input.auth_identity_id,
+      actor_id: input.actor_id,
+      email: opened.staff.email,
+    }))
+    assertAcceptingLoginStep(login)
+    const lock = transform({ opened }, ({ opened }) =>
+      restaurantLock(opened.restaurant_id),
+    )
+    acquireLockStep(lock)
+    const staff = transform({ input, opened }, ({ input, opened }) => ({
+      staff_id: opened.staff_id,
+      token: input.token,
+    }))
+    authorizeInvitedStaffStep(staff)
+    const metadata = transform({ input, opened }, ({ input, opened }) => ({
+      authIdentityId: input.auth_identity_id,
+      actorType: RESTAURANT_STAFF_ACTOR,
+      value: opened.staff_id,
+    }))
+    setAuthAppMetadataStep(metadata)
+    releaseLockStep(lock)
+    return new WorkflowResponse(retrieveAuthorizedStaffStep(staff))
+  },
+)
+
+/** Staff read only their own Restaurant (spec story 53). */
+export const retrievePartnerRestaurantWorkflow = createWorkflow(
+  "retrieve-partner-restaurant",
+  function (input: { id: string; staff_id: string }) {
+    const current = retrieveAuthorizedStaffStep({ staff_id: input.staff_id })
+    const scope = transform({ input, current }, ({ input, current }) => ({
+      id: input.id,
+      staff_restaurant_id: current.restaurant.id,
+    }))
+    return new WorkflowResponse({
+      restaurant: retrievePartnerRestaurantStep(scope),
     })
   },
 )
