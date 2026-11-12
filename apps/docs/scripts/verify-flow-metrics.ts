@@ -90,6 +90,7 @@ try {
     "completed-feature",
     "extra-work",
     "ongoing",
+    "renamed-feature",
     "sample",
   ] as const) {
     const dataset = await collectBoard({
@@ -174,6 +175,10 @@ try {
     ).toHaveAttribute("datetime", metrics.observedAt)
     if (scenario !== "ongoing" && scenario !== "sample")
       await expect(page.locator(".flow-page")).not.toContainText("Feature:")
+    if (scenario === "renamed-feature")
+      await expect(page.locator(".flow-page")).not.toContainText(
+        "Renamed capability",
+      )
     await expect(
       page
         .getByRole("region", { name: "Cycle time by work item", exact: true })
@@ -258,6 +263,36 @@ try {
       await expect(page.locator("#feature-row-100")).toContainText(
         "No work items yet",
       )
+    }
+    if (scenario === "renamed-feature") {
+      const observation = metrics.features.find(
+        (feature) => feature.number === 108,
+      )!
+      assert.equal(observation.title, "Renamed capability")
+      assert.deepEqual(observation.problems, [
+        {
+          number: 108,
+          title: "Renamed capability",
+          url: "https://github.com/DannyShayH/MTGO/issues/108",
+          problem: 'Naming problem: current title must start with "Feature: "',
+        },
+      ])
+      await expect(page.locator("#feature-row-108")).toContainText(
+        "Renamed capability",
+      )
+      await page.locator("#feature-108 summary").click()
+      const namingProblem = page
+        .getByRole("list", { name: "Feature 108 data problems" })
+        .getByRole("listitem")
+      await expect(namingProblem).toContainText(
+        'Naming problem: current title must start with "Feature: "',
+      )
+      await expect(
+        namingProblem.getByRole("link", {
+          name: "#108 Renamed capability",
+          exact: true,
+        }),
+      ).toHaveAttribute("href", "https://github.com/DannyShayH/MTGO/issues/108")
     }
     await page.evaluate(() => window.scrollTo(0, 0))
     await page.screenshot({

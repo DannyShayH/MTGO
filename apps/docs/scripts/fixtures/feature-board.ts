@@ -5,7 +5,12 @@ export const FEATURE_OBSERVED_AT = "2026-11-12T12:00:00Z"
 /** Controlled board responses shared by collection tests and the rendered demo. */
 export function featureBoardItems(
   scenario:
-    "work" | "features" | "completed-feature" | "extra-work" | "ongoing",
+    | "work"
+    | "features"
+    | "completed-feature"
+    | "extra-work"
+    | "ongoing"
+    | "renamed-feature",
 ): RawItem[] {
   const item = (
     number: number,
@@ -100,6 +105,16 @@ export function featureBoardItems(
       ? [item(4, "New real work item", "In Progress")]
       : []),
   ]
+  if (scenario === "renamed-feature") {
+    const renamed = item(108, "Renamed capability", "In Progress")
+    renamed.content!.timelineItems!.nodes.push({
+      __typename: "RenamedTitleEvent",
+      createdAt: "2026-11-12T10:00:00Z",
+      previousTitle: "Feature: Renamed capability",
+      currentTitle: "Renamed capability",
+    })
+    result.push(renamed)
+  }
   if (scenario === "ongoing") {
     const activeStart = work[0].fieldValues.nodes.find(
       (field) => field.field?.name === "Start date",

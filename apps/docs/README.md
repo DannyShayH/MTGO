@@ -58,7 +58,7 @@ heading links and keyboard focus as well as horizontal overflow.
 `npm run verify:flow-metrics` builds controlled collector fixtures in an isolated
 copy and checks Overview, Work items and Features with Chromium. It writes
 screenshots and `results.json` to `test-results/flow-metrics/` (ignored). The
-ongoing, accepted-completion, reopening and sample scenarios check required-work counts, dates, child/back links,
+ongoing, renamed, accepted-completion, reopening and sample scenarios check required-work counts, dates, child/back links,
 linked evidence gaps, disclosure keyboard access and narrow-screen table
 scrolling. Install Chromium with `npm exec --no -- playwright install chromium`
 before running it. No live board is mutated or developer environment file read.
@@ -73,7 +73,10 @@ illustrative; the sample banner applies to every view.
 
 This slice uses current direct-child membership and current board evidence.
 Children outside that board population are identified as unavailable. Historical
-membership, scope removal, renamed/archived Features and withdrawal
+membership, scope removal, archived Features and withdrawal
 reporting remain separate slices; see the published metric definitions.
+Retained title history keeps a renamed Feature attached to its stable issue
+identity, excludes it from work-item metrics and supplies its linked naming
+problem without editing GitHub.
 
 Completed Feature observations require every current required child delivered and a parent closure as completed after delivery. The measured finish stays at the latest child delivery; later acceptance does not extend lead time. Reopening withholds completion until delivery and renewed parent acceptance. Missing dates produce linked data problems. See the [metric definitions](src/content/docs/flow-metrics/definitions.mdx) for the contract and current evidence limits. The controlled browser demo includes the 16/20/23 November four-day example and saves completion screenshots with the other reporting evidence.

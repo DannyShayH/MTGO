@@ -1,7 +1,11 @@
 export type BoardIssue = {
+  /** Stable GitHub node identity. Optional only for saved datasets from before issue #62. */
+  issueNodeId?: string
   number: number
   title: string
   url: string
+  /** Retained titles from GitHub rename history, oldest evidence first. */
+  previousTitles?: string[]
   status: string
   workType: string
   subIssueCount: number
@@ -157,8 +161,12 @@ export const STATUS = {
 
 const WIP_STATUSES: string[] = [STATUS.inProgress, STATUS.deliveryInitiated]
 const isWip = (status: string) => WIP_STATUSES.includes(status)
-const isFeature = (item: Pick<BoardIssue, "title">) =>
-  item.title.startsWith("Feature: ")
+const hasFeaturePrefix = (title: string) => title.startsWith("Feature: ")
+const isFeature = (
+  item: Pick<BoardIssue, "title"> & Pick<BoardIssue, "previousTitles">,
+) =>
+  hasFeaturePrefix(item.title) ||
+  (item.previousTitles ?? []).some(hasFeaturePrefix)
 const isWorkItem = (item: Pick<BoardIssue, "title" | "subIssueCount">) =>
   item.subIssueCount === 0 && !isFeature(item)
 
@@ -424,6 +432,11 @@ function observeFeatures(
       const problems: DataProblem[] = []
       const problem = (item: IssueLink, text: string) =>
         problems.push({ ...issueLink(item), problem: text })
+      if (!hasFeaturePrefix(feature.title))
+        problem(
+          feature,
+          'Naming problem: current title must start with "Feature: "',
+        )
       if ((feature.children?.length ?? 0) !== feature.subIssueCount)
         problem(
           feature,
@@ -630,8 +643,8 @@ export function calculateFlowMetrics(
   dataset: BoardDataset,
   observationTime: string,
 ): FlowMetrics {
-  // ADR-0016: the mandatory title prefix identifies Features before decomposition.
-  // Apply this before replaying history, including datasets saved before this rule.
+  // ADR-0016: current or retained title evidence identifies Features before decomposition.
+  // Apply this before replaying work-item history so a rename cannot change counts.
   const items = dataset.items.filter(isWorkItem)
   const openColumn = (status: string, limit: number): Column => {
     const issues = items

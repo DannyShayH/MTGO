@@ -15,13 +15,14 @@ const PROJECT = `Project #${PROJECT_NUMBER}`
 /** GitHub's largest page. Fields and labels are read in one page and checked against totalCount */
 const PAGE_SIZE = 100
 
-const TIMELINE = `timelineItems(first: 100, after: $timelineAfter, itemTypes: [PROJECT_V2_ITEM_STATUS_CHANGED_EVENT, CLOSED_EVENT, REOPENED_EVENT]) {
+const TIMELINE = `timelineItems(first: 100, after: $timelineAfter, itemTypes: [PROJECT_V2_ITEM_STATUS_CHANGED_EVENT, CLOSED_EVENT, REOPENED_EVENT, RENAMED_TITLE_EVENT]) {
   pageInfo { hasNextPage endCursor }
   nodes {
     __typename
     ... on ProjectV2ItemStatusChangedEvent { createdAt status previousStatus }
     ... on ClosedEvent { createdAt }
     ... on ReopenedEvent { createdAt }
+    ... on RenamedTitleEvent { createdAt previousTitle currentTitle }
   }
 }`
 
@@ -73,6 +74,8 @@ type TimelineEvent = {
   createdAt?: string
   status?: string
   previousStatus?: string
+  previousTitle?: string
+  currentTitle?: string
 }
 type Timeline = {
   pageInfo: { hasNextPage: boolean; endCursor: string | null }
@@ -181,7 +184,7 @@ function normaliseItem(raw: RawItem): BoardIssue | null {
   const issue = raw.content
   if (!issue || issue.__typename !== "Issue") return null
   const number = issue.number as number
-  for (const key of ["number", "title", "url"] as const)
+  for (const key of ["id", "number", "title", "url"] as const)
     if (issue[key] === undefined || issue[key] === null || issue[key] === "")
       return fail(number ?? 0, `missing ${key}`)
   if (issue.state !== "OPEN" && issue.state !== "CLOSED")
@@ -202,15 +205,23 @@ function normaliseItem(raw: RawItem): BoardIssue | null {
   const fields = wholeList(raw.fieldValues, number, "project fields")
   const startedAt = readStartDate(fields, number)
   const events = issue.timelineItems?.nodes ?? []
+  const previousTitles = events.flatMap((event) => {
+    if (event.__typename !== "RenamedTitleEvent") return []
+    if (!event.previousTitle || !event.currentTitle)
+      return fail(number, "title history is incomplete")
+    return [event.previousTitle]
+  })
   const statusChanges = statusHistory(events)
   const labels = wholeList(issue.labels, number, "labels").map(
     (label) => label.name,
   )
 
   return {
+    issueNodeId: issue.id as string,
     number,
     title: issue.title as string,
     url: issue.url as string,
+    previousTitles: [...new Set(previousTitles)],
     status: selectValue(fields, "Status") ?? STATUS.none,
     workType: WORK_TYPES.find((type) => labels.includes(type)) ?? "unlabelled",
     subIssueCount: issue.subIssues?.totalCount ?? 0,
@@ -259,10 +270,32 @@ export function normaliseBoard(
   items: RawItem[],
   observedAt: string,
 ): BoardDataset {
-  const issues = items
+  const normalised = items
     .map(normaliseItem)
     .filter((issue): issue is BoardIssue => issue !== null)
-    .sort((a, b) => a.number - b.number)
+  const byIdentity = new Map<string, BoardIssue>()
+  for (const issue of normalised) {
+    const identity = issue.issueNodeId
+    if (!identity)
+      throw new Error(`Issue #${issue.number}: missing stable issue identity`)
+    const existing = byIdentity.get(identity)
+    if (!existing) {
+      byIdentity.set(identity, issue)
+      continue
+    }
+    if (existing.number !== issue.number || existing.url !== issue.url)
+      throw new Error(`Issue identity ${identity} refers to conflicting issues`)
+    byIdentity.set(identity, {
+      ...existing,
+      previousTitles: [
+        ...new Set([
+          ...(existing.previousTitles ?? []),
+          ...(issue.previousTitles ?? []),
+        ]),
+      ],
+    })
+  }
+  const issues = [...byIdentity.values()].sort((a, b) => a.number - b.number)
   if (issues.length === 0)
     throw new Error(
       `${PROJECT} has no issues, refusing to publish empty numbers`,
@@ -348,8 +381,10 @@ async function fetchAllItems(query: Query): Promise<RawItem[]> {
 /** Reads the timeline pages after the first one, so no status change is missed */
 async function completeTimeline(query: Query, item: RawItem): Promise<void> {
   const issue = item.content
-  const timeline = issue?.timelineItems
-  if (!issue || !timeline) return
+  if (!issue || issue.__typename !== "Issue") return
+  const timeline = issue.timelineItems
+  if (!timeline || !timeline.pageInfo || !Array.isArray(timeline.nodes))
+    throw new Error(`Issue #${issue.number}: timeline retrieval is incomplete`)
   while (timeline.pageInfo.hasNextPage) {
     if (!issue.id)
       throw new Error(`Timeline of issue #${issue.number} is incomplete`)

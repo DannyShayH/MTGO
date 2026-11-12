@@ -99,6 +99,17 @@ describe("normaliseBoard", () => {
     })
   })
 
+  it("deduplicates repeated project entries by stable issue identity", () => {
+    const duplicate = item(1)
+    const dataset = normaliseBoard([duplicate, structuredClone(duplicate)], NOW)
+
+    expect(dataset.items).toHaveLength(1)
+    expect(dataset.items[0]).toMatchObject({
+      issueNodeId: "ISSUE_1",
+      number: 1,
+    })
+  })
+
   it("sets workStartedAt from the first In Progress move on the Start date", () => {
     const [done] = normaliseBoard(
       [
@@ -430,6 +441,10 @@ describe("collectBoard", () => {
       scenario: "completed-feature" as const,
       reason: "DT: completing an empty Feature changes no work-item values",
     },
+    {
+      scenario: "renamed-feature" as const,
+      reason: "DT: a renamed Feature stays out of work-item values",
+    },
   ])("$reason", async ({ scenario }) => {
     const collect = (items: RawItem[]) =>
       collectBoard({
@@ -459,6 +474,19 @@ describe("collectBoard", () => {
       throughput: [{ count: 1 }],
       cycleTime: [{ number: 3, days: 1 }],
     })
+    if (scenario === "renamed-feature")
+      expect(
+        metrics.features.find((feature) => feature.number === 108),
+      ).toMatchObject({
+        title: "Renamed capability",
+        problems: [
+          {
+            number: 108,
+            problem:
+              'Naming problem: current title must start with "Feature: "',
+          },
+        ],
+      })
     const extra = await collect(featureBoardItems("extra-work"))
     expect(calculateFlowMetrics(extra, extra.observedAt).wip.count).toBe(2)
   })
@@ -493,7 +521,7 @@ describe("collectBoard", () => {
   it("fetches the remaining timeline of an issue with more than one page", async () => {
     const first = item(
       1,
-      {},
+      { title: "Renamed capability" },
       [select("Status", "Backlog")],
       [status("Backlog", "2026-11-01T00:00:00Z")],
     )
@@ -511,7 +539,15 @@ describe("collectBoard", () => {
             node: {
               timelineItems: {
                 pageInfo: { hasNextPage: false, endCursor: null },
-                nodes: [status("Ready", "2026-11-02T00:00:00Z", "Backlog")],
+                nodes: [
+                  status("Ready", "2026-11-02T00:00:00Z", "Backlog"),
+                  {
+                    __typename: "RenamedTitleEvent",
+                    createdAt: "2026-11-03T00:00:00Z",
+                    previousTitle: "Feature: Renamed capability",
+                    currentTitle: "Renamed capability",
+                  },
+                ],
               },
             },
           },
@@ -535,7 +571,69 @@ describe("collectBoard", () => {
       now: () => NOW,
     })
     expect(requests[1]).toMatchObject({ id: "ISSUE_1", timelineAfter: "T1" })
-    expect(dataset.items).toHaveLength(1)
+    expect(dataset.items).toMatchObject([
+      {
+        number: 1,
+        previousTitles: ["Feature: Renamed capability"],
+      },
+    ])
+    expect(calculateFlowMetrics(dataset, NOW)).toMatchObject({
+      wip: { count: 0 },
+      features: [
+        {
+          number: 1,
+          problems: [
+            {
+              number: 1,
+              problem:
+                'Naming problem: current title must start with "Feature: "',
+            },
+          ],
+        },
+      ],
+    })
+  })
+
+  it("fails collection when title-history pagination cannot finish", async () => {
+    const renamed = item(1, { title: "Renamed capability" })
+    renamed.content!.timelineItems!.pageInfo = {
+      hasNextPage: true,
+      endCursor: null,
+    }
+
+    await expect(
+      collectBoard({
+        token: "fixture-token",
+        now: () => NOW,
+        fetch: () => json(featureBoardResponse([renamed])),
+      }),
+    ).rejects.toThrow(/timeline pagination is incomplete/i)
+  })
+
+  it("fails collection when title-history evidence is absent", async () => {
+    const renamed = item(1, { title: "Renamed capability" })
+    renamed.content!.timelineItems = undefined
+
+    await expect(
+      collectBoard({
+        token: "fixture-token",
+        now: () => NOW,
+        fetch: () => json(featureBoardResponse([renamed])),
+      }),
+    ).rejects.toThrow(/timeline retrieval is incomplete/i)
+  })
+
+  it("fails collection when stable issue identity is absent", async () => {
+    const issueWithoutIdentity = item(1)
+    issueWithoutIdentity.content!.id = undefined
+
+    await expect(
+      collectBoard({
+        token: "fixture-token",
+        now: () => NOW,
+        fetch: () => json(featureBoardResponse([issueWithoutIdentity])),
+      }),
+    ).rejects.toThrow(/missing id/i)
   })
 
   it("throws on 401 naming the expired token without leaking it", async () => {
