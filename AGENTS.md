@@ -244,6 +244,7 @@ This repo uses the TakT trunk-based workflow ([mindovermachine-dev/how-we-work](
 - **One issue at a time.** Keep changes within the scope of the current issue. Do not run several agents in parallel on the same branch.
 - **After editing files, run `gh insitu run fix-all`.** AI edits bypass editor format-on-save. The pre-commit hook runs `gh insitu run trunk-worthy` (cspell, markdownlint, prettier). If it fails, fix the cause. Never bypass it with `--no-verify`.
 - **Also run the app checks** from [Commands](#commands) that match the change: `<pm> run lint`, and the backend tests for backend changes.
+- **SonarQube review:** follow the [static analysis guidance](apps/docs/src/content/docs/quality/static-analysis.md) when reviewing quality evidence or checking a delivery. Verify the Sonar job and analysis revision for the delivered commit; report a failed gate so a fix issue can be opened immediately.
 - **Update documentation in the same issue as the code.** A module's README lives next to the module. Project-wide docs live in the docs site (`apps/docs/src/content/docs`). `GLOSSARY.md` and `docs/adr/` stay at the repo root.
 - **GitHub Actions workflows must run on `ubuntu-latest`.**
 - **Creating issues** (for example when breaking down a spec): use the MoM template (`.github/ISSUE_TEMPLATE/standard-mom.md`), write vertical slices with acceptance criteria, keep each issue at effort M or smaller, and leave new issues in Backlog. A human decides when an issue is Ready.

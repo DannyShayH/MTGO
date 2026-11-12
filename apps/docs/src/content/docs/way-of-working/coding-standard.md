@@ -5,7 +5,7 @@ sidebar:
   order: 3
 ---
 
-Version 1.0 (draft), 11 November 2026. Proposed in [issue #9](https://github.com/DannyShayH/MTGO/issues/9); the team has not approved it yet.
+Version 1.1 (draft), 12 November 2026. Proposed in [issue #9](https://github.com/DannyShayH/MTGO/issues/9), with the SonarQube review requirement added in [issue #80](https://github.com/DannyShayH/MTGO/issues/80); the team has not approved it yet.
 
 ## 1. Overview
 
