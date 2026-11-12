@@ -8,6 +8,18 @@ MTOGO is the team's food-ordering platform. This glossary holds the language of 
 A person with a personal MTOGO account who orders food.
 _Avoid_: Buyer, client, user (when the customer role matters)
 
+**Saved delivery address**:
+A delivery location a Customer keeps in their personal account for reuse when ordering.
+_Avoid_: Order destination (when referring to the reusable saved details)
+
+**Order language**:
+The Danish or English language confirmed for an Order's status communications, preserved when the Customer later changes their language preference.
+_Avoid_: Current language preference (when referring to an existing Order)
+
+**Order contact details**:
+The Customer name and phone confirmed for an Order's delivery contact and status communications, preserved when personal account details later change.
+_Avoid_: Current profile (when referring to an existing Order's contact details)
+
 **Restaurant**:
 One food preparation and pickup location supplying its own menu through MTOGO, including a catering business operating that way. Separate branches are separate Restaurants.
 _Avoid_: Chain, supplier account (when referring to one location)
