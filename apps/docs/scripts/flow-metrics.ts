@@ -363,7 +363,11 @@ export function calculateFlowMetrics(
   dataset: BoardDataset,
   observationTime: string,
 ): FlowMetrics {
-  const items = dataset.items.filter((item) => item.subIssueCount === 0)
+  // ADR-0016: the mandatory title prefix identifies Features before decomposition.
+  // Apply this before replaying history, including datasets saved before this rule.
+  const items = dataset.items.filter(
+    (item) => item.subIssueCount === 0 && !item.title.startsWith("Feature: "),
+  )
   const openColumn = (status: string, limit: number): Column => {
     const issues = items
       .filter((item) => item.state === "OPEN" && item.status === status)

@@ -36,6 +36,128 @@ const board = (items: BoardDataset["items"]): BoardDataset => ({
 })
 
 describe("calculateFlowMetrics", () => {
+  it.each([
+    {
+      title: "Feature: Empty capability",
+      subIssueCount: 0,
+      excluded: true,
+      reason: "EP: empty Feature",
+    },
+    {
+      title: "Feature: Populated capability",
+      subIssueCount: 2,
+      excluded: true,
+      reason: "DT: Feature with children",
+    },
+    {
+      title: "Ordinary parent",
+      subIssueCount: 2,
+      excluded: true,
+      reason: "DT: structural parent without Feature prefix",
+    },
+    {
+      title: "Standalone work",
+      subIssueCount: 0,
+      excluded: false,
+      reason: "EP: standalone work item",
+    },
+    {
+      title: "Implement Feature: ordering",
+      subIssueCount: 0,
+      excluded: false,
+      reason: "BVA: prefix only counts at title start",
+    },
+    {
+      title: "Feature:missing space",
+      subIssueCount: 0,
+      excluded: false,
+      reason: "BVA: mandatory prefix includes a space",
+    },
+  ])("$reason", ({ title, subIssueCount, excluded }) => {
+    const observedAt = "2026-11-12T12:00:00Z"
+    const work = Array.from({ length: 9 }, (_, index) =>
+      issue(index + 1, {
+        status: "In Progress",
+        startedAt: "2026-11-11",
+        statusChanges: [{ to: "In Progress", at: "2026-11-11T09:00:00Z" }],
+      }),
+    )
+    const baseline = calculateFlowMetrics(board(work), observedAt)
+    const candidates = [
+      "Ready",
+      "In Progress",
+      "Delivery Initiated",
+      "Done",
+    ].map((status, index) =>
+      issue(100 + index, {
+        title,
+        subIssueCount,
+        status,
+        blocked: true,
+        startedAt: "2026-11-01",
+        workStartedAt: "2026-11-01T09:00:00Z",
+        ...(status === "Done"
+          ? {
+              state: "CLOSED" as const,
+              closeReason: "COMPLETED" as const,
+              closedAt: "2026-11-10T12:00:00Z",
+            }
+          : {}),
+        statusChanges: [{ to: status, at: "2026-11-01T09:00:00Z" }],
+      }),
+    )
+    const metrics = calculateFlowMetrics(
+      board([...work, ...candidates]),
+      observedAt,
+    )
+    if (excluded) expect(metrics).toEqual(baseline)
+    else {
+      expect(metrics.wip.count).toBe(11)
+      expect(metrics.ready.count).toBe(1)
+      expect(metrics.throughput[0].count).toBe(1)
+      expect(metrics.cycleTime[0].days).toBe(9)
+      expect(metrics.activeWork).toHaveLength(12)
+      expect(metrics.blocked).toHaveLength(3)
+    }
+  })
+
+  it("keeps Feature durations and missing dates out of the work-item aging threshold and diagnostics", () => {
+    const observedAt = "2026-11-12T12:00:00Z"
+    const work = Array.from({ length: 9 }, (_, index) =>
+      issue(index + 1, {
+        state: "CLOSED",
+        closeReason: "COMPLETED",
+        startedAt: "2026-11-10",
+        workStartedAt: "2026-11-10T09:00:00Z",
+        closedAt: "2026-11-11T12:00:00Z",
+      }),
+    )
+    const baseline = calculateFlowMetrics(board(work), observedAt)
+    const metrics = calculateFlowMetrics(
+      board([
+        ...work,
+        issue(100, {
+          title: "Feature: Long capability",
+          state: "CLOSED",
+          closeReason: "COMPLETED",
+          startedAt: "2026-10-01",
+          closedAt: "2026-11-11T12:00:00Z",
+        }),
+        issue(101, { title: "Feature: Missing start", status: "In Progress" }),
+        issue(102, {
+          title: "Feature: Withdrawn capability",
+          state: "CLOSED",
+          closeReason: "NOT_PLANNED",
+          closedAt: "2026-11-11T12:00:00Z",
+        }),
+      ]),
+      observedAt,
+    )
+    expect(metrics).toEqual(baseline)
+    expect(metrics.agingLimit).toEqual({ kind: "fixed", days: 5 })
+    expect(metrics.throughput[0].count).toBe(9)
+  })
+
   it("reports independent Ready and Delivery Initiated breaches without a false simultaneous handoff", () => {
     const start = "2026-11-07T08:00:00Z"
     const transfer = "2026-11-07T09:00:00Z"

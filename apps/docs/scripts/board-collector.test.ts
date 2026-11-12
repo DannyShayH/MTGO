@@ -5,6 +5,11 @@ import {
   type RawItem,
 } from "./board-collector.ts"
 import { calculateFlowMetrics } from "./flow-metrics.ts"
+import {
+  featureBoardItems,
+  featureBoardResponse,
+  FEATURE_OBSERVED_AT,
+} from "./fixtures/feature-board.ts"
 import recorded from "./fixtures/board-response.json"
 
 const NOW = "2026-11-08T10:00:00Z"
@@ -417,6 +422,46 @@ describe("normaliseBoard", () => {
 describe("collectBoard", () => {
   const json = (body: unknown, status = 200) =>
     Promise.resolve(new Response(JSON.stringify(body), { status }))
+
+  it.each([
+    {
+      scenario: "features" as const,
+      reason: "DT: empty and populated Features plus ordinary parent",
+    },
+    {
+      scenario: "completed-feature" as const,
+      reason: "DT: completing an empty Feature changes no work-item values",
+    },
+  ])("$reason", async ({ scenario }) => {
+    const collect = (items: RawItem[]) =>
+      collectBoard({
+        token: "fixture-token",
+        now: () => FEATURE_OBSERVED_AT,
+        fetch: () => json(featureBoardResponse(items)),
+      })
+    const baseline = await collect(featureBoardItems("work"))
+    const dataset = await collect(featureBoardItems(scenario))
+    expect(dataset.items.find((issue) => issue.number === 100)).toMatchObject({
+      title: "Feature: Empty capability",
+      subIssueCount: 0,
+    })
+    expect(dataset.items.find((issue) => issue.number === 104)).toMatchObject({
+      title: "Ordinary structural parent",
+      subIssueCount: 1,
+    })
+    const metrics = calculateFlowMetrics(dataset, dataset.observedAt)
+    expect(metrics).toEqual(calculateFlowMetrics(baseline, baseline.observedAt))
+    expect(metrics).toMatchObject({
+      source: "board",
+      observedAt: FEATURE_OBSERVED_AT,
+      wip: { count: 1 },
+      ready: { count: 1 },
+      throughput: [{ count: 1 }],
+      cycleTime: [{ number: 3, days: 1 }],
+    })
+    const extra = await collect(featureBoardItems("extra-work"))
+    expect(calculateFlowMetrics(extra, extra.observedAt).wip.count).toBe(2)
+  })
 
   it("follows pagination and sends the token", async () => {
     const calls: { auth: string | null; variables: Record<string, unknown> }[] =

@@ -24,9 +24,13 @@ Charts use Copenhagen calendar dates. Weeks run Monday to Sunday. Empty throughp
 
 The agreed policy is an issue on the project board with no sub-issues that is not a Feature. Parent issues and Features awaiting sub-issues are excluded; their work items are counted instead.
 
-**Current implementation gap:** The collector only uses the sub-issue count and cannot yet distinguish an empty Feature from a work item. The current charts therefore do not fully implement this policy. See [ADR-0007](/MTGO/architecture/decisions/0007-features-and-work-item-flow-measures/).
+The mandatory title prefix `Feature: ` identifies a Feature independently of child count. An empty Feature and a Feature with children contribute nothing to WIP, Ready, throughput, cycle time, elapsed time, age, blocked work, cumulative flow or breach calculations. An ordinary structural parent remains excluded without becoming a Feature. Eligible standalone and child work items keep their existing board membership and count once. See [ADR-0016](/MTGO/architecture/decisions/0016-feature-identity-and-completion-evidence/).
 
-[Feature #42 discovery](/MTGO/flow-metrics/feature-discovery/) records the agreed recognition and completion rules, source evidence and acceptance examples being refined before implementation.
+**Historical correction, 12 November 2026 (#58):** Every build recalculates the available work-item history from the collected dataset with this exclusion applied before replaying status events. Previously counted empty Features are removed from historical counts as well as current values. All views and the published JSON use the same dataset and observation time. Past written flow-review observations remain unchanged; the [week 46 correction note](/MTGO/flow-reviews/2026-w46/#counting-correction-12-november-2026) explains the change for the next review.
+
+**Evidence limits:** This correction recognizes current explicit titles. Recovery of a Feature renamed without its prefix is a separate work item. Historical counts still cover the available history of issues in the existing board population; removed or archived issues are not newly retrieved by this correction, and missing dates are never invented.
+
+[Feature #42 discovery](/MTGO/flow-metrics/feature-discovery/) records the agreed recognition and completion rules, source evidence and acceptance examples for the remaining Feature reporting work.
 
 ## Feature lead time
 

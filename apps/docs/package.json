@@ -12,7 +12,8 @@
     "check": "node scripts/copy-root-docs.ts && node scripts/build-flow-metrics.ts && astro check",
     "check:links": "node scripts/check-base-links.mjs",
     "test": "vitest run",
-    "astro": "astro"
+    "astro": "astro",
+    "verify:flow-metrics": "node scripts/verify-flow-metrics.ts"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.12",
