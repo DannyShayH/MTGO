@@ -35,7 +35,7 @@ export const RestaurantForm = ({
 }: {
   restaurant?: Restaurant
   onClose: () => void
-  onSaved: (restaurant: Restaurant) => void
+  onSaved: (restaurant: Restaurant) => void | Promise<void>
 }) => {
   const [details, setDetails] = useState<RestaurantDetails>(
     restaurant
@@ -62,7 +62,7 @@ export const RestaurantForm = ({
       ),
     enabled: Boolean(
       address_street.trim() &&
-      /^[0-9]{4}$/.test(address_postal_code) &&
+      /^\d{4}$/.test(address_postal_code) &&
       address_city.trim(),
     ),
   })
@@ -82,7 +82,7 @@ export const RestaurantForm = ({
       response.warnings.forEach((warning) =>
         toast.warning(restaurantMessages[warning.code]),
       )
-      onSaved(response.restaurant)
+      await onSaved(response.restaurant)
     },
     onError: () =>
       setError(

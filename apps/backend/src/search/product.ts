@@ -120,11 +120,12 @@ const source = {
  * products it touches. Only `product.deleted` removes documents: a deleted
  * variant, option, tag or category means the product has to be re-read.
  *
- * TODO: price lists emit no events (create, update, delete, batch prices).
- * TODO: price lists crossing their start or end date change prices silently.
- * TODO: linkProductsToSalesChannelWorkflow emits nothing.
- * TODO: batchLinkProductsToCategoryWorkflow emits nothing.
- * TODO: upsertVariantPricesWorkflow emits nothing when called directly.
+ * Known event coverage limits: price lists emit no events (create, update,
+ * delete, batch prices), and crossing their start or end date changes prices
+ * silently.
+ * linkProductsToSalesChannelWorkflow emits nothing.
+ * batchLinkProductsToCategoryWorkflow emits nothing.
+ * upsertVariantPricesWorkflow emits nothing when called directly.
  */
 const PRODUCT_EVENTS = [
   "product.created",

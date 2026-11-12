@@ -346,5 +346,6 @@ The review practice itself (who reviews and when) is part of the team's [policie
 - **Names follow the glossary** and sections 4.1 to 4.4. The tools report no lint or format errors.
 - **Comments explain why.** No `TODO`, no commented-out code (section 6).
 - **Documentation updated:** module README, endpoint documentation and any ADR (section 9).
+- **No new SonarQube Cloud issues.** Local lint and ShellCheck pass. After delivery, check the Sonar job for the delivered revision and open a fix issue immediately if the gate fails ([static analysis](/MTGO/quality/static-analysis/)).
 - **No secrets** in code, configuration or commits. Local values belong in `.env`, which is never committed; new variables are documented in `.env.template`.
 - **Migrations** exist for model changes, and existing migrations are unchanged.

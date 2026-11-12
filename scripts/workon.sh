@@ -15,7 +15,7 @@ gh tt workon "$@"
 
 # gh tt workon names the branch "<issue-number>-<title>"
 issue=$(git rev-parse --abbrev-ref HEAD | grep -oE '^[0-9]+' || true)
-if [ -z "$issue" ]; then
+if [[ -z "$issue" ]]; then
   echo "workon: not on an issue branch, start date not set"
   exit 0
 fi
@@ -26,14 +26,14 @@ number=$(node -p "require('$config').project.number")
 
 item_id=$(gh project item-list "$number" --owner "$owner" --format json --limit 1000 \
   --jq ".items[] | select(.content.number == $issue) | .id")
-if [ -z "$item_id" ]; then
+if [[ -z "$item_id" ]]; then
   echo "workon: issue #$issue is not on project $owner/$number, start date not set"
   exit 0
 fi
 
 current=$(gh project item-list "$number" --owner "$owner" --format json --limit 1000 \
   --jq ".items[] | select(.content.number == $issue) | .\"start date\" // empty")
-if [ -n "$current" ]; then
+if [[ -n "$current" ]]; then
   echo "workon: issue #$issue already started on $current, start date kept"
   exit 0
 fi
@@ -41,7 +41,7 @@ fi
 project_id=$(gh project view "$number" --owner "$owner" --format json --jq .id)
 field_id=$(gh project field-list "$number" --owner "$owner" --format json \
   --jq ".fields[] | select(.name == \"$START_FIELD\") | .id")
-if [ -z "$field_id" ]; then
+if [[ -z "$field_id" ]]; then
   echo "workon: field \"$START_FIELD\" not found on project $owner/$number, start date not set"
   exit 0
 fi

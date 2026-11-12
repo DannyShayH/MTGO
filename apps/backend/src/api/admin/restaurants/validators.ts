@@ -12,7 +12,7 @@ export const RestaurantDetailsSchema = z.strictObject({
   address_street: required,
   address_postal_code: z
     .string()
-    .regex(/^[0-9]{4}$/, "address_postal_code:postal_code_invalid"),
+    .regex(/^\d{4}$/, "address_postal_code:postal_code_invalid"),
   address_city: required,
   contact_phone: required,
   contact_email: z

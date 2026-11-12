@@ -36,6 +36,4 @@ writeFileSync(
     2,
   ) + "\n",
 )
-console.log(
-  `Wrote ${postalCodes.length} postal codes (source updated ${table.updated})`,
-)
+console.log(`Wrote ${postalCodes.length} postal codes`)

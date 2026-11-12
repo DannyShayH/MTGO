@@ -27,7 +27,7 @@ function presentRestaurant({
 }: RestaurantRecord) {
   const postalCodes = (delivery_area_postal_codes ?? [])
     .map(({ postal_code }) => postal_code)
-    .sort()
+    .sort((a, b) => a.localeCompare(b))
   return {
     ...restaurant,
     delivery_area_postal_codes: postalCodes,

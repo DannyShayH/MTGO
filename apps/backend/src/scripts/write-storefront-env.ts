@@ -11,9 +11,9 @@ const setEnvLine = (content: string, name: string, value: string) => {
   const line = `${name}=${value}`
   const pattern = new RegExp(`^${name}=.*$`, "m")
 
-  return pattern.test(content)
-    ? content.replace(pattern, () => line)
-    : `${content}${content && !content.endsWith("\n") ? "\n" : ""}${line}\n`
+  if (pattern.test(content)) return content.replace(pattern, () => line)
+  const separator = content && !content.endsWith("\n") ? "\n" : ""
+  return `${content}${separator}${line}\n`
 }
 
 export default async function writeStorefrontEnv({ container }: ExecArgs) {

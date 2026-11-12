@@ -27,7 +27,7 @@ export const validateRegisteredPostalCodesStep = createStep(
     const known = new Set(registered.map(({ postal_code }) => postal_code))
     const unknown = [...new Set(input.postal_codes)]
       .filter((code) => !known.has(code))
-      .sort()
+      .sort((a, b) => a.localeCompare(b))
     if (unknown.length)
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,

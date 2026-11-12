@@ -20,6 +20,7 @@
         "github.copilot",
         "anthropic.claude-code",
         "openai.chatgpt",
+        "SonarSource.sonarlint-vscode",
         "DavidAnson.vscode-markdownlint",
         "streetsidesoftware.code-spell-checker"
       ]

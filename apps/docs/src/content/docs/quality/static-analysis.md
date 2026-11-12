@@ -23,9 +23,66 @@ official SonarQube scan action.
 
 The scanner waits for the quality gate and fails the job if the gate fails or
 times out. Check the Deploy workflow logs and the dashboard when this happens.
+After every `gh deliver`, confirm that the Sonar job passes and that the
+dashboard analysis revision matches the delivered commit. If the gate fails,
+open a fix issue straight away using the repository issue template and leave it
+in Backlog for the developer to prioritize. Record the failed run and findings.
+
 This is a **post-delivery check**: the change has already reached `main`.
 It does not block the ready flow or roll back a delivery. Docs deployment runs
 independently, so the quality page remains available when analysis fails.
+
+## Before committing
+
+`npm run lint` applies SonarSource's `eslint-plugin-sonarjs` recommended rules
+and type-aware `@typescript-eslint/no-floating-promises` to backend TypeScript,
+including Admin TSX. The backend config reuses `eslint.config.ts` at the root;
+its parser uses the backend tsconfig. Medusa's preset keeps generated files,
+tests and fixtures outside production lint. The storefront retains its own
+Next.js lint configuration. This local scope is narrower than the Cloud scan.
+
+The `lint` check runs in both `trunk-worthy` (pre-commit and issue-branch CI)
+and `ready-checks`. `trunk-worthy` also runs
+`shellcheck --enable=require-double-brackets scripts/*.sh`. ShellCheck is
+installed by `post-create` and `prep-runner`; in an existing container run
+`gh insitu run install-shellcheck` once. Its optional SC2292 rule catches Bash
+`[ ]` tests and recommends `[[ ]]`.
+
+Local checks cover these findings from issue #80:
+
+| Cloud rule                        | Local coverage                                        | Fix                                                             |
+| --------------------------------- | ----------------------------------------------------- | --------------------------------------------------------------- |
+| S2871, missing sort comparator    | `sonarjs/no-alphabetical-sort`, with type information | Postal-code lists use `localeCompare`                           |
+| S9383, unhandled promise          | `@typescript-eslint/no-floating-promises`             | Await navigation and propagate the async saved callback         |
+| S5145, log injection              | No equivalent taint analysis in this ESLint plugin    | Log only the count, without the external source timestamp       |
+| S6505, on-demand npm installation | ShellCheck does not model npm package resolution      | Use `npm exec --no -- medusa ...` to require installed packages |
+
+ShellCheck catches shell syntax and common shell mistakes, but does not catch
+S6505. Review every `npm exec` change for `--no` before its argument separator.
+SonarJS also checks maintainability, reliability and some security patterns; it
+does not reproduce the Cloud quality gate, security taint analysis, coverage or
+duplication checks. See the [plugin's rule list and limitations](https://github.com/SonarSource/SonarJS/tree/master/packages/analysis/src/jsts/eslint-plugin).
+Existing Cloud findings outside the new-code period remain out of scope; no
+rules are suppressed. The additional backend lint findings were small enough
+to fix in #80, including unused seed code and nested conditionals.
+
+## SonarQube for IDE
+
+Rebuild the devcontainer to install the recommended
+`SonarSource.sonarlint-vscode` extension, or install it manually in the container.
+Use [connected mode](https://docs.sonarsource.com/sonarqube-for-vs-code/connect-your-ide/setup)
+to synchronize the project's rules and issue statuses:
+
+1. Open **SONARQUBE SETUP > CONNECTED MODE**, then **Add SonarQube Cloud Connection**.
+2. Select the EU region (`sonarcloud.io`), authenticate with your own user token
+   in the extension, and select organization `dannyshayh`.
+3. Choose **Add Project Binding**, select this workspace and project
+   `DannyShayH_MTGO`. Accept **Configure Binding** if detected automatically
+   from `sonar-project.properties`.
+4. Check that the connection is active and inspect findings while editing.
+   Keep credentials in the extension's secure storage; never commit tokens.
+
+Connected mode improves editor feedback but does not replace the Cloud scan.
 
 ## Coverage and scope
 
@@ -59,10 +116,19 @@ Its main branch must be `main`. CI requires:
    analysis revision matches the delivered commit. Once backend tests exist,
    confirm that the scan imports LCOV and the dashboard displays coverage.
 
-Sonar's [Free plan](https://docs.sonarsource.com/sonarqube-cloud/administering-sonarcloud/managing-subscription/subscription-plans)
-includes unlimited public projects and main-branch analysis, with up to five
-organization members and no custom quality gates or profiles. These terms were
-checked on 11 November 2026. Recheck them before changing visibility or team size.
+## Branch analysis and plans
+
+Sonar's [subscription documentation](https://docs.sonarsource.com/sonarqube-cloud/administering-sonarcloud/managing-subscription/subscription-plans)
+distinguishes Free from OSS: Free covers main-branch analysis; OSS includes
+unlimited branch and pull request analysis for public projects. Public visibility
+alone does not establish the organization's plan. Checked on 12 November 2026:
+the public `api/navigation/organization?organization=dannyshayh` endpoint reports
+`subscription: FREE`, and `api/project_branches/list?project=DannyShayH_MTGO`
+lists only `main`. Confirm the actual branch entitlement in **Administration >
+Billing & Upgrade** before a follow-up adds scans for `ready/*`; the API's Free
+label alone does not prove whether legacy OSS entitlements apply. This issue
+keeps the existing post-delivery scan.
+
 The default Sonar quality gate complements our local checks; it does not replace
 the ready flow's Jest coverage threshold.
 

@@ -80,13 +80,16 @@ export const DeliveryAreaSection = ({
       body,
     })
 
+  const postalCodeLabel = served.size === 1 ? "postal code" : "postal codes"
+  const townLabel = areaTowns.length === 1 ? "town" : "towns"
+
   return (
     <Container className="divide-y p-0">
       <div className="px-6 py-4">
         <Heading level="h2">Delivery area</Heading>
         <Text size="small" className="text-ui-fg-subtle">
           {served.size
-            ? `${served.size} ${served.size === 1 ? "postal code" : "postal codes"} in ${areaTowns.length} ${areaTowns.length === 1 ? "town" : "towns"}.`
+            ? `${served.size} ${postalCodeLabel} in ${areaTowns.length} ${townLabel}.`
             : "No postal codes yet."}{" "}
           Danish postal codes this Restaurant delivers to.
         </Text>
@@ -185,6 +188,7 @@ export const DeliveryAreaSection = ({
           <ul aria-label="Matching towns" className="flex flex-col gap-2">
             {resultTowns.map((town) => {
               const missing = town.codes.filter((code) => !served.has(code))
+              const addLabel = town.codes.length > 1 ? "Add all" : "Add"
               return (
                 <li
                   key={town.name}
@@ -211,9 +215,7 @@ export const DeliveryAreaSection = ({
                       onClick={() => batch({ add: missing })}
                     >
                       {missing.length === town.codes.length
-                        ? town.codes.length > 1
-                          ? "Add all"
-                          : "Add"
+                        ? addLabel
                         : `Add ${missing.length} more`}
                     </Button>
                   )}

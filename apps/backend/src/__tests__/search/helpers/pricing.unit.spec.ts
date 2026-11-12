@@ -73,16 +73,18 @@ describe("toProductPricing", () => {
 
 describe("priceFields", () => {
   it("defines the four price fields for every indexed currency", () => {
-    expect(Object.keys(priceFields).sort()).toEqual([
-      "max_price_eur",
-      "max_price_usd",
-      "min_price_eur",
-      "min_price_usd",
-      "on_sale_eur",
-      "on_sale_usd",
-      "original_price_eur",
-      "original_price_usd",
-    ])
+    expect(Object.keys(priceFields).sort((a, b) => a.localeCompare(b))).toEqual(
+      [
+        "max_price_eur",
+        "max_price_usd",
+        "min_price_eur",
+        "min_price_usd",
+        "on_sale_eur",
+        "on_sale_usd",
+        "original_price_eur",
+        "original_price_usd",
+      ],
+    )
   })
 })
 

@@ -106,9 +106,9 @@ const RestaurantsPage = () => {
       {creating && (
         <RestaurantForm
           onClose={() => setCreating(false)}
-          onSaved={(restaurant) => {
+          onSaved={async (restaurant) => {
             setCreating(false)
-            navigate(`/restaurants/${restaurant.id}`)
+            await navigate(`/restaurants/${restaurant.id}`)
           }}
         />
       )}

@@ -109,6 +109,28 @@ const IMAGES = [
 
 type SharedOption = { id: string; title: string; values: string[] }
 
+/** Cartesian product of option values, capped to keep demo variants bounded. */
+function variantCombinations(options: SharedOption[]) {
+  let combinations: Record<string, string>[] = [{}]
+
+  for (const option of options) {
+    const next: Record<string, string>[] = []
+
+    for (const combination of combinations) {
+      for (const value of option.values) {
+        if (next.length >= MAX_VARIANTS) {
+          break
+        }
+        next.push({ ...combination, [option.title]: value })
+      }
+    }
+
+    combinations = next
+  }
+
+  return combinations
+}
+
 export default async function seedDemoProducts({ container }: ExecArgs) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
@@ -286,23 +308,7 @@ export default async function seedDemoProducts({ container }: ExecArgs) {
       ),
     ]
 
-    // Cartesian product of the chosen options' values, capped.
-    let combinations: Record<string, string>[] = [{}]
-
-    for (const option of chosenOptions) {
-      const next: Record<string, string>[] = []
-
-      for (const combination of combinations) {
-        for (const value of option.values) {
-          if (next.length >= MAX_VARIANTS) {
-            break
-          }
-          next.push({ ...combination, [option.title]: value })
-        }
-      }
-
-      combinations = next
-    }
+    const combinations = variantCombinations(chosenOptions)
 
     const collection = pick(allCollections)
     const chosenTags = pickSome(allTags, 3)
