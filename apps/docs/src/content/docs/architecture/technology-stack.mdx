@@ -53,11 +53,14 @@ See [backend documentation](/MTGO/architecture/modules/backend/) for code locati
 | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | TypeScript                                | Application code, docs tooling and metric calculations use static types. A shared language makes the applications and automation easier to work across.                                                                                 |
 | Node.js 24 and npm 11                     | The devcontainer and CI use Node 24. The root package requires Node `>=22.23.4` and declares `npm@11.19.1`; `package-lock.json` supplies reproducible dependency installs with `npm ci`.                                                |
+| Java 21                                   | The devcontainer exposes a cross-architecture Java runtime through SDKMAN so the SonarQube for IDE language server can start consistently. Java is development tooling, not an application runtime.                                     |
 | npm workspaces and Turborepo              | Workspaces manage the apps together; Turbo coordinates development, lint and build tasks while each app keeps its own scripts.                                                                                                          |
 | Docker Compose and VS Code Dev Containers | An Ubuntu 24.04 development container with PostgreSQL and Redis services gives developers the same runtime and tooling. A named volume preserves local database data. This is a development setup, not a production Compose deployment. |
 | GitHub CLI, TakT and gh-insitu            | Issue-branch workflow and shared quality commands. `.insitu.yml` defines the checks used locally and in CI, so the two environments run the same quality gates.                                                                         |
 
-The devcontainer also installs Python 3.14 as tooling. No application Python runtime is demonstrated by the application code; it is not part of the product stack.
+The devcontainer also installs Python 3.14 as tooling. Neither Java nor Python
+is an application runtime demonstrated by the product code; both support the
+development environment.
 
 ## Documentation and metrics
 

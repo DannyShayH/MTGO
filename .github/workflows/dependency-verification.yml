@@ -108,8 +108,23 @@ jobs:
           retention-days: 1
       - name: Verify the uploaded Pages archive
         run: |
-          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" \
-            --name "dependency-pages-$GITHUB_SHA-$GITHUB_RUN_ATTEMPT" --dir "$RUNNER_TEMP/pages-check"
+          pages_artifact="dependency-pages-$GITHUB_SHA-$GITHUB_RUN_ATTEMPT"
+          pages_check_dir="$RUNNER_TEMP/pages-check"
+          downloaded=false
+          for attempt in {1..12}; do
+            rm -rf "$pages_check_dir"
+            if gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+              --name "$pages_artifact" --dir "$pages_check_dir"; then
+              downloaded=true
+              break
+            fi
+            echo "Pages artifact is not visible yet (attempt $attempt/12); retrying in 5 seconds."
+            sleep 5
+          done
+          if [[ "$downloaded" != true ]]; then
+            echo "Pages artifact $pages_artifact was not available after 12 attempts."
+            exit 1
+          fi
           tar -tf "$RUNNER_TEMP/pages-check/artifact.tar" > "$RUNNER_TEMP/pages-files.txt"
           grep -qx './index.html' "$RUNNER_TEMP/pages-files.txt"
           grep -qx './flow-metrics.json' "$RUNNER_TEMP/pages-files.txt"

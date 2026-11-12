@@ -70,6 +70,22 @@ to fix in #80, including unused seed code and nested conditionals.
 
 Rebuild the devcontainer to install the recommended
 `SonarSource.sonarlint-vscode` extension, or install it manually in the container.
+The devcontainer installs Java 21 through its cross-architecture Java feature and
+points the extension at the feature's stable SDKMAN path. Rebuild and reopen the
+devcontainer after changing branches to receive that runtime; reloading the VS
+Code window does not install a newly declared devcontainer feature.
+
+The `Devcontainer runtime acceptance` workflow performs clean x64 and ARM64
+builds when the development-container configuration changes. On each
+architecture it starts the SonarQube for IDE language server with the configured
+Java runtime, opens this workspace's `devcontainer.test.ts` file and waits for
+TypeScript diagnostics. It runs standalone and does not receive a Sonar token.
+After rebuilding locally, reproduce the same runtime check with:
+
+```bash
+node scripts/verify-sonarqube-ide.mjs
+```
+
 Use [connected mode](https://docs.sonarsource.com/sonarqube-for-vs-code/connect-your-ide/setup)
 to synchronize the project's rules and issue statuses:
 

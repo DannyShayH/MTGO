@@ -6,5 +6,6 @@
   },
   "files.autoSave": "afterDelay",
   "markdownlint.configFile": ".markdownlint-cli2.jsonc",
-  "js/ts.tsdk.path": "node_modules/typescript/lib"
+  "js/ts.tsdk.path": "node_modules/typescript/lib",
+  "sonarlint.ls.javaHome": "/usr/local/sdkman/candidates/java/current"
 }

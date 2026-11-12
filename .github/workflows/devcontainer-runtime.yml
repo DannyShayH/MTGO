@@ -1,0 +1,82 @@
+name: Devcontainer runtime acceptance
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "[0-9]*"
+      - "ready/**"
+    paths:
+      - ".devcontainer/**"
+      - ".github/workflows/devcontainer-runtime.yml"
+      - ".vscode/settings.json"
+      - "scripts/verify-sonarqube-ide.mjs"
+
+concurrency:
+  group: devcontainer-runtime-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sonarqube-for-ide:
+    name: SonarQube for IDE (${{ matrix.platform }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - architecture: x64
+            platform: linux/amd64
+            tag: amd64
+          - architecture: arm64
+            platform: linux/arm64
+            tag: arm64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Download SonarQube for IDE
+        run: |
+          curl --compressed --fail --location --retry 3 \
+            https://marketplace.visualstudio.com/_apis/public/gallery/publishers/SonarSource/vsextensions/sonarlint-vscode/latest/vspackage \
+            --output /tmp/sonarqube-for-ide.vsix
+          mkdir -p /tmp/sonarqube-for-ide
+          unzip -q /tmp/sonarqube-for-ide.vsix -d /tmp/sonarqube-for-ide
+
+      - name: Build clean ${{ matrix.platform }} devcontainer
+        uses: devcontainers/ci@v0.3
+        with:
+          configFile: .devcontainer/runtime-acceptance.json
+          imageName: mtogo-devcontainer-acceptance
+          noCache: true
+          platform: ${{ matrix.platform }}
+          push: never
+
+      - name: Load the platform image
+        run: |
+          skopeo copy \
+            --override-arch ${{ matrix.tag }} \
+            --override-os linux \
+            oci-archive:/tmp/output.tar \
+            docker-daemon:mtogo-devcontainer-acceptance:${{ matrix.tag }}
+
+      - name: Verify Java and TypeScript analysis
+        run: |
+          docker run --rm \
+            --platform ${{ matrix.platform }} \
+            --mount type=bind,source="${GITHUB_WORKSPACE}",target=/workspaces/mtogo \
+            --mount type=bind,source=/tmp/sonarqube-for-ide/extension,target=/opt/sonarqube-for-ide,readonly \
+            --env EXPECTED_ARCHITECTURE=${{ matrix.architecture }} \
+            --env SONARQUBE_VSCODE_EXTENSION_DIR=/opt/sonarqube-for-ide \
+            --entrypoint /bin/bash \
+            mtogo-devcontainer-acceptance:${{ matrix.tag }} \
+            -lc "node /workspaces/mtogo/scripts/verify-sonarqube-ide.mjs"
