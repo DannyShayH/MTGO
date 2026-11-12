@@ -87,15 +87,22 @@ try {
     "features",
     "completed-feature",
     "extra-work",
+    "ongoing",
+    "sample",
   ] as const) {
     const dataset = await collectBoard({
       token: "fixture-token",
       now: () => FEATURE_OBSERVED_AT,
       fetch: async () =>
         new Response(
-          JSON.stringify(featureBoardResponse(featureBoardItems(scenario))),
+          JSON.stringify(
+            featureBoardResponse(
+              featureBoardItems(scenario === "sample" ? "ongoing" : scenario),
+            ),
+          ),
         ),
     })
+    if (scenario === "sample") dataset.source = "sample"
     mkdirSync(resolve(workspace, ".cache"), { recursive: true })
     writeFileSync(
       resolve(workspace, ".cache/board.json"),
@@ -107,7 +114,12 @@ try {
       readFileSync(resolve(workspace, "dist/flow-metrics.json"), "utf8"),
     )
     if (scenario === "work") baseline = metrics
-    else if (scenario !== "extra-work") assert.deepEqual(metrics, baseline)
+    else if (
+      scenario !== "extra-work" &&
+      scenario !== "ongoing" &&
+      scenario !== "sample"
+    )
+      assert.deepEqual({ ...metrics, features: [] }, baseline)
     assert.equal(metrics.wip.count, scenario === "extra-work" ? 2 : 1)
     assert.equal(metrics.ready.count, 1)
     assert.equal(metrics.throughput[0].count, 1)
@@ -125,10 +137,9 @@ try {
         exact: true,
       }),
     ).toBeVisible()
-    await expect(page.locator(".flow-updated time")).toHaveAttribute(
-      "datetime",
-      metrics.observedAt,
-    )
+    await expect(
+      page.locator(".flow-updated time, .flow-banner time"),
+    ).toHaveAttribute("datetime", metrics.observedAt)
     for (const id of [
       "throughput-chart",
       "cycle-time-chart",
@@ -156,16 +167,20 @@ try {
       .getByRole("navigation", { name: "Flow metrics", exact: true })
       .getByRole("link", { name: "Work items", exact: true })
       .click()
-    await expect(page.locator(".flow-updated time")).toHaveAttribute(
-      "datetime",
-      metrics.observedAt,
-    )
-    await expect(page.locator(".flow-page")).not.toContainText("Feature:")
+    await expect(
+      page.locator(".flow-updated time, .flow-banner time"),
+    ).toHaveAttribute("datetime", metrics.observedAt)
+    if (scenario !== "ongoing" && scenario !== "sample")
+      await expect(page.locator(".flow-page")).not.toContainText("Feature:")
     await expect(
       page
         .getByRole("region", { name: "Cycle time by work item", exact: true })
         .locator("tbody tr"),
-    ).toContainText("#3 Delivered child work")
+    ).toContainText(
+      scenario === "ongoing" || scenario === "sample"
+        ? "#3 Discovery: Reporting rules"
+        : "#3 Delivered child work",
+    )
     await expect(
       page
         .getByRole("region", { name: "Daily status counts", exact: true })
@@ -179,6 +194,98 @@ try {
         .last()
         .locator("td"),
     ).toHaveText(Object.values(latest.counts).map(String))
+    if (scenario === "sample")
+      await expect(
+        page.getByRole("complementary", { name: "Sample data", exact: true }),
+      ).toBeVisible()
+    const nav = page.getByRole("navigation", {
+      name: "Flow metrics",
+      exact: true,
+    })
+    await expect(nav.getByRole("link")).toHaveText([
+      "Overview",
+      "Work items",
+      "Features",
+      "Definitions",
+    ])
+    if (scenario === "ongoing" || scenario === "sample") {
+      await page
+        .getByRole("link", { name: "Feature: Ready capability", exact: true })
+        .first()
+        .click()
+    } else
+      await nav.getByRole("link", { name: "Features", exact: true }).click()
+    await expect(
+      page.locator(".flow-updated time, .flow-banner time"),
+    ).toHaveAttribute("datetime", metrics.observedAt)
+    await expect(
+      page.getByRole("region", { name: "Ongoing Features", exact: true }),
+    ).toBeVisible()
+    if (scenario === "ongoing" || scenario === "sample") {
+      const observation = metrics.features.find(
+        (feature) => feature.number === 101,
+      )!
+      assert.equal(observation.ageDays, 2)
+      assert.equal(observation.deliveredCount, 1)
+      assert.equal(observation.requiredCount, 3)
+      assert.equal(
+        metrics.features.find((feature) => feature.number === 107)!.ageDays,
+        0,
+      )
+      await expect(page.locator("#feature-row-107")).toContainText("< 1 day")
+      const row = page.locator("#feature-row-101")
+      await expect(row).toContainText("1 of 3 required work items delivered")
+      await expect(row).toContainText("2026-11-10")
+      await expect(row).toContainText("2 days")
+      const disclosure = page.locator("#feature-101 summary")
+      await disclosure.focus()
+      await page.keyboard.press("Enter")
+      await expect(page.locator("#feature-101 table")).toBeVisible()
+      await expect(page.locator("#feature-101 table")).toContainText("Done")
+      await expect(page.locator("#feature-101 table")).toContainText(
+        "Discovery: Reporting rules",
+      )
+      await page.locator("#feature-102 summary").click()
+      await expect(page.locator("#feature-102 li")).toBeVisible()
+      await expect(page.locator("#feature-row-102")).toContainText(
+        "Delivery count not available",
+      )
+      await expect(page.locator("#feature-102")).toContainText(
+        "Child board evidence is not available",
+      )
+      await expect(page.locator("#feature-row-100")).toContainText(
+        "No work items yet",
+      )
+    }
+    await page.evaluate(() => window.scrollTo(0, 0))
+    await page.screenshot({
+      path: resolve(artifacts, `${scenario}-features-desktop.png`),
+      fullPage: true,
+    })
+    await page.setViewportSize({ width: 390, height: 844 })
+    assert.ok(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+      "Page must not overflow the narrow viewport",
+    )
+    const table = page.getByRole("region", {
+      name: "Ongoing Features",
+      exact: true,
+    })
+    await table.focus()
+    await expect(table).toBeFocused()
+    await page.keyboard.press("ArrowRight")
+    if (metrics.features.length)
+      await expect
+        .poll(() => table.evaluate((element) => element.scrollLeft))
+        .toBeGreaterThan(0)
+    await page.evaluate(() => window.scrollTo(0, 0))
+    await page.screenshot({
+      path: resolve(artifacts, `${scenario}-features-mobile.png`),
+      fullPage: true,
+    })
+    await page.goto("http://flow.test/MTGO/flow-metrics/work-items/")
     await page.setViewportSize({ width: 390, height: 844 })
     await page.evaluate(() => window.scrollTo(0, 0))
     await page.screenshot({

@@ -338,7 +338,9 @@
 
 .flow-nav {
   display: flex;
-  gap: 1.25rem;
+  flex-wrap: wrap;
+  column-gap: 1.25rem;
+  row-gap: 0;
   margin-block: 0 1rem;
   border-bottom: 1px solid var(--sl-color-hairline-light);
 }
@@ -727,4 +729,9 @@
 .flow-week-summary:focus-visible {
   outline: 2px solid var(--sl-color-text-accent);
   outline-offset: -3px;
+}
+
+.flow-feature-table .flow-table,
+.flow-feature-children .flow-table {
+  min-width: 55rem;
 }

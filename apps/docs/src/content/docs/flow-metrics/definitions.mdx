@@ -3,7 +3,7 @@ title: Metric definitions
 description: Definitions, sources and counting rules for the team's flow metrics.
 sidebar:
   label: Definitions
-  order: 2
+  order: 3
 ---
 
 import FlowMetricsHeader from "../../../components/FlowMetricsHeader.astro"
@@ -31,6 +31,16 @@ The mandatory title prefix `Feature: ` identifies a Feature independently of chi
 **Evidence limits:** This correction recognizes current explicit titles. Recovery of a Feature renamed without its prefix is a separate work item. Historical counts still cover the available history of issues in the existing board population; removed or archived issues are not newly retrieved by this correction, and missing dates are never invented.
 
 [Feature #42 discovery](/MTGO/flow-metrics/feature-discovery/) records the agreed recognition and completion rules, source evidence and acceptance examples for the remaining Feature reporting work.
+
+## Feature age and required work
+
+The [Features view](/MTGO/flow-metrics/features/) lists current open issues with the mandatory `Feature: ` title prefix. Every native direct child is required, including discovery. Counts say **delivered required work items out of required work items**, never a percentage of business capability. An empty Feature says “No work items yet” and is not completed. Blocking dependencies do not create membership.
+
+Feature age is the Copenhagen calendar days between the earliest valid child project Start date and the shared observation date. Same-day age is zero in the published JSON and displays as “< 1 day”. Discussion and dates on the parent do not supply the Feature start. A Backlog or Ready child without a Start date is normally not started. A started or delivered child with a missing, invalid or future Start date makes Feature timing unavailable, even when a sibling has a usable date. Linked explanations identify the affected child. Closing never-started work as not planned does not establish a start or invalidate a sibling’s valid timing. Child details show current status, Start and close dates, plus work-item age or completed cycle time when applicable.
+
+**Current scope (#60):** Direct-child connections are fully paginated before publication. Children are matched by issue URL to the current board dataset; a child outside that population has linked unavailable board evidence and cannot supply guessed timing. Nested parents are flagged as unsupported rather than recursively counted. If required child delivery evidence is unavailable or unsupported, the delivered count is also unavailable, never zero by default. A closed child with no close reason is not counted as delivered, but its delivery outcome is unknown rather than confirmed as not planned. Its linked data problem makes the aggregate delivered count unavailable; usable Start dates still support Feature age. Features and child evidence never expand the existing work-item population. Pages and published JSON share one source and observation time; representative sample Features remain behind the sample banner. The sample includes illustrative relationships, not a claim about the live board.
+
+Historical membership, removed scope, renamed and archived Features are handled by separate work items. Until that evidence is implemented, the start describes current direct children and cannot establish an original start through past scope changes. No completed Feature observations or lead times are published by this ongoing view; those belong to **Report accepted Feature lead time and reopened work**. Missing facts remain visible and incomplete connection retrieval fails collection rather than publishing partial results.
 
 ## Feature lead time
 

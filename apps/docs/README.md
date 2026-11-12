@@ -52,3 +52,26 @@ Run `npm run check`, `npm run test`, `npm run build` and `npm run check:links`.
 For layout changes, inspect a reading page and a dashboard at phone, tablet,
 1440px, 1920px and 2560px widths in both themes. Check search, mobile navigation,
 heading links and keyboard focus as well as horizontal overflow.
+
+## Ongoing Feature reporting
+
+`npm run verify:flow-metrics` builds controlled collector fixtures in an isolated
+copy and checks Overview, Work items and Features with Chromium. It writes
+screenshots and `results.json` to `test-results/flow-metrics/` (ignored). The
+ongoing and sample scenarios check required-work counts, dates, child/back links,
+linked evidence gaps, disclosure keyboard access and narrow-screen table
+scrolling. Install Chromium with `npm exec --no -- playwright install chromium`
+before running it. No live board is mutated or developer environment file read.
+
+`flow-metrics.json` includes `features` alongside the unchanged work-item fields.
+Each open Feature observation includes its issue link, state, required and
+delivered counts (unavailable when child delivery evidence is missing), nullable Start date and age in Copenhagen calendar days, child
+status/date/age/cycle-time evidence and linked problems. The observation shares
+the top-level source and clock. A missing started-child date invalidates Feature
+timing instead of selecting a sibling date. Sample parents and relationships are
+illustrative; the sample banner applies to every view.
+
+This slice uses current direct-child membership and current board evidence.
+Children outside that board population are identified as unavailable. Historical
+membership, scope removal, renamed/archived Features and accepted completion
+reporting remain separate slices; see the published metric definitions.

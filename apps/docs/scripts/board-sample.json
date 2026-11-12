@@ -343,6 +343,89 @@
       "priority": null,
       "size": null,
       "statusChanges": []
+    },
+    {
+      "number": 42,
+      "title": "Feature: Sample documentation capability",
+      "url": "https://github.com/DannyShayH/MTGO/issues/42",
+      "status": "Backlog",
+      "workType": "unlabelled",
+      "subIssueCount": 3,
+      "state": "OPEN",
+      "closeReason": null,
+      "closedAt": null,
+      "startedAt": null,
+      "blocked": false,
+      "reopened": false,
+      "workStartedAt": null,
+      "priority": null,
+      "size": null,
+      "statusChanges": [],
+      "children": [
+        {
+          "number": 4,
+          "title": "Set the start date automatically on gh workon",
+          "url": "https://github.com/DannyShayH/MTGO/issues/4",
+          "subIssueCount": 0
+        },
+        {
+          "number": 14,
+          "title": "Flow metrics from sample data: WIP, ready queue and throughput",
+          "url": "https://github.com/DannyShayH/MTGO/issues/14",
+          "subIssueCount": 0
+        },
+        {
+          "number": 6,
+          "title": "Enforce a test coverage threshold",
+          "url": "https://github.com/DannyShayH/MTGO/issues/6",
+          "subIssueCount": 0
+        }
+      ]
+    },
+    {
+      "number": 43,
+      "title": "Feature: Sample empty capability",
+      "url": "https://github.com/DannyShayH/MTGO/issues/43",
+      "status": "Backlog",
+      "workType": "unlabelled",
+      "subIssueCount": 0,
+      "state": "OPEN",
+      "closeReason": null,
+      "closedAt": null,
+      "startedAt": null,
+      "blocked": false,
+      "reopened": false,
+      "workStartedAt": null,
+      "priority": null,
+      "size": null,
+      "statusChanges": [],
+      "children": []
+    },
+    {
+      "number": 44,
+      "title": "Feature: Sample missing start evidence",
+      "url": "https://github.com/DannyShayH/MTGO/issues/44",
+      "status": "Backlog",
+      "workType": "unlabelled",
+      "subIssueCount": 1,
+      "state": "OPEN",
+      "closeReason": null,
+      "closedAt": null,
+      "startedAt": null,
+      "blocked": false,
+      "reopened": false,
+      "workStartedAt": null,
+      "priority": null,
+      "size": null,
+      "statusChanges": [],
+      "children": [
+        {
+          "number": 2,
+          "title": "Make the repository trunk worthy",
+          "url": "https://github.com/DannyShayH/MTGO/issues/2",
+          "subIssueCount": 0
+        }
+      ]
     }
   ]
 }

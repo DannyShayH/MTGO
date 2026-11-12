@@ -2,7 +2,7 @@
 import FlowBreachTable from "./FlowBreachTable.astro"
 import FlowDailyCounts from "./FlowDailyCounts.astro"
 import FlowMetricsHeader from "./FlowMetricsHeader.astro"
-import { metrics, columns, percent, scope, days, average, range, LIMITS } from "../lib/flow-view.ts"
+import { metrics, columns, percent, scope, days, average, range, flowUrl, LIMITS } from "../lib/flow-view.ts"
 import type { IssueLink } from "../../scripts/flow-metrics.ts"
 ---
 <div class="flow-page flow-evidence">
@@ -11,6 +11,11 @@ import type { IssueLink } from "../../scripts/flow-metrics.ts"
 <nav class="flow-jump not-content" aria-label="Work item sections">
   <a href="#blocked">Blocked</a><a href="#work-item-age">Work item age</a><a href="#data-problems">Data problems</a><a href="#current-columns">Current columns</a><a href="#throughput">Throughput</a><a href="#cycle-time">Cycle time</a><a href="#daily-status-counts">Daily counts</a><a href="#wip-limit-breaches">Breaches</a>
 </nav>
+{metrics.features.some((feature) => feature.children.length) && <section aria-label="Work item Features">
+<h2>Related Features</h2>
+<p>Current direct children link back to their ongoing Feature. Standalone work remains in the flow views below.</p>
+<ul>{metrics.features.flatMap((feature) => feature.children.filter((child) => child.isWorkItem).map((child) => <li><a href={child.url}>#{child.number} {child.title}</a> — <a href={flowUrl(`features/#feature-${feature.number}`)}>{feature.title}</a></li>))}</ul>
+</section>}
 <h2 id="blocked">Blocked work items</h2>
 <p>Open work items with the <code>blocked</code> label. Blocked WIP is listed first.</p>
 {metrics.blocked.length ? <div class="flow-table-wrap not-content" role="region" aria-label="Blocked work items" tabindex="0"><table class="flow-table"><thead><tr><th scope="col">Work item</th><th scope="col">Status</th><th scope="col">Age</th></tr></thead><tbody>{metrics.blocked.map((item) => <tr><th scope="row"><a href={item.url}>#{item.number} {item.title}</a></th><td>{item.status}</td><td>{item.ageDays === null ? "Unknown" : days(item.ageDays)}</td></tr>)}</tbody></table></div> : <p>No blocked work items in {scope}.</p>}

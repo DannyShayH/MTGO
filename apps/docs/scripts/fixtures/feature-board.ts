@@ -4,7 +4,8 @@ export const FEATURE_OBSERVED_AT = "2026-11-12T12:00:00Z"
 
 /** Controlled board responses shared by collection tests and the rendered demo. */
 export function featureBoardItems(
-  scenario: "work" | "features" | "completed-feature" | "extra-work",
+  scenario:
+    "work" | "features" | "completed-feature" | "extra-work" | "ongoing",
 ): RawItem[] {
   const item = (
     number: number,
@@ -40,7 +41,16 @@ export function featureBoardItems(
         stateReason: done ? "COMPLETED" : null,
         closedAt: done ? "2026-11-11T12:00:00Z" : null,
         labels: { totalCount: 1, nodes: [{ name: "development" }] },
-        subIssues: { totalCount: subIssueCount },
+        subIssues: {
+          totalCount: subIssueCount,
+          nodes: Array.from({ length: subIssueCount }, (_, index) => ({
+            number: 900 + number + index,
+            title: "Child outside the current board",
+            url: `https://github.com/DannyShayH/MTGO/issues/${900 + number + index}`,
+            subIssues: { totalCount: 0 },
+          })),
+          pageInfo: { hasNextPage: false, endCursor: null },
+        },
         timelineItems: {
           pageInfo: { hasNextPage: false, endCursor: null },
           nodes: [
@@ -75,7 +85,7 @@ export function featureBoardItems(
     item(3, "Delivered child work", "Done"),
   ]
   if (scenario === "work") return work
-  return [
+  const result = [
     ...work,
     item(
       100,
@@ -90,6 +100,64 @@ export function featureBoardItems(
       ? [item(4, "New real work item", "In Progress")]
       : []),
   ]
+  if (scenario === "ongoing") {
+    const activeStart = work[0].fieldValues.nodes.find(
+      (field) => field.field?.name === "Start date",
+    )!
+    activeStart.date = "2026-11-12"
+    work[1].fieldValues.nodes = work[1].fieldValues.nodes.filter(
+      (field) => field.field?.name !== "Start date",
+    )
+    work[1].fieldValues.totalCount = work[1].fieldValues.nodes.length
+    work[1].content!.timelineItems!.nodes = [
+      {
+        __typename: "ProjectV2ItemStatusChangedEvent",
+        createdAt: "2026-11-10T09:00:00Z",
+        status: "Ready",
+        previousStatus: "Backlog",
+      },
+    ]
+    work[2].content!.title = "Discovery: Reporting rules"
+    const sameDay = item(107, "Feature: Same-day capability", "In Progress", 1)
+    sameDay.content!.subIssues = {
+      totalCount: 1,
+      nodes: [
+        {
+          number: work[0].content!.number!,
+          title: work[0].content!.title!,
+          url: work[0].content!.url!,
+          subIssues: { totalCount: 0 },
+        },
+      ],
+      pageInfo: { hasNextPage: false, endCursor: null },
+    }
+    result.push(sameDay)
+    const populated = result.find((raw) => raw.content?.number === 101)!
+    populated.content!.subIssues = {
+      totalCount: 3,
+      pageInfo: { hasNextPage: false, endCursor: null },
+      nodes: work.map((raw) => ({
+        number: raw.content!.number!,
+        title: raw.content!.title!,
+        url: raw.content!.url!,
+        subIssues: { totalCount: 0 },
+      })),
+    }
+    const missing = result.find((raw) => raw.content?.number === 102)!
+    missing.content!.subIssues = {
+      totalCount: 1,
+      pageInfo: { hasNextPage: false, endCursor: null },
+      nodes: [
+        {
+          number: 999,
+          title: "Unavailable discovery",
+          url: "https://github.com/DannyShayH/MTGO/issues/999",
+          subIssues: { totalCount: 0 },
+        },
+      ],
+    }
+  }
+  return result
 }
 
 export function featureBoardResponse(items: RawItem[]) {

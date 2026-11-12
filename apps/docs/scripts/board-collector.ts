@@ -5,6 +5,7 @@ import {
   type BoardDataset,
   type BoardIssue,
   type StatusChange,
+  type IssueLink,
 } from "./flow-metrics.ts"
 
 const ENDPOINT = "https://api.github.com/graphql"
@@ -24,7 +25,16 @@ const TIMELINE = `timelineItems(first: 100, after: $timelineAfter, itemTypes: [P
   }
 }`
 
-const ITEMS_QUERY = `query ($owner: String!, $number: Int!, $after: String, $timelineAfter: String) {
+const CHILDREN = `subIssues(first: 100, after: $childrenAfter) {
+  totalCount
+  pageInfo { hasNextPage endCursor }
+  nodes { number title url subIssues { totalCount } }
+}`
+const CHILDREN_QUERY = `query ($id: ID!, $childrenAfter: String) {
+  node(id: $id) { ... on Issue { ${CHILDREN} } }
+}`
+
+const ITEMS_QUERY = `query ($owner: String!, $number: Int!, $after: String, $timelineAfter: String, $childrenAfter: String) {
   user(login: $owner) {
     projectV2(number: $number) {
       items(first: 50, after: $after) {
@@ -44,7 +54,7 @@ const ITEMS_QUERY = `query ($owner: String!, $number: Int!, $after: String, $tim
             ... on Issue {
               id number title url state stateReason closedAt
               labels(first: ${PAGE_SIZE}) { totalCount nodes { name } }
-              subIssues { totalCount }
+              ${CHILDREN}
               ${TIMELINE}
             }
           }
@@ -91,7 +101,11 @@ export type RawItem = {
     stateReason?: string | null
     closedAt?: string | null
     labels?: SinglePage<{ name: string }>
-    subIssues?: { totalCount: number }
+    subIssues?: {
+      totalCount: number
+      nodes?: (IssueLink & { subIssues: { totalCount: number } })[]
+      pageInfo?: { hasNextPage: boolean; endCursor: string | null }
+    }
     timelineItems?: Timeline
   } | null
 }
@@ -198,6 +212,23 @@ function normaliseItem(raw: RawItem): BoardIssue | null {
     status: selectValue(fields, "Status") ?? STATUS.none,
     workType: WORK_TYPES.find((type) => labels.includes(type)) ?? "unlabelled",
     subIssueCount: issue.subIssues?.totalCount ?? 0,
+    ...(issue.subIssues?.nodes
+      ? {
+          children: [
+            ...new Map(
+              issue.subIssues.nodes.map((child) => [
+                child.url,
+                {
+                  number: child.number,
+                  title: child.title,
+                  url: child.url,
+                  subIssueCount: child.subIssues.totalCount,
+                },
+              ]),
+            ).values(),
+          ],
+        }
+      : {}),
     state: issue.state,
     closeReason,
     closedAt: issue.closedAt ?? null,
@@ -291,6 +322,7 @@ async function fetchAllItems(query: Query): Promise<RawItem[]> {
       number: PROJECT_NUMBER,
       after,
       timelineAfter: null,
+      childrenAfter: null,
     })
     const connection = data?.user?.projectV2?.items
     if (!connection)
@@ -298,6 +330,12 @@ async function fetchAllItems(query: Query): Promise<RawItem[]> {
         `${PROJECT} of ${OWNER} was not found or is not readable with this token`,
       )
     items.push(...(connection.nodes as RawItem[]))
+    if (
+      connection.pageInfo.hasNextPage &&
+      (!connection.pageInfo.endCursor ||
+        connection.pageInfo.endCursor === after)
+    )
+      throw new Error("Project pagination is incomplete")
     after = connection.pageInfo.hasNextPage
       ? connection.pageInfo.endCursor
       : null
@@ -313,6 +351,9 @@ async function completeTimeline(query: Query, item: RawItem): Promise<void> {
   while (timeline.pageInfo.hasNextPage) {
     if (!issue.id)
       throw new Error(`Timeline of issue #${issue.number} is incomplete`)
+    if (!timeline.pageInfo.endCursor)
+      throw new Error("Timeline pagination is incomplete")
+    const cursor = timeline.pageInfo.endCursor
     const data = await query(TIMELINE_QUERY, {
       id: issue.id,
       timelineAfter: timeline.pageInfo.endCursor,
@@ -320,9 +361,50 @@ async function completeTimeline(query: Query, item: RawItem): Promise<void> {
     const next = data?.node?.timelineItems as Timeline | undefined
     if (!next)
       throw new Error(`Timeline of issue #${issue.number} could not be read`)
+    if (next.pageInfo.hasNextPage && next.pageInfo.endCursor === cursor)
+      throw new Error("Timeline pagination did not advance")
     timeline.nodes.push(...next.nodes)
     timeline.pageInfo = next.pageInfo
   }
+}
+
+/** Finish every direct-child connection before any dataset can be published. */
+async function completeChildren(query: Query, item: RawItem): Promise<void> {
+  const issue = item.content
+  const children = issue?.subIssues
+  if (!issue || issue.__typename !== "Issue") return
+  if (
+    !children ||
+    !Number.isInteger(children.totalCount) ||
+    children.totalCount < 0 ||
+    (children.totalCount > 0 && (!children.nodes || !children.pageInfo))
+  )
+    throw new Error(`Issue #${issue.number}: child retrieval is incomplete`)
+  const seen = new Set<string>()
+  while (children.pageInfo?.hasNextPage) {
+    const cursor = children.pageInfo.endCursor
+    if (!issue.id || !cursor || seen.has(cursor))
+      throw new Error(`Issue #${issue.number}: child pagination is incomplete`)
+    seen.add(cursor)
+    const data = await query(CHILDREN_QUERY, {
+      id: issue.id,
+      childrenAfter: cursor,
+    })
+    const next = data?.node?.subIssues as NonNullable<
+      RawItem["content"]
+    >["subIssues"]
+    if (!next?.nodes || !next.pageInfo)
+      throw new Error(`Issue #${issue.number}: child page is unavailable`)
+    children.nodes = [...(children.nodes ?? []), ...next.nodes]
+    children.pageInfo = next.pageInfo
+  }
+  if (
+    children.nodes &&
+    (new Set(children.nodes.map((child) => child.url)).size !==
+      children.totalCount ||
+      !children.pageInfo)
+  )
+    throw new Error(`Issue #${issue.number}: child retrieval is incomplete`)
 }
 
 export async function collectBoard({
@@ -332,6 +414,9 @@ export async function collectBoard({
 }: Options): Promise<BoardDataset> {
   const query = createQuery(token, fetchImpl)
   const items = await fetchAllItems(query)
-  for (const item of items) await completeTimeline(query, item)
+  for (const item of items) {
+    await completeTimeline(query, item)
+    await completeChildren(query, item)
+  }
   return normaliseBoard(items, now())
 }

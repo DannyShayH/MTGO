@@ -450,7 +450,9 @@ describe("collectBoard", () => {
       subIssueCount: 1,
     })
     const metrics = calculateFlowMetrics(dataset, dataset.observedAt)
-    expect(metrics).toEqual(calculateFlowMetrics(baseline, baseline.observedAt))
+    expect({ ...metrics, features: [] }).toEqual(
+      calculateFlowMetrics(baseline, baseline.observedAt),
+    )
     expect(metrics).toMatchObject({
       source: "board",
       observedAt: FEATURE_OBSERVED_AT,
@@ -587,3 +589,400 @@ function withCursor(page: (typeof pages)[number], hasNext: boolean) {
   } as never
   return copy
 }
+
+describe("ongoing Feature reporting", () => {
+  it("connects discovery and required work without inflating work-item flow", async () => {
+    const items = featureBoardItems("work")
+    const parent = item(42, {
+      title: "Feature: Reporting",
+      subIssues: {
+        totalCount: 2,
+        pageInfo: { hasNextPage: false, endCursor: null },
+        nodes: items
+          .filter((raw) => raw.content?.number !== 1)
+          .map((raw) => raw.content),
+      },
+    })
+    const dataset = await collectBoard({
+      token: "fixture-token",
+      now: () => FEATURE_OBSERVED_AT,
+      fetch: async () =>
+        new Response(JSON.stringify(featureBoardResponse([...items, parent]))),
+    })
+    const metrics = calculateFlowMetrics(dataset, dataset.observedAt)
+    expect(metrics.features).toMatchObject([
+      {
+        number: 42,
+        state: "Ongoing",
+        requiredCount: 2,
+        deliveredCount: 1,
+        startedAt: "2026-11-10",
+        ageDays: 2,
+        problems: [],
+        children: [
+          { number: 2, status: "Ready" },
+          { number: 3, cycleDays: 1 },
+        ],
+      },
+    ])
+    expect(metrics.wip.count).toBe(1)
+    expect(metrics.cycleTime).toHaveLength(1)
+  })
+})
+
+describe("Feature evidence boundaries", () => {
+  it.each([
+    {
+      reason: "EP: unstarted child can lack Start date",
+      status: "Ready",
+      start: null,
+      expectedState: "Not started",
+      expectedAge: null,
+    },
+    {
+      reason: "DT: started child cannot lack Start date",
+      status: "In Progress",
+      start: null,
+      expectedState: "Not available",
+      expectedAge: null,
+    },
+    {
+      reason: "EP: invalid calendar date",
+      status: "In Progress",
+      start: "2026-02-30",
+      expectedState: "Not available",
+      expectedAge: null,
+    },
+    {
+      reason: "BVA: future date",
+      status: "In Progress",
+      start: "2026-11-14",
+      expectedState: "Not available",
+      expectedAge: null,
+    },
+    {
+      reason: "BVA: same Copenhagen day",
+      status: "In Progress",
+      start: "2026-11-13",
+      expectedState: "Ongoing",
+      expectedAge: 0,
+    },
+    {
+      reason: "BVA: Copenhagen midnight before UTC midnight",
+      status: "In Progress",
+      start: "2026-11-12",
+      expectedState: "Ongoing",
+      expectedAge: 1,
+    },
+    {
+      reason: "BVA: across daylight saving",
+      status: "In Progress",
+      start: "2026-10-24",
+      expectedState: "Ongoing",
+      expectedAge: 20,
+    },
+  ])(
+    "$reason",
+    ({ status: childStatus, start, expectedState, expectedAge }) => {
+      const child = item(1, {}, [
+        select("Status", childStatus),
+        ...(start
+          ? [
+              {
+                __typename: "ProjectV2ItemFieldDateValue",
+                date: start,
+                field: { name: "Start date" },
+              },
+            ]
+          : []),
+      ])
+      const parent = item(42, {
+        title: "Feature: Timing",
+        subIssues: { totalCount: 1, nodes: [child.content] },
+      })
+      const metrics = calculateFlowMetrics(
+        normaliseBoard([parent, child], "2026-11-12T23:30:00Z"),
+        "2026-11-12T23:30:00Z",
+      )
+      expect(metrics.features[0]).toMatchObject({
+        state: expectedState,
+        ageDays: expectedAge,
+      })
+      expect(metrics.features[0].problems.length).toBe(
+        expectedState === "Not available" ? 1 : 0,
+      )
+    },
+  )
+
+  it("does not substitute a sibling date for a delivered child's missing start", () => {
+    const items = featureBoardItems("ongoing")
+    const delivered = items.find((raw) => raw.content?.number === 3)!
+    delivered.fieldValues.nodes = delivered.fieldValues.nodes.filter(
+      (field) => field.field?.name !== "Start date",
+    )
+    delivered.fieldValues.totalCount = delivered.fieldValues.nodes.length
+    const feature = calculateFlowMetrics(
+      normaliseBoard(items, FEATURE_OBSERVED_AT),
+      FEATURE_OBSERVED_AT,
+    ).features.find((entry) => entry.number === 101)!
+    expect(feature).toMatchObject({
+      startedAt: null,
+      ageDays: null,
+      deliveredCount: 1,
+      problems: [{ number: 3 }],
+    })
+  })
+
+  it.each([
+    { reason: "EP: complete second child page", broken: false },
+    {
+      reason: "EP: unavailable second child page fails collection",
+      broken: true,
+    },
+  ])("$reason", async ({ broken }) => {
+    const children = featureBoardItems("work")
+    const parent = item(42, {
+      title: "Feature: Paged",
+      subIssues: {
+        totalCount: 2,
+        nodes: [children[1].content],
+        pageInfo: { hasNextPage: true, endCursor: "CHILD_1" },
+      },
+    })
+    const result = collectBoard({
+      token: "fixture-token",
+      now: () => FEATURE_OBSERVED_AT,
+      fetch: async (_url, init) => {
+        const { variables } = JSON.parse(String(init?.body))
+        return new Response(
+          JSON.stringify(
+            variables.childrenAfter
+              ? {
+                  data: {
+                    node: broken
+                      ? null
+                      : {
+                          subIssues: {
+                            totalCount: 2,
+                            nodes: [children[2].content],
+                            pageInfo: { hasNextPage: false, endCursor: null },
+                          },
+                        },
+                  },
+                }
+              : featureBoardResponse([...children, parent]),
+          ),
+        )
+      },
+    })
+    if (broken) await expect(result).rejects.toThrow(/child page/)
+    else {
+      const dataset = await result
+      expect(
+        calculateFlowMetrics(dataset, dataset.observedAt).features[0],
+      ).toMatchObject({ requiredCount: 2, deliveredCount: 1, ageDays: 2 })
+    }
+  })
+
+  it.each([
+    { reason: "DT: nested child on the board", onBoard: true, nested: true },
+    {
+      reason: "DT: nested child outside the board",
+      onBoard: false,
+      nested: true,
+    },
+    {
+      reason: "DT: leaf child outside the board",
+      onBoard: false,
+      nested: false,
+    },
+  ])("$reason", ({ onBoard, nested }) => {
+    const child = item(1, {
+      subIssues: { totalCount: nested ? 1 : 0 },
+      state: "CLOSED",
+      stateReason: "COMPLETED",
+      closedAt: "2026-11-11T12:00:00Z",
+    })
+    const parent = item(42, {
+      title: "Feature: Nested",
+      subIssues: { totalCount: 1, nodes: [child.content] },
+    })
+    const metrics = calculateFlowMetrics(
+      normaliseBoard(onBoard ? [parent, child] : [parent], FEATURE_OBSERVED_AT),
+      FEATURE_OBSERVED_AT,
+    )
+    const feature = metrics.features[0]
+    expect(feature).toMatchObject({ deliveredCount: null, ageDays: null })
+    expect(feature.problems).toEqual(
+      [
+        ...(nested
+          ? [
+              {
+                number: 1,
+                problem: expect.stringContaining("Unsupported nesting"),
+              },
+            ]
+          : []),
+        ...(!onBoard
+          ? [{ number: 1, problem: "Child board evidence is not available" }]
+          : []),
+      ].map((problem) => expect.objectContaining(problem)),
+    )
+    expect(metrics.throughput).toEqual([])
+  })
+
+  it.each([
+    {
+      reason: "DT: never-started work closed as not planned",
+      history: [],
+      expectedAge: 2,
+    },
+    {
+      reason: "DT: previously started work closed as not planned",
+      history: [status("In Progress", "2026-11-10T09:00:00Z")],
+      expectedAge: null,
+    },
+    {
+      reason: "DT: previous Done status establishes started work",
+      history: [status("Done", "2026-11-10T09:00:00Z")],
+      expectedAge: null,
+    },
+  ])("$reason", ({ history, expectedAge }) => {
+    const items = featureBoardItems("ongoing")
+    const abandoned = items.find((raw) => raw.content?.number === 2)!
+    abandoned.content!.state = "CLOSED"
+    abandoned.content!.stateReason = "NOT_PLANNED"
+    abandoned.content!.closedAt = "2026-11-11T12:00:00Z"
+    abandoned.content!.timelineItems!.nodes = history
+    const feature = calculateFlowMetrics(
+      normaliseBoard(items, FEATURE_OBSERVED_AT),
+      FEATURE_OBSERVED_AT,
+    ).features.find((entry) => entry.number === 101)!
+    expect(feature).toMatchObject({
+      state: expectedAge === null ? "Not available" : "Ongoing",
+      startedAt: expectedAge === null ? null : "2026-11-10",
+      ageDays: expectedAge,
+      requiredCount: 3,
+      deliveredCount: 1,
+    })
+    expect(feature.problems).toEqual(
+      expectedAge === null
+        ? [
+            expect.objectContaining({
+              number: 2,
+              problem: expect.stringContaining("Start date"),
+            }),
+          ]
+        : [],
+    )
+  })
+
+  it.each([
+    {
+      reason: "EP: confirmed completed delivery",
+      closeReason: "COMPLETED",
+      expectedCount: 1,
+    },
+    {
+      reason: "EP: confirmed closure without delivery",
+      closeReason: "NOT_PLANNED",
+      expectedCount: 0,
+    },
+    {
+      reason: "EP: unknown closed-child outcome",
+      closeReason: null,
+      expectedCount: null,
+    },
+  ])("$reason", async ({ closeReason, expectedCount }) => {
+    const items = featureBoardItems("ongoing")
+    items.find((raw) => raw.content?.number === 3)!.content!.stateReason =
+      closeReason
+    const dataset = await collectBoard({
+      token: "fixture-token",
+      now: () => FEATURE_OBSERVED_AT,
+      fetch: async () =>
+        new Response(JSON.stringify(featureBoardResponse(items))),
+    })
+    const metrics = calculateFlowMetrics(dataset, dataset.observedAt)
+    const feature = metrics.features.find((entry) => entry.number === 101)!
+    expect(feature).toMatchObject({
+      state: "Ongoing",
+      startedAt: "2026-11-10",
+      ageDays: 2,
+      requiredCount: 3,
+      deliveredCount: expectedCount,
+    })
+    expect(
+      feature.children.find((child) => child.number === 3)!.delivered,
+    ).toBe(closeReason === "COMPLETED")
+    expect(feature.problems).toEqual(
+      closeReason === null
+        ? [
+            expect.objectContaining({
+              number: 3,
+              url: "https://github.com/DannyShayH/MTGO/issues/3",
+              problem:
+                "Closed without a reason; delivery count is not available",
+            }),
+          ]
+        : [],
+    )
+    expect(
+      metrics.throughput.reduce((total, week) => total + week.count, 0),
+    ).toBe(closeReason === "COMPLETED" ? 1 : 0)
+  })
+})
+
+describe("incomplete direct-child retrieval", () => {
+  it.each([
+    { reason: "EP: omitted relationship connection", connection: undefined },
+    {
+      reason: "EP: count without child evidence",
+      connection: { totalCount: 1 },
+    },
+    {
+      reason: "BVA: terminal page shorter than totalCount",
+      connection: {
+        totalCount: 1,
+        nodes: [],
+        pageInfo: { hasNextPage: false, endCursor: null },
+      },
+    },
+    {
+      reason: "BVA: next page has no usable cursor",
+      connection: {
+        totalCount: 1,
+        nodes: [],
+        pageInfo: { hasNextPage: true, endCursor: null },
+      },
+    },
+  ])("$reason", async ({ connection }) => {
+    await expect(
+      collectBoard({
+        token: "fixture-token",
+        now: () => FEATURE_OBSERVED_AT,
+        fetch: async () =>
+          new Response(
+            JSON.stringify(
+              featureBoardResponse([
+                item(42, {
+                  title: "Feature: Incomplete",
+                  subIssues: connection,
+                }),
+              ]),
+            ),
+          ),
+      }),
+    ).rejects.toThrow(/child.*incomplete/)
+  })
+})
+
+it("withholds delivered counts when a required child's delivery evidence is unavailable", () => {
+  const metrics = calculateFlowMetrics(
+    normaliseBoard(featureBoardItems("ongoing"), FEATURE_OBSERVED_AT),
+    FEATURE_OBSERVED_AT,
+  )
+  expect(
+    metrics.features.find((feature) => feature.number === 102),
+  ).toMatchObject({ requiredCount: 1, deliveredCount: null, ageDays: null })
+})

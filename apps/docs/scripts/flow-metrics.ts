@@ -5,6 +5,8 @@ export type BoardIssue = {
   status: string
   workType: string
   subIssueCount: number
+  /** Current native direct children, absent in older datasets. */
+  children?: (IssueLink & { subIssueCount: number })[]
   state: "OPEN" | "CLOSED"
   closeReason: "COMPLETED" | "NOT_PLANNED" | null
   closedAt: string | null
@@ -77,7 +79,29 @@ export type WipBreach = {
   peakExcess: number
 }
 
+export type FeatureChild = IssueLink & {
+  isWorkItem: boolean
+  timingState: "Available" | "Not started" | "Not available"
+  delivered: boolean
+  closeReason: BoardIssue["closeReason"]
+  status: string
+  startedAt: string | null
+  closedAt: string | null
+  ageDays: number | null
+  cycleDays: number | null
+}
+export type FeatureObservation = IssueLink & {
+  state: "Ongoing" | "Not started" | "Not available"
+  requiredCount: number
+  deliveredCount: number | null
+  startedAt: string | null
+  ageDays: number | null
+  children: FeatureChild[]
+  problems: DataProblem[]
+}
+
 export type FlowMetrics = {
+  features: FeatureObservation[]
   source: BoardDataset["source"]
   observedAt: string
   /** Both WIP columns together, against the sum of their limits */
@@ -123,6 +147,10 @@ export const STATUS = {
 
 const WIP_STATUSES: string[] = [STATUS.inProgress, STATUS.deliveryInitiated]
 const isWip = (status: string) => WIP_STATUSES.includes(status)
+const isFeature = (item: Pick<BoardIssue, "title">) =>
+  item.title.startsWith("Feature: ")
+const isWorkItem = (item: Pick<BoardIssue, "title" | "subIssueCount">) =>
+  item.subIssueCount === 0 && !isFeature(item)
 
 type ClosedIssue = BoardIssue & { closedAt: string }
 const closedAs = (
@@ -135,7 +163,7 @@ const closedAs = (
   item.closedAt !== null &&
   item.closedAt <= observationTime
 
-const issueLink = ({ number, title, url }: BoardIssue): IssueLink => ({
+const issueLink = ({ number, title, url }: IssueLink): IssueLink => ({
   number,
   title,
   url,
@@ -174,6 +202,9 @@ function formatElapsedMinutes(total: number): string {
  */
 function daysSince(startedAt: string | null, endDate: string): number | null {
   if (startedAt === null || !/^\d{4}-\d{2}-\d{2}$/.test(startedAt)) return null
+  const parsed = new Date(`${startedAt}T00:00:00Z`)
+  if (!Number.isFinite(parsed.getTime()) || isoDate(parsed) !== startedAt)
+    return null
   const days = calendarDays(startedAt, endDate)
   return Number.isFinite(days) && days >= 0 ? days : null
 }
@@ -359,15 +390,130 @@ function flowHistory(items: BoardIssue[], observationTime: string) {
   return { cumulativeFlow, wipBreaches }
 }
 
+/** Current open Features only; accepted delivery and historical scope are separate slices. */
+function ongoingFeatures(
+  dataset: BoardDataset,
+  observationTime: string,
+): FeatureObservation[] {
+  const today = copenhagenDate(observationTime)
+  const byUrl = new Map(dataset.items.map((item) => [item.url, item]))
+  return dataset.items
+    .filter((item) => isFeature(item) && item.state === "OPEN")
+    .map((feature) => {
+      const problems: DataProblem[] = []
+      const problem = (item: IssueLink, text: string) =>
+        problems.push({ ...issueLink(item), problem: text })
+      if ((feature.children?.length ?? 0) !== feature.subIssueCount)
+        problem(
+          feature,
+          "Direct-child evidence is not available in this dataset",
+        )
+      const children = (feature.children ?? []).map((link): FeatureChild => {
+        const child = byUrl.get(link.url)
+        const base: FeatureChild = {
+          ...issueLink(link),
+          isWorkItem: false,
+          timingState: "Not available",
+          delivered: false,
+          closeReason: child?.closeReason ?? null,
+          status: child?.status ?? "Not available",
+          startedAt: child?.startedAt ?? null,
+          closedAt: child?.closedAt ?? null,
+          ageDays: null,
+          cycleDays: null,
+        }
+        const hasUnsupportedNesting =
+          !isWorkItem(link) || (child !== undefined && !isWorkItem(child))
+        if (hasUnsupportedNesting) {
+          problem(
+            link,
+            "Unsupported nesting: a Feature child must be a work item without children",
+          )
+        }
+        if (!child) problem(link, "Child board evidence is not available")
+        if (!child || hasUnsupportedNesting) return base
+        if (child.state === "CLOSED" && child.closeReason === null)
+          problem(
+            child,
+            "Closed without a reason; delivery count is not available",
+          )
+        const delivered = closedAs(child, "COMPLETED", observationTime)
+        const end = delivered ? copenhagenDate(child.closedAt) : today
+        const duration = daysSince(child.startedAt, end)
+        const started =
+          (child.state === "CLOSED" && child.closeReason !== "NOT_PLANNED") ||
+          isWip(child.status) ||
+          child.status === STATUS.done ||
+          child.statusChanges.some(
+            (change) => isWip(change.to) || change.to === STATUS.done,
+          )
+        if ((started || child.startedAt !== null) && duration === null)
+          problem(
+            child,
+            "Missing or invalid Start date; Feature timing is not available",
+          )
+        if (child.status === STATUS.none)
+          problem(
+            child,
+            "Missing child status; Feature timing is not available",
+          )
+        return {
+          ...base,
+          isWorkItem: true,
+          timingState:
+            child.status === STATUS.none
+              ? "Not available"
+              : duration !== null
+                ? "Available"
+                : started || child.startedAt !== null
+                  ? "Not available"
+                  : "Not started",
+          delivered,
+          ageDays: child.state === "OPEN" ? duration : null,
+          cycleDays: delivered ? duration : null,
+        }
+      })
+      const starts = children
+        .flatMap((child) => (child.startedAt ? [child.startedAt] : []))
+        .sort((a, b) => a.localeCompare(b))
+      const hasUnavailableTiming =
+        children.length !== feature.subIssueCount ||
+        children.some(
+          (child) => !child.isWorkItem || child.timingState === "Not available",
+        )
+      const startedAt = hasUnavailableTiming ? null : (starts[0] ?? null)
+      return {
+        ...issueLink(feature),
+        state: hasUnavailableTiming
+          ? "Not available"
+          : startedAt
+            ? "Ongoing"
+            : "Not started",
+        requiredCount: feature.subIssueCount,
+        deliveredCount:
+          children.length === feature.subIssueCount &&
+          children.every(
+            (child) =>
+              child.isWorkItem &&
+              !(child.closedAt && child.closeReason === null),
+          )
+            ? children.filter((child) => child.delivered).length
+            : null,
+        startedAt,
+        ageDays: startedAt ? daysSince(startedAt, today) : null,
+        children,
+        problems,
+      }
+    })
+}
+
 export function calculateFlowMetrics(
   dataset: BoardDataset,
   observationTime: string,
 ): FlowMetrics {
   // ADR-0016: the mandatory title prefix identifies Features before decomposition.
   // Apply this before replaying history, including datasets saved before this rule.
-  const items = dataset.items.filter(
-    (item) => item.subIssueCount === 0 && !item.title.startsWith("Feature: "),
-  )
+  const items = dataset.items.filter(isWorkItem)
   const openColumn = (status: string, limit: number): Column => {
     const issues = items
       .filter((item) => item.state === "OPEN" && item.status === status)
@@ -531,6 +677,7 @@ export function calculateFlowMetrics(
   )
   return {
     ...flowHistory(items, observationTime),
+    features: ongoingFeatures(dataset, observationTime),
     source: dataset.source,
     observedAt: observationTime,
     wip: {

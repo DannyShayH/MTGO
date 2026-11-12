@@ -110,7 +110,7 @@ describe("calculateFlowMetrics", () => {
       board([...work, ...candidates]),
       observedAt,
     )
-    if (excluded) expect(metrics).toEqual(baseline)
+    if (excluded) expect({ ...metrics, features: [] }).toEqual(baseline)
     else {
       expect(metrics.wip.count).toBe(11)
       expect(metrics.ready.count).toBe(1)
@@ -153,7 +153,7 @@ describe("calculateFlowMetrics", () => {
       ]),
       observedAt,
     )
-    expect(metrics).toEqual(baseline)
+    expect({ ...metrics, features: [] }).toEqual(baseline)
     expect(metrics.agingLimit).toEqual({ kind: "fixed", days: 5 })
     expect(metrics.throughput[0].count).toBe(9)
   })
