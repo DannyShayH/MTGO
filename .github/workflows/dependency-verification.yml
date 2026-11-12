@@ -96,6 +96,8 @@ jobs:
           path: |
             apps/storefront/playwright-report
             apps/storefront/test-results
+            apps/partner/playwright-report
+            apps/partner/test-results
           if-no-files-found: ignore
           retention-days: 3
       - name: Package the verified Pages output

@@ -1,6 +1,6 @@
 ---
 title: Browser verification
-description: Real admin, cart and manual-payment checks for dependency updates.
+description: Real admin, cart, manual-payment and partner app checks for dependency updates.
 ---
 
 [Issue #36](https://github.com/DannyShayH/MTGO/issues/36) adds browser verification
@@ -53,8 +53,8 @@ npm run verify:applications
 The wrapper copies repository source into an ignored temporary snapshot, excludes
 `.env` files, and links installed dependencies inside that snapshot. It forwards
 only the environment variables needed by this runtime. It does not load or alter
-your developer environment files or use a shared/live store. Ports 9000 and 8000
-must be free. The helper requires Linux tools including Bash, curl, cp and setsid.
+your developer environment files or use a shared/live store. Ports 9000, 8000
+and 8100 must be free. The helper requires Linux tools including Bash, curl, cp and setsid.
 
 It compiles the backend/admin, applies migrations and the existing initial seed,
 exports the real seeded publishable key through a temporary file, starts and
@@ -72,8 +72,9 @@ login substitutes for the UI login test.
 
 ## Reports and failure evidence
 
-Open `apps/storefront/playwright-report/index.html` after verification, or run
-`npm exec -- playwright show-report` from the storefront directory. Reports and
+Open `apps/storefront/playwright-report/index.html` or
+`apps/partner/playwright-report/index.html` after verification, or run
+`npm exec -- playwright show-report` from the app's directory. Reports and
 `test-results` are ignored by Git, formatting, lint and architecture tools.
 
 Admin tracing/video are disabled to avoid recording login credentials. Storefront
@@ -116,3 +117,27 @@ Restaurant pages with React Refresh enabled. It needs no database, API server or
 browser. This catches development-only compilation failures, such as duplicate
 React Refresh plugins, which production builds cannot expose. Dependency bundling
 and application behavior remain covered by the production browser journeys.
+
+## Partner app journey
+
+The partner app has its own Playwright suite in `apps/partner/e2e`, which the
+harness runs after the storefront suite against the production-built partner app
+on port 8100. The demonstration seed makes a disposable login authorized staff of
+Pizzeria Nørrebro (`SEED_STAFF_EMAIL`, `SEED_STAFF_PASSWORD`).
+
+- With a Danish browser, the sign-in page is in Danish. A wrong password shows
+  the Danish sign-in failure. The right password opens the Overview with the
+  Restaurant's name, and the sidebar has only Overview.
+- The staff token is in the partner app's own httpOnly cookie, and the browser
+  gets no Medusa session cookie from the backend.
+- Switching to English changes the Overview, and English is kept after a reload.
+- Signing out shows the sign-in page, and the Overview then asks for sign-in
+  again. A Customer's storefront cookie added before sign-in is still there.
+- On a first visit, an English browser gets English and an unsupported language
+  gets Danish.
+- With a token the backend no longer accepts, the Overview sends the browser to
+  sign-in with the "session has expired" message and the token cookie is gone. A
+  wrong password then shows the English sign-in failure.
+
+Every test fails on uncaught browser errors. Tracing and video are off, because
+the journey types a password.

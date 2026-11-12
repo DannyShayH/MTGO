@@ -19,6 +19,8 @@ For the component diagram, service boundaries and deployment proposal, start wit
 | Medusa JS SDK                                        | Calls the backend's HTTP API from the storefront, keeping commerce operations in Medusa.                    |
 | Tailwind CSS 3 and Medusa UI preset                  | Storefront styling and shared design tokens. Local UI components also use Headless UI and Radix primitives. |
 | React InstantSearch and Medusa InstantSearch adapter | Navbar search, product results, sorting and refinements through Medusa's search endpoint.                   |
+| Next.js 16 and Medusa UI                             | The partner app for Restaurant staff in `apps/partner` (ADR-0017), calling `/partner/*` from its server.    |
+| `packages/i18n` and `packages/ui`                    | Danish and English text keyed by API codes, and MTOGO design tokens on Medusa UI's Tailwind preset.         |
 
 The storefront builds on the Medusa Next.js starter. Its practical benefit is an existing commerce UI and SDK integration to extend for MTOGO. The original selection rationale is [not yet recorded](#unresolved-decisions).
 

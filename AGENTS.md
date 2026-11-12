@@ -2,7 +2,7 @@
 
 ## Overview
 
-Medusa DTC Starter — a Turborepo workspace monorepo containing a Medusa backend (`@medusajs/medusa` 2.x, Node 22.22+, PostgreSQL 15+) an optional Next.js storefront, and an Astro Starlight docs site published on GitHub Pages.
+Medusa DTC Starter — a Turborepo workspace monorepo containing a Medusa backend (`@medusajs/medusa` 2.x, Node 22.22+, PostgreSQL 15+) an optional Next.js storefront, a Next.js partner app for Restaurant staff (ADR-0017), shared packages, and an Astro Starlight docs site published on GitHub Pages.
 
 ## Before You Start
 
@@ -29,6 +29,8 @@ Medusa DTC Starter — a Turborepo workspace monorepo containing a Medusa backen
 | Tests                                                  | `apps/backend/integration-tests/`, `src/**/__tests__/`         | `@medusajs/test-utils`                                           |
 | Storefront API calls                                   | `apps/storefront/src/lib/data/`                                | `@medusajs/js-sdk`, `@medusajs/types` (`HttpTypes`)              |
 | Storefront UI                                          | `apps/storefront/src/modules/<feature>/`, routes in `src/app/` | `@medusajs/ui`                                                   |
+| Partner app (Restaurant staff)                         | `apps/partner/src/` (`lib/data` calls `/partner/*`)            | `@medusajs/js-sdk`, `@medusajs/ui`, `apps/partner/README.md`     |
+| Danish and English text, design tokens                 | `packages/i18n/`, `packages/ui/`                               | their `README.md`                                                |
 | Lint failure                                           | the flagged file                                               | `@medusajs/eslint-plugin`                                        |
 
 ## Directory Structure
@@ -55,11 +57,17 @@ Medusa DTC Starter — a Turborepo workspace monorepo containing a Medusa backen
 │   │   ├── astro.config.mjs      # Site, base path, sidebar, Mermaid and link validator
 │   │   ├── scripts/              # Build steps and checks (copy-root-docs.ts, check-base-links.mjs)
 │   │   └── src/content/docs/     # The pages, one folder per sidebar section
+│   ├── partner/                  # Next.js partner app for Restaurant staff (@dtc/partner), port 8100
+│   │   ├── e2e/                  # Playwright journey, run by verify:applications
+│   │   └── src/                  # app/ routes, lib/data/ server-side /partner calls, modules/ UI
 │   └── storefront/               # OPTIONAL Next.js storefront (@dtc/storefront)
 │       └── src/
 │           ├── app/              # Next.js App Router routes
 │           ├── lib/data/         # Server-side Medusa API calls (js-sdk)
 │           └── modules/          # Feature UI: cart, checkout, products, account, order...
+├── packages/
+│   ├── i18n/                     # @dtc/i18n: Danish and English text keyed by API codes, locale rule
+│   └── ui/                       # @dtc/ui: MTOGO design tokens as a Tailwind preset on Medusa UI
 ├── eslint.config.ts              # Root ESLint: @medusajs/eslint-plugin recommended
 └── turbo.json                    # Task graph: build, dev, start, lint, test, seed
 ```
@@ -92,6 +100,7 @@ Run from the repo root unless noted. Turbo skips missing apps automatically.
 <pm> run dev                # all apps
 <pm> run backend:dev        # backend only (http://localhost:9000, admin at /app)
 <pm> run storefront:dev     # storefront only (http://localhost:8000)
+<pm> run partner:dev        # partner app only (http://localhost:8100)
 ```
 
 ### Build
@@ -107,6 +116,8 @@ Run from the repo root unless noted. Turbo skips missing apps automatically.
 <pm> run lint                          # all apps via turbo
 cd apps/backend && <pm> run lint       # medusa lint
 cd apps/storefront && <pm> run lint    # eslint (flat config)
+cd apps/partner && <pm> run lint       # eslint (flat config)
+cd packages/i18n && <pm> test          # Node's test runner, src/**/__tests__/*.unit.spec.ts
 ```
 
 ### Docs site
@@ -130,7 +141,7 @@ In Markdown pages, write internal links as absolute links with the base (`/MTGO/
 <pm> run arch:graph    # backend dependency graph as Mermaid, one node per src/ folder
 ```
 
-The rules enforce: no circular dependencies, no imports between `apps/storefront` and `apps/backend`, custom modules never import each other (use module links and workflows), and the layering Module → Workflow → API route. A violation means the design is wrong: fix the code, never loosen or delete a rule to make it pass.
+The rules enforce: no circular dependencies, apps may import packages but never each other, packages never import apps, custom modules never import each other (use module links and workflows), and the layering Module → Workflow → API route. A violation means the design is wrong: fix the code, never loosen or delete a rule to make it pass.
 
 ### Tests and browser verification
 
@@ -141,7 +152,7 @@ the root with the disposable CI variables in
 [application build verification](apps/docs/src/content/docs/quality/application-builds.md).
 It runs production builds and Playwright against a source snapshot without
 developer `.env` files. Use a loopback PostgreSQL database named `medusa_ci_*`,
-install Chromium first, and keep ports 9000/8000 free. See
+install Chromium first, and keep ports 9000/8000/8100 free. See
 [browser verification](apps/docs/src/content/docs/quality/browser-verification.md)
 for coverage, reports and payment-provider limits. Do not aim browser tests at a
 live store. The ready flow requires this check.

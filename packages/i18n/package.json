@@ -1,0 +1,13 @@
+{
+  "name": "@dtc/i18n",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Danish and English text for the MTOGO apps, keyed by API codes",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "node --test \"src/**/__tests__/*.unit.spec.ts\""
+  }
+}

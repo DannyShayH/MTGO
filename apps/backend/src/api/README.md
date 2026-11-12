@@ -375,3 +375,52 @@ for an unknown Restaurant.
 optional `exclude_id` for edits. **Success:** `200` with `{ "warnings": [] }` or
 the `same_pickup_address` warning shown above. **Failure:** `400` for invalid input.
 The create/update response checks again; a preview never reserves an address.
+
+## Partner app: Restaurant staff
+
+`/partner/*` is the namespace for the partner app (ADR-0017). Medusa gives it no
+default authentication, CORS or publishable-key check, so each route declares its
+actor in `middlewares.ts`. The partner app calls these routes only from its
+server side, with the staff member's token as a bearer token; it never uses
+Medusa's session cookie.
+
+Restaurant staff use Medusa's own auth routes with the `restaurant_staff` actor
+type and the email and password provider. They are not documented again here;
+see the [Medusa auth API reference](https://docs.medusajs.com/api/store#auth):
+
+- `POST /auth/restaurant_staff/emailpass` with `email` and `password` returns
+  `{ "token": "..." }`, or `401` for a wrong email or password. The token carries
+  the staff id only when the login belongs to staff; a login without staff gets
+  `401` from every partner route.
+
+### GET /partner/me
+
+Returns the signed-in staff member and their Restaurant. Every partner request
+checks that the staff member is still authorized, so a revocation takes effect
+on the next request instead of when the token expires.
+
+**Actor:** Restaurant staff (`restaurant_staff`, bearer token only)
+
+```bash
+curl http://localhost:9000/partner/me -H "Authorization: Bearer $TOKEN"
+```
+
+**Success:** `200` with
+
+```json
+{
+  "staff": {
+    "id": "rstf_01...",
+    "name": "Sofie Jensen",
+    "email": "sofie@pizzeria.example",
+    "status": "authorized",
+    "restaurant_id": "res_01..."
+  },
+  "restaurant": { "id": "res_01...", "name": "Pizzeria Nørrebro" }
+}
+```
+
+| Status | When                                                                                                       |
+| ------ | ---------------------------------------------------------------------------------------------------------- |
+| `401`  | No token, an invalid or expired token, an Admin user or Customer token, or a login that never became staff |
+| `403`  | `code: "staff_access_revoked"`: the staff member was revoked or no longer exists                           |

@@ -1,6 +1,6 @@
 import { model } from "@medusajs/framework/utils"
 
-// The three models reference each other, so they share one file: separate files
+// The models reference each other, so they share one file: separate files
 // would form an import cycle, which the architecture rules forbid.
 
 const Restaurant = model
@@ -19,6 +19,9 @@ const Restaurant = model
       mappedBy: "restaurant",
     }),
     commercial_terms_agreements: model.hasMany(() => CommercialTermsAgreement, {
+      mappedBy: "restaurant",
+    }),
+    staff: model.hasMany(() => RestaurantStaff, {
       mappedBy: "restaurant",
     }),
   })
@@ -46,5 +49,27 @@ export const CommercialTermsAgreement = model
     }),
   })
   .indexes([{ on: ["restaurant_id"], unique: true }])
+
+/**
+ * A person who may operate one Restaurant. Revoked staff stay on record as
+ * former staff (ADR-0008, ADR-0014), so an email is unique only among pending
+ * and authorized staff.
+ */
+export const RestaurantStaff = model
+  .define("restaurant_staff", {
+    id: model.id({ prefix: "rstf" }).primaryKey(),
+    name: model.text(),
+    email: model.text(),
+    status: model.enum(["pending", "authorized", "revoked"]),
+    invited_by: model.text().nullable(),
+    accepted_at: model.dateTime().nullable(),
+    revoked_at: model.dateTime().nullable(),
+    revoked_by: model.text().nullable(),
+    restaurant: model.belongsTo(() => Restaurant, { mappedBy: "staff" }),
+  })
+  .indexes([
+    { on: ["email"], unique: true, where: "status != 'revoked'" },
+    { on: ["restaurant_id"] },
+  ])
 
 export default Restaurant

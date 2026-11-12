@@ -9,7 +9,7 @@ Version 1.1 (draft), 12 November 2026. Proposed in [issue #9](https://github.com
 
 ## 1. Overview
 
-This standard keeps our code consistent, readable and easy to change. It applies to every team member and every AI agent, in all apps of the monorepo: `apps/backend` (Medusa), `apps/storefront` (Next.js) and `apps/docs` (Astro Starlight).
+This standard keeps our code consistent, readable and easy to change. It applies to every team member and every AI agent, in all apps and packages of the monorepo: `apps/backend` (Medusa), `apps/storefront` (Next.js), `apps/partner` (Next.js), `apps/docs` (Astro Starlight) and the shared `packages/`.
 
 Several sources work together. Where they overlap, all of them must hold.
 
@@ -135,7 +135,7 @@ Rules that follow from this:
 - **Components render; `src/lib/data` fetches.** Only `src/lib/data` calls the Medusa API through `@medusajs/js-sdk`. Components and pages call those functions.
 - Data functions run on the server (`"use server"` or server components). Never put secrets in `NEXT_PUBLIC_` variables.
 - Feature modules do not reach into each other. Anything shared moves to `src/modules/common`.
-- The storefront and the backend never import each other's code. The HTTP API is the contract between them.
+- Apps never import each other's code; the HTTP API is the contract between them. Apps may import the shared `packages/`, which never import apps. The partner app follows the same rules as the storefront.
 
 ### 5.3 Money, time and language
 

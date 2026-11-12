@@ -21,6 +21,7 @@ import {
   GetAdminPostalCodesSchema,
 } from "./admin/restaurants/validators"
 import { isDanishPostalCode } from "../workflows/restaurants/postal-code"
+import { RESTAURANT_STAFF_ACTOR } from "../workflows/restaurant-staff"
 
 /** Medusa has no path-parameter validator, so the postal code in the path is checked here. */
 function validatePostalCodeParam(
@@ -103,6 +104,11 @@ export default defineMiddlewares({
       middlewares: [
         validateAndTransformBody(PostAdminRecordCommercialTermsSchema),
       ],
+    },
+    // Partner routes get no default authentication from Medusa (ADR-0017).
+    {
+      matcher: "/partner/me",
+      middlewares: [authenticate(RESTAURANT_STAFF_ACTOR, "bearer")],
     },
     {
       method: ["POST"],

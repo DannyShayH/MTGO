@@ -1,0 +1,13 @@
+{
+  "name": "@dtc/ui",
+  "version": "0.0.1",
+  "private": true,
+  "description": "MTOGO design tokens on top of Medusa UI, shared by the apps",
+  "exports": {
+    "./tailwind-preset": "./tailwind-preset.cjs",
+    "./tokens": "./tokens.cjs"
+  },
+  "dependencies": {
+    "@medusajs/ui-preset": "2.22.4"
+  }
+}

@@ -12,19 +12,20 @@ module.exports = {
       to: { circular: true },
     },
     {
-      name: "storefront-not-to-backend",
+      name: "apps-are-isolated",
       severity: "error",
       comment:
-        "The storefront talks to the backend over HTTP through the Medusa JS SDK (src/lib/data), never by importing backend code.",
-      from: { path: "^apps/storefront/" },
-      to: { path: "^apps/backend/" },
+        "Apps never import each other. The storefront and the partner app talk to the backend over HTTP through the Medusa JS SDK; shared code lives in packages/ (ADR-0017).",
+      from: { path: "^apps/([^/]+)/" },
+      to: { path: "^apps/[^/]+/", pathNot: "^apps/$1/" },
     },
     {
-      name: "backend-not-to-storefront",
+      name: "packages-not-to-apps",
       severity: "error",
-      comment: "The backend must not depend on the storefront.",
-      from: { path: "^apps/backend/" },
-      to: { path: "^apps/storefront/" },
+      comment:
+        "Packages are shared by the apps, so they must never import an app. Apps may import packages.",
+      from: { path: "^packages/" },
+      to: { path: "^apps/" },
     },
     {
       name: "modules-are-isolated",

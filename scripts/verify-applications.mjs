@@ -26,7 +26,7 @@ for (const name of ["NEXT_PUBLIC_MEDUSA_BACKEND_URL", "NEXT_PUBLIC_BASE_URL"]) {
 }
 
 // Refuse existing application servers rather than testing another local store.
-for (const port of [9000, 8000]) {
+for (const port of [9000, 8000, 8100]) {
   await new Promise((done, fail) => {
     const server = createServer()
     server.once("error", () =>
@@ -105,6 +105,7 @@ try {
     "NEXT_PUBLIC_BASE_URL",
     "NEXT_PUBLIC_MEDUSA_BACKEND_URL",
     "NEXT_PUBLIC_DEFAULT_REGION",
+    "PARTNER_BASE_URL",
     "MEDUSA_TELEMETRY_DISABLED",
     "NEXT_TELEMETRY_DISABLED",
   ]
@@ -133,15 +134,17 @@ try {
   process.off("SIGINT", interrupt)
   process.off("SIGTERM", terminate)
 } finally {
-  for (const artifact of ["playwright-report", "test-results"]) {
-    const destination = join(root, "apps/storefront", artifact)
-    await rm(destination, { recursive: true, force: true })
-    try {
-      await cp(join(snapshot, "apps/storefront", artifact), destination, {
-        recursive: true,
-      })
-    } catch (error) {
-      if (error.code !== "ENOENT") throw error
+  for (const app of ["apps/storefront", "apps/partner"]) {
+    for (const artifact of ["playwright-report", "test-results"]) {
+      const destination = join(root, app, artifact)
+      await rm(destination, { recursive: true, force: true })
+      try {
+        await cp(join(snapshot, app, artifact), destination, {
+          recursive: true,
+        })
+      } catch (error) {
+        if (error.code !== "ENOENT") throw error
+      }
     }
   }
   await rm(snapshot, { recursive: true, force: true })

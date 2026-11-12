@@ -46,6 +46,11 @@
         "NEXT_TELEMETRY_DISABLED",
         "MEDUSA_CLOUD_S3_*"
       ]
+    },
+    "@dtc/partner#build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "!.next/cache/**"],
+      "env": ["NODE_ENV", "MEDUSA_BACKEND_URL", "NEXT_TELEMETRY_DISABLED"]
     }
   }
 }

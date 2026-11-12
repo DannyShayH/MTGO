@@ -18,8 +18,13 @@ export NODE_ENV=production
 build_tmp=$(mktemp -d)
 backend_pid=""
 storefront_pid=""
+partner_pid=""
 cleanup() {
   result=$?
+  if [[ -n "$partner_pid" ]]; then
+    kill -- "-$partner_pid" 2>/dev/null || true
+    wait "$partner_pid" 2>/dev/null || true
+  fi
   if [[ -n "$storefront_pid" ]]; then
     kill -- "-$storefront_pid" 2>/dev/null || true
     wait "$storefront_pid" 2>/dev/null || true
@@ -31,6 +36,7 @@ cleanup() {
   if [[ "$result" -ne 0 ]] && [[ -f "$build_tmp/backend.log" ]]; then
     cat "$build_tmp/backend.log"
     if [[ -f "$build_tmp/storefront.log" ]]; then cat "$build_tmp/storefront.log"; fi
+    if [[ -f "$build_tmp/partner.log" ]]; then cat "$build_tmp/partner.log"; fi
   fi
   rm -rf "$build_tmp"
   exit "$result"
@@ -38,6 +44,12 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
+
+# The seed makes this login authorized staff of the synthetic Restaurant, so the
+# partner app smoke test can sign in (ADR-0017).
+SEED_STAFF_EMAIL="partner-smoke-$(node -p 'require("node:crypto").randomUUID()')@example.test"
+export SEED_STAFF_EMAIL
+export SEED_STAFF_PASSWORD="ci-only-partner-password"
 
 npm run build -- --filter=@dtc/backend --force
 (
@@ -67,6 +79,11 @@ curl --fail --silent --show-error --max-time 10 \
 
 npm run build -- --filter=@dtc/storefront --force
 
+# The partner app calls the backend only from its server side.
+export MEDUSA_BACKEND_URL="$NEXT_PUBLIC_MEDUSA_BACKEND_URL"
+export PARTNER_BASE_URL="${PARTNER_BASE_URL:-http://localhost:8100}"
+npm run build -- --filter=@dtc/partner --force
+
 if [[ "${1:-}" = "--browser" ]]; then
   export E2E_DISPOSABLE=1
   E2E_ADMIN_EMAIL="smoke-$(node -p 'require("node:crypto").randomUUID()')@example.test"
@@ -86,6 +103,18 @@ if [[ "${1:-}" = "--browser" ]]; then
     "$NEXT_PUBLIC_BASE_URL/dk/store" > /dev/null
   (
     cd apps/storefront
+    npm run test:e2e
+  )
+  (
+    cd apps/partner
+    exec setsid npm run start
+  ) > "$build_tmp/partner.log" 2>&1 &
+  partner_pid=$!
+  curl --fail --silent --show-error --retry 60 --retry-connrefused \
+    --retry-all-errors --retry-delay 2 --retry-max-time 120 --max-time 5 \
+    "$PARTNER_BASE_URL/sign-in" > /dev/null
+  (
+    cd apps/partner
     npm run test:e2e
   )
   timeout --signal=TERM --kill-after=5s 30s node scripts/verify-admin-development.mjs
