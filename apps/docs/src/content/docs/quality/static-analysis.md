@@ -33,6 +33,8 @@ in Backlog for the developer to prioritize. Record the failed run and findings.
 This is a **post-delivery check**: the change has already reached `main`.
 It does not block the ready flow or roll back a delivery. Docs deployment runs
 independently, so the quality page remains available when analysis fails.
+The organization's plan cannot analyze `ready/*` branches, so the gate cannot
+run before the merge; see [branch analysis and plans](#branch-analysis-and-plans).
 
 ## Before committing
 
@@ -143,13 +145,43 @@ Its main branch must be `main`. CI requires:
 Sonar's [subscription documentation](https://docs.sonarsource.com/sonarqube-cloud/administering-sonarcloud/managing-subscription/subscription-plans)
 distinguishes Free from OSS: Free covers main-branch analysis; OSS includes
 unlimited branch and pull request analysis for public projects. Public visibility
-alone does not establish the organization's plan. Checked on 12 November 2026:
-the public `api/navigation/organization?organization=dannyshayh` endpoint reports
-`subscription: FREE`, and `api/project_branches/list?project=DannyShayH_MTGO`
-lists only `main`. Confirm the actual branch entitlement in **Administration >
-Billing & Upgrade** before a follow-up adds scans for `ready/*`; the API's Free
-label alone does not prove whether legacy OSS entitlements apply. This issue
-keeps the existing post-delivery scan.
+alone does not establish the organization's plan.
+
+Checked on 12 November 2026:
+
+- The repository admin confirmed in **Administration > Billing & Upgrade** that
+  organization `dannyshayh` is on the Free plan, which analyzes only the `main`
+  branch.
+- The public `api/navigation/organization?organization=dannyshayh` endpoint
+  reports `subscription: FREE`.
+- `api/project_branches/list?project=DannyShayH_MTGO` lists only `main`, and
+  `api/project_pull_requests/list` lists no pull requests.
+
+### Decision: the quality gate stays post-delivery
+
+[Issue #98](https://github.com/DannyShayH/MTGO/issues/98) asked for the ready flow to block the merge to `main` on the Cloud
+quality gate. The Free plan cannot analyze the `ready/*` commit, so the ready
+flow cannot wait for a gate result on that commit before `merge-to-trunk`.
+The `sonar` job in `on_main.yml` therefore stays the only Cloud scan, and it
+runs after delivery.
+
+We do not scan an unmerged `ready/*` commit as the `main` branch to get around
+the plan limit. The `main` dashboard, badge and new-code period would then
+include commits that never reached `main`, and a rejected delivery would
+distort the trend.
+
+Before the merge, the ready flow still blocks on the local checks: ESLint with
+`eslint-plugin-sonarjs`, ShellCheck (through `trunk-worthy` in the backend job)
+and the backend's 80% Jest coverage
+threshold. Duplication, security taint analysis and the gate's conditions on
+new code are checked only after delivery. A failed gate is handled with a fix
+issue, as described under [every delivery](#every-delivery).
+
+Revisit this decision if the organization moves to a plan with branch analysis,
+such as the OSS plan for public projects. The ready flow would then scan the
+`ready/*` commit with the LCOV report from its backend job and make
+`merge-to-trunk` wait for the gate. In #98 the team chose to keep the
+post-delivery scan on `main` in that case, so the `main` dashboard and trends keep updating.
 
 The default Sonar quality gate complements our local checks; it does not replace
 the ready flow's Jest coverage threshold.
