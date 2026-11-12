@@ -24,6 +24,7 @@ import {
 import { PostPartnerAcceptStaffInvitationSchema } from "./partner/validators"
 import { isDanishPostalCode } from "../workflows/restaurants/postal-code"
 import { RESTAURANT_STAFF_ACTOR } from "../workflows/restaurant-staff"
+import { mtogoErrorHandler } from "./error-handler"
 
 /** Medusa has no path-parameter validator, so the postal code in the path is checked here. */
 function validatePostalCodeParam(
@@ -43,6 +44,7 @@ function validatePostalCodeParam(
 // The product index declares filterable `status` and `sales_channel_ids`, so
 // the route narrows it to published products in the key's sales channels.
 export default defineMiddlewares({
+  errorHandler: mtogoErrorHandler(),
   routes: [
     {
       matcher: "/admin/restaurants*",

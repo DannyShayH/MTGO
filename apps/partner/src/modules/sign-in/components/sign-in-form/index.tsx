@@ -1,17 +1,12 @@
 "use client"
 
 import { useActionState, useState } from "react"
-import type { Messages } from "@dtc/i18n"
+import { accessEndedMessage, type Messages } from "@dtc/i18n"
 import { Alert, Button, Input, Label } from "@medusajs/ui"
 import { signIn } from "@lib/data/session"
 
-export function SignInForm({
-  text,
-  codes,
-}: {
-  text: Messages["text"]
-  codes: Messages["codes"]
-}) {
+export function SignInForm({ messages }: { messages: Messages }) {
+  const { text, codes } = messages
   const [state, action, pending] = useActionState(signIn, {})
   // React resets a form after its action runs; keep the email so a wrong
   // password only needs the password typed again.
@@ -20,7 +15,9 @@ export function SignInForm({
     <form action={action} className="flex flex-col gap-y-4">
       {state.error && (
         <Alert variant="error" role="alert">
-          {codes[state.error]}
+          {state.error === "staff_access_revoked"
+            ? accessEndedMessage(messages, state.restaurant_name)
+            : codes[state.error]}
         </Alert>
       )}
       <div className="flex flex-col gap-y-1.5">

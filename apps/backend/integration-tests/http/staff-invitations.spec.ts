@@ -299,24 +299,15 @@ medusaIntegrationTestRunner({
         code: "authorized_staff_missing",
         missing: false,
       })
-      // No revoke route exists until the staff access slice; the record
-      // changes as revocation will change it.
-      await getContainer()
-        .resolve<RestaurantModuleService>(RESTAURANT_MODULE)
-        .updateRestaurantStaffs({
-          id: result.id,
-          status: "revoked",
-          revoked_at: new Date("2026-11-12T09:00:00.000Z"),
-          revoked_by: operatorId,
-        })
+      await api.post(`${path}/staff/${result.id}/revoke`, {}, { headers })
       const revoked = (await api.get(path, { headers })).data.restaurant
       expect(revoked.staff.authorized).toEqual([])
       expect(revoked.staff.former).toEqual([
         expect.objectContaining({
           id: result.id,
           status: "revoked",
-          revoked_by: operatorId,
-          revoked_at: "2026-11-12T09:00:00.000Z",
+          revoked_by: { id: operatorId, email: "operator@example.test" },
+          revoked_at: expect.any(String),
           invitation: null,
         }),
       ])

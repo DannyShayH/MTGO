@@ -101,7 +101,25 @@ and `former` (revoked).
 `retrieveAuthorizedStaffWorkflow` starts every partner request: it refuses with
 `staff_access_revoked` (`FORBIDDEN`, `403`) unless the staff record exists and is
 `authorized`, so a revocation takes effect on the next request instead of when
-the token expires. See `GET /partner/me` in the API README.
+the token expires. For revoked staff the refusal carries the Restaurant's name
+as a response field (`withResponseFields`, added to the response by the API's
+error handler). See `GET /partner/me` in the API README.
+
+### Revoking access
+
+`revokeRestaurantStaffWorkflow` takes the Restaurant's lock and marks authorized
+staff `revoked` with `revoked_at` and `revoked_by` (the operator's user id). The
+record and the login stay, so history keeps the person's name and the login's
+staff id leads to the same refusal when they sign in again (ADR-0008, ADR-0014).
+Revoking staff that is already revoked changes nothing. Pending staff are
+cancelled, not revoked, and get `authorized_staff_not_found`. Revocation changes
+neither `is_active` nor `is_open`. A returning person needs a new email in the
+MVP.
+
+The pure `staffRevocationWarnings` rule gives `last_authorized_staff` when the
+staff member is the only authorized one, so Admin warns that nobody could open
+the Restaurant or accept Orders and suggests deactivation. It is a warning, not
+a refusal.
 
 A delivery area holds only postal codes from the Danish register in the
 `postal-code` module; the workflow refuses any other code with
@@ -175,7 +193,7 @@ harness runs it after migrations in its isolated source snapshot.
 ## Verification
 
 - Pure eligibility, activation-requirement, postal-code, seed-safety and staff
-  invitation (link, token usability, grouping) decision tables:
+  invitation (link, token usability, grouping, revocation warning) decision tables:
   `npm run test:unit`.
 - HTTP registration, edits, address warnings, validation, search, pagination and
   operator-only access, plus the delivery area, commercial terms and readiness:
@@ -183,6 +201,11 @@ harness runs it after migrations in its isolated source snapshot.
 - HTTP staff invitations: invite, resend (new token and later expiry), cancel,
   `email_has_login` for operator, Customer and staff emails, validation, `404`s
   and operator-only access.
+- HTTP staff revocation: Former staff with when and by whom, the
+  `last_authorized_staff` warning, revoking the last one without changing
+  participation or opening, the revoked person's next request and new sign-in
+  refused with the Restaurant's name, a second revocation, `404`s for unknown,
+  pending and other Restaurants' staff, and operator-only access.
 - HTTP staff sign-in and `GET /partner/me` access: Admin user, Customer and
   malformed tokens, a login without staff, and revoked staff.
 - HTTP invitation page and accept: a valid link; expired, resent, cancelled,

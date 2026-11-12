@@ -4,9 +4,10 @@ import {
   ContainerRegistrationKeys,
 } from "@medusajs/framework/utils"
 import { createRestaurantWorkflow } from "../../src/workflows/restaurants"
-import { createAuthorizedStaffWorkflow } from "../../src/workflows/restaurant-staff"
-import { RESTAURANT_MODULE } from "../../src/modules/restaurant"
-import RestaurantModuleService from "../../src/modules/restaurant/service"
+import {
+  createAuthorizedStaffWorkflow,
+  revokeRestaurantStaffWorkflow,
+} from "../../src/workflows/restaurant-staff"
 
 jest.setTimeout(120000)
 
@@ -152,16 +153,13 @@ medusaIntegrationTestRunner({
         token: async () => {
           const staff = await seedAuthorizedStaff()
           const token = await signIn()
-          // No revoke route exists until the staff access slice; the record
-          // changes as revocation will change it.
-          await getContainer()
-            .resolve<RestaurantModuleService>(RESTAURANT_MODULE)
-            .updateRestaurantStaffs({
-              id: staff.id,
-              status: "revoked",
-              revoked_at: new Date("2026-11-12T09:00:00.000Z"),
+          await revokeRestaurantStaffWorkflow(getContainer()).run({
+            input: {
+              restaurant_id: restaurantId,
+              staff_id: staff.id,
               revoked_by: "user_test",
-            })
+            },
+          })
           return token
         },
         status: 403,

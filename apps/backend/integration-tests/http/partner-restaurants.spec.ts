@@ -9,7 +9,10 @@ import {
   changeDeliveryAreaWorkflow,
   createRestaurantWorkflow,
 } from "../../src/workflows/restaurants"
-import { createAuthorizedStaffWorkflow } from "../../src/workflows/restaurant-staff"
+import {
+  createAuthorizedStaffWorkflow,
+  revokeRestaurantStaffWorkflow,
+} from "../../src/workflows/restaurant-staff"
 import { RESTAURANT_MODULE } from "../../src/modules/restaurant"
 import RestaurantModuleService from "../../src/modules/restaurant/service"
 
@@ -189,15 +192,13 @@ medusaIntegrationTestRunner({
             restaurantId,
             "mette@pizzeria.example",
           )
-          // No revoke route exists until the staff access slice (#76).
-          await getContainer()
-            .resolve<RestaurantModuleService>(RESTAURANT_MODULE)
-            .updateRestaurantStaffs({
-              id: staffId,
-              status: "revoked",
-              revoked_at: new Date("2026-11-12T09:00:00.000Z"),
+          await revokeRestaurantStaffWorkflow(getContainer()).run({
+            input: {
+              restaurant_id: restaurantId,
+              staff_id: staffId,
               revoked_by: "user_test",
-            })
+            },
+          })
           return token
         },
         status: 403,

@@ -56,6 +56,22 @@ export function groupRestaurantStaff<
   }
 }
 
+/** Warnings are not refusals: the operator confirms and may still revoke. */
+export type StaffRevocationWarning = "last_authorized_staff"
+
+/**
+ * Revoking the last authorized staff member leaves nobody who can open the
+ * Restaurant or accept Orders, so Admin warns first and suggests deactivation
+ * (spec story 25). It is still allowed.
+ */
+export function staffRevocationWarnings({
+  authorized_staff_count,
+}: {
+  authorized_staff_count: number
+}): StaffRevocationWarning[] {
+  return authorized_staff_count <= 1 ? ["last_authorized_staff"] : []
+}
+
 type StaffRecord = {
   id: string
   name: string
@@ -69,12 +85,20 @@ type StaffRecord = {
   invitation?: { token: string; expires_at: Date | string } | null
 }
 
-/** Pending staff carry their invitation's expiry and link, so Admin can copy it again. */
+/** Who revoked a staff member: the operator's id and, while the user exists, email. */
+export type RevokedBy = { id: string; email: string | null }
+
+/**
+ * Pending staff carry their invitation's expiry and link, so Admin can copy it
+ * again. Authorized staff carry the warnings to confirm before revoking them,
+ * and former staff who revoked them.
+ */
 export function presentRestaurantStaff(
   partnerUrl: string,
   staff: StaffRecord[],
+  operatorEmails: Map<string, string> = new Map(),
 ) {
-  return groupRestaurantStaff(
+  const grouped = groupRestaurantStaff(
     staff.map(({ invitation, ...member }) => ({
       id: member.id,
       name: member.name,
@@ -84,7 +108,12 @@ export function presentRestaurantStaff(
       created_at: member.created_at,
       accepted_at: member.accepted_at,
       revoked_at: member.revoked_at,
-      revoked_by: member.revoked_by,
+      revoked_by: member.revoked_by
+        ? {
+            id: member.revoked_by,
+            email: operatorEmails.get(member.revoked_by) ?? null,
+          }
+        : null,
       invitation: invitation
         ? {
             expires_at: invitation.expires_at,
@@ -93,4 +122,14 @@ export function presentRestaurantStaff(
         : null,
     })),
   )
+  const revoke_warnings = staffRevocationWarnings({
+    authorized_staff_count: grouped.authorized.length,
+  })
+  return {
+    ...grouped,
+    authorized: grouped.authorized.map((member) => ({
+      ...member,
+      revoke_warnings,
+    })),
+  }
 }

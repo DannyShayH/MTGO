@@ -1,6 +1,6 @@
 import "server-only"
 import { cookies } from "next/headers"
-import { PARTNER_TOKEN_COOKIE } from "./config"
+import { ACCESS_ENDED_COOKIE, PARTNER_TOKEN_COOKIE } from "./config"
 
 export const cookieOptions = (maxAge: number) => ({
   httpOnly: true,
@@ -13,9 +13,8 @@ export const cookieOptions = (maxAge: number) => ({
 /** Keeps the staff token in the partner app's own httpOnly cookie (ADR-0017). */
 export async function storePartnerToken(token: string) {
   // Medusa's tokens expire after a day by default.
-  ;(await cookies()).set(
-    PARTNER_TOKEN_COOKIE,
-    token,
-    cookieOptions(60 * 60 * 24),
-  )
+  const jar = await cookies()
+  jar.set(PARTNER_TOKEN_COOKIE, token, cookieOptions(60 * 60 * 24))
+  // A new session leaves no former Restaurant's name behind.
+  jar.delete(ACCESS_ENDED_COOKIE)
 }

@@ -163,6 +163,8 @@ cd apps/backend && <pm> run test:integration:modules       # **/src/modules/*/__
 cd apps/backend && <pm> run test:integration:http          # **/integration-tests/http/*.spec.ts
 ```
 
+Inside the devcontainer, PostgreSQL is on `localhost:5432` and the `DB_*` variables are already set in the environment (`.devcontainer/compose.yaml`), as in CI, so the integration suites need no extra setup. Do not point the tests at the `postgres` hostname: Medusa's test runner then forces SSL and the suite hangs until the hook timeout. If a suite still cannot connect, the devcontainer probably predates this setup; ask the developer to rebuild it instead of working around it. `verify:applications` needs about 12 GB for the container; when it is killed with exit code 137, report that and leave it to the ready flow.
+
 Single test — pass a path/pattern through to Jest, keeping `TEST_TYPE`:
 
 ```bash

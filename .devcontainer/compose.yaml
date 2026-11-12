@@ -2,6 +2,17 @@ services:
   devcontainer:
     image: mcr.microsoft.com/devcontainers/base:ubuntu-24.04
     command: sleep infinity
+    # Share PostgreSQL's network, so it answers on localhost:5432 as in CI.
+    # Medusa's test runner forces SSL for any other host, and this PostgreSQL
+    # has none. Service names such as redis and postgres still resolve.
+    network_mode: service:postgres
+    # Jest loads .env.test, not .env, so the test runner reads these from the
+    # environment, as the ready flow sets them. Throwaway values, as below.
+    environment:
+      DB_HOST: localhost
+      DB_PORT: "5432"
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
     volumes:
       - ..:/workspaces/mtogo:cached
     depends_on:

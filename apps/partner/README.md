@@ -18,7 +18,13 @@ English text comes from `@dtc/i18n`.
   checks that the staff member is still authorized. On `staff_access_revoked`
   (`403`) or an expired token (`401`), the page sends the browser to
   `/session-ended`, which clears the cookie and shows the sign-in page with the
-  matching message.
+  matching message. For revoked staff it says "Your access to [Restaurant name]
+  has ended" in Danish or English. `/session-ended` asks the backend for the
+  name with the token itself (never from the link) and passes it to the sign-in
+  page in a one-minute httpOnly cookie, `mtogo_partner_access_ended`, which a
+  successful sign-in removes. Signing
+  in again as revoked staff shows the same message. `GET /partner/me` is read
+  with `fetch` instead of the js-sdk, whose errors drop the refusal's body.
   Visiting `/sign-in` directly with an ended session clears it in the same way.
   Backend failures while signing in show a translated retry message and leave
   the token unset; server diagnostics include only the HTTP status.
@@ -67,7 +73,11 @@ English kept after reload, sign-out leaving a Customer's cookie alone, an expire
 being cleared with its message, an English sign-in failure, and the first-visit
 language for English and unsupported browsers. The invitation journey invites a
 staff member through the Admin API, accepts in Danish, checks the Overview's
-details and participation, and sees the used and unknown links refused. Its report is in
+details and participation, and sees the used and unknown links refused. The
+revocation journey invites a staff member to a new Restaurant, accepts, revokes
+them in Admin after the last-staff warning, and sees the next click and a new
+sign-in end with the access-ended message naming the Restaurant, in Danish and
+English. Its report is in
 `apps/partner/playwright-report`.
 
 The sign-in failure tests start a separate production partner app with a local

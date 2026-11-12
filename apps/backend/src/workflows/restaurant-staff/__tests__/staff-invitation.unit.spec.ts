@@ -3,6 +3,7 @@ import {
   isInvitedEmail,
   isStaffInvitationUsable,
   staffInvitationLink,
+  staffRevocationWarnings,
 } from "../staff-invitation"
 
 describe("Staff invitation link", () => {
@@ -171,6 +172,33 @@ describe("Accepting with a registered email", () => {
     "matches the invitation only for the invited email: $reason",
     ({ invited, registered, expected }) => {
       expect(isInvitedEmail(invited, registered)).toBe(expected)
+    },
+  )
+})
+
+describe("Warnings before revoking authorized staff", () => {
+  it.each([
+    {
+      authorized_staff_count: 1,
+      reason: "BVA: the last authorized staff member",
+      expected: ["last_authorized_staff"],
+    },
+    {
+      authorized_staff_count: 2,
+      reason: "BVA: one other authorized staff member remains",
+      expected: [],
+    },
+    {
+      authorized_staff_count: 5,
+      reason: "EP: several other authorized staff remain",
+      expected: [],
+    },
+  ])(
+    "warns only when nobody would be left to run the Restaurant: $reason",
+    ({ authorized_staff_count, expected }) => {
+      expect(staffRevocationWarnings({ authorized_staff_count })).toEqual(
+        expected,
+      )
     },
   )
 })

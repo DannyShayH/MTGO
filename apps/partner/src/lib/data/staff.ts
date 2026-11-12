@@ -3,7 +3,7 @@ import { cache } from "react"
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { FetchError } from "@medusajs/js-sdk"
-import { PARTNER_TOKEN_COOKIE, sdk } from "@lib/config"
+import { BACKEND_URL, PARTNER_TOKEN_COOKIE } from "@lib/config"
 
 export type CurrentStaff = {
   staff: {
@@ -26,39 +26,68 @@ export type SessionEndedCode = (typeof SESSION_ENDED_CODES)[number]
 export type StaffSession =
   | { status: "authorized"; current: CurrentStaff }
   | { status: "signed_out" }
-  | { status: "ended"; code: SessionEndedCode }
+  | { status: "ended"; code: SessionEndedCode; restaurant_name?: string }
 
 /**
  * Asks the backend who the token belongs to. The backend checks on every
  * request that the staff member is still authorized (ADR-0017), so a revoked
  * staff member is told on their next page load, not when the token expires.
+ *
+ * This one call uses fetch instead of the js-sdk: the SDK's FetchError keeps
+ * only the message, and the refusal for revoked staff names the Restaurant
+ * whose access ended, which the access-ended message shows (spec story 43).
  */
 export async function retrieveStaffSession(
   token: string | undefined,
 ): Promise<StaffSession> {
   if (!token) return { status: "signed_out" }
-  try {
-    const current = await sdk.client.fetch<CurrentStaff>("/partner/me", {
-      headers: { authorization: `Bearer ${token}` },
-    })
-    return { status: "authorized", current }
-  } catch (error) {
-    const code = sessionEndedCode(error)
-    if (code) return { status: "ended", code }
-    throw error
+  const response = await fetch(new URL("/partner/me", BACKEND_URL), {
+    headers: { authorization: `Bearer ${token}`, accept: "application/json" },
+    cache: "no-store",
+  })
+  if (response.ok)
+    return { status: "authorized", current: await response.json() }
+  const code = sessionEndedCodeForStatus(response.status)
+  if (!code)
+    throw new FetchError(
+      response.statusText,
+      response.statusText,
+      response.status,
+    )
+  if (code !== "staff_access_revoked") return { status: "ended", code }
+  return {
+    status: "ended",
+    code,
+    restaurant_name: await refusedRestaurantName(response),
   }
 }
 
+/** The name in the backend's staff_access_revoked refusal, when it has one. */
+async function refusedRestaurantName(response: Response) {
+  const body: unknown = await response.json().catch(() => undefined)
+  const name = (body as { restaurant?: { name?: unknown } } | undefined)
+    ?.restaurant?.name
+  return typeof name === "string" && name.trim() ? name : undefined
+}
+
 /**
- * Why a partner request ended the session, if it did. Branch on the status
- * only (coding standard 7.2): 403 is the one refusal partner routes have for a
- * valid token, staff_access_revoked, and 401 means the token stopped working.
+ * Branch on the status only (coding standard 7.2): 403 is the one refusal
+ * partner routes have for a valid token, staff_access_revoked, and 401 means
+ * the token stopped working.
  */
-export function sessionEndedCode(error: unknown): SessionEndedCode | undefined {
-  if (!(error instanceof FetchError)) return undefined
-  if (error.status === 403) return "staff_access_revoked"
-  if (error.status === 401) return "session_expired"
+function sessionEndedCodeForStatus(
+  status: number | undefined,
+): SessionEndedCode | undefined {
+  if (status === 403) return "staff_access_revoked"
+  if (status === 401) return "session_expired"
   return undefined
+}
+
+/** Why a partner request through the js-sdk ended the session, if it did. */
+export function sessionEndedCode(error: unknown): SessionEndedCode | undefined {
+  return error instanceof FetchError
+    ? sessionEndedCodeForStatus(error.status)
+    : undefined
 }
 
 /** The signed-in staff member of this request, fetched once per render. */

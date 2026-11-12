@@ -9,7 +9,7 @@ import { LOCALE_COOKIE, PARTNER_TOKEN_COOKIE, sdk } from "@lib/config"
 import { cookieOptions, storePartnerToken } from "@lib/partner-token"
 import { retrieveStaffSession, type StaffSession } from "./staff"
 
-export type SignInState = { error?: MessageCode }
+export type SignInState = { error?: MessageCode; restaurant_name?: string }
 /**
  * Signs in on the server and keeps the token in the partner app's own
  * httpOnly cookie. Medusa's session cookie belongs to the backend origin and
@@ -46,12 +46,12 @@ export async function signIn(
   if (session.status === "ended")
     // A login that never became staff gets the same message as a wrong
     // password, so the form does not reveal which emails have a login.
-    return {
-      error:
-        session.code === "staff_access_revoked"
-          ? "staff_access_revoked"
-          : "sign_in_failed",
-    }
+    return session.code === "staff_access_revoked"
+      ? {
+          error: "staff_access_revoked",
+          restaurant_name: session.restaurant_name,
+        }
+      : { error: "sign_in_failed" }
   await storePartnerToken(token)
   redirect("/overview")
 }

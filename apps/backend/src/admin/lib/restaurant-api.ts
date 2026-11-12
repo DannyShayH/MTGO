@@ -50,8 +50,10 @@ export type StaffMember = {
   created_at: string
   accepted_at: string | null
   revoked_at: string | null
-  revoked_by: string | null
+  revoked_by: { id: string; email: string | null } | null
   invitation: { expires_at: string; invite_link: string } | null
+  /** Only on authorized staff: confirm these before revoking. */
+  revoke_warnings?: "last_authorized_staff"[]
 }
 export type RestaurantStaffGroups = {
   pending: StaffMember[]
@@ -95,6 +97,8 @@ export const restaurantMessages: Record<string, string> = {
     "This email already has an MTOGO login or belongs to Restaurant staff. Ask the person for a different email.",
   staff_invitation_not_found:
     "This invitation no longer exists. Reload to see the current staff.",
+  last_authorized_staff:
+    "This is the last authorized staff member. Afterwards nobody can open the Restaurant or accept Orders. Consider deactivating the Restaurant instead.",
 }
 export const termsVersionNames: Record<string, string> = {
   common_mvp_v1: "Common MVP terms v1",

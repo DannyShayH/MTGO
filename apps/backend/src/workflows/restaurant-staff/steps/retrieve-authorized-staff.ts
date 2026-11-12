@@ -2,14 +2,23 @@ import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
 import { MedusaError } from "@medusajs/framework/utils"
 import RestaurantModuleService from "../../../modules/restaurant/service"
 import { RESTAURANT_MODULE } from "../../../modules/restaurant"
+import { withResponseFields } from "../../common/response-fields"
 import { AuthorizedStaff } from "../types"
 
-export const staffAccessRevoked = () =>
-  new MedusaError(
+/**
+ * The refusal names the Restaurant whose access ended, so the partner app can
+ * say "Your access to [Restaurant name] has ended" (spec story 43).
+ */
+export const staffAccessRevoked = (restaurant?: { name: string }) => {
+  const error = new MedusaError(
     MedusaError.Types.FORBIDDEN,
     "staff_access_revoked",
     "staff_access_revoked",
   )
+  return restaurant
+    ? withResponseFields(error, { restaurant: { name: restaurant.name } })
+    : error
+}
 
 /**
  * Every partner request starts here (ADR-0017): a token outlives a revocation,
@@ -35,7 +44,9 @@ export const retrieveAuthorizedStaffStep = createStep(
           relations: ["restaurant"],
         },
       )
-    if (!staff || staff.status !== "authorized") throw staffAccessRevoked()
+    if (!staff) throw staffAccessRevoked()
+    if (staff.status !== "authorized")
+      throw staffAccessRevoked(staff.restaurant)
     const authorized: AuthorizedStaff = {
       staff: {
         id: staff.id,

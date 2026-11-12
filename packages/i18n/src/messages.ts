@@ -43,6 +43,8 @@ export type Messages = {
     contact_email: string
     delivery_area: string
     no_delivery_area: string
+    /** Stands in for the Restaurant's name when the access-ended message does not know it. */
+    former_restaurant: string
   }
   codes: Record<MessageCode, string>
 }
@@ -86,11 +88,12 @@ export const MESSAGES: Record<Locale, Messages> = {
       contact_email: "E-mail",
       delivery_area: "Leveringsområde",
       no_delivery_area: "Intet leveringsområde endnu.",
+      former_restaurant: "restauranten",
     },
     codes: {
       sign_in_failed: "E-mail eller adgangskode er forkert.",
       staff_access_revoked:
-        "Din adgang til restauranten er ophørt. Kontakt MTOGO, hvis det er en fejl.",
+        "Din adgang til {restaurant} er ophørt. Kontakt MTOGO, hvis det er en fejl.",
       session_expired: "Din session er udløbet. Log ind igen.",
       signed_out: "Du er logget ud.",
       unknown_error: "Noget gik galt. Prøv igen om lidt.",
@@ -131,11 +134,12 @@ export const MESSAGES: Record<Locale, Messages> = {
       contact_email: "Email",
       delivery_area: "Delivery area",
       no_delivery_area: "No delivery area yet.",
+      former_restaurant: "the Restaurant",
     },
     codes: {
       sign_in_failed: "The email or password is incorrect.",
       staff_access_revoked:
-        "Your access to the Restaurant has ended. Contact MTOGO if this is a mistake.",
+        "Your access to {restaurant} has ended. Contact MTOGO if this is a mistake.",
       session_expired: "Your session has expired. Please sign in again.",
       signed_out: "You are signed out.",
       unknown_error: "Something went wrong. Please try again shortly.",

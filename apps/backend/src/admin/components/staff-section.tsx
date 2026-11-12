@@ -13,6 +13,7 @@ import {
 } from "@medusajs/ui"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { FormEvent, ReactNode, useState } from "react"
+import { useRestaurantChange } from "../lib/use-restaurant-change"
 import {
   RestaurantDetail,
   RestaurantDetailResponse,
@@ -290,6 +291,69 @@ const PendingActions = ({
   )
 }
 
+/**
+ * Revocation works from the person's next action; the record stays under
+ * Former staff. The last authorized staff member gets a warning first.
+ */
+const AuthorizedActions = ({
+  restaurantId,
+  member,
+}: {
+  restaurantId: string
+  member: StaffMember
+}) => {
+  const revocation = useRestaurantChange(
+    restaurantId,
+    "Could not revoke access. Try again.",
+  )
+  const prompt = usePrompt()
+  const warnings = member.revoke_warnings ?? []
+  const revoke = async () => {
+    const isConfirmed = await prompt({
+      title: `Revoke access for ${member.name}?`,
+      description: [
+        "They lose access to the partner app from their next action. They stay listed under Former staff.",
+        ...warnings.map((code) => restaurantMessages[code]),
+      ].join(" "),
+      confirmText: "Revoke access",
+      cancelText: "Keep access",
+      variant: "danger",
+    })
+    if (isConfirmed)
+      revocation.mutate(
+        { path: `/staff/${member.id}/revoke`, method: "POST" },
+        { onSuccess: () => toast.success(`Access revoked for ${member.name}`) },
+      )
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Text size="small" className="text-ui-fg-subtle">
+        {member.accepted_at
+          ? `Authorized ${formatDateTime(member.accepted_at)}`
+          : "Authorized"}
+      </Text>
+      <Button
+        size="small"
+        variant="secondary"
+        isLoading={revocation.isPending}
+        aria-label={`Revoke access for ${member.name}`}
+        onClick={revoke}
+      >
+        Revoke
+      </Button>
+    </div>
+  )
+}
+
+const describeRevocation = ({ revoked_at, revoked_by }: StaffMember) =>
+  [
+    "Access revoked",
+    revoked_at && formatDateTime(revoked_at),
+    revoked_by && `by ${revoked_by.email ?? "a removed operator"}`,
+  ]
+    .filter(Boolean)
+    .join(" ")
+
 export const StaffSection = ({
   restaurant,
 }: {
@@ -325,19 +389,13 @@ export const StaffSection = ({
         staff={authorized}
       >
         {(member) => (
-          <Text size="small" className="text-ui-fg-subtle">
-            {member.accepted_at
-              ? `Authorized ${formatDateTime(member.accepted_at)}`
-              : "Authorized"}
-          </Text>
+          <AuthorizedActions restaurantId={restaurant.id} member={member} />
         )}
       </StaffGroup>
       <StaffGroup label="Former staff" empty="No former staff." staff={former}>
         {(member) => (
           <Text size="small" className="text-ui-fg-subtle">
-            {member.revoked_at
-              ? `Access revoked ${formatDateTime(member.revoked_at)}`
-              : "Access revoked"}
+            {describeRevocation(member)}
           </Text>
         )}
       </StaffGroup>

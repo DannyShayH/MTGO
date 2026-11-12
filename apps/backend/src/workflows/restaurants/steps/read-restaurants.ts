@@ -63,6 +63,16 @@ async function nameDeliveryArea(container: MedusaContainer, codes: string[]) {
   }))
 }
 
+/** Operators' emails by user id; a deleted user has none. */
+async function findUserEmails(container: MedusaContainer, ids: string[]) {
+  const unique = [...new Set(ids)]
+  if (!unique.length) return new Map<string, string>()
+  const { data: users } = await container
+    .resolve(ContainerRegistrationKeys.QUERY)
+    .graph({ entity: "user", fields: ["id", "email"], filters: { id: unique } })
+  return new Map(users.map(({ id, email }) => [id, email]))
+}
+
 type ReadInput = { q?: string; limit: number; offset: number }
 export const readRestaurantsStep = createStep(
   "read-restaurants",
@@ -111,19 +121,23 @@ export const retrieveRestaurantDetailStep = createStep(
       restaurant.delivery_area_postal_codes,
     )
     const [agreement] = record.commercial_terms_agreements ?? []
-    let recordedBy: { id: string; email: string | null } | null = null
-    if (agreement) {
-      const query = container.resolve(ContainerRegistrationKeys.QUERY)
-      const { data: users } = await query.graph({
-        entity: "user",
-        fields: ["id", "email"],
-        filters: { id: agreement.recorded_by },
-      })
-      recordedBy = { id: agreement.recorded_by, email: users[0]?.email ?? null }
-    }
+    const staffRecords = record.staff ?? []
+    const operatorEmails = await findUserEmails(container, [
+      ...(agreement ? [agreement.recorded_by] : []),
+      ...staffRecords.flatMap(({ revoked_by }) =>
+        revoked_by ? [revoked_by] : [],
+      ),
+    ])
+    const recordedBy = agreement
+      ? {
+          id: agreement.recorded_by,
+          email: operatorEmails.get(agreement.recorded_by) ?? null,
+        }
+      : null
     const staff = presentRestaurantStaff(
       await service.getPartnerUrl(),
-      record.staff ?? [],
+      staffRecords,
+      operatorEmails,
     )
     // Dishes arrive with the product link (#77); until then none can exist.
     const published_dish_count = 0

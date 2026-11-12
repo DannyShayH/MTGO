@@ -1,5 +1,7 @@
+import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
-import { isMessageCode } from "@dtc/i18n"
+import { accessEndedMessage, isMessageCode } from "@dtc/i18n"
+import { ACCESS_ENDED_COOKIE } from "@lib/config"
 import { getMessages } from "@lib/i18n"
 import { getStaffSession } from "@lib/data/staff"
 import { BrandMark } from "@modules/layout/components/brand-mark"
@@ -18,6 +20,15 @@ export default async function SignInPage({
     redirect(`/session-ended?code=${session.code}`)
   const { locale, messages } = await getMessages()
   const { message } = await searchParams
+  const notice =
+    message === "staff_access_revoked"
+      ? accessEndedMessage(
+          messages,
+          (await cookies()).get(ACCESS_ENDED_COOKIE)?.value,
+        )
+      : isMessageCode(message)
+        ? messages.codes[message]
+        : undefined
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-y-6 px-4 py-12">
       <div className="bg-ui-bg-base shadow-elevation-card-rest rounded-card flex w-full max-w-sm flex-col gap-y-6 p-8">
@@ -25,10 +36,10 @@ export default async function SignInPage({
         <SignInNotice
           title={messages.text.sign_in_title}
           intro={messages.text.sign_in_intro}
-          notice={isMessageCode(message) ? messages.codes[message] : undefined}
+          notice={notice}
           isWarning={message === "staff_access_revoked"}
         />
-        <SignInForm text={messages.text} codes={messages.codes} />
+        <SignInForm messages={messages} />
       </div>
       <LanguageSwitch locale={locale} label={messages.text.language} />
     </main>

@@ -154,6 +154,13 @@ Pizzeria Nørrebro (`SEED_STAFF_EMAIL`, `SEED_STAFF_PASSWORD`).
   invalid-invitation message, and the new login signs in from the sign-in page.
 - With an English browser, an unknown link and a link without a token show
   "This invitation is no longer valid. Ask MTOGO for a new one."
+- Revocation: a staff member invited to a new Restaurant through the Admin API
+  accepts in Danish. In Admin, Revoke warns that this is the last authorized
+  staff member and suggests deactivation; after confirming, the person is under
+  Former staff with the operator's email. Back in the partner app, the next page
+  load (a reload) lands on sign-in with "Din adgang til [Restaurant] er ophørt" and the token
+  cookie is gone. Signing in again shows the same message, and in English
+  "Your access to [Restaurant] has ended".
 
 Every test fails on uncaught browser errors. Tracing and video are off, because
 the journey types a password.

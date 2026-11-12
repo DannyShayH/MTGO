@@ -19,6 +19,7 @@ import {
   createAuthorizedStaffStep,
 } from "./steps/create-authorized-staff"
 import { retrieveAuthorizedStaffStep } from "./steps/retrieve-authorized-staff"
+import { RevokeStaffInput, revokeStaffStep } from "./steps/revoke-staff"
 import {
   assertAcceptingLoginStep,
   assertStaffEmailAvailableStep,
@@ -119,6 +120,26 @@ export const cancelStaffInvitationWorkflow = createWorkflow(
     )
     acquireLockStep(lock)
     cancelStaffInvitationStep(input)
+    releaseLockStep(lock)
+    return new WorkflowResponse({
+      restaurant: retrieveRestaurantDetailStep({ id: input.restaurant_id }),
+    })
+  },
+)
+
+/**
+ * Revokes a staff member's access from their next request (ADR-0017). Their
+ * login keeps its staff id, so signing in again is refused the same way.
+ * Participation and opening do not change.
+ */
+export const revokeRestaurantStaffWorkflow = createWorkflow(
+  "revoke-restaurant-staff",
+  function (input: RevokeStaffInput) {
+    const lock = transform({ input }, ({ input }) =>
+      restaurantLock(input.restaurant_id),
+    )
+    acquireLockStep(lock)
+    revokeStaffStep(input)
     releaseLockStep(lock)
     return new WorkflowResponse({
       restaurant: retrieveRestaurantDetailStep({ id: input.restaurant_id }),

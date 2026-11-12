@@ -245,7 +245,21 @@ unknown. Create, update and every setup route return this same Restaurant.
           }
         }
       ],
-      "authorized": [],
+      "authorized": [
+        {
+          "id": "rstf_02...",
+          "name": "Jonas Holm",
+          "email": "jonas@pizzeria.example",
+          "status": "authorized",
+          "invited_by": "user_01...",
+          "created_at": "2026-11-11T09:00:00.000Z",
+          "accepted_at": "2026-11-11T09:30:00.000Z",
+          "revoked_at": null,
+          "revoked_by": null,
+          "invitation": null,
+          "revoke_warnings": ["last_authorized_staff"]
+        }
+      ],
       "former": []
     },
     "menu": { "published_dish_count": 0 },
@@ -270,8 +284,12 @@ tiers and fee are always present for display. `recorded_by.email` is `null` if
 the operator no longer exists. `readiness.requirements` always lists all six
 requirements in this order. `staff` groups staff oldest first: `pending` with
 their invitation's expiry and link, `authorized`, and `former` (revoked).
-`invitation` is `null` for authorized and former staff. Only authorized staff
-meet `authorized_staff_missing`. The published-dish count arrives with #77, so
+`invitation` is `null` for authorized and former staff. Each authorized staff
+member carries `revoke_warnings`, the warnings Admin confirms before revoking
+them: `["last_authorized_staff"]` when they are the only authorized staff
+member, otherwise `[]`. Former staff have `revoked_at` and `revoked_by`
+(`{ "id", "email" }`, with `email` `null` if the operator no longer exists).
+Only authorized staff meet `authorized_staff_missing`. The published-dish count arrives with #77, so
 that requirement is missing until then.
 
 ### POST /admin/restaurants/{id}
@@ -454,6 +472,29 @@ member is deleted with the invitation and its token, so the link stops working
 and the email can be invited again. **Success:** `200` with
 `{ "restaurant": { ... } }`. **Failure:** `404` as for resend.
 
+### POST /admin/restaurants/{id}/staff/{staff_id}/revoke
+
+**Actor:** MTOGO operator. Revokes an authorized staff member's access. It takes
+effect on their next partner request, even with an unexpired token, and signing
+in again is refused the same way (`403 staff_access_revoked`). The staff member
+moves to `former` with `revoked_at` and `revoked_by`, and no longer counts for
+readiness. Revoking the last authorized staff member is allowed; Admin first
+shows the `last_authorized_staff` warning from the Restaurant detail. The
+Restaurant's `is_active` and `is_open` do not change. Revoking staff that is
+already revoked changes nothing and keeps the first revocation. No body.
+
+```bash
+curl -X POST http://localhost:9000/admin/restaurants/$ID/staff/$STAFF_ID/revoke \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Success:** `200` with `{ "restaurant": { ... } }`, the Restaurant detail.
+
+| Status | When                                                                                                                                                              |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `401`  | Not signed in as an operator (no token, a Customer token or a staff token)                                                                                        |
+| `404`  | Unknown Restaurant, or `code: "authorized_staff_not_found"`: no authorized or revoked staff with that id at this Restaurant (pending staff are cancelled instead) |
+
 ### POST /admin/restaurants/check-pickup-address
 
 **Actor:** MTOGO operator. Previews a duplicate warning before saving. Takes
@@ -510,6 +551,19 @@ curl http://localhost:9000/partner/me -H "Authorization: Bearer $TOKEN"
 | ------ | ---------------------------------------------------------------------------------------------------------- |
 | `401`  | No token, an invalid or expired token, an Admin user or Customer token, or a login that never became staff |
 | `403`  | `code: "staff_access_revoked"`: the staff member was revoked or no longer exists                           |
+
+For revoked staff the `403` also names the Restaurant whose access ended, so
+the partner app can say "Your access to Pizzeria Nørrebro has ended". A token
+for staff that no longer exists gets the refusal without `restaurant`.
+
+```json
+{
+  "code": "staff_access_revoked",
+  "type": "forbidden",
+  "message": "staff_access_revoked",
+  "restaurant": { "name": "Pizzeria Nørrebro" }
+}
+```
 
 ### GET /partner/staff-invitations/{token}
 
