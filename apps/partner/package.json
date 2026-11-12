@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@dtc/i18n": "0.0.1",
+    "@dtc/next-react": "0.0.1",
     "@dtc/ui": "0.0.1",
     "@fontsource/inter": "^5.2.8",
     "@medusajs/icons": "2.22.4",

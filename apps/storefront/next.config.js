@@ -1,4 +1,9 @@
+const { pinOwnReact } = require("@dtc/next-react")
 const checkEnvVariables = require("./check-env-variables")
+
+// Render with this app's React 19, not the root's React 18 (#82, see
+// packages/next-react/README.md).
+pinOwnReact(__dirname)
 
 checkEnvVariables()
 
@@ -13,6 +18,8 @@ const S3_PATHNAME = process.env.MEDUSA_CLOUD_S3_PATHNAME
  */
 const nextConfig = {
   reactStrictMode: true,
+  // AGENTS.md at the repository root guides agents; do not generate one here.
+  agentRules: false,
   async headers() {
     return [
       {

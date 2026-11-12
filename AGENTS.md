@@ -31,6 +31,7 @@ Medusa DTC Starter — a Turborepo workspace monorepo containing a Medusa backen
 | Storefront UI                                          | `apps/storefront/src/modules/<feature>/`, routes in `src/app/` | `@medusajs/ui`                                                   |
 | Partner app (Restaurant staff)                         | `apps/partner/src/` (`lib/data` calls `/partner/*`)            | `@medusajs/js-sdk`, `@medusajs/ui`, `apps/partner/README.md`     |
 | Danish and English text, design tokens                 | `packages/i18n/`, `packages/ui/`                               | their `README.md`                                                |
+| Next.js app loading the wrong React copy               | `packages/next-react/`, `npm run check:react`                  | its `README.md`                                                  |
 | Lint failure                                           | the flagged file                                               | `@medusajs/eslint-plugin`                                        |
 
 ## Directory Structure
@@ -67,6 +68,7 @@ Medusa DTC Starter — a Turborepo workspace monorepo containing a Medusa backen
 │           └── modules/          # Feature UI: cart, checkout, products, account, order...
 ├── packages/
 │   ├── i18n/                     # @dtc/i18n: Danish and English text keyed by API codes, locale rule
+│   ├── next-react/               # @dtc/next-react: keeps each Next.js app on its own React 19 copy
 │   └── ui/                       # @dtc/ui: MTOGO design tokens as a Tailwind preset on Medusa UI
 ├── eslint.config.ts              # Root ESLint: @medusajs/eslint-plugin recommended
 └── turbo.json                    # Task graph: build, dev, start, lint, test, seed
@@ -118,6 +120,8 @@ cd apps/backend && <pm> run lint       # medusa lint
 cd apps/storefront && <pm> run lint    # eslint (flat config)
 cd apps/partner && <pm> run lint       # eslint (flat config)
 cd packages/i18n && <pm> test          # Node's test runner, src/**/__tests__/*.unit.spec.ts
+cd packages/next-react && <pm> test    # Node's test runner, src/**/__tests__/*.unit.spec.ts
+<pm> run check:react                   # each Next.js app resolves only its own React copy
 ```
 
 ### Docs site
@@ -325,6 +329,7 @@ The team's [coding standard](apps/docs/src/content/docs/way-of-working/coding-st
 - Writing raw SQL or importing DB clients directly in the backend instead of going through module services / workflows.
 - Guessing a Medusa API signature from memory when the package's `AGENTS.md` or the MCP server is available.
 - Calling the Medusa API from the storefront without `NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY`; requests fail with a publishable-key error, not an obvious 401.
+- Removing `pinOwnReact` from a Next.js app's config. React 18 (Medusa Admin) sits at the root, where `next` is hoisted, so Next.js error pages crash with "Objects are not valid as a React child" (#82). `<pm> run check:react` catches it.
 - Running the test task without a reachable PostgreSQL — integration suites need a live DB.
 - Silencing `@medusajs/*` ESLint rules instead of fixing the underlying pattern.
 

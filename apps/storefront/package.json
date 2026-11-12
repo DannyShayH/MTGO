@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@adyen/adyen-web": "^6.46.0",
+    "@dtc/next-react": "0.0.1",
     "@dtc/ui": "0.0.1",
     "@fontsource/inter": "^5.2.8",
     "@headlessui/react": "^2.2.0",

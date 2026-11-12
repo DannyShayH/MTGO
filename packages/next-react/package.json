@@ -1,0 +1,13 @@
+{
+  "name": "@dtc/next-react",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Keeps each Next.js app on its own React copy, whatever npm hoists",
+  "type": "module",
+  "exports": {
+    ".": "./src/pin-own-react.cjs"
+  },
+  "scripts": {
+    "test": "node --test \"src/**/__tests__/*.unit.spec.ts\""
+  }
+}

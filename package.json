@@ -18,6 +18,7 @@
     "partner:dev": "turbo dev --filter=@dtc/partner",
     "arch": "depcruise apps packages --config .dependency-cruiser.cjs",
     "arch:graph": "depcruise apps/backend/src --config .dependency-cruiser.cjs --output-type mermaid --collapse \"^apps/backend/src/[^/]+\"",
+    "check:react": "node scripts/check-react-copies.mjs",
     "verify:applications": "node scripts/verify-applications.mjs",
     "verify:admin-development": "node scripts/verify-admin-development.mjs"
   },
@@ -29,6 +30,7 @@
     }
   },
   "devDependencies": {
+    "@dtc/next-react": "0.0.1",
     "@medusajs/eslint-plugin": "2.22.4",
     "ajv": "^8.13.0",
     "dependency-cruiser": "^18.7.2",

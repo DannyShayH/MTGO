@@ -85,6 +85,11 @@ inventory:
     command: |
       cd packages/i18n && npm test
       cd ../ui && npm test
+      cd ../next-react && npm test
+
+  - id: react-copies
+    name: Check that each Next.js app renders with its own React copy (#82)
+    command: npm run check:react
 
   - id: architecture
     name: Check architecture rules with dependency-cruiser (.dependency-cruiser.cjs)
@@ -174,6 +179,7 @@ waves:
       - prettier
       - unit-tests
       - package-tests
+      - react-copies
       - architecture
       - lint
       - shellcheck
