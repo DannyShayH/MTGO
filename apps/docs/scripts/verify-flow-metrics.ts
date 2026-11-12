@@ -19,6 +19,8 @@ import {
   featureBoardItems,
   featureBoardResponse,
   FEATURE_OBSERVED_AT,
+  acceptedFeatureItems,
+  ACCEPTANCE_OBSERVED_AT,
 } from "./fixtures/feature-board.ts"
 
 // Build controlled responses in an isolated copy. Never read developer env files,
@@ -219,7 +221,7 @@ try {
       page.locator(".flow-updated time, .flow-banner time"),
     ).toHaveAttribute("datetime", metrics.observedAt)
     await expect(
-      page.getByRole("region", { name: "Ongoing Features", exact: true }),
+      page.getByRole("region", { name: "Features", exact: true }),
     ).toBeVisible()
     if (scenario === "ongoing" || scenario === "sample") {
       const observation = metrics.features.find(
@@ -270,7 +272,7 @@ try {
       "Page must not overflow the narrow viewport",
     )
     const table = page.getByRole("region", {
-      name: "Ongoing Features",
+      name: "Features",
       exact: true,
     })
     await table.focus()
@@ -302,6 +304,213 @@ try {
       throughput: metrics.throughput[0].count,
     })
   }
+  // Completion examples pass through collection, publication and the rendered page.
+  const completionItems = acceptedFeatureItems()
+  const demoCases = [
+    {
+      number: 201,
+      title: "Accepted 16/20/23 November",
+      state: "Completed",
+      days: 4,
+    },
+    {
+      number: 202,
+      title: "Premature parent closure",
+      state: "Awaiting acceptance",
+      days: null,
+    },
+    {
+      number: 203,
+      title: "Reopened required work",
+      state: "Reopened",
+      days: null,
+    },
+    {
+      number: 204,
+      title: "Missing discovery start",
+      state: "Not available",
+      days: null,
+    },
+    {
+      number: 205,
+      title: "Same-day accepted delivery",
+      state: "Completed",
+      days: 0,
+    },
+    {
+      number: 206,
+      title: "Copenhagen midnight across autumn change",
+      state: "Completed",
+      days: 2,
+    },
+  ]
+  demoCases.push({
+    number: 207,
+    title: "Invalid required close date",
+    state: "Not available",
+    days: null,
+  })
+  demoCases.push(
+    {
+      number: 208,
+      title: "Reopened discovery missing original start",
+      state: "Not available",
+      days: null,
+    },
+    {
+      number: 209,
+      title: "Invalid required reopen date",
+      state: "Reopened",
+      days: null,
+    },
+  )
+  const demoItems = demoCases.flatMap((example) => {
+    const items = structuredClone(completionItems)
+    for (const [index, item] of items.entries()) {
+      item.content!.number = example.number * 10 + index
+      item.content!.url = `https://github.com/DannyShayH/MTGO/issues/${item.content!.number}`
+      item.content!.id = `ISSUE_${item.content!.number}`
+    }
+    const parent = items[2].content!
+    parent.number = example.number
+    parent.title = `Feature: ${example.title}`
+    parent.url = `https://github.com/DannyShayH/MTGO/issues/${example.number}`
+    parent.subIssues!.nodes = items.slice(0, 2).map((raw) => ({
+      number: raw.content!.number!,
+      title: raw.content!.title!,
+      url: raw.content!.url!,
+      subIssues: { totalCount: 0 },
+    }))
+    if (example.number === 202) parent.closedAt = "2026-11-19T12:00:00Z"
+    if (example.number === 203) {
+      items[1].content!.state = "OPEN"
+      items[1].content!.closedAt = null
+      items[1].content!.timelineItems!.nodes.push({
+        __typename: "ReopenedEvent",
+        createdAt: "2026-11-24T09:00:00Z",
+      })
+    }
+    if (example.number === 204) {
+      items[0].fieldValues.nodes.splice(1, 1)
+      items[0].fieldValues.totalCount = 1
+    }
+    if (example.number === 205 || example.number === 206)
+      for (const child of items.slice(0, 2)) {
+        child.fieldValues.nodes[1].date =
+          example.number === 205 ? "2026-11-20" : "2026-10-24"
+        child.content!.closedAt =
+          example.number === 205
+            ? "2026-11-20T12:00:00Z"
+            : "2026-10-25T23:00:00Z"
+      }
+    if (example.number === 207)
+      items[0].content!.closedAt = "2026-02-30T12:00:00Z"
+    if (example.number === 208) {
+      const child = items[0]
+      child.fieldValues.nodes[0].name = "Ready"
+      child.fieldValues.nodes.splice(1, 1)
+      child.fieldValues.totalCount = child.fieldValues.nodes.length
+      Object.assign(child.content!, {
+        state: "OPEN",
+        stateReason: null,
+        closedAt: null,
+      })
+      child.content!.timelineItems!.nodes.push({
+        __typename: "ReopenedEvent",
+        createdAt: "2026-11-24T09:00:00Z",
+      })
+    }
+    if (example.number === 209)
+      items[0].content!.timelineItems!.nodes.push({
+        __typename: "ReopenedEvent",
+        createdAt: "2026-02-30T12:00:00Z",
+      })
+    return items
+  })
+  const acceptedDataset = await collectBoard({
+    token: "fixture-token",
+    now: () => ACCEPTANCE_OBSERVED_AT,
+    fetch: async () =>
+      new Response(JSON.stringify(featureBoardResponse(demoItems))),
+  })
+  writeFileSync(
+    resolve(workspace, ".cache/board.json"),
+    JSON.stringify(acceptedDataset),
+  )
+  run(resolve(workspace, "scripts/build-flow-metrics.ts"), workspace)
+  run(astro, workspace, ["build"])
+  const acceptedMetrics: FlowMetrics = JSON.parse(
+    readFileSync(resolve(workspace, "dist/flow-metrics.json"), "utf8"),
+  )
+  await page.goto("http://flow.test/MTGO/flow-metrics/features/")
+  await expect(page.locator(".flow-updated time")).toHaveAttribute(
+    "datetime",
+    acceptedMetrics.observedAt,
+  )
+  for (const example of demoCases) {
+    const observation = acceptedMetrics.features.find(
+      (feature) => feature.number === example.number,
+    )!
+    assert.equal(observation.state, example.state)
+    assert.equal(observation.leadTimeDays, example.days)
+    const row = page.locator(`#feature-row-${example.number}`)
+    await expect(row.locator("td").nth(0)).toHaveText(observation.state)
+    await expect(row.locator("td").nth(5)).toHaveText(
+      example.days === null
+        ? example.state === "Not available"
+          ? "Not available"
+          : "Not completed"
+        : example.days === 0
+          ? "< 1 day"
+          : `${example.days} days`,
+    )
+    if (example.state === "Completed")
+      await expect(row.locator("td").nth(4)).toHaveText("Not applicable")
+    await page.locator(`#feature-${example.number} summary`).click()
+    if (example.days === null)
+      await expect(
+        page.locator(`#feature-${example.number} li`).first(),
+      ).toBeVisible()
+  }
+  await expect(page.locator("#feature-row-201")).toContainText("2026-11-16")
+  await expect(page.locator("#feature-row-201")).toContainText("2026-11-20")
+  await expect(
+    page.locator("#feature-201 time[datetime='2026-11-23T12:00:00Z']"),
+  ).toBeVisible()
+  await expect(page.locator("#feature-203")).toContainText("reopened work")
+  await expect(page.locator("#feature-204")).toContainText(
+    "Missing or invalid Start date",
+  )
+  await expect(page.locator("#feature-row-208")).not.toContainText("2026-11-19")
+  await expect(page.locator("#feature-208")).toContainText(
+    "Missing or invalid Start date",
+  )
+  await expect(page.locator("#feature-209")).toContainText(
+    "Invalid reopen date",
+  )
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await page.screenshot({
+    path: resolve(artifacts, "completion-features-desktop.png"),
+    fullPage: true,
+  })
+  await page.setViewportSize({ width: 390, height: 844 })
+  assert.ok(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  )
+  await page.screenshot({
+    path: resolve(artifacts, "completion-features-mobile.png"),
+    fullPage: true,
+  })
+  results.push({
+    scenario: "acceptance-and-reopening",
+    source: acceptedMetrics.source,
+    observedAt: acceptedMetrics.observedAt,
+    wip: acceptedMetrics.wip.count,
+    ready: acceptedMetrics.ready.count,
+    throughput: acceptedMetrics.throughput[0].count,
+  })
   assert.deepEqual(pageErrors, [])
   writeFileSync(
     resolve(artifacts, "results.json"),

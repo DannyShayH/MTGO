@@ -174,3 +174,52 @@ export function featureBoardResponse(items: RawItem[]) {
     },
   }
 }
+
+export const ACCEPTANCE_OBSERVED_AT = "2026-11-25T12:00:00Z"
+
+/** The agreed 16/20/23 November acceptance example, with discovery first. */
+export function acceptedFeatureItems(): RawItem[] {
+  const children = featureBoardItems("work").slice(1)
+  for (const [index, child] of children.entries()) {
+    child.fieldValues.nodes[0].name = "Done"
+    child.fieldValues.nodes[1].date = index === 0 ? "2026-11-16" : "2026-11-19"
+    Object.assign(child.content!, {
+      state: "CLOSED",
+      stateReason: "COMPLETED",
+      closedAt: index === 0 ? "2026-11-17T12:00:00Z" : "2026-11-20T12:00:00Z",
+      timelineItems: {
+        nodes: [
+          {
+            __typename: "ClosedEvent",
+            createdAt:
+              index === 0 ? "2026-11-17T12:00:00Z" : "2026-11-20T12:00:00Z",
+          },
+        ],
+        pageInfo: { hasNextPage: false, endCursor: null },
+      },
+    })
+  }
+  children[0].content!.title = "Discovery: Acceptance rules"
+  const parent = featureBoardItems("features").find(
+    (raw) => raw.content?.number === 103,
+  )!
+  Object.assign(parent.content!, {
+    title: "Feature: Accepted capability",
+    closedAt: "2026-11-23T12:00:00Z",
+    subIssues: {
+      totalCount: 2,
+      nodes: children.map((raw) => ({
+        number: raw.content!.number!,
+        title: raw.content!.title!,
+        url: raw.content!.url!,
+        subIssues: { totalCount: 0 },
+      })),
+      pageInfo: { hasNextPage: false, endCursor: null },
+    },
+    timelineItems: {
+      nodes: [{ __typename: "ClosedEvent", createdAt: "2026-11-23T12:00:00Z" }],
+      pageInfo: { hasNextPage: false, endCursor: null },
+    },
+  })
+  return [...children, parent]
+}

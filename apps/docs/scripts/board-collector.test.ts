@@ -359,11 +359,6 @@ describe("normaliseBoard", () => {
   it.each([
     ["a missing title", { title: undefined }, /#1.*title/],
     ["an unknown state", { state: "MERGED" }, /#1.*state/],
-    [
-      "a closed issue without a close date",
-      { state: "CLOSED", stateReason: "COMPLETED", closedAt: null },
-      /#1.*close date/,
-    ],
   ])("throws a validation error for %s", (_name, overrides, message) => {
     expect(() => normaliseBoard([item(1, overrides)], NOW)).toThrow(message)
   })
@@ -401,21 +396,24 @@ describe("normaliseBoard", () => {
     ).toThrow(/#1.*labels.*totalCount/)
   })
 
-  it("throws for a malformed Start date", () => {
-    expect(() =>
-      normaliseBoard(
-        [
-          item(1, {}, [
-            {
-              __typename: "ProjectV2ItemFieldDateValue",
-              date: "soon",
-              field: { name: "Start date" },
-            },
-          ]),
-        ],
-        NOW,
-      ),
-    ).toThrow(/#1.*Start date/)
+  it("preserves malformed dates as identifiable facts for reporting", () => {
+    const dataset = normaliseBoard(
+      [
+        item(1, { state: "CLOSED", stateReason: "COMPLETED", closedAt: null }, [
+          {
+            __typename: "ProjectV2ItemFieldDateValue",
+            date: "soon",
+            field: { name: "Start date" },
+          },
+        ]),
+      ],
+      NOW,
+    )
+    expect(dataset.items[0]).toMatchObject({
+      startedAt: "soon",
+      closedAt: null,
+      closeReason: "COMPLETED",
+    })
   })
 })
 

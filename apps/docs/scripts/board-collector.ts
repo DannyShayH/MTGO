@@ -172,8 +172,8 @@ function readStartDate(fields: FieldValue[], number: number): string | null {
   const date =
     fieldValue(fields, "ProjectV2ItemFieldDateValue", "Start date")?.date ??
     null
-  if (date !== null && !/^\d{4}-\d{2}-\d{2}$/.test(date))
-    return fail(number, `Start date ${JSON.stringify(date)} is not a date`)
+  if (date !== null && typeof date !== "string")
+    return fail(number, "Start date has an invalid value type")
   return date
 }
 
@@ -187,9 +187,11 @@ function normaliseItem(raw: RawItem): BoardIssue | null {
   if (issue.state !== "OPEN" && issue.state !== "CLOSED")
     return fail(number, `unknown state ${JSON.stringify(issue.state)}`)
 
+  if (issue.closedAt != null && typeof issue.closedAt !== "string")
+    return fail(number, "close date has an invalid value type")
+
   let closeReason: BoardIssue["closeReason"] = null
   if (issue.state === "CLOSED") {
-    if (!issue.closedAt) return fail(number, "closed without a close date")
     // A missing reason stays null: the metrics list it as a data problem
     // Duplicates were not delivered either
     if (issue.stateReason)

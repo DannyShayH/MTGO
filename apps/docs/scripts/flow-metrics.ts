@@ -83,6 +83,7 @@ export type FeatureChild = IssueLink & {
   isWorkItem: boolean
   timingState: "Available" | "Not started" | "Not available"
   delivered: boolean
+  reopened: boolean
   closeReason: BoardIssue["closeReason"]
   status: string
   startedAt: string | null
@@ -91,7 +92,16 @@ export type FeatureChild = IssueLink & {
   cycleDays: number | null
 }
 export type FeatureObservation = IssueLink & {
-  state: "Ongoing" | "Not started" | "Not available"
+  state:
+    | "Completed"
+    | "Awaiting acceptance"
+    | "Reopened"
+    | "Ongoing"
+    | "Not started"
+    | "Not available"
+  finishedAt: string | null
+  acceptedAt: string | null
+  leadTimeDays: number | null
   requiredCount: number
   deliveredCount: number | null
   startedAt: string | null
@@ -152,6 +162,18 @@ const isFeature = (item: Pick<BoardIssue, "title">) =>
 const isWorkItem = (item: Pick<BoardIssue, "title" | "subIssueCount">) =>
   item.subIssueCount === 0 && !isFeature(item)
 
+const validTimestamp = (instant: string | null): instant is string =>
+  instant !== null &&
+  /^\d{4}-\d{2}-\d{2}T/.test(instant) &&
+  daysSince(instant.slice(0, 10), instant.slice(0, 10)) === 0 &&
+  Number.isFinite(Date.parse(instant))
+
+const observedTimestamp = (
+  instant: string | null,
+  observedAt: string,
+): instant is string =>
+  validTimestamp(instant) && Date.parse(instant) <= Date.parse(observedAt)
+
 type ClosedIssue = BoardIssue & { closedAt: string }
 const closedAs = (
   item: BoardIssue,
@@ -160,8 +182,7 @@ const closedAs = (
 ): item is ClosedIssue =>
   item.state === "CLOSED" &&
   item.closeReason === reason &&
-  item.closedAt !== null &&
-  item.closedAt <= observationTime
+  observedTimestamp(item.closedAt, observationTime)
 
 const issueLink = ({ number, title, url }: IssueLink): IssueLink => ({
   number,
@@ -390,15 +411,15 @@ function flowHistory(items: BoardIssue[], observationTime: string) {
   return { cumulativeFlow, wipBreaches }
 }
 
-/** Current open Features only; accepted delivery and historical scope are separate slices. */
-function ongoingFeatures(
+/** ADR-0016: delivery ends the interval; later parent closure records acceptance. */
+function observeFeatures(
   dataset: BoardDataset,
   observationTime: string,
 ): FeatureObservation[] {
   const today = copenhagenDate(observationTime)
   const byUrl = new Map(dataset.items.map((item) => [item.url, item]))
   return dataset.items
-    .filter((item) => isFeature(item) && item.state === "OPEN")
+    .filter((item) => isFeature(item) && item.closeReason !== "NOT_PLANNED")
     .map((feature) => {
       const problems: DataProblem[] = []
       const problem = (item: IssueLink, text: string) =>
@@ -415,10 +436,14 @@ function ongoingFeatures(
           isWorkItem: false,
           timingState: "Not available",
           delivered: false,
+          reopened: child?.reopened ?? false,
           closeReason: child?.closeReason ?? null,
           status: child?.status ?? "Not available",
           startedAt: child?.startedAt ?? null,
-          closedAt: child?.closedAt ?? null,
+          closedAt:
+            child && observedTimestamp(child.closedAt, observationTime)
+              ? child.closedAt
+              : null,
           ageDays: null,
           cycleDays: null,
         }
@@ -438,9 +463,19 @@ function ongoingFeatures(
             "Closed without a reason; delivery count is not available",
           )
         const delivered = closedAs(child, "COMPLETED", observationTime)
+        const invalidClose =
+          child.state === "CLOSED" &&
+          !observedTimestamp(child.closedAt, observationTime)
+        if (invalidClose)
+          problem(
+            child,
+            "Missing or invalid close date; Feature timing is not available",
+          )
         const end = delivered ? copenhagenDate(child.closedAt) : today
         const duration = daysSince(child.startedAt, end)
         const started =
+          child.reopened ||
+          child.stateChanges?.some((event) => event.state === "OPEN") ||
           (child.state === "CLOSED" && child.closeReason !== "NOT_PLANNED") ||
           isWip(child.status) ||
           child.status === STATUS.done ||
@@ -461,7 +496,7 @@ function ongoingFeatures(
           ...base,
           isWorkItem: true,
           timingState:
-            child.status === STATUS.none
+            child.status === STATUS.none || invalidClose
               ? "Not available"
               : duration !== null
                 ? "Available"
@@ -482,25 +517,109 @@ function ongoingFeatures(
           (child) => !child.isWorkItem || child.timingState === "Not available",
         )
       const startedAt = hasUnavailableTiming ? null : (starts[0] ?? null)
+      const deliveryKnown =
+        children.length === feature.subIssueCount &&
+        children.every(
+          (child) =>
+            child.isWorkItem &&
+            !(
+              byUrl.get(child.url)?.state === "CLOSED" &&
+              child.closeReason === null
+            ),
+        )
+      const allDelivered =
+        deliveryKnown &&
+        children.length > 0 &&
+        children.every((child) => child.delivered)
+      const latestDelivery = allDelivered
+        ? children
+            .map((child) => child.closedAt!)
+            .sort((a, b) => Date.parse(a) - Date.parse(b))
+            .at(-1)!
+        : null
+      const reopenedChildren = (feature.children ?? []).flatMap((link) => {
+        const child = byUrl.get(link.url)
+        if (!child) return []
+        const reopenings = (child.stateChanges ?? []).filter(
+          (event) => event.state === "OPEN",
+        )
+        if (reopenings.some((event) => !validTimestamp(event.at))) {
+          problem(
+            child,
+            "Invalid reopen date; renewed acceptance cannot be verified",
+          )
+          return [child]
+        }
+        const knownReopenings = reopenings.filter((event) =>
+          observedTimestamp(event.at, observationTime),
+        )
+        if (child.reopened && !knownReopenings.length) {
+          problem(
+            child,
+            "Reopen date is not available; renewed acceptance cannot be verified",
+          )
+          return [child]
+        }
+        return knownReopenings.some(
+          (event) =>
+            !child.closedAt ||
+            Date.parse(event.at) >= Date.parse(child.closedAt) ||
+            !feature.closedAt ||
+            Date.parse(event.at) >= Date.parse(feature.closedAt),
+        )
+          ? [child]
+          : []
+      })
+      const parentCompleted = closedAs(feature, "COMPLETED", observationTime)
+      if (feature.state === "CLOSED" && !parentCompleted)
+        problem(feature, "Missing or invalid parent acceptance evidence")
+      if (
+        feature.state === "CLOSED" &&
+        (!allDelivered || reopenedChildren.length)
+      )
+        problem(
+          feature,
+          "Parent is still closed while required work is undelivered or reopened; delivery and renewed parent acceptance are required",
+        )
+      const premature =
+        parentCompleted &&
+        latestDelivery !== null &&
+        Date.parse(feature.closedAt) < Date.parse(latestDelivery)
+      if (premature)
+        problem(
+          feature,
+          "Parent acceptance predates required delivery; renewed parent acceptance is required",
+        )
+      const accepted =
+        parentCompleted &&
+        allDelivered &&
+        !premature &&
+        !reopenedChildren.length
+      const completed = accepted && !hasUnavailableTiming && startedAt !== null
       return {
         ...issueLink(feature),
+        finishedAt: latestDelivery ? copenhagenDate(latestDelivery) : null,
+        acceptedAt: accepted ? feature.closedAt : null,
+        leadTimeDays: completed
+          ? daysSince(startedAt, copenhagenDate(latestDelivery!))
+          : null,
         state: hasUnavailableTiming
           ? "Not available"
-          : startedAt
-            ? "Ongoing"
-            : "Not started",
+          : completed
+            ? "Completed"
+            : reopenedChildren.length
+              ? "Reopened"
+              : allDelivered
+                ? "Awaiting acceptance"
+                : startedAt
+                  ? "Ongoing"
+                  : "Not started",
         requiredCount: feature.subIssueCount,
-        deliveredCount:
-          children.length === feature.subIssueCount &&
-          children.every(
-            (child) =>
-              child.isWorkItem &&
-              !(child.closedAt && child.closeReason === null),
-          )
-            ? children.filter((child) => child.delivered).length
-            : null,
+        deliveredCount: deliveryKnown
+          ? children.filter((child) => child.delivered).length
+          : null,
         startedAt,
-        ageDays: startedAt ? daysSince(startedAt, today) : null,
+        ageDays: startedAt && !completed ? daysSince(startedAt, today) : null,
         children,
         problems,
       }
@@ -648,6 +767,11 @@ export function calculateFlowMetrics(
     const problem = (text: string): DataProblem[] => [
       { ...issueLink(item), problem: text },
     ]
+    if (
+      item.state === "CLOSED" &&
+      !observedTimestamp(item.closedAt, observationTime)
+    )
+      return problem("Missing or invalid close date")
     // Neither completed nor WIP, so no date or time check below applies to these
     if (item.state === "CLOSED" && item.closeReason === null)
       return problem("Closed without a reason")
@@ -677,7 +801,7 @@ export function calculateFlowMetrics(
   )
   return {
     ...flowHistory(items, observationTime),
-    features: ongoingFeatures(dataset, observationTime),
+    features: observeFeatures(dataset, observationTime),
     source: dataset.source,
     observedAt: observationTime,
     wip: {

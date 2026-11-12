@@ -5,7 +5,7 @@ import type { FeatureChild } from "../../scripts/flow-metrics.ts"
 const age = (child: FeatureChild) => child.closedAt ? "Not applicable" : child.ageDays === null ? child.timingState : days(child.ageDays)
 const cycle = (child: FeatureChild) => {
   if (!child.isWorkItem) return "Not available"
-  if (!child.closedAt) return "Not completed"
+  if (!child.closedAt) return child.timingState === "Not available" ? "Not available" : "Not completed"
   if (child.closeReason === "NOT_PLANNED") return "Not applicable"
   return child.cycleDays === null ? "Not available" : days(child.cycleDays)
 }
@@ -13,37 +13,40 @@ const timing = (feature: typeof metrics.features[number]) => feature.state === "
 ---
 <div class="flow-page flow-evidence">
   <FlowMetricsHeader current="features" />
-  <p class="flow-intro">Ongoing and not-started Features connect capabilities to their required work. Counts describe delivered work items, not a percentage of business capability.</p>
-  <p>This view covers open Features and current direct children on the board. Accepted completion and completed Feature lead time are added by “Report accepted Feature lead time and reopened work”. <a href={flowUrl("definitions/#feature-age-and-required-work")}>Read the evidence limits.</a></p>
+  <p class="flow-intro">Features connect capabilities to their required work and acceptance evidence. Counts describe delivered work items, not a percentage of business capability.</p>
+  <p>Completion requires delivered required work and a later parent closure as completed. This view covers current direct children on the board. <a href={flowUrl("definitions/#feature-age-and-required-work")}>Read the evidence limits.</a></p>
   <p class="flow-table-hint">Focus the table and use the arrow keys, or scroll sideways, to read every column.</p>
-  <div class="flow-table-wrap flow-feature-table not-content" role="region" aria-label="Ongoing Features" tabindex="0">
+  <div class="flow-table-wrap flow-feature-table not-content" role="region" aria-label="Features" tabindex="0">
     <table class="flow-table">
-      <caption>Ongoing and not-started Features</caption>
-      <thead><tr><th scope="col">Feature</th><th scope="col">State</th><th scope="col">Required work delivered</th><th scope="col">Earliest Start date</th><th scope="col">Feature age</th><th scope="col">Details</th></tr></thead>
+      <caption>Feature delivery and ongoing age</caption>
+      <thead><tr><th scope="col">Feature</th><th scope="col">State</th><th scope="col">Required work delivered</th><th scope="col">Earliest Start date</th><th scope="col">Required delivery finish</th><th scope="col">Feature age</th><th scope="col">Completed Feature lead time</th><th scope="col">Details</th></tr></thead>
       <tbody>{metrics.features.map((feature) => <tr id={`feature-row-${feature.number}`}>
         <th scope="row"><a href={feature.url}>#{feature.number} {feature.title}</a></th>
         <td>{feature.state}</td>
         <td>{feature.requiredCount ? feature.deliveredCount === null ? `Delivery count not available (${feature.requiredCount} required)` : `${feature.deliveredCount} of ${feature.requiredCount} required work items delivered` : "No work items yet"}</td>
         <td>{feature.startedAt ? <time datetime={feature.startedAt}>{feature.startedAt}</time> : timing(feature)}</td>
-        <td>{feature.ageDays === null ? timing(feature) : days(feature.ageDays)}</td>
+        <td>{feature.finishedAt ? <time datetime={feature.finishedAt}>{feature.finishedAt}</time> : feature.state === "Not available" ? "Not available" : "Not completed"}</td>
+        <td>{feature.state === "Completed" ? "Not applicable" : feature.ageDays === null ? timing(feature) : days(feature.ageDays)}</td>
+        <td>{feature.leadTimeDays === null ? feature.state === "Not available" ? "Not available" : "Not completed" : days(feature.leadTimeDays)}</td>
         <td><a href={`#feature-${feature.number}`}>Work items and evidence</a></td>
       </tr>)}</tbody>
     </table>
   </div>
-  {!metrics.features.length && <p>No open Features in this dataset.</p>}
+  {!metrics.features.length && <p>No Features in this dataset.</p>}
   <h2>Feature work items and evidence</h2>
   {metrics.features.map((feature) => <details class="flow-disclosure" id={`feature-${feature.number}`}>
     <summary>#{feature.number} {feature.title}: work items and evidence</summary>
     <p><a href={feature.url}>Open Feature #{feature.number} on GitHub</a></p>
+    <p>Parent acceptance: {feature.acceptedAt ? <time datetime={feature.acceptedAt}>{moment(feature.acceptedAt)}</time> : "Not recorded after required delivery"}. The measured finish is the latest required delivery, even when acceptance is recorded later.</p>
     {feature.problems.length > 0 && <ul aria-label={`Feature ${feature.number} data problems`}>{feature.problems.map((problem) => <li><a href={problem.url}>#{problem.number} {problem.title}</a>: {problem.problem}</li>)}</ul>}
     {feature.children.length ? <div class="flow-table-wrap flow-feature-children not-content" role="region" aria-label={`Feature ${feature.number} children`} tabindex="0">
       <table class="flow-table">
         <thead><tr><th scope="col">Required work item</th><th scope="col">Current status</th><th scope="col">Start date</th><th scope="col">Close date</th><th scope="col">Work item age</th><th scope="col">Cycle time</th></tr></thead>
         <tbody>{feature.children.map((child) => <tr>
           <th scope="row"><a href={child.url}>#{child.number} {child.title}</a></th>
-          <td>{child.status}{child.closeReason === "NOT_PLANNED" && " (closed without delivery)"}</td>
+          <td>{child.status}{child.reopened && " (reopened work)"}{child.closeReason === "NOT_PLANNED" && " (closed without delivery)"}</td>
           <td>{child.startedAt ? <time datetime={child.startedAt}>{child.startedAt}</time> : child.timingState}</td>
-          <td>{child.closedAt ? <time datetime={child.closedAt}>{moment(child.closedAt)}</time> : child.isWorkItem ? "Not completed" : "Not available"}</td>
+          <td>{child.closedAt ? <time datetime={child.closedAt}>{moment(child.closedAt)}</time> : child.isWorkItem && child.timingState !== "Not available" ? "Not completed" : "Not available"}</td>
           <td>{age(child)}</td>
           <td>{cycle(child)}</td>
         </tr>)}</tbody>

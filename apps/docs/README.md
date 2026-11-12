@@ -53,18 +53,18 @@ For layout changes, inspect a reading page and a dashboard at phone, tablet,
 1440px, 1920px and 2560px widths in both themes. Check search, mobile navigation,
 heading links and keyboard focus as well as horizontal overflow.
 
-## Ongoing Feature reporting
+## Feature reporting
 
 `npm run verify:flow-metrics` builds controlled collector fixtures in an isolated
 copy and checks Overview, Work items and Features with Chromium. It writes
 screenshots and `results.json` to `test-results/flow-metrics/` (ignored). The
-ongoing and sample scenarios check required-work counts, dates, child/back links,
+ongoing, accepted-completion, reopening and sample scenarios check required-work counts, dates, child/back links,
 linked evidence gaps, disclosure keyboard access and narrow-screen table
 scrolling. Install Chromium with `npm exec --no -- playwright install chromium`
 before running it. No live board is mutated or developer environment file read.
 
 `flow-metrics.json` includes `features` alongside the unchanged work-item fields.
-Each open Feature observation includes its issue link, state, required and
+Each open or completed Feature observation includes its issue link, state, required and
 delivered counts (unavailable when child delivery evidence is missing), nullable Start date and age in Copenhagen calendar days, child
 status/date/age/cycle-time evidence and linked problems. The observation shares
 the top-level source and clock. A missing started-child date invalidates Feature
@@ -73,5 +73,7 @@ illustrative; the sample banner applies to every view.
 
 This slice uses current direct-child membership and current board evidence.
 Children outside that board population are identified as unavailable. Historical
-membership, scope removal, renamed/archived Features and accepted completion
+membership, scope removal, renamed/archived Features and withdrawal
 reporting remain separate slices; see the published metric definitions.
+
+Completed Feature observations require every current required child delivered and a parent closure as completed after delivery. The measured finish stays at the latest child delivery; later acceptance does not extend lead time. Reopening withholds completion until delivery and renewed parent acceptance. Missing dates produce linked data problems. See the [metric definitions](src/content/docs/flow-metrics/definitions.mdx) for the contract and current evidence limits. The controlled browser demo includes the 16/20/23 November four-day example and saves completion screenshots with the other reporting evidence.
