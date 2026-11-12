@@ -48,7 +48,7 @@ These facts are already in place and are not up for discussion in the grill sess
 | Status column | `Backlog`, `Ready` (WIP 5), `In Progress` (WIP 3), `Delivery Initiated` (WIP 2), `Done`. The names are exact, because `gh tt` sets `In Progress` and `Delivery Initiated` |
 | Other fields  | `Priority` (Must have, Should have, Could have, Won't have), `Size` (XS–XL), `Start date` (date)                                                                          |
 | Labels        | Work type only (`development`, `ad hoc`, `rework`) and `blocked`                                                                                                          |
-| Start date    | Set automatically to today by `gh workon -i <nr>` (`scripts/workon.sh`, issue #4) when the field is empty. Never overwritten                                              |
+| Start date    | Set automatically to today in `Europe/Copenhagen` by `gh workon -i <nr>` (`scripts/workon.sh`) when empty. Existing and historical dates are never overwritten            |
 | Closed        | Set by GitHub when the ready flow closes the issue. The project workflow _Item closed_ then moves it to Done                                                              |
 | Flow          | `gh workon -i <nr>` → `gh wrapup` → `gh deliver` → ready flow (checks, merge to `main`, issue closed) → `on_main`                                                         |
 | Docs as code  | Documentation changes go through the same issue, branch and quality checks as code                                                                                        |

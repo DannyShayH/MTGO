@@ -4,7 +4,8 @@
 # gh tt workon moves the issue to "In Progress". GitHub records the timestamp of
 # that status change for elapsed-time reporting. Calendar-day cycle time also
 # needs a start date, so this script sets the project's "Start date" field to
-# today, but only when it is still empty. Re-running workon never moves the date.
+# today in Europe/Copenhagen, but only when it is still empty. Re-running workon
+# never moves the date, including historical dates recorded in another timezone.
 #
 # Usage: gh workon -i <issue-number>   (the gh alias points here, see .insitu.yml)
 set -euo pipefail
@@ -46,6 +47,6 @@ if [[ -z "$field_id" ]]; then
   exit 0
 fi
 
-today=$(date +%F)
+today=$(TZ=Europe/Copenhagen date +%F)
 gh project item-edit --project-id "$project_id" --id "$item_id" --field-id "$field_id" --date "$today" > /dev/null
 echo "workon: start date for issue #$issue set to $today"
