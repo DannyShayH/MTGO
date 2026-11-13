@@ -23,7 +23,7 @@ const timing = (feature: typeof metrics.features[number]) => feature.state === "
       <tbody>{metrics.features.map((feature) => <tr id={`feature-row-${feature.number}`}>
         <th scope="row"><a href={feature.url}>#{feature.number} {feature.title}</a></th>
         <td>{feature.state}</td>
-        <td>{feature.requiredCount ? feature.deliveredCount === null ? `Delivery count not available (${feature.requiredCount} required)` : `${feature.deliveredCount} of ${feature.requiredCount} required work items delivered` : "No work items yet"}</td>
+        <td>{feature.requiredCount ? feature.deliveredCount === null ? `Delivery count not available (${feature.requiredCount} required)` : `${feature.deliveredCount} of ${feature.requiredCount} required work items delivered` : feature.children.length ? "No required work items" : "No work items yet"}{feature.removedChildren.length ? `; ${feature.removedChildren.length} removed` : ""}</td>
         <td>{feature.startedAt ? <time datetime={feature.startedAt}>{feature.startedAt}</time> : timing(feature)}</td>
         <td>{feature.finishedAt ? <time datetime={feature.finishedAt}>{feature.finishedAt}</time> : feature.state === "Not available" ? "Not available" : "Not completed"}</td>
         <td>{feature.state === "Completed" ? "Not applicable" : feature.ageDays === null ? timing(feature) : days(feature.ageDays)}</td>
@@ -41,8 +41,9 @@ const timing = (feature: typeof metrics.features[number]) => feature.state === "
     {feature.problems.length > 0 && <ul aria-label={`Feature ${feature.number} data problems`}>{feature.problems.map((problem) => <li><a href={problem.url}>#{problem.number} {problem.title}</a>: {problem.problem}</li>)}</ul>}
     {feature.children.length ? <div class="flow-table-wrap flow-feature-children not-content" role="region" aria-label={`Feature ${feature.number} children`} tabindex="0">
       <table class="flow-table">
-        <thead><tr><th scope="col">Required work item</th><th scope="col">Current status</th><th scope="col">Start date</th><th scope="col">Close date</th><th scope="col">Work item age</th><th scope="col">Cycle time</th></tr></thead>
+        <thead><tr><th scope="col">Scope</th><th scope="col">Work item</th><th scope="col">Current status</th><th scope="col">Start date</th><th scope="col">Close date</th><th scope="col">Work item age</th><th scope="col">Cycle time</th></tr></thead>
         <tbody>{feature.children.map((child) => <tr>
+          <td>{child.scope}</td>
           <th scope="row"><a href={child.url}>#{child.number} {child.title}</a></th>
           <td>{child.status}{child.reopened && " (reopened work)"}{child.closeReason === "NOT_PLANNED" && " (closed without delivery)"}</td>
           <td>{child.startedAt ? <time datetime={child.startedAt}>{child.startedAt}</time> : child.timingState}</td>
@@ -52,5 +53,6 @@ const timing = (feature: typeof metrics.features[number]) => feature.state === "
         </tr>)}</tbody>
       </table>
     </div> : <p>{feature.requiredCount ? "Child evidence is not available." : "No work items yet."}</p>}
+    {feature.removedChildren.length > 0 && <div><p>Removed scope is excluded from current required-work counts and finish selection. Each removed child remains part of the historical start evidence.</p><ul aria-label={`Feature ${feature.number} removed scope reasons`}>{feature.removedChildren.map((child) => <li>#{child.number}: {child.removalReason}</li>)}</ul></div>}
   </details>)}
 </div>

@@ -398,6 +398,12 @@ try {
       state: "Reopened",
       days: null,
     },
+    {
+      number: 210,
+      title: "Removed early scope",
+      state: "Completed",
+      days: 4,
+    },
   )
   const demoItems = demoCases.flatMap((example) => {
     const items = structuredClone(completionItems)
@@ -460,6 +466,11 @@ try {
         __typename: "ReopenedEvent",
         createdAt: "2026-02-30T12:00:00Z",
       })
+    if (example.number === 210) {
+      items[0].content!.stateReason = "NOT_PLANNED"
+      parent.body =
+        "Scope decision: #2100 — removed — reason: duplicate discovery work"
+    }
     return items
   })
   const acceptedDataset = await collectBoard({
@@ -522,6 +533,10 @@ try {
   )
   await expect(page.locator("#feature-209")).toContainText(
     "Invalid reopen date",
+  )
+  await expect(page.locator("#feature-row-210")).toContainText("1 removed")
+  await expect(page.locator("#feature-210")).toContainText(
+    "duplicate discovery work",
   )
   await page.evaluate(() => window.scrollTo(0, 0))
   await page.screenshot({

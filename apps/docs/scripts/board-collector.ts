@@ -53,7 +53,7 @@ const ITEMS_QUERY = `query ($owner: String!, $number: Int!, $after: String, $tim
           content {
             __typename
             ... on Issue {
-              id number title url state stateReason closedAt
+              id number title body url state stateReason closedAt
               labels(first: ${PAGE_SIZE}) { totalCount nodes { name } }
               ${CHILDREN}
               ${TIMELINE}
@@ -99,6 +99,7 @@ export type RawItem = {
     id?: string
     number?: number
     title?: string
+    body?: string | null
     url?: string
     state?: string
     stateReason?: string | null
@@ -220,6 +221,7 @@ function normaliseItem(raw: RawItem): BoardIssue | null {
     issueNodeId: issue.id as string,
     number,
     title: issue.title as string,
+    body: issue.body ?? null,
     url: issue.url as string,
     previousTitles: [...new Set(previousTitles)],
     status: selectValue(fields, "Status") ?? STATUS.none,

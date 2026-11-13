@@ -3,6 +3,8 @@ export type BoardIssue = {
   issueNodeId?: string
   number: number
   title: string
+  /** Human-readable parent scope decisions, kept as source evidence. */
+  body?: string | null
   url: string
   /** Retained titles from GitHub rename history, oldest evidence first. */
   previousTitles?: string[]
@@ -84,6 +86,8 @@ export type WipBreach = {
 }
 
 export type FeatureChild = IssueLink & {
+  scope: "Required" | "Removed"
+  removalReason: string | null
   isWorkItem: boolean
   timingState: "Available" | "Not started" | "Not available"
   delivered: boolean
@@ -111,6 +115,7 @@ export type FeatureObservation = IssueLink & {
   startedAt: string | null
   ageDays: number | null
   children: FeatureChild[]
+  removedChildren: FeatureChild[]
   problems: DataProblem[]
 }
 
@@ -169,6 +174,39 @@ const isFeature = (
   (item.previousTitles ?? []).some(hasFeaturePrefix)
 const isWorkItem = (item: Pick<BoardIssue, "title" | "subIssueCount">) =>
   item.subIssueCount === 0 && !isFeature(item)
+
+type ScopeDecision = { childNumber: number; reason: string }
+
+const scopeLine =
+  /^\s*(?:[-*]\s*)?Scope decision:\s*#(\d+)\s*[—-]\s*removed\s*[—-]\s*reason:\s*(\S.*?)\s*$/i
+
+function readScopeDecisions(feature: Pick<BoardIssue, "body">): {
+  decisions: ScopeDecision[]
+  malformed: boolean
+  ambiguousChildren: number[]
+} {
+  const lines = (feature.body ?? "").split(/\r?\n/)
+  const candidates = lines.filter((line) => /scope decision\s*:/i.test(line))
+  const decisions: ScopeDecision[] = []
+  let malformed = false
+  const ambiguousChildren: number[] = []
+  for (const line of candidates) {
+    const match = line.match(scopeLine)
+    if (!match || !match[2].trim()) {
+      malformed = true
+      const reference = line.match(/scope decision:\s*#(\d+)/i)
+      if (reference) ambiguousChildren.push(Number(reference[1]))
+      continue
+    }
+    const childNumber = Number(match[1])
+    if (!Number.isSafeInteger(childNumber) || childNumber <= 0) {
+      malformed = true
+      continue
+    }
+    decisions.push({ childNumber, reason: match[2].trim() })
+  }
+  return { decisions, malformed, ambiguousChildren }
+}
 
 const validTimestamp = (instant: string | null): instant is string =>
   instant !== null &&
@@ -442,10 +480,42 @@ function observeFeatures(
           feature,
           "Direct-child evidence is not available in this dataset",
         )
+      const scope = readScopeDecisions(feature)
+      if (scope.malformed)
+        problem(
+          feature,
+          "Ambiguous scope decision; use one readable Scope decision record per removed child",
+        )
+      const decisionsByChild = new Map<number, ScopeDecision>()
+      const ambiguousChildren = new Set(scope.ambiguousChildren)
+      for (const decision of scope.decisions) {
+        if (decisionsByChild.has(decision.childNumber)) {
+          ambiguousChildren.add(decision.childNumber)
+          decisionsByChild.delete(decision.childNumber)
+          problem(
+            feature,
+            `Ambiguous scope decision for child #${decision.childNumber}`,
+          )
+        } else if (!ambiguousChildren.has(decision.childNumber))
+          decisionsByChild.set(decision.childNumber, decision)
+      }
+      for (const decision of scope.decisions)
+        if (
+          !feature.children?.some(
+            (child) => child.number === decision.childNumber,
+          )
+        )
+          problem(
+            feature,
+            `Scope decision names child #${decision.childNumber}, which is not a direct child`,
+          )
       const children = (feature.children ?? []).map((link): FeatureChild => {
         const child = byUrl.get(link.url)
+        const decision = decisionsByChild.get(link.number)
         const base: FeatureChild = {
           ...issueLink(link),
+          scope: decision ? "Removed" : "Required",
+          removalReason: decision?.reason ?? null,
           isWorkItem: false,
           timingState: "Not available",
           delivered: false,
@@ -479,7 +549,7 @@ function observeFeatures(
         const invalidClose =
           child.state === "CLOSED" &&
           !observedTimestamp(child.closedAt, observationTime)
-        if (invalidClose)
+        if (invalidClose && decision === undefined)
           problem(
             child,
             "Missing or invalid close date; Feature timing is not available",
@@ -495,12 +565,20 @@ function observeFeatures(
           child.statusChanges.some(
             (change) => isWip(change.to) || change.to === STATUS.done,
           )
-        if ((started || child.startedAt !== null) && duration === null)
+        // ADR-0016: absent status/history cannot prove removed work never started.
+        const hasUnknownRemovedStart =
+          decision !== undefined &&
+          child.status === STATUS.none &&
+          child.startedAt === null
+        if (
+          (started || child.startedAt !== null || hasUnknownRemovedStart) &&
+          duration === null
+        )
           problem(
             child,
             "Missing or invalid Start date; Feature timing is not available",
           )
-        if (child.status === STATUS.none)
+        if (child.status === STATUS.none && decision === undefined)
           problem(
             child,
             "Missing child status; Feature timing is not available",
@@ -509,13 +587,19 @@ function observeFeatures(
           ...base,
           isWorkItem: true,
           timingState:
-            child.status === STATUS.none || invalidClose
-              ? "Not available"
-              : duration !== null
+            decision !== undefined
+              ? duration !== null
                 ? "Available"
-                : started || child.startedAt !== null
+                : started || child.startedAt !== null || hasUnknownRemovedStart
                   ? "Not available"
-                  : "Not started",
+                  : "Not started"
+              : child.status === STATUS.none || invalidClose
+                ? "Not available"
+                : duration !== null
+                  ? "Available"
+                  : started || child.startedAt !== null
+                    ? "Not available"
+                    : "Not started",
           delivered,
           ageDays: child.state === "OPEN" ? duration : null,
           cycleDays: delivered ? duration : null,
@@ -532,57 +616,64 @@ function observeFeatures(
       const startedAt = hasUnavailableTiming ? null : (starts[0] ?? null)
       const deliveryKnown =
         children.length === feature.subIssueCount &&
-        children.every(
-          (child) =>
-            child.isWorkItem &&
-            !(
-              byUrl.get(child.url)?.state === "CLOSED" &&
-              child.closeReason === null
-            ),
-        )
+        children
+          .filter((child) => child.scope === "Required")
+          .every(
+            (child) =>
+              child.isWorkItem &&
+              !(
+                byUrl.get(child.url)?.state === "CLOSED" &&
+                child.closeReason === null
+              ),
+          )
       const allDelivered =
         deliveryKnown &&
-        children.length > 0 &&
-        children.every((child) => child.delivered)
+        children.some((child) => child.scope === "Required") &&
+        children
+          .filter((child) => child.scope === "Required")
+          .every((child) => child.delivered)
       const latestDelivery = allDelivered
         ? children
+            .filter((child) => child.scope === "Required")
             .map((child) => child.closedAt!)
             .sort((a, b) => Date.parse(a) - Date.parse(b))
             .at(-1)!
         : null
-      const reopenedChildren = (feature.children ?? []).flatMap((link) => {
-        const child = byUrl.get(link.url)
-        if (!child) return []
-        const reopenings = (child.stateChanges ?? []).filter(
-          (event) => event.state === "OPEN",
-        )
-        if (reopenings.some((event) => !validTimestamp(event.at))) {
-          problem(
-            child,
-            "Invalid reopen date; renewed acceptance cannot be verified",
+      const reopenedChildren = (feature.children ?? [])
+        .filter((link) => decisionsByChild.has(link.number) === false)
+        .flatMap((link) => {
+          const child = byUrl.get(link.url)
+          if (!child) return []
+          const reopenings = (child.stateChanges ?? []).filter(
+            (event) => event.state === "OPEN",
           )
-          return [child]
-        }
-        const knownReopenings = reopenings.filter((event) =>
-          observedTimestamp(event.at, observationTime),
-        )
-        if (child.reopened && !knownReopenings.length) {
-          problem(
-            child,
-            "Reopen date is not available; renewed acceptance cannot be verified",
+          if (reopenings.some((event) => !validTimestamp(event.at))) {
+            problem(
+              child,
+              "Invalid reopen date; renewed acceptance cannot be verified",
+            )
+            return [child]
+          }
+          const knownReopenings = reopenings.filter((event) =>
+            observedTimestamp(event.at, observationTime),
           )
-          return [child]
-        }
-        return knownReopenings.some(
-          (event) =>
-            !child.closedAt ||
-            Date.parse(event.at) >= Date.parse(child.closedAt) ||
-            !feature.closedAt ||
-            Date.parse(event.at) >= Date.parse(feature.closedAt),
-        )
-          ? [child]
-          : []
-      })
+          if (child.reopened && !knownReopenings.length) {
+            problem(
+              child,
+              "Reopen date is not available; renewed acceptance cannot be verified",
+            )
+            return [child]
+          }
+          return knownReopenings.some(
+            (event) =>
+              !child.closedAt ||
+              Date.parse(event.at) >= Date.parse(child.closedAt) ||
+              !feature.closedAt ||
+              Date.parse(event.at) >= Date.parse(feature.closedAt),
+          )
+            ? [child]
+            : []
+        })
       const parentCompleted = closedAs(feature, "COMPLETED", observationTime)
       if (feature.state === "CLOSED" && !parentCompleted)
         problem(feature, "Missing or invalid parent acceptance evidence")
@@ -627,13 +718,17 @@ function observeFeatures(
                 : startedAt
                   ? "Ongoing"
                   : "Not started",
-        requiredCount: feature.subIssueCount,
+        requiredCount: children.filter((child) => child.scope === "Required")
+          .length,
         deliveredCount: deliveryKnown
-          ? children.filter((child) => child.delivered).length
+          ? children.filter(
+              (child) => child.scope === "Required" && child.delivered,
+            ).length
           : null,
         startedAt,
         ageDays: startedAt && !completed ? daysSince(startedAt, today) : null,
         children,
+        removedChildren: children.filter((child) => child.scope === "Removed"),
         problems,
       }
     })
