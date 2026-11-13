@@ -1,5 +1,7 @@
+import { execFileSync } from "node:child_process"
 import { randomUUID } from "node:crypto"
-import { expect, test } from "@playwright/test"
+import { resolve } from "node:path"
+import { expect, test, type APIRequestContext } from "@playwright/test"
 
 test("operator registers, finds and edits a Restaurant and sees a nonblocking address warning", async ({
   page,
@@ -243,6 +245,150 @@ test("operator invites Restaurant staff, copies the link, resends, cancels and i
   await expect(mette).toContainText("Pending")
   expect(errors).toEqual([])
   await testInfo.attach("restaurant-staff", {
+    body: await page.screenshot({ fullPage: true }),
+    contentType: "image/png",
+  })
+})
+
+/**
+ * A Restaurant with every requirement but the menu, set up through the Admin
+ * and partner APIs; the journeys above cover those steps in the browser.
+ */
+async function restaurantWithoutMenu(
+  request: APIRequestContext,
+  runId: string,
+) {
+  const backend = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL!
+  const login = await request.post(`${backend}/auth/user/emailpass`, {
+    data: {
+      email: process.env.E2E_ADMIN_EMAIL,
+      password: process.env.E2E_ADMIN_PASSWORD,
+    },
+  })
+  expect(login.ok()).toBe(true)
+  const headers = { authorization: `Bearer ${(await login.json()).token}` }
+  const name = `Activation journey kitchen ${runId}`
+  const created = await request.post(`${backend}/admin/restaurants`, {
+    headers,
+    data: {
+      name,
+      address_street: `Activation street ${runId}`,
+      address_postal_code: "2200",
+      address_city: "København N",
+      contact_phone: "+45 12 34 56 78",
+      contact_email: "activation@pizzeria.example",
+    },
+  })
+  expect(created.ok()).toBe(true)
+  const id = (await created.json()).restaurant.id as string
+  const path = `${backend}/admin/restaurants/${id}`
+  for (const [route, data] of [
+    ["delivery-area-postal-codes", { postal_code: "2200" }],
+    ["commercial-terms", { terms_version: "common_mvp_v1" }],
+  ] as const)
+    expect(
+      (await request.post(`${path}/${route}`, { headers, data })).ok(),
+    ).toBe(true)
+  const email = `sofie-${runId}@example.test`
+  const invited = await request.post(`${path}/staff-invitations`, {
+    headers,
+    data: { name: "Sofie Jensen", email },
+  })
+  expect(invited.ok()).toBe(true)
+  const link = new URL((await invited.json()).invitation.invite_link)
+  const registered = await request.post(
+    `${backend}/auth/restaurant_staff/emailpass/register`,
+    { data: { email, password: "ci-only-activation-password" } },
+  )
+  expect(registered.ok()).toBe(true)
+  const accepted = await request.post(
+    `${backend}/partner/staff-invitations/accept`,
+    {
+      headers: {
+        authorization: `Bearer ${(await registered.json()).token}`,
+      },
+      data: { token: link.searchParams.get("token") },
+    },
+  )
+  expect(accepted.ok()).toBe(true)
+  return { id, name }
+}
+
+test("operator sees activation refused without a menu, seeds the menu and activates", async ({
+  page,
+  request,
+}, testInfo) => {
+  expect(process.env.E2E_DISPOSABLE).toBe("1")
+  test.setTimeout(180_000)
+  const errors: string[] = []
+  page.on("pageerror", (error) => errors.push(error.message))
+  const backend = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL!
+  const restaurant = await restaurantWithoutMenu(request, randomUUID())
+  await page.goto(`${backend}/app/login`)
+  await page
+    .getByPlaceholder("Email", { exact: true })
+    .fill(process.env.E2E_ADMIN_EMAIL!)
+  await page
+    .getByPlaceholder("Password", { exact: true })
+    .fill(process.env.E2E_ADMIN_PASSWORD!)
+  await page.getByRole("button", { name: "Continue with email" }).click()
+  await expect(page).not.toHaveURL(/\/login/)
+  await page.goto(`${backend}/app/restaurants/${restaurant.id}`)
+  await expect(
+    page.getByRole("heading", { name: restaurant.name, exact: true }),
+  ).toBeVisible()
+  await expect(page.getByText("No history yet.")).toBeVisible()
+
+  await page.getByRole("button", { name: "Activate", exact: true }).click()
+  await expect(
+    page.getByText("Activation refused: Published menu missing."),
+  ).toBeVisible()
+  await expect(page.getByText("Inactive · Closed")).toBeVisible()
+
+  // The menu seed stands in for menu editing until Feature #44.
+  execFileSync(
+    "npm",
+    [
+      "exec",
+      "--no",
+      "--",
+      "medusa",
+      "exec",
+      "./src/scripts/seed-demo-menu.ts",
+      restaurant.id,
+    ],
+    { cwd: resolve(process.cwd(), "../backend"), stdio: "inherit" },
+  )
+  await page.reload()
+  const checklist = page.getByRole("list", { name: "Activation requirements" })
+  await expect(
+    checklist.getByRole("listitem").filter({ hasText: "Published menu" }),
+  ).toContainText("Met")
+  await expect(page.getByText("Menu: 1 published dish")).toBeVisible()
+
+  await page.getByRole("button", { name: "Activate", exact: true }).click()
+  await expect(page.getByText("Active · Closed")).toBeVisible()
+  await expect(
+    page.getByRole("button", { name: "Activate", exact: true }),
+  ).toHaveCount(0)
+  const history = page.getByRole("list", { name: "Restaurant history" })
+  await expect(history.getByRole("listitem")).toHaveCount(1)
+  await expect(history).toContainText(
+    `Activated by ${process.env.E2E_ADMIN_EMAIL}`,
+  )
+  await page.reload()
+  await expect(history).toContainText(
+    `Activated by ${process.env.E2E_ADMIN_EMAIL}`,
+  )
+  await page.getByRole("link", { name: "Back to Restaurants" }).click()
+  await page
+    .getByPlaceholder("Search by name or postal code")
+    .fill(restaurant.name)
+  await expect(
+    page.getByRole("row").filter({ hasText: restaurant.name }),
+  ).toContainText("Active")
+  expect(errors).toEqual([])
+  await testInfo.attach("restaurant-activation", {
     body: await page.screenshot({ fullPage: true }),
     contentType: "image/png",
   })

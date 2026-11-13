@@ -289,8 +289,9 @@ member carries `revoke_warnings`, the warnings Admin confirms before revoking
 them: `["last_authorized_staff"]` when they are the only authorized staff
 member, otherwise `[]`. Former staff have `revoked_at` and `revoked_by`
 (`{ "id", "email" }`, with `email` `null` if the operator no longer exists).
-Only authorized staff meet `authorized_staff_missing`. The published-dish count arrives with #77, so
-that requirement is missing until then.
+Only authorized staff meet `authorized_staff_missing`. `menu.published_dish_count`
+counts the products linked to the Restaurant with status `published`; sold-out
+dishes count.
 
 ### POST /admin/restaurants/{id}
 
@@ -494,6 +495,66 @@ curl -X POST http://localhost:9000/admin/restaurants/$ID/staff/$STAFF_ID/revoke 
 | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `401`  | Not signed in as an operator (no token, a Customer token or a staff token)                                                                                        |
 | `404`  | Unknown Restaurant, or `code: "authorized_staff_not_found"`: no authorized or revoked staff with that id at this Restaurant (pending staff are cancelled instead) |
+
+### POST /admin/restaurants/{id}/activate
+
+**Actor:** MTOGO operator. Activates the Restaurant after checking the six
+activation requirements again on the server, so a stale page cannot activate an
+incomplete Restaurant (ADR-0008). Takes no body. The Restaurant becomes
+`is_active: true` and stays `is_open: false` until its staff open it. Under the
+Restaurant's lock it records an `activated` history entry with the operator and
+emits `restaurant.activated` with `{ "id": "res_..." }`. Activating an active
+Restaurant returns the current state, records nothing and emits nothing.
+
+**Success:** `200` with `{ "restaurant": { ... } }` as in the GET above.
+
+**Refusal:** `400` `not_allowed` when requirements are missing. The message
+names the missing codes in checklist order, and `missing` lists them for the UI:
+
+```json
+{
+  "type": "not_allowed",
+  "message": "activation_requirements_missing: published_menu_missing",
+  "missing": ["published_menu_missing"]
+}
+```
+
+| Status | When                                 |
+| ------ | ------------------------------------ |
+| `400`  | One or more requirements are missing |
+| `401`  | Not signed in as an operator         |
+| `404`  | Unknown Restaurant                   |
+
+### GET /admin/restaurants/{id}/history
+
+**Actor:** MTOGO operator. Lists the Restaurant's history entries, newest first.
+Entries are append-only. `actor_name` is the actor's name when the entry was
+recorded: an operator's first and last name, or their email when Admin has no
+name for them. `reason` is set only for `deactivated` (#78).
+
+```json
+{
+  "history": [
+    {
+      "id": "rshe_01...",
+      "kind": "activated",
+      "occurred_at": "2026-11-13T09:30:00.000Z",
+      "actor_type": "user",
+      "actor_id": "user_01...",
+      "actor_name": "Lene Holm",
+      "reason": null
+    }
+  ]
+}
+```
+
+`kind` is `activated`, `deactivated`, `opened` or `closed`; `actor_type` is
+`user` or `restaurant_staff`.
+
+| Status | When                         |
+| ------ | ---------------------------- |
+| `401`  | Not signed in as an operator |
+| `404`  | Unknown Restaurant           |
 
 ### POST /admin/restaurants/check-pickup-address
 

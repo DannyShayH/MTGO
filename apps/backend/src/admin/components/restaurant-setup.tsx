@@ -1,15 +1,21 @@
 import {
+  Alert,
   Button,
   Container,
   Heading,
   StatusBadge,
   Table,
   Text,
+  toast,
   usePrompt,
 } from "@medusajs/ui"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
 import {
+  missingRequirementsIn,
   RestaurantDetail,
+  RestaurantDetailResponse,
   requirementLabels,
+  sdk,
   termsVersionNames,
 } from "../lib/restaurant-api"
 import { useRestaurantChange } from "../lib/use-restaurant-change"
@@ -120,41 +126,101 @@ export const CommercialTermsSection = ({
   )
 }
 
+/** Activate checks the requirements again on the server, so a stale checklist cannot activate (spec story 29). */
+const useActivate = (restaurantId: string) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () =>
+      sdk.client.fetch<RestaurantDetailResponse>(
+        `/admin/restaurants/${restaurantId}/activate`,
+        { method: "POST" },
+      ),
+    onSuccess: async (response) => {
+      queryClient.setQueryData(["restaurant", restaurantId], response)
+      toast.success(
+        "Restaurant activated. It stays Closed until staff open it.",
+      )
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["restaurants"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["restaurant-history", restaurantId],
+        }),
+      ])
+    },
+    // The checklist reloads, so it shows what the server found missing.
+    onError: () =>
+      queryClient.invalidateQueries({ queryKey: ["restaurant", restaurantId] }),
+  })
+}
+
+const readinessSummary = (restaurant: RestaurantDetail) => {
+  if (restaurant.is_active) return "The Restaurant is active."
+  return restaurant.readiness.can_activate
+    ? "Every activation requirement is met."
+    : "Activation needs every requirement below."
+}
+
 export const ReadinessSection = ({
   restaurant,
 }: {
   restaurant: RestaurantDetail
-}) => (
-  <Container className="divide-y p-0">
-    <div className="px-6 py-4">
-      <Heading level="h2">Activation readiness</Heading>
-      <Text size="small" className="text-ui-fg-subtle">
-        {restaurant.readiness.can_activate
-          ? "Every activation requirement is met."
-          : "Activation needs every requirement below."}
-      </Text>
-    </div>
-    <ul
-      aria-label="Activation requirements"
-      className="flex flex-col gap-2 px-6 py-4"
-    >
-      {restaurant.readiness.requirements.map(({ code, missing }) => (
-        <li key={code} className="flex items-center justify-between gap-4">
-          <Text>{requirementLabels[code] || code}</Text>
-          <StatusBadge color={missing ? "red" : "green"}>
-            {missing ? "Missing" : "Met"}
-          </StatusBadge>
-        </li>
-      ))}
-    </ul>
-    <div className="px-6 py-4">
-      <Text>
-        Menu: {restaurant.menu.published_dish_count} published{" "}
-        {restaurant.menu.published_dish_count === 1 ? "dish" : "dishes"}
-      </Text>
-      <Text size="small" className="text-ui-fg-subtle">
-        Restaurant staff publish the menu; operators cannot change it here.
-      </Text>
-    </div>
-  </Container>
-)
+}) => {
+  const activate = useActivate(restaurant.id)
+  const refused = activate.error
+    ? missingRequirementsIn(activate.error.message)
+    : []
+  return (
+    <Container className="divide-y p-0">
+      <div className="flex items-center justify-between gap-4 px-6 py-4">
+        <div>
+          <Heading level="h2">Activation readiness</Heading>
+          <Text size="small" className="text-ui-fg-subtle">
+            {readinessSummary(restaurant)}
+          </Text>
+        </div>
+        {!restaurant.is_active && (
+          <Button
+            size="small"
+            isLoading={activate.isPending}
+            onClick={() => activate.mutate()}
+          >
+            Activate
+          </Button>
+        )}
+      </div>
+      {activate.error && (
+        <div className="px-6 py-4">
+          <Alert variant="error">
+            {refused.length
+              ? `Activation refused: ${refused
+                  .map((code) => `${requirementLabels[code]} missing`)
+                  .join(", ")}.`
+              : "Could not activate the Restaurant. Try again."}
+          </Alert>
+        </div>
+      )}
+      <ul
+        aria-label="Activation requirements"
+        className="flex flex-col gap-2 px-6 py-4"
+      >
+        {restaurant.readiness.requirements.map(({ code, missing }) => (
+          <li key={code} className="flex items-center justify-between gap-4">
+            <Text>{requirementLabels[code] || code}</Text>
+            <StatusBadge color={missing ? "red" : "green"}>
+              {missing ? "Missing" : "Met"}
+            </StatusBadge>
+          </li>
+        ))}
+      </ul>
+      <div className="px-6 py-4">
+        <Text>
+          Menu: {restaurant.menu.published_dish_count} published{" "}
+          {restaurant.menu.published_dish_count === 1 ? "dish" : "dishes"}
+        </Text>
+        <Text size="small" className="text-ui-fg-subtle">
+          Restaurant staff publish the menu; operators cannot change it here.
+        </Text>
+      </div>
+    </Container>
+  )
+}
