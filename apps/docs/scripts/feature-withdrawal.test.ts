@@ -3,7 +3,7 @@ import { collectBoard } from "./board-collector.ts"
 import { calculateFlowMetrics } from "./flow-metrics.ts"
 import {
   withdrawnFeatureItems,
-  featureBoardResponse,
+  createFixtureFetch,
   ACCEPTANCE_OBSERVED_AT,
 } from "./fixtures/feature-board.ts"
 
@@ -31,8 +31,7 @@ it.each([
   const dataset = await collectBoard({
     token: "fixture-token",
     now: () => ACCEPTANCE_OBSERVED_AT,
-    fetch: async () =>
-      new Response(JSON.stringify(featureBoardResponse(items))),
+    fetch: createFixtureFetch(items),
   })
   const metrics = calculateFlowMetrics(dataset, dataset.observedAt)
   expect(metrics.features[0]).toMatchObject({
@@ -95,12 +94,8 @@ it.each([
   const dataset = await collectBoard({
     token: "fixture-token",
     now: () => ACCEPTANCE_OBSERVED_AT,
-    fetch: async () =>
-      new Response(
-        JSON.stringify(
-          featureBoardResponse(scenario === "missing" ? items.slice(1) : items),
-        ),
-      ),
+    // GitHub answers NOT_FOUND for the missing child read by its issue id
+    fetch: createFixtureFetch(scenario === "missing" ? items.slice(1) : items),
   })
   if (scenario === "incomplete") {
     dataset.items.find((item) => item.number === 103)!.children = []

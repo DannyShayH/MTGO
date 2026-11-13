@@ -9,6 +9,7 @@ import {
   featureBoardItems,
   featureBoardResponse,
   FEATURE_OBSERVED_AT,
+  createFixtureFetch,
 } from "./fixtures/feature-board.ts"
 import recorded from "./fixtures/board-response.json"
 
@@ -450,7 +451,7 @@ describe("collectBoard", () => {
       collectBoard({
         token: "fixture-token",
         now: () => FEATURE_OBSERVED_AT,
-        fetch: () => json(featureBoardResponse(items)),
+        fetch: createFixtureFetch(items),
       })
     const baseline = await collect(featureBoardItems("work"))
     const dataset = await collect(featureBoardItems(scenario))
@@ -996,8 +997,7 @@ describe("Feature evidence boundaries", () => {
     const dataset = await collectBoard({
       token: "fixture-token",
       now: () => FEATURE_OBSERVED_AT,
-      fetch: async () =>
-        new Response(JSON.stringify(featureBoardResponse(items))),
+      fetch: createFixtureFetch(items),
     })
     const metrics = calculateFlowMetrics(dataset, dataset.observedAt)
     const feature = metrics.features.find((entry) => entry.number === 101)!

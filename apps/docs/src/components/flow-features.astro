@@ -13,7 +13,7 @@ const cycle = (child: FeatureChild) => {
 <div class="flow-page flow-evidence">
   <FlowMetricsHeader current="features" />
   <p class="flow-intro">Features connect capabilities to their required work and acceptance evidence. Counts describe delivered work items, not a percentage of business capability.</p>
-  <p>Completion requires delivered required work and a later parent closure as completed. This view covers current direct children on the board. <a href={flowUrl("definitions/#feature-age-and-required-work")}>Read the evidence limits.</a></p>
+  <p>Completion requires delivered required work and a later parent closure as completed. Archived Features stay in this view, and their direct children are read from GitHub even when they are archived or not on the board. That evidence never counts as work items. <a href={flowUrl("definitions/#feature-age-and-required-work")}>Read the evidence limits.</a></p>
   <p class="flow-table-hint">Focus the table and use the arrow keys, or scroll sideways, to read every column.</p>
   {[false, true].map((withdrawn) => <section>
   {withdrawn && <h2>Withdrawn Features</h2>}
@@ -23,7 +23,7 @@ const cycle = (child: FeatureChild) => {
       <caption>{withdrawn ? "Withdrawn capabilities and evidence" : "Feature delivery and ongoing age"}</caption>
       <thead><tr><th scope="col">Feature</th><th scope="col">State</th><th scope="col">Required work delivered</th><th scope="col">Earliest Start date</th><th scope="col">Required delivery finish</th><th scope="col">Feature age</th><th scope="col">Completed Feature lead time</th><th scope="col">Details</th></tr></thead>
       <tbody>{metrics.features.filter((feature) => (feature.state === "Withdrawn") === withdrawn).map((feature) => <tr id={`feature-row-${feature.number}`}>
-        <th scope="row"><a href={feature.url}>#{feature.number} {feature.title}</a></th>
+        <th scope="row"><a href={feature.url}>#{feature.number} {feature.title}</a>{feature.isArchived && " (archived)"}</th>
         <td>{feature.state}{withdrawn && <p>{feature.withdrawalReason ?? "Withdrawal reason is missing or ambiguous"}</p>}</td>
         <td>{feature.requiredCount ? feature.deliveredCount === null ? `Delivery count not available (${feature.requiredCount} required)` : `${feature.deliveredCount} of ${feature.requiredCount} required work items delivered` : feature.children.length ? "No required work items" : "No work items yet"}{feature.removedChildren.length ? `; ${feature.removedChildren.length} removed` : ""}</td>
         <td>{feature.startedAt ? <time datetime={feature.startedAt}>{feature.startedAt}</time> : feature.timingState}</td>
@@ -48,7 +48,7 @@ const cycle = (child: FeatureChild) => {
         <tbody>{feature.children.map((child) => <tr>
           <td>{child.scope}</td>
           <th scope="row"><a href={child.url}>#{child.number} {child.title}</a></th>
-          <td>{child.status}{child.reopened && " (reopened work)"}{child.closeReason === "NOT_PLANNED" && " (closed without delivery)"}</td>
+          <td>{child.status}{child.isArchived && " (archived)"}{child.reopened && " (reopened work)"}{child.closeReason === "NOT_PLANNED" && " (closed without delivery)"}</td>
           <td>{child.startedAt ? <time datetime={child.startedAt}>{child.startedAt}</time> : child.timingState}</td>
           <td>{child.closedAt ? <time datetime={child.closedAt}>{moment(child.closedAt)}</time> : child.isWorkItem && child.timingState !== "Not available" ? "Not completed" : "Not available"}</td>
           <td>{age(child)}</td>

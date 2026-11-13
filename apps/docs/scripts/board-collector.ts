@@ -1,9 +1,11 @@
 import {
+  isFeature,
   STATUS,
   WORK_TYPES,
   workStartedAt,
   type BoardDataset,
   type BoardIssue,
+  type EvidenceOnly,
   type StatusChange,
   type IssueLink,
 } from "./flow-metrics.ts"
@@ -12,6 +14,7 @@ const ENDPOINT = "https://api.github.com/graphql"
 const OWNER = "DannyShayH"
 const PROJECT_NUMBER = 2
 const PROJECT = `Project #${PROJECT_NUMBER}`
+export const PROJECT_URL = `https://github.com/users/${OWNER}/projects/${PROJECT_NUMBER}`
 /** GitHub's largest page. Fields and labels are read in one page and checked against totalCount */
 const PAGE_SIZE = 100
 
@@ -29,35 +32,38 @@ const TIMELINE = `timelineItems(first: 100, after: $timelineAfter, itemTypes: [P
 const CHILDREN = `subIssues(first: 100, after: $childrenAfter) {
   totalCount
   pageInfo { hasNextPage endCursor }
-  nodes { number title url subIssues { totalCount } }
+  nodes { id number title url subIssues { totalCount } }
 }`
 const CHILDREN_QUERY = `query ($id: ID!, $childrenAfter: String) {
   node(id: $id) { ... on Issue { ${CHILDREN} } }
 }`
 
+const FIELD_VALUES = `fieldValues(first: ${PAGE_SIZE}) {
+  totalCount
+  nodes {
+    __typename
+    ... on ProjectV2ItemFieldSingleSelectValue { name field { ... on ProjectV2FieldCommon { name } } }
+    ... on ProjectV2ItemFieldDateValue { date field { ... on ProjectV2FieldCommon { name } } }
+  }
+}`
+
+const ISSUE_FIELDS = `id number title body url state stateReason closedAt
+labels(first: ${PAGE_SIZE}) { totalCount nodes { name } }
+${CHILDREN}
+${TIMELINE}`
+
 const ITEMS_QUERY = `query ($owner: String!, $number: Int!, $after: String, $timelineAfter: String, $childrenAfter: String) {
   user(login: $owner) {
     projectV2(number: $number) {
-      items(first: 50, after: $after) {
+      items(first: 50, after: $after, archivedStates: [ARCHIVED, NOT_ARCHIVED]) {
         pageInfo { hasNextPage endCursor }
         nodes {
           id
-          fieldValues(first: ${PAGE_SIZE}) {
-            totalCount
-            nodes {
-              __typename
-              ... on ProjectV2ItemFieldSingleSelectValue { name field { ... on ProjectV2FieldCommon { name } } }
-              ... on ProjectV2ItemFieldDateValue { date field { ... on ProjectV2FieldCommon { name } } }
-            }
-          }
+          isArchived
+          ${FIELD_VALUES}
           content {
             __typename
-            ... on Issue {
-              id number title body url state stateReason closedAt
-              labels(first: ${PAGE_SIZE}) { totalCount nodes { name } }
-              ${CHILDREN}
-              ${TIMELINE}
-            }
+            ... on Issue { ${ISSUE_FIELDS} }
           }
         }
       }
@@ -65,10 +71,28 @@ const ITEMS_QUERY = `query ($owner: String!, $number: Int!, $after: String, $tim
   }
 }`
 
+/** Every project item of an issue, archived ones included, to find its Project #2 item */
+const PROJECT_ITEMS = `projectItems(first: ${PAGE_SIZE}, after: $projectItemsAfter, includeArchived: true) {
+  pageInfo { hasNextPage endCursor }
+  nodes { id isArchived project { url } ${FIELD_VALUES} }
+}`
+
+/** A Feature child outside the board, read by its issue identity as Feature evidence */
+const CHILD_EVIDENCE_QUERY = `query ($id: ID!, $timelineAfter: String, $childrenAfter: String, $projectItemsAfter: String) {
+  node(id: $id) { __typename ... on Issue { ${ISSUE_FIELDS} ${PROJECT_ITEMS} } }
+}`
+
+const PROJECT_ITEMS_QUERY = `query ($id: ID!, $projectItemsAfter: String) {
+  node(id: $id) { ... on Issue { ${PROJECT_ITEMS} } }
+}`
+
 const TIMELINE_QUERY = `query ($id: ID!, $timelineAfter: String) {
   node(id: $id) { ... on Issue { ${TIMELINE} } }
 }`
 
+type PageInfo = { hasNextPage: boolean; endCursor: string | null }
+/** A direct child link, with the issue identity that reads it as Feature evidence */
+type ChildIdentity = { id?: string; number: number }
 type TimelineEvent = {
   __typename: string
   createdAt?: string
@@ -78,7 +102,7 @@ type TimelineEvent = {
   currentTitle?: string
 }
 type Timeline = {
-  pageInfo: { hasNextPage: boolean; endCursor: string | null }
+  pageInfo: PageInfo
   nodes: TimelineEvent[]
 }
 /** A nested list read in a single page; totalCount tells whether anything was left out */
@@ -93,6 +117,13 @@ type FieldValue = {
 /** One project item as the GraphQL query returns it */
 export type RawItem = {
   id: string
+  /** Archived project items are read only as Feature evidence */
+  isArchived?: boolean
+  /**
+   * Set by the collector for a Feature child read by its issue identity.
+   * isOnProject is false when the issue has no Project #2 item.
+   */
+  childEvidence?: { isOnProject: boolean }
   fieldValues: SinglePage<FieldValue>
   content: {
     __typename: string
@@ -107,8 +138,8 @@ export type RawItem = {
     labels?: SinglePage<{ name: string }>
     subIssues?: {
       totalCount: number
-      nodes?: (IssueLink & { subIssues: { totalCount: number } })[]
-      pageInfo?: { hasNextPage: boolean; endCursor: string | null }
+      nodes?: (IssueLink & { id?: string; subIssues: { totalCount: number } })[]
+      pageInfo?: PageInfo
     }
     timelineItems?: Timeline
   } | null
@@ -181,6 +212,12 @@ function readStartDate(fields: FieldValue[], number: number): string | null {
   return date
 }
 
+function readEvidenceOnly(raw: RawItem): EvidenceOnly | null {
+  if (raw.childEvidence)
+    return raw.childEvidence.isOnProject ? "offBoard" : "offProject"
+  return raw.isArchived === true ? "archived" : null
+}
+
 function normaliseItem(raw: RawItem): BoardIssue | null {
   const issue = raw.content
   if (!issue || issue.__typename !== "Issue") return null
@@ -217,7 +254,10 @@ function normaliseItem(raw: RawItem): BoardIssue | null {
     (label) => label.name,
   )
 
+  const evidenceOnly = readEvidenceOnly(raw)
+
   return {
+    ...(evidenceOnly ? { evidenceOnly } : {}),
     issueNodeId: issue.id as string,
     number,
     title: issue.title as string,
@@ -267,14 +307,40 @@ function normaliseItem(raw: RawItem): BoardIssue | null {
   }
 }
 
+/**
+ * Archived project items stay out of the work-item population. Only archived
+ * Features and the children of a Feature are kept, as Feature evidence.
+ */
+function dropUnrelatedEvidence(issues: BoardIssue[]): BoardIssue[] {
+  const childUrls = new Set(
+    issues
+      .filter(isFeature)
+      .flatMap((feature) => (feature.children ?? []).map((child) => child.url)),
+  )
+  return issues.filter(
+    (issue) =>
+      !issue.evidenceOnly || isFeature(issue) || childUrls.has(issue.url),
+  )
+}
+
+const normaliseItems = (items: RawItem[]): BoardIssue[] =>
+  items
+    .map(normaliseItem)
+    .filter((issue): issue is BoardIssue => issue !== null)
+
 /** Turns project items into the board dataset. Throws on invalid or empty data. */
 export function normaliseBoard(
   items: RawItem[],
   observedAt: string,
 ): BoardDataset {
-  const normalised = items
-    .map(normaliseItem)
-    .filter((issue): issue is BoardIssue => issue !== null)
+  return buildDataset(normaliseItems(items), observedAt)
+}
+
+function buildDataset(
+  normalisedIssues: BoardIssue[],
+  observedAt: string,
+): BoardDataset {
+  const normalised = dropUnrelatedEvidence(normalisedIssues)
   const byIdentity = new Map<string, BoardIssue>()
   for (const issue of normalised) {
     const identity = issue.issueNodeId
@@ -287,8 +353,11 @@ export function normaliseBoard(
     }
     if (existing.number !== issue.number || existing.url !== issue.url)
       throw new Error(`Issue identity ${identity} refers to conflicting issues`)
+    // The normal board copy wins, so evidence never replaces work-item membership
+    const boardCopy =
+      existing.evidenceOnly && !issue.evidenceOnly ? issue : existing
     byIdentity.set(identity, {
-      ...existing,
+      ...boardCopy,
       previousTitles: [
         ...new Set([
           ...(existing.previousTitles ?? []),
@@ -312,6 +381,36 @@ type Options = {
 }
 
 type Query = (text: string, variables: Record<string, unknown>) => Promise<any>
+
+type GraphQLErrorEntry = { message: string; type?: string; path?: unknown[] }
+
+/** GraphQL errors in an otherwise answered request. The message is token-masked. */
+class GitHubGraphQLError extends Error {
+  readonly errors: GraphQLErrorEntry[]
+  readonly data: unknown
+
+  constructor(message: string, errors: GraphQLErrorEntry[], data: unknown) {
+    super(message)
+    this.errors = errors
+    this.data = data
+  }
+
+  /**
+   * GitHub answers an unknown or unreadable node id with `node: null` and a
+   * NOT_FOUND error on that path, and nothing else went wrong
+   */
+  isOnlyNodeNotFound(): boolean {
+    return (
+      (this.data as { node?: unknown } | null)?.node === null &&
+      this.errors.every(
+        (error) =>
+          error.type === "NOT_FOUND" &&
+          error.path?.length === 1 &&
+          error.path[0] === "node",
+      )
+    )
+  }
+}
 
 function createQuery(token: string, fetchImpl: typeof fetch): Query {
   const mask = (text: string) => text.replaceAll(token, "***")
@@ -338,13 +437,15 @@ function createQuery(token: string, fetchImpl: typeof fetch): Query {
     if (!response.ok) throw new Error(`GitHub API answered ${response.status}`)
     const body = (await response.json()) as {
       data?: unknown
-      errors?: { message: string }[]
+      errors?: GraphQLErrorEntry[]
     }
     if (body.errors?.length)
-      throw new Error(
+      throw new GitHubGraphQLError(
         mask(
           `GitHub GraphQL errors: ${body.errors.map((e) => e.message).join("; ")}`,
         ),
+        body.errors,
+        body.data ?? null,
       )
     return body.data
   }
@@ -446,6 +547,109 @@ async function completeChildren(query: Query, item: RawItem): Promise<void> {
     throw new Error(`Issue #${issue.number}: child retrieval is incomplete`)
 }
 
+type ProjectItem = {
+  id: string
+  isArchived: boolean
+  project: { url: string } | null
+  fieldValues: SinglePage<FieldValue>
+}
+type ProjectItems = {
+  pageInfo: PageInfo
+  nodes: ProjectItem[]
+}
+
+/** Reads every page of an issue's project items, or fails before publication */
+async function readAllProjectItems(
+  query: Query,
+  issue: { id: string; number: number; projectItems?: ProjectItems },
+): Promise<ProjectItem[]> {
+  const incomplete = () =>
+    fail(issue.number, "project item retrieval is incomplete")
+  let page = issue.projectItems
+  const items: ProjectItem[] = []
+  const seen = new Set<string>()
+  while (true) {
+    if (!page?.pageInfo || !Array.isArray(page.nodes)) return incomplete()
+    items.push(...page.nodes)
+    if (!page.pageInfo.hasNextPage) return items
+    const cursor = page.pageInfo.endCursor
+    if (!cursor || seen.has(cursor)) return incomplete()
+    seen.add(cursor)
+    const nextPage = await query(PROJECT_ITEMS_QUERY, {
+      id: issue.id,
+      projectItemsAfter: cursor,
+    })
+    page = nextPage?.node?.projectItems
+  }
+}
+
+/**
+ * Feature children that are neither on the board nor archived on it, with the
+ * issue identity used to read them as Feature evidence. Withdrawn Features are
+ * reported too (#64), so their children are read as well.
+ */
+function findMissingFeatureChildren(items: RawItem[], issues: BoardIssue[]) {
+  const present = new Set(issues.map((issue) => issue.url))
+  const features = new Set(issues.filter(isFeature).map((issue) => issue.url))
+  const missing = new Map<string, ChildIdentity>()
+  for (const item of items)
+    if (item.content?.url && features.has(item.content.url))
+      for (const child of item.content.subIssues?.nodes ?? [])
+        if (!present.has(child.url)) missing.set(child.url, child)
+  return [...missing.values()]
+}
+
+/**
+ * The child's issue node, or null when GitHub answers that it has no readable
+ * issue for that id. Every other GraphQL error still stops the refresh.
+ */
+async function readChildNode(query: Query, id: string) {
+  try {
+    return await query(CHILD_EVIDENCE_QUERY, {
+      id,
+      timelineAfter: null,
+      childrenAfter: null,
+      projectItemsAfter: null,
+    })
+  } catch (error) {
+    if (error instanceof GitHubGraphQLError && error.isOnlyNodeNotFound())
+      return { node: null }
+    throw error
+  }
+}
+
+/**
+ * A Feature child outside the board, or null when GitHub has no readable issue
+ * for it: a known missing fact the metrics show as a Feature data problem.
+ * Transport, other GraphQL and pagination failures still stop the refresh.
+ */
+async function readChildEvidence(
+  query: Query,
+  child: ChildIdentity,
+): Promise<RawItem | null> {
+  if (!child.id) return fail(child.number, "child identity is missing")
+  const childNode = await readChildNode(query, child.id)
+  if (!childNode || !("node" in childNode))
+    return fail(child.number, "child evidence could not be read")
+  if (childNode.node === null) return null
+  const { projectItems, ...issue } = childNode.node
+  if (issue.__typename !== "Issue")
+    return fail(child.number, "child evidence is not an issue")
+  const projectItem = (
+    await readAllProjectItems(query, { ...issue, projectItems })
+  ).find((item) => item.project?.url === PROJECT_URL)
+  const raw: RawItem = {
+    id: projectItem?.id ?? `${issue.id}:no-project-item`,
+    isArchived: projectItem?.isArchived ?? false,
+    childEvidence: { isOnProject: projectItem !== undefined },
+    fieldValues: projectItem?.fieldValues ?? { totalCount: 0, nodes: [] },
+    content: issue,
+  }
+  await completeTimeline(query, raw)
+  await completeChildren(query, raw)
+  return raw
+}
+
 export async function collectBoard({
   token,
   fetch: fetchImpl = fetch,
@@ -457,5 +661,10 @@ export async function collectBoard({
     await completeTimeline(query, item)
     await completeChildren(query, item)
   }
-  return normaliseBoard(items, now())
+  const issues = normaliseItems(items)
+  for (const child of findMissingFeatureChildren(items, issues)) {
+    const evidence = await readChildEvidence(query, child)
+    if (evidence) issues.push(...normaliseItems([evidence]))
+  }
+  return buildDataset(issues, now())
 }

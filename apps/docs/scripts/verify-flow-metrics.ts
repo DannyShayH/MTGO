@@ -14,14 +14,15 @@ import { dirname, resolve, sep } from "node:path"
 import { fileURLToPath } from "node:url"
 import { chromium, expect } from "@playwright/test"
 import { collectBoard } from "./board-collector.ts"
-import type { FlowMetrics } from "./flow-metrics.ts"
+import { calculateFlowMetrics, type FlowMetrics } from "./flow-metrics.ts"
 import {
   featureBoardItems,
-  featureBoardResponse,
   FEATURE_OBSERVED_AT,
   acceptedFeatureItems,
   withdrawnFeatureItems,
   ACCEPTANCE_OBSERVED_AT,
+  createFixtureFetch,
+  buildChildEvidenceNode,
 } from "./fixtures/feature-board.ts"
 
 // Build controlled responses in an isolated copy. Never read developer env files,
@@ -97,14 +98,9 @@ try {
     const dataset = await collectBoard({
       token: "fixture-token",
       now: () => FEATURE_OBSERVED_AT,
-      fetch: async () =>
-        new Response(
-          JSON.stringify(
-            featureBoardResponse(
-              featureBoardItems(scenario === "sample" ? "ongoing" : scenario),
-            ),
-          ),
-        ),
+      fetch: createFixtureFetch(
+        featureBoardItems(scenario === "sample" ? "ongoing" : scenario),
+      ),
     })
     if (scenario === "sample") dataset.source = "sample"
     mkdirSync(resolve(workspace, ".cache"), { recursive: true })
@@ -405,7 +401,33 @@ try {
       state: "Completed",
       days: 4,
     },
+    {
+      number: 211,
+      title: "Archived accepted delivery",
+      state: "Completed",
+      days: 4,
+    },
+    {
+      number: 212,
+      title: "Archived child without Start date",
+      state: "Not available",
+      days: null,
+    },
+    {
+      number: 213,
+      title: "Unreadable child",
+      state: "Not available",
+      days: null,
+    },
+    {
+      number: 214,
+      title: "Off-board child without Start date",
+      state: "Not available",
+      days: null,
+    },
   )
+  // Feature children outside the board, answered by issue id
+  const demoEvidence: Record<string, unknown> = {}
   const demoItems = demoCases.flatMap((example) => {
     const items = structuredClone(completionItems)
     for (const [index, item] of items.entries()) {
@@ -418,6 +440,7 @@ try {
     parent.title = `Feature: ${example.title}`
     parent.url = `https://github.com/DannyShayH/MTGO/issues/${example.number}`
     parent.subIssues!.nodes = items.slice(0, 2).map((raw) => ({
+      id: raw.content!.id,
       number: raw.content!.number!,
       title: raw.content!.title!,
       url: raw.content!.url!,
@@ -472,6 +495,26 @@ try {
       parent.body =
         "Scope decision: #2100 — removed — reason: duplicate discovery work"
     }
+    if (example.number === 211) for (const item of items) item.isArchived = true
+    if (example.number === 212) {
+      // An archived child that lost its Start date is still retrieved and named
+      const child = items[1]
+      child.isArchived = true
+      child.fieldValues.nodes.splice(1, 1)
+      child.fieldValues.totalCount = child.fieldValues.nodes.length
+    }
+    if (example.number === 213) {
+      // GitHub answers NOT_FOUND for the child, so it stays named as unavailable evidence
+      return [items[0], items[2]]
+    }
+    if (example.number === 214) {
+      // A child outside the board that lost its Start date is read by its issue id and named
+      const child = items[1]
+      child.fieldValues.nodes.splice(1, 1)
+      child.fieldValues.totalCount = child.fieldValues.nodes.length
+      demoEvidence[child.content!.id!] = buildChildEvidenceNode(child)
+      return [items[0], items[2]]
+    }
     return items
   })
   const withdrawalItems = withdrawnFeatureItems()
@@ -483,19 +526,11 @@ try {
     url: "https://github.com/DannyShayH/MTGO/issues/109",
     body: "",
   })
+  const acceptedBoardItems = [...demoItems, ...withdrawalItems, missingReason]
   const acceptedDataset = await collectBoard({
     token: "fixture-token",
     now: () => ACCEPTANCE_OBSERVED_AT,
-    fetch: async () =>
-      new Response(
-        JSON.stringify(
-          featureBoardResponse([
-            ...demoItems,
-            ...withdrawalItems,
-            missingReason,
-          ]),
-        ),
-      ),
+    fetch: createFixtureFetch(acceptedBoardItems, demoEvidence),
   })
   writeFileSync(
     resolve(workspace, ".cache/board.json"),
@@ -551,6 +586,71 @@ try {
   )
   await expect(page.locator("#feature-209")).toContainText(
     "Invalid reopen date",
+  )
+  // Archival keeps the reported interval, and archived evidence stays out of work items
+  await expect(page.locator("#feature-row-211")).toContainText("(archived)")
+  await expect(page.locator("#feature-row-211")).toContainText("2026-11-16")
+  await expect(page.locator("#feature-row-211")).toContainText("2026-11-20")
+  await expect(page.locator("#feature-211 table")).toContainText("(archived)")
+  await expect(
+    page
+      .getByRole("list", { name: "Feature 212 data problems" })
+      .getByRole("listitem")
+      .filter({ hasText: "Missing or invalid Start date" }),
+  ).toContainText("#2121 Delivered child work")
+  await expect(page.locator("#feature-212 table")).toContainText("(archived)")
+  await expect(
+    page
+      .getByRole("list", { name: "Feature 213 data problems" })
+      .getByRole("listitem")
+      .filter({ hasText: "Child board evidence is not available" }),
+  ).toContainText("#2131 Delivered child work")
+  await expect(page.locator("#feature-213 table")).toContainText("#2131")
+  await expect(
+    page
+      .getByRole("list", { name: "Feature 214 data problems" })
+      .getByRole("listitem")
+      .filter({ hasText: "Missing or invalid Start date" }),
+  ).toContainText("#2141 Delivered child work")
+  await expect(page.locator("#feature-214 table")).not.toContainText(
+    "(archived)",
+  )
+  // Feature evidence changes no work-item value: the published metrics equal
+  // those of the same board with the archived items and off-board children left out
+  const boardWithoutEvidence = await collectBoard({
+    token: "fixture-token",
+    now: () => ACCEPTANCE_OBSERVED_AT,
+    fetch: createFixtureFetch(
+      acceptedBoardItems.filter((item) => !item.isArchived),
+    ),
+  })
+  assert.deepEqual(
+    { ...acceptedMetrics, features: [] },
+    JSON.parse(
+      JSON.stringify({
+        ...calculateFlowMetrics(
+          boardWithoutEvidence,
+          boardWithoutEvidence.observedAt,
+        ),
+        features: [],
+      }),
+    ),
+  )
+  // A failed child read is not a missing fact: collection stops before publication
+  await assert.rejects(
+    collectBoard({
+      token: "fixture-token",
+      now: () => ACCEPTANCE_OBSERVED_AT,
+      fetch: async (url, init) => {
+        const { variables } = JSON.parse(String(init?.body))
+        if (variables.id === "ISSUE_2141")
+          return new Response(
+            JSON.stringify({ errors: [{ message: "Something went wrong" }] }),
+          )
+        return createFixtureFetch(acceptedBoardItems, demoEvidence)(url, init)
+      },
+    }),
+    /GraphQL errors/,
   )
   await expect(page.locator("#feature-row-210")).toContainText("1 removed")
   await expect(page.locator("#feature-210")).toContainText(
