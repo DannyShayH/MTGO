@@ -23,6 +23,11 @@ import {
   ACCEPTANCE_OBSERVED_AT,
   createFixtureFetch,
   buildChildEvidenceNode,
+  membershipEvent,
+  movedFeatureItems,
+  reattachedFeatureItems,
+  splitTimeline,
+  unlinkedFeatureItems,
 } from "./fixtures/feature-board.ts"
 
 // Build controlled responses in an isolated copy. Never read developer env files,
@@ -517,6 +522,75 @@ try {
     }
     return items
   })
+  // Moved, unlinked, reattached, unidentifiable and paginated former work (#66)
+  const membershipNumbers = (former: number, receiving = former + 1) => ({
+    moved: former * 10,
+    remaining: former * 10 + 1,
+    former,
+    receiving,
+  })
+  const missingHistory = unlinkedFeatureItems(membershipNumbers(219))
+  missingHistory[2].content!.timelineItems!.nodes[2] = membershipEvent(
+    "removed",
+    "2026-11-19T10:00:00Z",
+    null,
+  )
+  missingHistory[2].content!.body = null
+  // The earliest work's removal and later events sit on a second timeline page
+  const paginatedHistory = unlinkedFeatureItems(membershipNumbers(220))
+  const timelinePages = splitTimeline(
+    paginatedHistory[2],
+    2,
+    "membership-history-220",
+  )
+  const membershipItems = [
+    ...movedFeatureItems(membershipNumbers(215)),
+    ...unlinkedFeatureItems(membershipNumbers(217)),
+    ...reattachedFeatureItems(membershipNumbers(218)),
+    // The unidentifiable child is not on the board either
+    ...missingHistory.slice(1),
+    ...paginatedHistory,
+  ]
+  demoItems.push(...membershipItems)
+  demoCases.push(
+    { number: 215, title: "Moved earliest work", state: "Completed", days: 4 },
+    {
+      number: 216,
+      title: "Receiving late-linked work",
+      state: "Completed",
+      days: 4,
+    },
+    {
+      number: 217,
+      title: "Unlinked earliest work",
+      state: "Completed",
+      days: 4,
+    },
+    {
+      number: 218,
+      title: "Reattached earliest work",
+      state: "Completed",
+      days: 4,
+    },
+    {
+      number: 219,
+      title: "Unidentifiable former work",
+      state: "Not available",
+      days: null,
+    },
+    {
+      number: 220,
+      title: "Paginated membership history",
+      state: "Completed",
+      days: 4,
+    },
+  )
+  for (const example of demoCases.slice(-6)) {
+    const parent = membershipItems.find(
+      (item) => item.content!.number === example.number,
+    )!
+    parent.content!.title = `Feature: ${example.title}`
+  }
   const withdrawalItems = withdrawnFeatureItems()
   const missingReason = structuredClone(withdrawalItems[2])
   Object.assign(missingReason.content!, {
@@ -530,7 +604,7 @@ try {
   const acceptedDataset = await collectBoard({
     token: "fixture-token",
     now: () => ACCEPTANCE_OBSERVED_AT,
-    fetch: createFixtureFetch(acceptedBoardItems, demoEvidence),
+    fetch: createFixtureFetch(acceptedBoardItems, demoEvidence, timelinePages),
   })
   writeFileSync(
     resolve(workspace, ".cache/board.json"),
@@ -622,6 +696,8 @@ try {
     now: () => ACCEPTANCE_OBSERVED_AT,
     fetch: createFixtureFetch(
       acceptedBoardItems.filter((item) => !item.isArchived),
+      {},
+      timelinePages,
     ),
   })
   assert.deepEqual(
@@ -647,11 +723,82 @@ try {
           return new Response(
             JSON.stringify({ errors: [{ message: "Something went wrong" }] }),
           )
-        return createFixtureFetch(acceptedBoardItems, demoEvidence)(url, init)
+        return createFixtureFetch(
+          acceptedBoardItems,
+          demoEvidence,
+          timelinePages,
+        )(url, init)
       },
     }),
     /GraphQL errors/,
   )
+  // The former Feature keeps the moved child's start; the receiving one uses it too
+  for (const number of [215, 216, 217, 218])
+    await expect(page.locator(`#feature-row-${number}`)).toContainText(
+      "2026-11-16",
+    )
+  await expect(page.locator("#feature-row-215")).toContainText(
+    "1 of 1 required work items delivered; 1 removed or moved",
+  )
+  await expect(page.locator("#feature-215 table")).toContainText(
+    "Moved to #216",
+  )
+  await expect(
+    page.getByRole("list", { name: "Feature 215 removed scope reasons" }),
+  ).toHaveText("#2150 moved to #216: moved to the receiving capability")
+  await expect(
+    page.getByRole("list", { name: "Feature 217 removed scope reasons" }),
+  ).toHaveText("#2170 unlinked: discovery handled outside Features")
+  await expect(page.locator("#feature-row-218")).toContainText(
+    "2 of 2 required work items delivered",
+  )
+  await expect(
+    page
+      .getByRole("list", { name: "Feature 219 data problems" })
+      .getByRole("listitem"),
+  ).toContainText(
+    "A child removed on 2026-11-19 cannot be identified; Feature timing is not available",
+  )
+  await expect(page.locator("#feature-row-219")).not.toContainText("2026-11-19")
+  // The moved child is one work item, counted once
+  assert.equal(
+    acceptedMetrics.cycleTime.filter((item) => item.number === 2150).length,
+    1,
+  )
+  assert.equal(
+    acceptedMetrics.throughput
+      .flatMap((week) => week.workTypes.flatMap((type) => type.issues))
+      .filter((issue) => issue.number === 2150).length,
+    1,
+  )
+  // Membership history changes no unrelated work-item value: leaving the
+  // membership Features out removes exactly their own work items, once each
+  const boardWithoutMembership = await collectBoard({
+    token: "fixture-token",
+    now: () => ACCEPTANCE_OBSERVED_AT,
+    fetch: createFixtureFetch(
+      acceptedBoardItems.filter((item) => !membershipItems.includes(item)),
+      demoEvidence,
+    ),
+  })
+  const withoutMembership = calculateFlowMetrics(
+    boardWithoutMembership,
+    ACCEPTANCE_OBSERVED_AT,
+  )
+  const membershipWork = [2150, 2151, 2170, 2171, 2180, 2181, 2191, 2200, 2201]
+  assert.deepEqual(
+    acceptedMetrics.cycleTime
+      .map((item) => item.number)
+      .filter((number) => !membershipWork.includes(number)),
+    withoutMembership.cycleTime.map((item) => item.number),
+  )
+  const totalThroughput = (metrics: FlowMetrics) =>
+    metrics.throughput.reduce((sum, week) => sum + week.count, 0)
+  assert.equal(
+    totalThroughput(acceptedMetrics),
+    totalThroughput(withoutMembership) + membershipWork.length,
+  )
+  assert.equal(acceptedMetrics.wip.count, withoutMembership.wip.count)
   await expect(page.locator("#feature-row-210")).toContainText("1 removed")
   await expect(page.locator("#feature-210")).toContainText(
     "duplicate discovery work",
@@ -731,7 +878,7 @@ try {
     fullPage: true,
   })
   results.push({
-    scenario: "acceptance-reopening-and-withdrawal",
+    scenario: "acceptance-reopening-withdrawal-and-membership",
     source: acceptedMetrics.source,
     observedAt: acceptedMetrics.observedAt,
     wip: acceptedMetrics.wip.count,

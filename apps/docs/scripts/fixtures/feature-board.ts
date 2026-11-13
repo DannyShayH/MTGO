@@ -287,11 +287,25 @@ export function buildChildEvidenceNode(raw: RawItem) {
 export function createFixtureFetch(
   items: RawItem[],
   evidence: Record<string, unknown> = {},
+  timelinePages: Record<string, unknown[]> = {},
 ): typeof fetch {
   return async (_url, init) => {
     const { query, variables } = JSON.parse(String(init?.body))
     if (variables.id === undefined)
       return new Response(JSON.stringify(featureBoardResponse(items)))
+    if (variables.timelineAfter in timelinePages)
+      return new Response(
+        JSON.stringify({
+          data: {
+            node: {
+              timelineItems: {
+                nodes: timelinePages[variables.timelineAfter],
+                pageInfo: { hasNextPage: false, endCursor: null },
+              },
+            },
+          },
+        }),
+      )
     if (!String(query).includes("projectItems"))
       throw new Error(
         `fixtureFetch does not answer this query for ${variables.id}`,
@@ -313,4 +327,156 @@ export function createFixtureFetch(
       }),
     )
   }
+}
+
+/**
+ * Moves an issue's timeline events from `from` onwards to a later page that
+ * the collector reads with `cursor`. Pass the result to createFixtureFetch.
+ */
+export function splitTimeline(
+  raw: RawItem,
+  from: number,
+  cursor: string,
+): Record<string, unknown[]> {
+  const timeline = raw.content!.timelineItems!
+  const laterPage = timeline.nodes.splice(from)
+  timeline.pageInfo = { hasNextPage: true, endCursor: cursor }
+  return { [cursor]: laterPage }
+}
+
+const issueRef = (raw: RawItem) => ({
+  id: raw.content!.id!,
+  number: raw.content!.number!,
+  title: raw.content!.title!,
+  url: raw.content!.url!,
+})
+
+/** A native sub-issue addition or removal on a Feature's timeline. */
+export function membershipEvent(
+  change: "added" | "removed",
+  createdAt: string,
+  child: RawItem | null,
+) {
+  return {
+    __typename:
+      change === "added" ? "SubIssueAddedEvent" : "SubIssueRemovedEvent",
+    createdAt,
+    subIssue: child && issueRef(child),
+  }
+}
+
+const numbered = (raw: RawItem, number: number) => {
+  raw.id = `PVTI_${number}`
+  Object.assign(raw.content!, {
+    id: `ISSUE_${number}`,
+    number,
+    url: `https://github.com/DannyShayH/MTGO/issues/${number}`,
+  })
+  return raw
+}
+const parentLink = (raw: RawItem) => ({
+  number: raw.content!.number!,
+  title: raw.content!.title!,
+  url: raw.content!.url!,
+})
+const childNodes = (...children: RawItem[]) => ({
+  totalCount: children.length,
+  nodes: children.map((child) => ({
+    ...issueRef(child),
+    subIssues: { totalCount: 0 },
+  })),
+  pageInfo: { hasNextPage: false, endCursor: null },
+})
+
+/**
+ * The #66 move example: discovery (default #2) starts 16 November under the
+ * former Feature (#103), moves to the receiving Feature (#105) on 19 November
+ * and is delivered 20 November. The remaining child (#3) stays and is
+ * delivered 20 November. Both parents are accepted 23 November.
+ */
+export function movedFeatureItems({
+  moved: movedNumber = 2,
+  remaining: remainingNumber = 3,
+  former: formerNumber = 103,
+  receiving: receivingNumber = 105,
+} = {}): RawItem[] {
+  const [first, second, parent] = acceptedFeatureItems()
+  const moved = numbered(first, movedNumber)
+  const remaining = numbered(second, remainingNumber)
+  const former = numbered(parent, formerNumber)
+  moved.content!.closedAt = "2026-11-20T09:00:00Z"
+  moved.content!.timelineItems!.nodes = [
+    { __typename: "ClosedEvent", createdAt: "2026-11-20T09:00:00Z" },
+  ]
+  const receiving = numbered(structuredClone(former), receivingNumber)
+  Object.assign(receiving.content!, {
+    title: "Feature: Receiving capability",
+    body: null,
+    subIssues: childNodes(moved),
+  })
+  receiving.content!.timelineItems!.nodes.unshift(
+    membershipEvent("added", "2026-11-19T10:00:00Z", moved),
+  )
+  moved.content!.parent = parentLink(receiving)
+  remaining.content!.parent = parentLink(former)
+  Object.assign(former.content!, {
+    body: `Scope decision: #${movedNumber} — removed — reason: moved to the receiving capability`,
+    subIssues: childNodes(remaining),
+  })
+  former.content!.timelineItems!.nodes.unshift(
+    membershipEvent("added", "2026-11-10T09:00:00Z", moved),
+    membershipEvent("added", "2026-11-10T09:00:00Z", remaining),
+    membershipEvent("removed", "2026-11-19T10:00:00Z", moved),
+  )
+  return [moved, remaining, former, receiving]
+}
+
+/** The move example with the child unlinked instead: it has no parent now */
+export function unlinkedFeatureItems(
+  numbers: Parameters<typeof movedFeatureItems>[0] = {},
+): RawItem[] {
+  const [unlinked, remaining, former] = movedFeatureItems(numbers)
+  unlinked.content!.parent = null
+  former.content!.body = `Scope decision: #${unlinked.content!.number} — removed — reason: discovery handled outside Features`
+  return [unlinked, remaining, former]
+}
+
+/**
+ * The move example with the child moved on from the receiving Feature on
+ * 19 November at 12:00: to a further Feature (#107), or unlinked.
+ */
+export function movedOnFeatureItems(onwardTo: "further" | "none"): RawItem[] {
+  const [moved, remaining, former, receiving] = movedFeatureItems()
+  const further = numbered(structuredClone(receiving), 107)
+  receiving.content!.subIssues = childNodes()
+  receiving.content!.timelineItems!.nodes.push(
+    membershipEvent("removed", "2026-11-19T12:00:00Z", moved),
+  )
+  if (onwardTo === "none") {
+    moved.content!.parent = null
+    return [moved, remaining, former, receiving]
+  }
+  Object.assign(further.content!, { title: "Feature: Further capability" })
+  further.content!.timelineItems!.nodes = [
+    membershipEvent("added", "2026-11-19T12:00:00Z", moved),
+    ...further.content!.timelineItems!.nodes.filter(
+      (node) => !node.__typename.startsWith("SubIssue"),
+    ),
+  ]
+  moved.content!.parent = parentLink(further)
+  return [moved, remaining, former, receiving, further]
+}
+
+/** The move example with the child reattached to the former Feature */
+export function reattachedFeatureItems(
+  numbers: Parameters<typeof movedFeatureItems>[0] = {},
+): RawItem[] {
+  const [moved, remaining, former] = movedFeatureItems(numbers)
+  moved.content!.parent = parentLink(former)
+  former.content!.body = null
+  former.content!.subIssues = childNodes(moved, remaining)
+  former.content!.timelineItems!.nodes.push(
+    membershipEvent("added", "2026-11-19T11:00:00Z", moved),
+  )
+  return [moved, remaining, former]
 }

@@ -22,6 +22,10 @@ export type BoardIssue = {
   subIssueCount: number
   /** Current native direct children, absent in older datasets. */
   children?: (IssueLink & { subIssueCount: number })[]
+  /** The current native parent, null without one; absent in older datasets (#66) */
+  parent?: IssueLink | null
+  /** Native sub-issue additions and removals from the timeline, oldest first (#66) */
+  membershipChanges?: MembershipChange[]
   /** Set when the issue was retrieved only as Feature evidence (#65) */
   evidenceOnly?: EvidenceOnly
   state: "OPEN" | "CLOSED"
@@ -50,6 +54,61 @@ export type BoardDataset = {
 }
 
 export type IssueLink = Pick<BoardIssue, "number" | "title" | "url">
+
+/** A SubIssueAddedEvent or SubIssueRemovedEvent; child is null when GitHub cannot show it */
+export type MembershipChange = {
+  change: "added" | "removed"
+  at: string
+  child: (IssueLink & { id: string }) | null
+}
+
+/** A child that left the Feature: its latest membership event is a removal */
+type FormerChild = IssueLink & { id: string; leftAt: string }
+
+/**
+ * Former children reconstructed from retained sub-issue events (#66). A child
+ * that is a current child again, after a later reattachment, is not former.
+ */
+export function formerChildren(
+  feature: Pick<BoardIssue, "children" | "membershipChanges">,
+): FormerChild[] {
+  const current = new Set((feature.children ?? []).map((child) => child.url))
+  const latest = new Map<string, FormerChild & { change: string }>()
+  for (const { change, at, child } of feature.membershipChanges ?? [])
+    if (child) latest.set(child.url, { ...child, leftAt: at, change })
+  return [...latest.values()]
+    .filter((child) => child.change === "removed" && !current.has(child.url))
+    .map(({ change: _change, ...child }) => child)
+    .sort((a, b) => a.number - b.number)
+}
+
+/** GitHub records a parent change as a removal and an addition moments apart */
+const MOVE_TOLERANCE_MS = 60_000
+
+/**
+ * Where a child went when it left a Feature (#66): the first parent that
+ * recorded adding it from the removal onwards, not its parent today, so a
+ * later second move or unlink does not rewrite the first move. Null when no
+ * parent in the dataset recorded the addition.
+ */
+function moveDestinations(dataset: BoardDataset) {
+  const additions = new Map<string, { at: number; parent: IssueLink }[]>()
+  for (const parent of dataset.items)
+    for (const { change, at, child } of parent.membershipChanges ?? [])
+      if (change === "added" && child)
+        additions.set(child.url, [
+          ...(additions.get(child.url) ?? []),
+          { at: Date.parse(at), parent: issueLink(parent) },
+        ])
+  return (childUrl: string, fromUrl: string, leftAt: string) =>
+    (additions.get(childUrl) ?? [])
+      .filter(
+        ({ at, parent }) =>
+          parent.url !== fromUrl &&
+          at >= Date.parse(leftAt) - MOVE_TOLERANCE_MS,
+      )
+      .sort((a, b) => a.at - b.at)[0]?.parent ?? null
+}
 
 type ColumnIssue = IssueLink & Pick<BoardIssue, "priority" | "size">
 type Column = { count: number; limit: number; issues: ColumnIssue[] }
@@ -98,10 +157,20 @@ export type WipBreach = {
 
 export type FeatureChild = IssueLink & {
   isArchived: boolean
-  scope: "Required" | "Removed"
+  /**
+   * Required and Removed children are current children. Moved and Unlinked
+   * children left the Feature (#66): Moved ones now have another parent.
+   */
+  scope: "Required" | "Removed" | "Moved" | "Unlinked"
   removalReason: string | null
+  /** When a former child's latest removal was recorded, otherwise null */
+  leftAt: string | null
+  /** Where a moved child went when it left, from the recorded addition */
+  movedTo: IssueLink | null
   isWorkItem: boolean
-  timingState: "Available" | "Not started" | "Not available"
+  /** "Started after leaving": a former child started only after it left */
+  timingState:
+    "Available" | "Not started" | "Not available" | "Started after leaving"
   delivered: boolean
   reopened: boolean
   closeReason: BoardIssue["closeReason"]
@@ -121,7 +190,7 @@ export type FeatureObservation = IssueLink & {
     | "Ongoing"
     | "Not started"
     | "Not available"
-  timingState: FeatureChild["timingState"]
+  timingState: Exclude<FeatureChild["timingState"], "Started after leaving">
   withdrawalReason: string | null
   finishedAt: string | null
   acceptedAt: string | null
@@ -483,6 +552,7 @@ function observeFeatures(
 ): FeatureObservation[] {
   const today = copenhagenDate(observationTime)
   const byUrl = new Map(dataset.items.map((item) => [item.url, item]))
+  const moveDestination = moveDestinations(dataset)
   // Child evidence is not a Feature row; an archived Feature is (#65)
   return dataset.items
     .filter((item) => isFeature(item) && !isChildEvidence(item))
@@ -532,24 +602,63 @@ function observeFeatures(
         } else if (!ambiguousChildren.has(decision.childNumber))
           decisionsByChild.set(decision.childNumber, decision)
       }
+      const former = formerChildren(feature)
+      const unidentifiedRemovals = (feature.membershipChanges ?? []).filter(
+        (change) => change.change === "removed" && change.child === null,
+      )
+      for (const removal of unidentifiedRemovals)
+        problem(
+          feature,
+          `A child removed on ${copenhagenDate(removal.at)} cannot be identified; Feature timing is not available`,
+        )
       for (const decision of scope.decisions)
         if (
-          !feature.children?.some(
+          ![...(feature.children ?? []), ...former].some(
             (child) => child.number === decision.childNumber,
           )
         )
           problem(
             feature,
-            `Scope decision names child #${decision.childNumber}, which is not a direct child`,
+            `Scope decision names child #${decision.childNumber}, which is not a direct child, current or former`,
           )
-      const children = (feature.children ?? []).map((link): FeatureChild => {
+      const observeChild = (
+        link: IssueLink & { subIssueCount?: number },
+        leftAt: string | null,
+      ): FeatureChild => {
         const child = byUrl.get(link.url)
         const decision = decisionsByChild.get(link.number)
+        const isFormer = leftAt !== null
+        const movedTo = isFormer
+          ? (moveDestination(link.url, feature.url, leftAt) ??
+            (child?.parent && child.parent.url !== feature.url
+              ? issueLink(child.parent)
+              : null))
+          : null
+        // Out-of-scope children no longer decide required delivery
+        const isOutOfScope = decision !== undefined || isFormer
+        if (isFormer && !decision)
+          problem(
+            link,
+            `Left the Feature on ${copenhagenDate(leftAt)} without a Scope decision record; record why`,
+          )
+        if (isFormer && !child)
+          problem(
+            link,
+            "Former child evidence is not available; Feature timing is not available",
+          )
         const base: FeatureChild = {
           ...issueLink(link),
           isArchived: child?.evidenceOnly === "archived",
-          scope: decision ? "Removed" : "Required",
+          scope: isFormer
+            ? movedTo
+              ? "Moved"
+              : "Unlinked"
+            : decision
+              ? "Removed"
+              : "Required",
           removalReason: decision?.reason ?? null,
+          leftAt,
+          movedTo,
           isWorkItem: false,
           timingState: "Not available",
           delivered: false,
@@ -565,14 +674,16 @@ function observeFeatures(
           cycleDays: null,
         }
         const hasUnsupportedNesting =
-          !isWorkItem(link) || (child !== undefined && !isWorkItem(child))
+          !isWorkItem({ subIssueCount: 0, ...link }) ||
+          (child !== undefined && !isWorkItem(child))
         if (hasUnsupportedNesting) {
           problem(
             link,
             "Unsupported nesting: a Feature child must be a work item without children",
           )
         }
-        if (!child) problem(link, "Child board evidence is not available")
+        if (!child && !isFormer)
+          problem(link, "Child board evidence is not available")
         if (!child || hasUnsupportedNesting) return base
         if (child.state === "CLOSED" && child.closeReason === null)
           problem(
@@ -583,7 +694,7 @@ function observeFeatures(
         const invalidClose =
           child.state === "CLOSED" &&
           !observedTimestamp(child.closedAt, observationTime)
-        if (invalidClose && decision === undefined)
+        if (invalidClose && !isOutOfScope)
           problem(
             child,
             "Missing or invalid close date; Feature timing is not available",
@@ -600,24 +711,38 @@ function observeFeatures(
             (change) => isWip(change.to) || change.to === STATUS.done,
           )
         // ADR-0016: absent status/history cannot prove removed work never started.
-        const hasUnknownRemovedStart =
-          decision !== undefined &&
+        const hasUnknownOutOfScopeStart =
+          isOutOfScope &&
           child.status === STATUS.none &&
           child.startedAt === null
         if (
-          (started || child.startedAt !== null || hasUnknownRemovedStart) &&
+          (started || child.startedAt !== null || hasUnknownOutOfScopeStart) &&
           duration === null
         )
           problem(
             child,
             "Missing or invalid Start date; Feature timing is not available",
           )
-        if (child.evidenceOnly === "offProject" && decision === undefined)
+        // A former child that started only after leaving supplies no start (#66)
+        if (
+          isFormer &&
+          duration !== null &&
+          child.startedAt! > copenhagenDate(leftAt)
+        )
+          return {
+            ...base,
+            isWorkItem: true,
+            timingState: "Started after leaving",
+            delivered,
+            ageDays: child.state === "OPEN" ? duration : null,
+            cycleDays: delivered ? duration : null,
+          }
+        if (child.evidenceOnly === "offProject" && !isOutOfScope)
           problem(
             child,
             "Child is not on Project #2; its Status and Start date are not available",
           )
-        else if (child.status === STATUS.none && decision === undefined)
+        else if (child.status === STATUS.none && !isOutOfScope)
           problem(
             child,
             "Missing child status; Feature timing is not available",
@@ -625,36 +750,45 @@ function observeFeatures(
         return {
           ...base,
           isWorkItem: true,
-          timingState:
-            decision !== undefined
-              ? duration !== null
-                ? "Available"
-                : started || child.startedAt !== null || hasUnknownRemovedStart
-                  ? "Not available"
-                  : "Not started"
-              : child.status === STATUS.none || invalidClose
+          timingState: isOutOfScope
+            ? duration !== null
+              ? "Available"
+              : started || child.startedAt !== null || hasUnknownOutOfScopeStart
                 ? "Not available"
-                : duration !== null
-                  ? "Available"
-                  : started || child.startedAt !== null
-                    ? "Not available"
-                    : "Not started",
+                : "Not started"
+            : child.status === STATUS.none || invalidClose
+              ? "Not available"
+              : duration !== null
+                ? "Available"
+                : started || child.startedAt !== null
+                  ? "Not available"
+                  : "Not started",
           delivered,
           ageDays: child.state === "OPEN" ? duration : null,
           cycleDays: delivered ? duration : null,
         }
-      })
+      }
+      const current = (feature.children ?? []).map((link) =>
+        observeChild(link, null),
+      )
+      const children = [
+        ...current,
+        ...former.map((link) => observeChild(link, link.leftAt)),
+      ]
+      // A former child's actual start counts, unless it started after leaving
       const starts = children
+        .filter((child) => child.timingState !== "Started after leaving")
         .flatMap((child) => (child.startedAt ? [child.startedAt] : []))
         .sort((a, b) => a.localeCompare(b))
       const hasUnavailableTiming =
-        children.length !== feature.subIssueCount ||
+        current.length !== feature.subIssueCount ||
+        unidentifiedRemovals.length > 0 ||
         children.some(
           (child) => !child.isWorkItem || child.timingState === "Not available",
         )
       const startedAt = hasUnavailableTiming ? null : (starts[0] ?? null)
       const deliveryKnown =
-        children.length === feature.subIssueCount &&
+        current.length === feature.subIssueCount &&
         children
           .filter((child) => child.scope === "Required")
           .every(
@@ -781,7 +915,7 @@ function observeFeatures(
             ? daysSince(startedAt, today)
             : null,
         children,
-        removedChildren: children.filter((child) => child.scope === "Removed"),
+        removedChildren: children.filter((child) => child.scope !== "Required"),
         problems,
       }
     })

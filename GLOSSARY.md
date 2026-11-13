@@ -123,7 +123,7 @@ A demonstrable business capability represented by a parent issue whose eventual 
 _Avoid_: Work item, task (when referring to the capability)
 
 **Feature lead time**:
-The Copenhagen calendar days from the earliest Start date of a Feature's sub-issues, including discovery work items, to completion of its last required work item. Discussion only on the parent does not supply a start.
+The Copenhagen calendar days from the earliest Start date of a Feature's sub-issues, including discovery work items and former sub-issues that were moved or unlinked after they started, to completion of its last required work item. Discussion only on the parent does not supply a start.
 _Avoid_: Work item cycle time, time since the parent was created
 
 **Feature age**:

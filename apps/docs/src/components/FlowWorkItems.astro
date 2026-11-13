@@ -14,7 +14,7 @@ import type { IssueLink } from "../../scripts/flow-metrics.ts"
 {metrics.features.some((feature) => feature.children.length) && <section aria-label="Work item Features">
 <h2>Related Features</h2>
 <p>Current direct children link back to their ongoing Feature. Standalone work remains in the flow views below.</p>
-<ul>{metrics.features.flatMap((feature) => feature.children.filter((child) => child.isWorkItem).map((child) => <li><a href={child.url}>#{child.number} {child.title}</a> — <a href={flowUrl(`features/#feature-${feature.number}`)}>{feature.title}</a></li>))}</ul>
+<ul>{metrics.features.flatMap((feature) => feature.children.filter((child) => child.isWorkItem && (child.scope === "Required" || child.scope === "Removed")).map((child) => <li><a href={child.url}>#{child.number} {child.title}</a> — <a href={flowUrl(`features/#feature-${feature.number}`)}>{feature.title}</a></li>))}</ul>
 </section>}
 <h2 id="blocked">Blocked work items</h2>
 <p>Open work items with the <code>blocked</code> label. Blocked WIP is listed first.</p>
