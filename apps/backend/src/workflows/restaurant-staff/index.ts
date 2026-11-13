@@ -3,9 +3,11 @@ import {
   transform,
   WorkflowData,
   WorkflowResponse,
+  when,
 } from "@medusajs/framework/workflows-sdk"
 import {
   acquireLockStep,
+  emitEventStep,
   releaseLockStep,
   setAuthAppMetadataStep,
 } from "@medusajs/medusa/core-flows"
@@ -14,6 +16,13 @@ import {
   retrieveRestaurantDetailStep,
 } from "../restaurants/steps/read-restaurants"
 import { restaurantLock } from "../restaurants/restaurant-lock"
+import { changeRestaurantOpeningStep } from "../restaurants/steps/change-opening"
+import {
+  HistoryEntryInput,
+  recordRestaurantHistoryEntriesStep,
+} from "../restaurants/steps/history"
+import { RESTAURANT_CLOSED, RESTAURANT_OPENED } from "../restaurants"
+import { assertOwnRestaurantStep } from "./steps/own-restaurant"
 import {
   AuthorizedStaffInput,
   createAuthorizedStaffStep,
@@ -214,3 +223,62 @@ export const retrievePartnerRestaurantWorkflow = createWorkflow(
     })
   },
 )
+
+/**
+ * Opening and closing by staff share one shape (spec stories 49-52): under the
+ * Restaurant's lock, so revocation and deactivation cannot race them, the
+ * staff member is checked again, then the change is recorded with them as the
+ * actor and announced. Asking for the current state records and emits nothing.
+ */
+const changeRestaurantOpeningWorkflow = (isOpening: boolean) => {
+  const name = isOpening ? "open-restaurant" : "close-restaurant"
+  const eventName = isOpening ? RESTAURANT_OPENED : RESTAURANT_CLOSED
+  return createWorkflow(
+    name,
+    function (input: { restaurant_id: string; staff_id: string }) {
+      const lock = transform({ input }, ({ input }) =>
+        restaurantLock(input.restaurant_id),
+      )
+      acquireLockStep(lock)
+      const current = retrieveAuthorizedStaffStep({ staff_id: input.staff_id })
+      const scope = transform({ input, current }, ({ input, current }) => ({
+        id: input.restaurant_id,
+        staff_restaurant_id: current.restaurant.id,
+      }))
+      assertOwnRestaurantStep(scope)
+      const opening = changeRestaurantOpeningStep({
+        restaurant_id: input.restaurant_id,
+        is_opening: isOpening,
+      })
+      const history = transform(
+        { input, opening },
+        ({ input, opening }): { entries: HistoryEntryInput[] } => ({
+          entries: opening.kind
+            ? [
+                {
+                  restaurant_id: input.restaurant_id,
+                  kind: opening.kind,
+                  actor: { type: "restaurant_staff", id: input.staff_id },
+                },
+              ]
+            : [],
+        }),
+      )
+      when({ history }, ({ history }) => history.entries.length > 0).then(
+        () => {
+          recordRestaurantHistoryEntriesStep(history)
+          emitEventStep({ eventName, data: { id: input.restaurant_id } })
+        },
+      )
+      releaseLockStep(lock)
+      return new WorkflowResponse({
+        restaurant: retrievePartnerRestaurantStep(scope),
+      })
+    },
+  )
+}
+
+/** Staff open their active Restaurant; an inactive one is refused with restaurant_inactive_cannot_open. */
+export const openRestaurantWorkflow = changeRestaurantOpeningWorkflow(true)
+/** Staff close their Restaurant; operators close only by deactivating. */
+export const closeRestaurantWorkflow = changeRestaurantOpeningWorkflow(false)

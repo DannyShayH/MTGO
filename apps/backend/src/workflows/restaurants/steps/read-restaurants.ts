@@ -204,6 +204,17 @@ export const checkPickupAddressStep = createStep(
 )
 
 /**
+ * Staff act only on their own Restaurant. Any other answers NOT_FOUND, exactly
+ * as one that does not exist, so other Restaurants cannot be detected.
+ */
+export function assertOwnRestaurant(input: {
+  id: string
+  staff_restaurant_id: string
+}) {
+  if (input.id !== input.staff_restaurant_id) throw restaurantNotFound()
+}
+
+/**
  * What staff see of their own Restaurant: its details read-only, the delivery
  * area and participation. Any other Restaurant answers NOT_FOUND, exactly as
  * one that does not exist, so other Restaurants cannot be detected.
@@ -211,7 +222,7 @@ export const checkPickupAddressStep = createStep(
 export const retrievePartnerRestaurantStep = createStep(
   "retrieve-partner-restaurant",
   async (input: { id: string; staff_restaurant_id: string }, { container }) => {
-    if (input.id !== input.staff_restaurant_id) throw restaurantNotFound()
+    assertOwnRestaurant(input)
     const [record] = await container
       .resolve<RestaurantModuleService>(RESTAURANT_MODULE)
       .listRestaurants(

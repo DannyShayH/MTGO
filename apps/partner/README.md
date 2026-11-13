@@ -40,11 +40,32 @@ English text comes from `@dtc/i18n`.
   retry after a failed accept signs in with the already registered login
   instead. Any unusable link shows "This invitation is no longer valid. Ask
   MTOGO for a new one." without saying why.
-- **Dashboard.** A sidebar with only Overview. The Overview shows the
-  participation status ("Awaiting activation by MTOGO" or Active) and the
-  Restaurant details card, read-only: pickup address, phone, email and the
-  delivery area with town names, from `GET /partner/restaurants/{id}`. Later
-  Features add their tools to the sidebar.
+- **Dashboard.** A sidebar with only Overview; on phones it sits on top as a
+  compact bar. Controls are 44px high for touch (coarse pointers) and compact
+  with a mouse. The Overview has three cards, all from
+  `GET /partner/restaurants/{id}`:
+  - **Status:** the Restaurant's name with its participation badge
+    ("Awaiting activation by MTOGO" or Active), and one panel with "Open" or
+    "Closed" in large type, the Receiving new Orders sentence ("Receiving new
+    Orders", or "Not receiving new Orders, because ..." with the reason the
+    backend reports) and the switch. The whole panel is the tap target. Its
+    colour follows what Customers experience: the success pair while
+    receiving, neutral while closed, the warning pair while inactive.
+  - **Details,** read-only: pickup address, phone and email.
+  - **Delivery area,** read-only, by town in postal-code order, with a
+    summary such as "215 postal codes in 3 towns". A town with up to three
+    codes lists them; a town with more (København K has 213) shows its count
+    and opens to all of them. Later Features add their tools to the sidebar.
+- **Opening and closing.** While the Restaurant is inactive the switch is
+  disabled and described by "You can open the Restaurant once MTOGO has
+  activated it." The switch calls `POST /partner/restaurants/{id}/open` or
+  `close` from a server action for the signed-in staff member's own
+  Restaurant. It moves at once while the change is sent, then the Overview is
+  read again whether the change succeeded or not, so the switch always ends on
+  the real state. A refusal (`400`, `restaurant_inactive_cannot_open`, for
+  example after an operator deactivated the Restaurant) shows its message next
+  to it; any other failure shows the retry message. A revoked or expired
+  session ends as on any other page.
 
 ## Run it
 
@@ -77,7 +98,9 @@ details and participation, and sees the used and unknown links refused. The
 revocation journey invites a staff member to a new Restaurant, accepts, revokes
 them in Admin after the last-staff warning, and sees the next click and a new
 sign-in end with the access-ended message naming the Restaurant, in Danish and
-English. Its report is in
+English. The opening journey sees the switch disabled while inactive, opens and
+closes after activation with Admin showing the same status and History, and
+sees a stale open attempt refused after deactivation. Its report is in
 `apps/partner/playwright-report`.
 
 The sign-in failure tests start a separate production partner app with a local

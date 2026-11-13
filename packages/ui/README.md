@@ -30,7 +30,11 @@ cd packages/ui && npm test
 ```
 
 `assets/` holds the logo as SVG and PNG: `mtogo-logo` (square, also the
-favicon) and `mtogo-logo-wide` (headers). The apps serve a copy of the wide SVG
-from `public/images/` and the square one as `src/app/icon.svg`.
+favicon) and `mtogo-logo-wide` (headers). The storefront serves a copy of the
+wide SVG from `public/images/`, and each app serves the square one as
+`src/app/icon.svg`. `mtogo-partner-logo` (SVG only) is the partner app's
+lockup: the unchanged wordmark and "PARTNER" in Inter 600, outlined as paths,
+on one `brand-logo` tile. The partner app serves a copy from `public/images/`
+and shows it alone, with no app name beside it.
 
 Packages never import apps (`npm run arch`).

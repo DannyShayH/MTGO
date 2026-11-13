@@ -102,9 +102,13 @@ test.describe("with a Danish browser", () => {
     ).toBeVisible()
     await expect(details.getByText("+45 12 34 56 78")).toBeVisible()
     await expect(details.getByText("kontakt@pizzeria.example")).toBeVisible()
+    // The delivery area is listed by town, with each town's codes.
+    const area = page
+      .getByRole("region", { name: "Leveringsområde" })
+      .getByRole("list", { name: "Leveringsområde" })
     await expect(
-      details.getByRole("list", { name: "Leveringsområde" }),
-    ).toContainText("2200 København N")
+      area.getByRole("listitem").filter({ hasText: "København N" }),
+    ).toContainText("2200")
     // Read-only: staff cannot change their Restaurant's details.
     await expect(details.getByRole("textbox")).toHaveCount(0)
     await testInfo.attach("partner-overview-after-invitation", {

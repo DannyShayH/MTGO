@@ -4,6 +4,48 @@ describe("Restaurant new-Order eligibility", () => {
   it.each([
     {
       active: false,
+      open: false,
+      codes: ["2200"],
+      destination: "2200",
+      reason: "E1: an inactive Restaurant receives no new Order",
+      expected: "restaurant_inactive",
+    },
+    {
+      active: true,
+      open: false,
+      codes: ["2200"],
+      destination: "2200",
+      reason: "E2: an active, closed Restaurant receives no new Order",
+      expected: "restaurant_closed",
+    },
+    {
+      active: true,
+      open: true,
+      codes: ["2200"],
+      destination: "8000",
+      reason: "E3: no new Order for a destination outside the delivery area",
+      expected: "destination_not_served",
+    },
+    {
+      active: true,
+      open: true,
+      codes: ["2200"],
+      destination: "2200",
+      reason:
+        "E4: an active, open Restaurant serving the destination receives it",
+      expected: null,
+    },
+    {
+      active: false,
+      open: false,
+      codes: [],
+      destination: undefined,
+      reason:
+        "without a destination: inactive precedes closed and a missing delivery area",
+      expected: "restaurant_inactive",
+    },
+    {
+      active: false,
       open: true,
       codes: ["2200"],
       destination: "2200",

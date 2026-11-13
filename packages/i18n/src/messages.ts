@@ -12,6 +12,11 @@ export type MessageCode =
   | "unknown_error"
   | "invitation_invalid"
   | "password_too_short"
+  | "restaurant_inactive_cannot_open"
+  | "restaurant_inactive"
+  | "restaurant_closed"
+  | "delivery_area_missing"
+  | "destination_not_served"
 
 export type Messages = {
   text: {
@@ -33,9 +38,16 @@ export type Messages = {
     choose_password: string
     password_hint: string
     accept_invitation: string
-    participation: string
     awaiting_activation: string
     active: string
+    open: string
+    closed: string
+    /** The accessible name of the Open/Closed switch. */
+    restaurant_open: string
+    open_requires_activation: string
+    receiving_yes: string
+    /** {reason} is one of the eligibility reason codes' texts. */
+    receiving_no_because: string
     restaurant_details: string
     details_read_only: string
     pickup_address: string
@@ -43,6 +55,12 @@ export type Messages = {
     contact_email: string
     delivery_area: string
     no_delivery_area: string
+    /** {codes} and {towns} are the counts below, already formatted. */
+    delivery_area_summary: string
+    postal_codes_one: string
+    postal_codes_other: string
+    towns_one: string
+    towns_other: string
     /** Stands in for the Restaurant's name when the access-ended message does not know it. */
     former_restaurant: string
   }
@@ -77,9 +95,15 @@ export const MESSAGES: Record<Locale, Messages> = {
       choose_password: "Vælg adgangskode",
       password_hint: "Mindst {min} tegn.",
       accept_invitation: "Accepter og log ind",
-      participation: "Deltagelse",
       awaiting_activation: "Afventer aktivering af MTOGO",
       active: "Aktiv",
+      open: "Åben",
+      closed: "Lukket",
+      restaurant_open: "Restauranten er åben",
+      open_requires_activation:
+        "Du kan åbne restauranten, når MTOGO har aktiveret den.",
+      receiving_yes: "Modtager nye bestillinger",
+      receiving_no_because: "Modtager ikke nye bestillinger, fordi {reason}",
       restaurant_details: "Restaurantens oplysninger",
       details_read_only:
         "Kun MTOGO kan ændre oplysningerne. Kontakt MTOGO, hvis noget er forkert.",
@@ -88,6 +112,11 @@ export const MESSAGES: Record<Locale, Messages> = {
       contact_email: "E-mail",
       delivery_area: "Leveringsområde",
       no_delivery_area: "Intet leveringsområde endnu.",
+      delivery_area_summary: "{codes} i {towns}",
+      postal_codes_one: "{count} postnummer",
+      postal_codes_other: "{count} postnumre",
+      towns_one: "{count} by",
+      towns_other: "{count} byer",
       former_restaurant: "restauranten",
     },
     codes: {
@@ -100,6 +129,12 @@ export const MESSAGES: Record<Locale, Messages> = {
       invitation_invalid:
         "Denne invitation er ikke længere gyldig. Bed MTOGO om en ny.",
       password_too_short: "Adgangskoden skal have mindst {min} tegn.",
+      restaurant_inactive_cannot_open:
+        "Restauranten kan ikke åbnes, før MTOGO har aktiveret den.",
+      restaurant_inactive: "restauranten ikke er aktiv",
+      restaurant_closed: "restauranten er lukket",
+      delivery_area_missing: "der ikke er noget leveringsområde",
+      destination_not_served: "der ikke leveres til adressen",
     },
   },
   en: {
@@ -123,9 +158,15 @@ export const MESSAGES: Record<Locale, Messages> = {
       choose_password: "Choose a password",
       password_hint: "At least {min} characters.",
       accept_invitation: "Accept and sign in",
-      participation: "Participation",
       awaiting_activation: "Awaiting activation by MTOGO",
       active: "Active",
+      open: "Open",
+      closed: "Closed",
+      restaurant_open: "Restaurant is open",
+      open_requires_activation:
+        "You can open the Restaurant once MTOGO has activated it.",
+      receiving_yes: "Receiving new Orders",
+      receiving_no_because: "Not receiving new Orders, because {reason}",
       restaurant_details: "Restaurant details",
       details_read_only:
         "Only MTOGO can change these details. Contact MTOGO if something is wrong.",
@@ -134,6 +175,11 @@ export const MESSAGES: Record<Locale, Messages> = {
       contact_email: "Email",
       delivery_area: "Delivery area",
       no_delivery_area: "No delivery area yet.",
+      delivery_area_summary: "{codes} in {towns}",
+      postal_codes_one: "{count} postal code",
+      postal_codes_other: "{count} postal codes",
+      towns_one: "{count} town",
+      towns_other: "{count} towns",
       former_restaurant: "the Restaurant",
     },
     codes: {
@@ -146,6 +192,12 @@ export const MESSAGES: Record<Locale, Messages> = {
       invitation_invalid:
         "This invitation is no longer valid. Ask MTOGO for a new one.",
       password_too_short: "The password must have at least {min} characters.",
+      restaurant_inactive_cannot_open:
+        "The Restaurant cannot open until MTOGO has activated it.",
+      restaurant_inactive: "the Restaurant is not active",
+      restaurant_closed: "the Restaurant is closed",
+      delivery_area_missing: "there is no delivery area",
+      destination_not_served: "the address is not served",
     },
   },
 }
