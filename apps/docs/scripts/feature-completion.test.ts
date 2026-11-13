@@ -47,6 +47,139 @@ describe("accepted Feature lead time", () => {
       acceptedAt: null,
     })
   })
+
+  it.each([
+    { reason: "DT: removed abandoned work is not delivered", delivered: false },
+    {
+      reason: "DT: removed delivered work retains delivery history",
+      delivered: true,
+    },
+  ])(
+    "preserves the original start after removal: $reason",
+    async ({ delivered }) => {
+      const items = acceptedFeatureItems()
+      const removed = items[0].content!
+      Object.assign(removed, {
+        stateReason: delivered ? "COMPLETED" : "NOT_PLANNED",
+        closedAt: "2026-11-17T12:00:00Z",
+      })
+      items[2].content!.body =
+        "Scope decision: #2 — removed — reason: duplicate discovery work"
+
+      expect(await observe(items)).toMatchObject({
+        state: "Completed",
+        startedAt: "2026-11-16",
+        finishedAt: "2026-11-20",
+        leadTimeDays: 4,
+        requiredCount: 1,
+        deliveredCount: 1,
+        removedChildren: [
+          expect.objectContaining({
+            number: 2,
+            scope: "Removed",
+            removalReason: "duplicate discovery work",
+            delivered,
+            closeReason: delivered ? "COMPLETED" : "NOT_PLANNED",
+            startedAt: "2026-11-16",
+          }),
+        ],
+        problems: [],
+      })
+    },
+  )
+
+  it.each([
+    {
+      reason: "EP: missing removal reason and unknown child",
+      body: "Scope decision: #2 — removed\nScope decision: #999 — removed — reason: missing child",
+      unknownChild: true,
+    },
+    {
+      reason: "DT: two valid removal records for the same child",
+      body: "Scope decision: #2 — removed — reason: duplicate work\nScope decision: #2 — removed — reason: superseded",
+      unknownChild: false,
+    },
+    {
+      reason: "DT: removal followed by a conflicting decision",
+      body: "Scope decision: #2 — removed — reason: duplicate work\nScope decision: #2 — retained — reason: still required",
+      unknownChild: false,
+    },
+    {
+      reason: "DT: conflicting decision followed by removal",
+      body: "Scope decision: #2 — retained — reason: still required\nScope decision: #2 — removed — reason: duplicate work",
+      unknownChild: false,
+    },
+    {
+      reason: "DT: valid removal and a second record missing its reason",
+      body: "Scope decision: #2 — removed — reason: duplicate work\nScope decision: #2 — removed",
+      unknownChild: false,
+    },
+  ])(
+    "keeps ambiguous scope required: $reason",
+    async ({ body, unknownChild }) => {
+      const items = acceptedFeatureItems()
+      items[2].content!.body = body
+      const feature = await observe(items)
+      expect(feature.requiredCount).toBe(2)
+      expect(feature.removedChildren).toEqual([])
+      expect(feature.problems).toContainEqual(
+        expect.objectContaining({
+          problem: expect.stringMatching(/ambiguous/i),
+        }),
+      )
+      if (unknownChild)
+        expect(feature.problems).toContainEqual(
+          expect.objectContaining({
+            problem: expect.stringMatching(/not a direct child/i),
+          }),
+        )
+    },
+  )
+
+  it.each([
+    {
+      reason: "DT: delivered child missing Start",
+      abandoned: false,
+      missingStatus: false,
+    },
+    {
+      reason: "DT: abandoned child with Done status missing Start",
+      abandoned: true,
+      missingStatus: false,
+    },
+    {
+      reason: "DT: abandoned child with unknown status and Start",
+      abandoned: true,
+      missingStatus: true,
+    },
+  ])(
+    "withholds timing for removed work: $reason",
+    async ({ abandoned, missingStatus }) => {
+      const items = acceptedFeatureItems()
+      items[0].fieldValues.nodes = items[0].fieldValues.nodes.filter(
+        (field) =>
+          field.field?.name !== "Start date" &&
+          (!missingStatus || field.field?.name !== "Status"),
+      )
+      if (abandoned) items[0].content!.stateReason = "NOT_PLANNED"
+      items[0].fieldValues.totalCount = items[0].fieldValues.nodes.length
+      items[2].content!.body =
+        "Scope decision: #2 — removed — reason: missing historical evidence"
+
+      const feature = await observe(items)
+      expect(feature).toMatchObject({
+        state: "Not available",
+        startedAt: null,
+        leadTimeDays: null,
+      })
+      expect(feature.problems).toContainEqual(
+        expect.objectContaining({
+          number: 2,
+          problem: expect.stringMatching(/Start date/i),
+        }),
+      )
+    },
+  )
 })
 
 it.each([
