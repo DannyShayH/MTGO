@@ -393,3 +393,86 @@ test("operator sees activation refused without a menu, seeds the menu and activa
     contentType: "image/png",
   })
 })
+
+test("operator is refused emptying an active Restaurant, deactivates it with a reason and reactivates it Closed", async ({
+  page,
+  request,
+}, testInfo) => {
+  expect(process.env.E2E_DISPOSABLE).toBe("1")
+  test.setTimeout(180_000)
+  const errors: string[] = []
+  page.on("pageerror", (error) => errors.push(error.message))
+  const backend = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL!
+  const restaurant = await restaurantWithoutMenu(request, randomUUID())
+  execFileSync(
+    "npm",
+    [
+      "exec",
+      "--no",
+      "--",
+      "medusa",
+      "exec",
+      "./src/scripts/seed-demo-menu.ts",
+      restaurant.id,
+    ],
+    { cwd: resolve(process.cwd(), "../backend"), stdio: "inherit" },
+  )
+  await page.goto(`${backend}/app/login`)
+  await page
+    .getByPlaceholder("Email", { exact: true })
+    .fill(process.env.E2E_ADMIN_EMAIL!)
+  await page
+    .getByPlaceholder("Password", { exact: true })
+    .fill(process.env.E2E_ADMIN_PASSWORD!)
+  await page.getByRole("button", { name: "Continue with email" }).click()
+  await expect(page).not.toHaveURL(/\/login/)
+  await page.goto(`${backend}/app/restaurants/${restaurant.id}`)
+  await page.getByRole("button", { name: "Activate", exact: true }).click()
+  await expect(page.getByText("Active · Closed")).toBeVisible()
+
+  await page.getByRole("button", { name: "Remove København N" }).click()
+  await expect(
+    page.getByText("An active Restaurant must keep at least one postal code."),
+  ).toBeVisible()
+  await page.getByRole("button", { name: "Remove agreement" }).click()
+  await page.getByRole("button", { name: "Remove", exact: true }).click()
+  await expect(
+    page.getByText("An active Restaurant must keep its commercial terms."),
+  ).toBeVisible()
+  await page.reload()
+  await expect(
+    page.getByRole("list", { name: "Delivery area towns" }),
+  ).toContainText("København N")
+  await expect(
+    page.getByRole("button", { name: "Remove agreement" }),
+  ).toBeVisible()
+
+  await page.getByRole("button", { name: "Deactivate", exact: true }).click()
+  const modal = page.getByRole("dialog")
+  await modal.getByRole("button", { name: "Deactivate", exact: true }).click()
+  await expect(
+    modal.getByText("Enter a reason for the deactivation."),
+  ).toBeVisible()
+  await modal.getByLabel("Reason").fill("Hygiene inspection pending")
+  await modal.getByRole("button", { name: "Deactivate", exact: true }).click()
+  await expect(page.getByText("Inactive · Closed")).toBeVisible()
+  const history = page.getByRole("list", { name: "Restaurant history" })
+  await expect(history.getByRole("listitem").first()).toContainText(
+    `Deactivated by ${process.env.E2E_ADMIN_EMAIL}`,
+  )
+  await expect(history.getByRole("listitem").first()).toContainText(
+    "Hygiene inspection pending",
+  )
+
+  await page.getByRole("button", { name: "Activate", exact: true }).click()
+  await expect(page.getByText("Active · Closed")).toBeVisible()
+  await expect(history.getByRole("listitem")).toHaveCount(3)
+  await expect(history.getByRole("listitem").first()).toContainText(
+    "Activated by",
+  )
+  expect(errors).toEqual([])
+  await testInfo.attach("restaurant-deactivation", {
+    body: await page.screenshot({ fullPage: true }),
+    contentType: "image/png",
+  })
+})

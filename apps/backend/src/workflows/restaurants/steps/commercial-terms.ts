@@ -2,7 +2,11 @@ import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
 import RestaurantModuleService from "../../../modules/restaurant/service"
 import { RESTAURANT_MODULE } from "../../../modules/restaurant"
 import { TermsVersion } from "../commercial-terms"
-import { assertRestaurantExists } from "./restaurant-exists"
+import { notAllowedWhileActive } from "../participation"
+import {
+  assertRestaurantExists,
+  readParticipationOrThrow,
+} from "./restaurant-exists"
 
 const findAgreements = (service: RestaurantModuleService, id: string) =>
   service.listCommercialTermsAgreements(
@@ -40,13 +44,21 @@ export const recordCommercialTermsStep = createStep(
   },
 )
 
-/** Soft-deletes the current agreement so the record of who agreed when is kept (ADR-0014). */
+/**
+ * Soft-deletes the current agreement so the record of who agreed when is kept
+ * (ADR-0014). An active Restaurant always keeps agreed terms (spec story 15).
+ */
 export const removeCommercialTermsStep = createStep(
   "remove-commercial-terms",
   async (input: { restaurant_id: string }, { container }) => {
     const service =
       container.resolve<RestaurantModuleService>(RESTAURANT_MODULE)
-    await assertRestaurantExists(service, input.restaurant_id)
+    const { is_active } = await readParticipationOrThrow(
+      service,
+      input.restaurant_id,
+    )
+    if (is_active)
+      throw notAllowedWhileActive("commercial_terms_required_while_active")
     const ids = (await findAgreements(service, input.restaurant_id)).map(
       ({ id }) => id,
     )

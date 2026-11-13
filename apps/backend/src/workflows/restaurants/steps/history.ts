@@ -35,28 +35,40 @@ async function actorName(container: MedusaContainer, actor: HistoryActor) {
   return fullName || user?.email || actor.id
 }
 
-/** Appends one entry (ADR-0014). Compensation removes it again, because the change it records was undone. */
-export const recordRestaurantHistoryEntryStep = createStep(
-  "record-restaurant-history-entry",
-  async (input: HistoryEntryInput, { container }) => {
-    const entry = await container
-      .resolve<RestaurantModuleService>(RESTAURANT_MODULE)
-      .createRestaurantHistoryEntries({
-        restaurant_id: input.restaurant_id,
-        kind: input.kind,
-        occurred_at: new Date(),
-        actor_type: input.actor.type,
-        actor_id: input.actor.id,
-        actor_name: await actorName(container, input.actor),
-        reason: input.reason ?? null,
-      })
-    return new StepResponse(undefined, entry.id)
+/**
+ * Appends entries in the given order (ADR-0014). Entries recorded together are
+ * one millisecond apart, so newest first keeps that order. Compensation
+ * removes them again, because the change they record was undone.
+ */
+export const recordRestaurantHistoryEntriesStep = createStep(
+  "record-restaurant-history-entries",
+  async (input: { entries: HistoryEntryInput[] }, { container }) => {
+    const service =
+      container.resolve<RestaurantModuleService>(RESTAURANT_MODULE)
+    const now = Date.now()
+    const entries = await service.createRestaurantHistoryEntries(
+      await Promise.all(
+        input.entries.map(async (entry, index) => ({
+          restaurant_id: entry.restaurant_id,
+          kind: entry.kind,
+          occurred_at: new Date(now + index),
+          actor_type: entry.actor.type,
+          actor_id: entry.actor.id,
+          actor_name: await actorName(container, entry.actor),
+          reason: entry.reason ?? null,
+        })),
+      ),
+    )
+    return new StepResponse(
+      undefined,
+      entries.map(({ id }) => id),
+    )
   },
-  async (entryId, { container }) => {
-    if (entryId)
+  async (entryIds, { container }) => {
+    if (entryIds?.length)
       await container
         .resolve<RestaurantModuleService>(RESTAURANT_MODULE)
-        .deleteRestaurantHistoryEntries(entryId)
+        .deleteRestaurantHistoryEntries(entryIds)
   },
 )
 

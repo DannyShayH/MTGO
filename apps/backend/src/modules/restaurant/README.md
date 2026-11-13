@@ -24,7 +24,7 @@ under `src/workflows/restaurants` own registration, edits, duplicate warnings,
 the delivery area and the commercial terms. API routes and Admin never mutate the
 module directly. Every mutation step has compensation, and each delivery-area or
 terms change takes a lock on `restaurant:<id>` so the guards for active
-Restaurants (#78) cannot race it. Menus, deactivation and opening belong to
+Restaurants cannot race activation or deactivation. Menus and opening belong to
 later slices.
 
 The module link `src/links/restaurant-product.ts` connects a Restaurant to a list
@@ -168,10 +168,38 @@ later failure in the same workflow makes the Restaurant inactive again and
 removes the entry, because the change it records never took effect. Committed
 entries are never changed or deleted.
 
-History entries are appended by `recordRestaurantHistoryEntryStep`, which snapshots the
-actor's name: an operator's first and last name, or their email when Admin has
-no name for them, and a staff member's name. `listRestaurantHistoryWorkflow`
-lists them newest first.
+## Deactivation and reactivation
+
+`deactivateRestaurantWorkflow` takes the `restaurant:<id>` lock, so it cannot
+race opening or a setup change. The reason is required: the route refuses a
+missing, empty or blank one with `deactivation_reason_required`
+(`INVALID_DATA`). It sets `is_active` and `is_open` to false, records
+`deactivated` with the operator and the reason, and emits
+`restaurant.deactivated` (`{ id }`), plus `restaurant.closed` when it was open.
+The pure `planDeactivationHistory` rule decides
+what is recorded: an open Restaurant records `closed` (operator as actor, no
+reason) before `deactivated`, so newest first shows the deactivation on top; an
+inactive one records nothing and emits nothing. Compensation restores the
+previous `is_active` and `is_open`.
+
+Reactivation is activation again: `activateRestaurantWorkflow` checks every
+requirement and leaves the Restaurant Closed.
+
+While a Restaurant is active, two setup changes are refused with `NOT_ALLOWED`,
+read under the same lock:
+
+- a delivery-area change that leaves no postal code (the pure
+  `emptiesActiveDeliveryArea` rule): `last_postal_code_while_active`. Replacing
+  every code in one batch is allowed.
+- removing the commercial terms: `commercial_terms_required_while_active`.
+
+## History
+
+History entries are appended by `recordRestaurantHistoryEntriesStep`, which
+snapshots the actor's name: an operator's first and last name, or their email
+when Admin has no name for them, and a staff member's name. Entries recorded
+together get `occurred_at` one millisecond apart, so newest first keeps their
+order. `listRestaurantHistoryWorkflow` lists them newest first.
 
 `COMMON_MVP_TERMS_V1` holds the terms shown read-only in Admin (ADR-0006):
 marginal commission of 6% up to DKK 100, 5% to DKK 500, 4% to DKK 1,000 and 3%
@@ -253,6 +281,12 @@ on Pizzeria Nørrebro is refused with "Published menu missing". Run the menu
 seed, press **Activate** again, and the Restaurant is Active and Closed, with a
 History entry naming the operator.
 
+Demo of deactivation: on the active Restaurant, removing its last postal code
+or its commercial terms is refused with a message to deactivate first.
+**Deactivate** without a reason is refused; with a reason the Restaurant is
+Inactive and Closed and the History shows "Deactivated by" with the reason.
+**Activate** again and it is Active and Closed.
+
 ## Verification
 
 - HTTP activation: rules A1–A7 refused with exactly the missing codes, A8 (every
@@ -260,6 +294,14 @@ History entry naming the operator.
   `activated` history entry with time and operator (name, or email without
   one), the `restaurant.activated` event, a second activation recording
   nothing, the menu seed run twice, `404`s and operator-only access.
+- HTTP deactivation: a missing, empty, blank or non-text reason refused with
+  `deactivation_reason_required` (and a reason over 1,000 characters), Inactive
+  and Closed with a reason, `closed` and `deactivated` with the operator for an
+  open Restaurant, nothing recorded or emitted for an inactive one, the
+  `restaurant.deactivated` event, reactivation checking the requirements again
+  and staying Closed, the last postal code (single and batch) and the terms
+  refused while active and allowed after deactivation, `404` and operator-only
+  access.
 - Pure eligibility, activation-requirement, postal-code, seed-safety and staff
   invitation (link, token usability, grouping, revocation warning) decision tables:
   `npm run test:unit`.
@@ -293,5 +335,8 @@ History entry naming the operator.
   **Details → Edit**, then the **Delivery area**, **Commercial terms**,
   **Staff**, **Activation readiness** (with **Activate**) and **History**
   sections. The activation journey sees activation refused without a menu, runs
-  the menu seed and activates. The staff journey invites,
+  the menu seed and activates. The deactivation journey is refused removing the
+  last postal code and the terms of the active Restaurant, is refused
+  **Deactivate** without a reason, deactivates with one and reactivates it
+  Closed. The staff journey invites,
   copies the link, resends, cancels and is refused an email with a login. Text is English only (ADR-0018).

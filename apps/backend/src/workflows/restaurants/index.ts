@@ -29,12 +29,15 @@ import {
 import { TermsVersion } from "./commercial-terms"
 import { restaurantLock } from "./restaurant-lock"
 import { activateRestaurantStep } from "./steps/activate-restaurant"
+import { deactivateRestaurantStep } from "./steps/deactivate-restaurant"
 import {
   listRestaurantHistoryStep,
-  recordRestaurantHistoryEntryStep,
+  recordRestaurantHistoryEntriesStep,
 } from "./steps/history"
 
 export const RESTAURANT_ACTIVATED = "restaurant.activated"
+export const RESTAURANT_DEACTIVATED = "restaurant.deactivated"
+export const RESTAURANT_CLOSED = "restaurant.closed"
 
 export const listRestaurantsWorkflow = createWorkflow(
   "list-restaurants",
@@ -132,18 +135,77 @@ export const activateRestaurantWorkflow = createWorkflow(
     // Activating an active Restaurant records nothing and emits nothing (spec story 36).
     when({ activation }, ({ activation }) => activation.has_activated).then(
       () => {
-        const entry = transform({ input }, ({ input }) => ({
-          restaurant_id: input.restaurant_id,
-          kind: "activated" as const,
-          actor: { type: "user" as const, id: input.operator_id },
+        const history = transform({ input }, ({ input }) => ({
+          entries: [
+            {
+              restaurant_id: input.restaurant_id,
+              kind: "activated" as const,
+              actor: { type: "user" as const, id: input.operator_id },
+            },
+          ],
         }))
-        recordRestaurantHistoryEntryStep(entry)
+        recordRestaurantHistoryEntriesStep(history)
         emitEventStep({
           eventName: RESTAURANT_ACTIVATED,
           data: { id: input.restaurant_id },
         })
       },
     )
+    releaseLockStep(lock)
+    return new WorkflowResponse({
+      restaurant: retrieveRestaurantDetailStep({ id: input.restaurant_id }),
+    })
+  },
+)
+/**
+ * Deactivate from Admin with a reason: Inactive and Closed, under the
+ * Restaurant's lock so it cannot race opening (spec stories 31, 32 and 36).
+ * Closing an open Restaurant is recorded with the operator as the actor.
+ */
+export const deactivateRestaurantWorkflow = createWorkflow(
+  "deactivate-restaurant",
+  function (input: {
+    restaurant_id: string
+    operator_id: string
+    reason: string
+  }) {
+    const lock = transform({ input }, ({ input }) =>
+      restaurantLock(input.restaurant_id),
+    )
+    acquireLockStep(lock)
+    const deactivation = deactivateRestaurantStep({
+      restaurant_id: input.restaurant_id,
+    })
+    when(
+      { deactivation },
+      ({ deactivation }) => deactivation.kinds.length > 0,
+    ).then(() => {
+      const history = transform(
+        { input, deactivation },
+        ({ input, deactivation }) => ({
+          entries: deactivation.kinds.map((kind) => ({
+            restaurant_id: input.restaurant_id,
+            kind,
+            actor: { type: "user" as const, id: input.operator_id },
+            ...(kind === "deactivated" ? { reason: input.reason } : {}),
+          })),
+        }),
+      )
+      recordRestaurantHistoryEntriesStep(history)
+      emitEventStep({
+        eventName: RESTAURANT_DEACTIVATED,
+        data: { id: input.restaurant_id },
+      })
+    })
+    // Closing by deactivation is a closing too, so listeners for closings miss none.
+    when({ deactivation }, ({ deactivation }) =>
+      deactivation.kinds.includes("closed"),
+    ).then(() => {
+      emitEventStep({
+        eventName: RESTAURANT_CLOSED,
+        data: { id: input.restaurant_id },
+      }).config({ name: "emit-restaurant-closed" })
+    })
     releaseLockStep(lock)
     return new WorkflowResponse({
       restaurant: retrieveRestaurantDetailStep({ id: input.restaurant_id }),
