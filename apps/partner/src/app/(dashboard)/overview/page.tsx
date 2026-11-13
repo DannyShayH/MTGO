@@ -8,5 +8,5 @@ export default async function OverviewPage() {
   const current = await requireCurrentStaff()
   const restaurant = await retrieveOwnRestaurant(current.restaurant.id)
   const { messages } = await getMessages()
-  return <OverviewTemplate text={messages.text} restaurant={restaurant} />
+  return <OverviewTemplate messages={messages} restaurant={restaurant} />
 }

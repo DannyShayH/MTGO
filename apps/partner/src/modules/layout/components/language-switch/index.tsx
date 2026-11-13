@@ -28,7 +28,7 @@ export function LanguageSwitch({
             lang={option}
             aria-pressed={option === locale}
             className={clx(
-              "txt-compact-xsmall-plus rounded px-2 py-1 transition-colors",
+              "txt-compact-xsmall-plus focus-visible:ring-mtogo-focus-ring min-h-11 rounded px-3 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 [@media(pointer:fine)]:min-h-0 [@media(pointer:fine)]:px-2",
               option === locale
                 ? "bg-ui-bg-base text-ui-fg-base shadow-elevation-card-rest"
                 : "text-ui-fg-muted hover:text-ui-fg-subtle",

@@ -759,3 +759,46 @@ curl http://localhost:9000/partner/restaurants/$RESTAURANT_ID \
 | `401`  | As for `GET /partner/me`                                                                   |
 | `403`  | `code: "staff_access_revoked"`: as for `GET /partner/me`                                   |
 | `404`  | `code: "restaurant_not_found"`: another Restaurant or an unknown one, answered identically |
+
+### POST /partner/restaurants/{id}/open and POST /partner/restaurants/{id}/close
+
+**Actor:** Restaurant staff (`restaurant_staff`, bearer token only). Opens or
+closes the staff member's own Restaurant (spec stories 49-52). Operators have
+no route for either; they close a Restaurant only by deactivating it. Neither
+route takes a body.
+
+```bash
+curl -X POST http://localhost:9000/partner/restaurants/$RESTAURANT_ID/open \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Opening sets `is_open: true`, records an `opened` history entry with the staff
+member as actor and emits `restaurant.opened` (`{ id }`). Closing sets
+`is_open: false`, records `closed` and emits `restaurant.closed`. Asking for
+the state the Restaurant is already in returns it unchanged, records nothing
+and emits nothing. Closing an inactive Restaurant is allowed and changes
+nothing.
+
+**Success:** `200` with the same `{ "restaurant": { ... } }` as
+`GET /partner/restaurants/{id}`, for example after opening:
+
+```json
+{
+  "restaurant": {
+    "id": "res_01...",
+    "is_active": true,
+    "is_open": true,
+    "receiving_new_orders": true,
+    "reason": null
+  }
+}
+```
+
+(The other fields are as in `GET /partner/restaurants/{id}`.)
+
+| Status | When                                                                                       |
+| ------ | ------------------------------------------------------------------------------------------ |
+| `400`  | `code: "restaurant_inactive_cannot_open"` (`not_allowed`): opening an inactive Restaurant  |
+| `401`  | As for `GET /partner/me`                                                                   |
+| `403`  | `code: "staff_access_revoked"`: as for `GET /partner/me`                                   |
+| `404`  | `code: "restaurant_not_found"`: another Restaurant or an unknown one, answered identically |

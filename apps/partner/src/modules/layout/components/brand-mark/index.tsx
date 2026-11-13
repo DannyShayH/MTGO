@@ -1,19 +1,22 @@
 import Image from "next/image"
 
-// The wordmark on its brand-logo tile (packages/ui/assets is the source).
+/**
+ * The MTOGO Partner lockup: the wordmark and "PARTNER" on one brand-logo tile
+ * (packages/ui/assets/mtogo-partner-logo.svg is the source). It names the app
+ * on its own, so no text sits next to it.
+ */
 export function BrandMark({ name }: { name: string }) {
   return (
-    <div className="flex items-center gap-x-2">
+    <div className="flex">
       <Image
-        src="/images/mtogo-logo-wide.svg"
-        alt="MTOGO"
-        width={2936}
+        src="/images/mtogo-partner-logo.svg"
+        alt={name}
+        width={5172}
         height={954}
         priority
         unoptimized
-        className="h-7 w-auto rounded-md"
+        className="h-9 w-auto rounded-md"
       />
-      <span className="txt-compact-small-plus text-ui-fg-base">{name}</span>
     </div>
   )
 }

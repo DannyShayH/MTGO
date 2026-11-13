@@ -44,7 +44,7 @@ export function Sidebar({
                   href={href}
                   aria-current={current ? "page" : undefined}
                   className={clx(
-                    "txt-compact-small-plus flex items-center gap-x-2 rounded-md px-2 py-1.5 transition-colors",
+                    "txt-compact-small-plus focus-visible:ring-mtogo-focus-ring flex min-h-11 items-center gap-x-2 rounded-md px-2 py-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 [@media(pointer:fine)]:min-h-8",
                     current
                       ? "bg-ui-bg-base-pressed text-ui-fg-base"
                       : "text-ui-fg-subtle hover:bg-ui-bg-base-hover",
@@ -58,9 +58,9 @@ export function Sidebar({
           })}
         </ul>
       </nav>
-      <div className="border-ui-border-base flex flex-col gap-y-3 border-t px-4 py-4">
+      <div className="border-ui-border-base flex flex-row flex-wrap items-center justify-between gap-3 border-t px-4 py-3 md:flex-col md:items-stretch md:py-4">
         <LanguageSwitch locale={locale} label={text.language} />
-        <div className="flex items-center justify-between gap-x-2">
+        <div className="flex min-w-0 items-center justify-between gap-x-2">
           <div className="min-w-0">
             <Text size="xsmall" className="text-ui-fg-muted">
               {text.signed_in_as}
@@ -70,7 +70,12 @@ export function Sidebar({
             </Text>
           </div>
           <form action={signOut}>
-            <Button type="submit" variant="secondary" size="small">
+            <Button
+              type="submit"
+              variant="secondary"
+              size="small"
+              className="min-h-11 [@media(pointer:fine)]:min-h-0"
+            >
               {text.sign_out}
             </Button>
           </form>

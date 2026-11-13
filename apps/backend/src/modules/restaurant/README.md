@@ -24,8 +24,9 @@ under `src/workflows/restaurants` own registration, edits, duplicate warnings,
 the delivery area and the commercial terms. API routes and Admin never mutate the
 module directly. Every mutation step has compensation, and each delivery-area or
 terms change takes a lock on `restaurant:<id>` so the guards for active
-Restaurants cannot race activation or deactivation. Menus and opening belong to
-later slices.
+Restaurants cannot race activation or deactivation. Opening and closing by
+staff live in `src/workflows/restaurant-staff` and take the same lock. Menus
+belong to a later slice.
 
 The module link `src/links/restaurant-product.ts` connects a Restaurant to a list
 of products, its dishes, as in Medusa's Restaurant-Delivery Marketplace recipe.
@@ -185,6 +186,29 @@ previous `is_active` and `is_open`.
 Reactivation is activation again: `activateRestaurantWorkflow` checks every
 requirement and leaves the Restaurant Closed.
 
+## Opening and closing
+
+Staff open and close their own Restaurant with `openRestaurantWorkflow` and
+`closeRestaurantWorkflow` (spec stories 49-52). Operators have no route for
+either; they close a Restaurant only by deactivating it. Each workflow takes
+the `restaurant:<id>` lock first, so opening cannot race deactivation or a
+revocation. It then checks the staff member is still authorized
+(`staff_access_revoked`) and that the Restaurant is their own
+(`restaurant_not_found` otherwise). The pure `planOpeningChange` rule decides
+what happens:
+
+- opening an inactive Restaurant is refused with
+  `restaurant_inactive_cannot_open` (`NOT_ALLOWED`, `400`)
+- asking for the state the Restaurant is already in changes nothing, records
+  nothing and emits nothing
+- otherwise `is_open` changes, an `opened` or `closed` entry is recorded with
+  the staff member as actor (`actor_type` `restaurant_staff`), and
+  `restaurant.opened` or `restaurant.closed` (`{ id }`) is emitted
+
+Closing is always allowed, so staff can never be stuck Open. Compensation
+restores the previous `is_open` and removes the entry. Both workflows answer
+with the same Restaurant view as `retrievePartnerRestaurantWorkflow`.
+
 While a Restaurant is active, two setup changes are refused with `NOT_ALLOWED`,
 read under the same lock:
 
@@ -215,8 +239,10 @@ responses. Search uses the model's searchable name and pickup postal code.
 The pure `evaluateNewOrderEligibility` rule returns `receiving_new_orders` and
 `reason`, in this precedence: `restaurant_inactive`, `restaurant_closed`,
 `delivery_area_missing`, then `destination_not_served` when a destination is
-supplied. Responses evaluate it with the Restaurant's delivery area. An
-activated Restaurant reports `restaurant_closed` until its staff open it (#79).
+supplied. Responses evaluate it with the Restaurant's delivery area, so Admin
+and the partner app always show the same status and reason. An activated
+Restaurant reports `restaurant_closed` until its staff open it. #46 calls the
+rule with the Customer's destination at checkout.
 
 ## Demonstration seed
 
@@ -303,7 +329,15 @@ Inactive and Closed and the History shows "Deactivated by" with the reason.
   and staying Closed, the last postal code (single and batch) and the terms
   refused while active and allowed after deactivation, `404` and operator-only
   access.
-- Pure eligibility, activation-requirement, postal-code, seed-safety and staff
+- HTTP opening and closing: an active Restaurant opened and closed with the
+  same status in the partner app and Admin, `opened` and `closed` recorded
+  with the staff member, the `restaurant.opened` and `restaurant.closed`
+  events, a repeat recording and emitting nothing, opening refused with
+  `restaurant_inactive_cannot_open` while inactive and after deactivation,
+  closing an inactive Restaurant changing nothing, no token, Admin user and
+  Customer tokens refused, another or unknown Restaurant `404`, revoked staff
+  `403`, and no operator route.
+- Pure eligibility, opening plan, activation-requirement, postal-code, seed-safety and staff
   invitation (link, token usability, grouping, revocation warning) decision tables:
   `npm run test:unit`.
 - HTTP registration, edits, address warnings, validation, search, pagination and

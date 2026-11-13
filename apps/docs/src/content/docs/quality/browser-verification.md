@@ -168,7 +168,7 @@ Pizzeria Nørrebro (`SEED_STAFF_EMAIL`, `SEED_STAFF_PASSWORD`).
   disposable `E2E_ADMIN_EMAIL` login, and adds 2200 to the delivery area. With a
   Danish browser, the invite link shows Pizzeria Nørrebro and the invited name
   and email. Choosing a password opens the Overview with "Afventer aktivering af
-  MTOGO" and the read-only details card. After sign-out the same link shows the
+  MTOGO", the read-only details card and the delivery area by town. After sign-out the same link shows the
   invalid-invitation message, and the new login signs in from the sign-in page.
 - With an English browser, an unknown link and a link without a token show
   "This invitation is no longer valid. Ask MTOGO for a new one."
@@ -179,6 +179,19 @@ Pizzeria Nørrebro (`SEED_STAFF_EMAIL`, `SEED_STAFF_PASSWORD`).
   load (a reload) lands on sign-in with "Din adgang til [Restaurant] er ophørt" and the token
   cookie is gone. Signing in again shows the same message, and in English
   "Your access to [Restaurant] has ended".
+- Opening and closing (#79): a staff member invited to a new Restaurant with a
+  delivery area and terms accepts in Danish. While it is inactive, the
+  Open/Closed switch is disabled and described by "Du kan åbne restauranten,
+  når MTOGO har aktiveret den.", and the status reads "Modtager ikke nye
+  bestillinger, fordi restauranten ikke er aktiv". After the menu seed and activation through the Admin API, the
+  switch opens the Restaurant ("Modtager nye bestillinger") and Admin shows "Active · Open" and
+  "Receiving new Orders: Yes". Closing shows "Modtager ikke nye bestillinger,
+  fordi restauranten er lukket" and, in Admin, "No — Restaurant is closed" with "Opened by" and
+  "Closed by" the staff member in History. After an operator deactivates it,
+  the stale switch's open attempt shows "Restauranten kan ikke åbnes, før
+  MTOGO har aktiveret den." next to the real state: Closed and disabled. In
+  English the status reads "Not receiving new Orders, because the Restaurant is
+  not active".
 
 Every test fails on uncaught browser errors. Tracing and video are off, because
 the journey types a password.

@@ -38,6 +38,7 @@ import {
 
 export const RESTAURANT_ACTIVATED = "restaurant.activated"
 export const RESTAURANT_DEACTIVATED = "restaurant.deactivated"
+export const RESTAURANT_OPENED = "restaurant.opened"
 export const RESTAURANT_CLOSED = "restaurant.closed"
 
 export const listRestaurantsWorkflow = createWorkflow(

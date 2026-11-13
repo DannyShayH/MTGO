@@ -13,8 +13,6 @@ import {
   RESTAURANT_DEACTIVATED,
 } from "../../src/workflows/restaurants"
 import seedDemoMenu from "../../src/scripts/seed-demo-menu"
-import { RESTAURANT_MODULE } from "../../src/modules/restaurant"
-import RestaurantModuleService from "../../src/modules/restaurant/service"
 
 jest.setTimeout(120000)
 
@@ -56,11 +54,18 @@ medusaIntegrationTestRunner({
       (await api.get(path, { headers })).data.restaurant
     const history = async () =>
       (await api.get(`${path}/history`, { headers })).data.history
-    /** The partner app opens a Restaurant in a later work item, so the test opens it directly. */
-    const open = () =>
-      getContainer()
-        .resolve<RestaurantModuleService>(RESTAURANT_MODULE)
-        .updateRestaurants({ id: restaurantId, is_open: true })
+    let staffToken: string
+    /** Staff open the Restaurant through the partner app's route. */
+    const open = async () =>
+      expect(
+        (
+          await api.post(
+            `/partner/restaurants/${restaurantId}/open`,
+            {},
+            { headers: { authorization: `Bearer ${staffToken}` } },
+          )
+        ).status,
+      ).toBe(200)
 
     const activeRestaurant = async () => {
       const registered = await api.post(
@@ -75,6 +80,12 @@ medusaIntegrationTestRunner({
           auth_identity_id: claimsOf(registered.data.token).auth_identity_id,
         },
       })
+      staffToken = (
+        await api.post("/auth/restaurant_staff/emailpass", {
+          email: "sofie@pizzeria.example",
+          password: "ci-only-staff-password",
+        })
+      ).data.token
       await api.post(
         `${path}/commercial-terms`,
         { terms_version: "common_mvp_v1" },
@@ -221,6 +232,11 @@ medusaIntegrationTestRunner({
             reason: null,
             ...operator,
           }),
+          expect.objectContaining({
+            kind: "opened",
+            actor_type: "restaurant_staff",
+            actor_name: "Sofie Jensen",
+          }),
           expect.objectContaining({ kind: "activated", ...operator }),
         ])
         // One change at one moment: the order comes from the ids, not from shifted times.
@@ -255,14 +271,17 @@ medusaIntegrationTestRunner({
         const page = async (query: string) =>
           (await api.get(`${path}/history?${query}`, { headers })).data
         const first = await page("limit=2&offset=0")
-        expect(first).toMatchObject({ count: 3, limit: 2, offset: 0 })
+        expect(first).toMatchObject({ count: 4, limit: 2, offset: 0 })
         expect(first.history.map(({ kind }) => kind)).toEqual([
           "deactivated",
           "closed",
         ])
         const second = await page("limit=2&offset=2")
-        expect(second).toMatchObject({ count: 3, limit: 2, offset: 2 })
-        expect(second.history.map(({ kind }) => kind)).toEqual(["activated"])
+        expect(second).toMatchObject({ count: 4, limit: 2, offset: 2 })
+        expect(second.history.map(({ kind }) => kind)).toEqual([
+          "opened",
+          "activated",
+        ])
       })
 
       it.each([
@@ -448,6 +467,7 @@ medusaIntegrationTestRunner({
           "activated",
           "deactivated",
           "closed",
+          "opened",
           "activated",
         ])
       })

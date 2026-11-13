@@ -31,3 +31,27 @@ export function emptiesActiveDeliveryArea(change: {
 }): boolean {
   return change.is_active && change.remaining_count === 0
 }
+
+export type OpeningKind = Extract<HistoryKind, "opened" | "closed">
+
+export const restaurantInactiveCannotOpen = () =>
+  new MedusaError(
+    MedusaError.Types.NOT_ALLOWED,
+    "restaurant_inactive_cannot_open",
+    "restaurant_inactive_cannot_open",
+  )
+
+/**
+ * Plans what opening (`isOpening` true) or closing records. Only an active
+ * Restaurant opens; asking for the state it is already in records nothing
+ * (spec stories 49-50). Closing is always allowed, so staff can never be
+ * stuck Open.
+ */
+export function planOpeningChange(
+  state: ParticipationState,
+  isOpening: boolean,
+): OpeningKind | null {
+  if (isOpening && !state.is_active) throw restaurantInactiveCannotOpen()
+  if (state.is_open === isOpening) return null
+  return isOpening ? "opened" : "closed"
+}
