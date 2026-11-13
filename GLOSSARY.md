@@ -48,6 +48,18 @@ _Avoid_: Onboarding checklist, approval criteria
 A Restaurant menu with at least one published dish named in Danish and English, sold out or not.
 _Avoid_: Approved menu, draft menu
 
+**Menu category**:
+A Restaurant's own grouping of dishes, such as Pizza or Drinks. Each dish belongs to exactly one category; categories are neither nested nor shared between Restaurants.
+_Avoid_: Shared category, subcategory
+
+**Sold-out dish**:
+A published dish that stays visible on the menu but cannot be ordered until Restaurant staff mark it available again.
+_Avoid_: Removed dish, unpublished dish
+
+**Allergen catalogue**:
+The shared list of 14 EU allergen groups, identified by their stable Annex II numbers and named in Danish and English. Halal, chili and garlic are additional food labels, not EU allergen groups.
+_Avoid_: Restaurant-defined allergens, EU allergens 15–17
+
 **Common commercial terms**:
 The one named version of the commission tiers and service fee that every Restaurant agrees to in the MVP, such as "Common MVP terms v1".
 _Avoid_: Contract, price list, individual terms

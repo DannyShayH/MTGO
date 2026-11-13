@@ -1,6 +1,6 @@
 ---
 title: Restaurant menu management
-description: The proposed restaurant workflow for maintaining categories, dishes, prices and availability.
+description: Agreed menu behavior and discovery evidence for bilingual categories, dishes, prices, availability and secure photos.
 sidebar:
   order: 3
 ---
@@ -12,12 +12,13 @@ import "../../../styles/review-documents.css"
 <div class="review-document">
 
 <aside class="review-intro not-content" aria-label="Document status">
-  <strong>Business rules agreed; interactions to refine</strong>
+  <strong>Feature discovery confirmed; specification follows</strong>
   <p>
     The case gives restaurants ownership of their menus. The self-service
     workflow incorporates agreed ownership, content and publishing rules.
-    Detailed interactions remain for the Feature grill; functionality is not yet
-    implemented.
+    Discovery #102 records the agreed interactions and acceptance examples. The
+    team confirmed the discovery, including its design and allergen catalogue
+    requirements. The later specification and implementation remain.
   </p>
 </aside>
 
@@ -104,16 +105,18 @@ Restaurant staff maintain what customers can order. MTOGO provides the platform 
     the updated basket, never a silently increased charge.
   </li>
   <li>
-    **Two staff members edit the same dish.** Decide how conflicting changes are
-    detected or resolved.
+    **Two staff members edit the same dish.** Refuse a stale save rather than
+    silently overwriting a newer change. Preserve the staff member's entered
+    changes and require review of the latest version before saving again.
   </li>
   <li>
     **A staff member tries to edit another restaurant.** Reject the action and
     keep restaurant ownership clear throughout the workflow.
   </li>
   <li>
-    **A dish or category is removed.** Decide what happens to its existing
-    orders, active baskets and remaining menu items.
+    **A dish or category is removed.** Preserve historical Orders and report
+    removed dishes as unavailable when baskets are rechecked. Refuse deletion of
+    nonempty categories or an active Restaurant's last published dish.
   </li>
 </ul>
 
@@ -126,7 +129,144 @@ Restaurant staff maintain what customers can order. MTOGO provides the platform 
 - [x] **Publishing:** Valid saved changes become visible immediately, without MTOGO dish approval.
 - [x] **Availability:** Sold-out dishes remain visible but unavailable. Ordering requires an active, manually open Restaurant serving the destination.
 - [x] **Historical Orders:** Preserve ordered names, quantities and prices after price changes or deletion; checkout changes require Customer review.
-- [ ] **Concurrent staff edits:** Agree the user-visible conflict behavior during the Feature grill.
+- [x] **Concurrent staff edits:** Refuse stale dish saves, preserve entered changes and require review of the latest version before another save.
+
+## Discovery #102: agreed refinements
+
+Agreed on 13 November 2026 through [discovery #102](https://github.com/DannyShayH/MTGO/issues/102), under [Feature #44](https://github.com/DannyShayH/MTGO/issues/44). The team confirmed the combined discovery and added the design and seeded-allergen requirements below. These decisions do not imply that the Feature is implemented or that its specification is complete.
+
+- **Complete journey:** Restaurant staff create and edit their menu in the partner app; Customers see the saved content and availability in Danish and English. Basket and payment behavior belong to the ordering Feature, with the integration contract documented here as discovery progresses.
+- **Structure:** Each Restaurant owns a flat list of categories. Each dish belongs to exactly one category. Staff can reorder categories and dishes and move dishes between categories. Categories are neither nested nor shared across Restaurants.
+- **Food information:** Offer all 14 EU allergen groups, plus halal, chili and garlic as additional labels. Use a fixed allergen list with translated Customer labels. Distinguish unknown information from the Restaurant explicitly declaring none of the listed allergens; an empty selection never implies allergen-free food. The additional labels and their declaration states are defined below.
+- **Availability:** Staff manually choose Available or Sold out, without stock quantities or automatic daily resets. A dish stays sold out until staff change it. Staff may maintain menus while their Restaurant is inactive or closed; publishing a dish does not activate or open it.
+- **Concurrent edits:** If Anna opens a dish at DKK 95, Bo saves DKK 105 and Anna then submits her old form, refuse Anna's stale save. Preserve her entered changes, explain the conflict and require review of the latest version before another save.
+- **Price entry:** Accept positive DKK amounts with at most two decimal places. The staff interface accepts `95`, `95,50` and `95.50`; reject zero, negative values and extra precision such as `95.555` rather than silently rounding. Financial calculation rounding remains a separate decision.
+
+The second round of discovery #102 agreed:
+
+- **Additional labels:** Halal, chili and garlic each have Yes, No and Unknown declaration states. Halal is displayed as declared by the Restaurant, without implying MTOGO certification. Chili and garlic describe ingredient presence; heat levels are outside the MVP. Display these labels separately from allergens.
+- **Allergen declarations:** Provide separate Contains and May contain selections for the 14 EU allergen groups, alongside an explicit unknown-information state. Preserve the distinction in the Customer view. Neither an empty selection nor none declared is an allergen-free claim.
+- **Removal:** A nonempty category cannot be deleted; staff must first move or remove its dishes. Confirm individual dish removal, remove it from the current Customer menu and preserve historical Orders. Existing baskets identify the removed dish as unavailable when rechecked.
+- **Last published dish:** Refuse removal of an active Restaurant's last published dish. Staff may edit it or mark it sold out; an operator must deactivate the Restaurant before its last published dish can be removed. This follows the existing protection against removing an active Restaurant's last delivery postal code.
+- **Customer visibility:** Active but closed Restaurants retain readable menus, clearly marked closed and unavailable for new Orders. Inactive Restaurants' menus are hidden from public browsing. Staff can maintain menus in either state; historical Order details remain accessible independently.
+- **Save and recovery:** Each save applies completely or leaves the previous version intact. Preserve form entries on failure and show field-specific validation errors. If a connection failure leaves success uncertain, reconcile the saved state before retrying so dish creation cannot produce duplicates. Confirm navigation away from a form with unsaved changes.
+
+The third round of discovery #102 agreed:
+
+- **Photos:** A dish supports one optional photo. Staff can upload, replace or remove it; a consistent placeholder covers missing photos. No gallery or cropping tool, and a photo is not required for publication. The secure-upload controls are defined below.
+- **Bilingual editing:** Edit Danish and English fields together and validate the complete dish in one save. Publish only a complete valid save. No saved drafts or separate publication button; unsaved edits stay in the form.
+- **Empty categories and order:** Staff see empty categories; Customers do not. Append new categories and dishes to their respective lists. Offer accessible reorder controls that do not require drag and drop.
+- **Conflicts:** Stale-change protection also covers categories, ordering, removal and availability switches. Refuse outdated changes and refresh the relevant state. An availability change updates availability only, never unrelated old form values.
+- **Financial ties:** Preserve precision during calculations and round exact halfway values away from zero, once at the final amount required by the relevant business rule. DKK `1.005` becomes `1.01` and `-1.005` becomes `-1.01`. Refunds reverse original recorded commission. This clarifies ADR-0006; financial implementation belongs to the relevant financial Feature. Menu entry still rejects extra precision.
+- **Declaration validation:** Choose Information unknown or Information supplied. Contains and May contain selections are available only for supplied information. When both lists are empty, explicitly confirm none of the listed allergens declared. An allergen cannot appear in both lists. Identify specific cereals and nuts within their groups, following the EU reference.
+
+The fourth round of discovery #102 agreed:
+
+- **Secure upload:** Accept only JPEG, PNG and WebP uploads up to 5 MiB and 20 megapixels. Validate and decode actual content, re-encode into a standard image, strip metadata and resize to at most 2048 pixels on the longest side. Reject SVG, animation and external image URLs. Enforce staff authorization and Restaurant ownership, generate storage names, limit upload rates and storage use, and serve images as non-executable content. The specification must bound image-processing resources and define numerical rate and storage limits before implementation. The controls follow [OWASP's file-upload guidance](https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html).
+- **Photo replacement and storage:** Keep the current photo if replacement fails. Validate and store the new image before changing the reference; safely clean up abandoned uploads and replaced files. Use the Medusa File Module with durable deployment storage and local storage for development. Storage credentials remain server-side.
+- **Text:** Names are plain text, limited to 120 characters per language. Optional dish descriptions are plain text, limited to 2000 characters per language. Trim surrounding whitespace, reject blank required names and never interpret HTML. Category descriptions are outside the MVP.
+- **Publication visibility:** A successful save appears on the next menu fetch; refresh or invalidate cached menu data. Pushing changes into already-open Customer pages is outside the MVP. Ordering rechecks current prices and availability before payment.
+- **Change history:** Retain the actor, time and affected dish or category for successful content, removal and availability changes. A menu-history screen and undo are outside the MVP. Historical Order facts remain independent of current menu data.
+
+### Allergen catalogue and interaction design
+
+The final discovery confirmation requires implementation agents to load and follow both `emil-design-eng` and `frontend-design`. Apply them within the agreed [MTOGO design brief](/MTGO/product/design-brief/): Medusa UI components, the shared `@dtc/ui` tokens, Inter typography and Danish/English text. Plan the screen within those constraints, review the plan against the brief before building, and inspect the rendered result at narrow and wide widths. Prioritize immediate feedback, clear selected states, readable labels, visible keyboard focus, touch targets and reduced-motion support. Frequent selection and keyboard actions must not be delayed by decorative animation.
+
+Use the team's previous [allergen selector](https://github.com/Mortenjenne/miseOS-web/blob/78ca2e418fff6f662923a91d9ad6edb2e1c920f6/src/components/ui/AllergenSelector/AllergenSelector.jsx), [menu allergen display](https://github.com/Mortenjenne/miseOS-web/blob/78ca2e418fff6f662923a91d9ad6edb2e1c920f6/src/features/menus/components/AllergenList/AllergenList.jsx) and [icon map](https://github.com/Mortenjenne/miseOS-web/blob/78ca2e418fff6f662923a91d9ad6edb2e1c920f6/src/features/allergens/utils/allergenIconMap.js) as UX references. Preserve the value of numbered choices and recognizable SVG symbols, while implementing accessible selection and display through the current architecture. This is a reference for interaction and recognition, not a requirement to copy the old components, styling or backend design.
+
+- **Selection:** Present the catalogue in stable EU-number order with the translated name, number and a reviewed icon. Use accessible checkbox or equivalent semantics with an announced selected state and keyboard operation. Keep Contains and May contain groups distinct and preserve explicit unknown/none-declared states. Do not truncate away names needed to make a food decision.
+- **Customer display:** Pair icons with readable translated labels and distinguish ingredient declarations, precautionary declarations and unknown information. Icons, numbers, colour and hover-only tooltips must not be the sole explanation. If compact summaries are used, make the full declaration readily accessible by keyboard and touch.
+- **Trusted SVG assets:** Allergen symbols are reviewed application assets with a static mapping from catalogue codes. Do not accept SVG uploads or arbitrary SVG markup/URLs from menu content. The photo-upload restriction on SVG remains unchanged. Review asset provenance before reuse or create project-owned symbols; no legacy asset has been copied as part of discovery.
+- **Database reference data:** Seed all 14 EU allergen groups and their Danish/English names and descriptions into the database during normal initial setup, before menu editing is available. This is application reference data, not an optional demo seed. Initial setup is idempotent: rerunning it cannot duplicate rows, renumber groups or alter existing dish declarations.
+- **Identity:** Each EU group has its stable, unique Annex II number from 1 to 14 as a business key, independent of translated names, list positions and Medusa's internal record identifiers. Enforce uniqueness and the allowed range. Specific cereals/nuts retain stable child codes under their parent group. Store dish declarations against those stable catalogue records rather than free-text names.
+- **MVP boundary:** Freeze the reviewed catalogue for this MVP; provide no staff/operator catalogue editor or custom-allergen creation. This is a scope decision, not a claim that legislation can never change. Future changes require a reviewed data migration that preserves existing references.
+- **Additional labels:** Seed halal, chili and garlic as separate fixed food-label reference data with stable codes and bilingual labels. They have no EU allergen number and are not EU groups 15, 16 or 17. Their Yes/No/Unknown declarations and distinct display remain as agreed.
+
+The EU-number mapping to seed is:
+
+| EU number | Group                         |
+| --------- | ----------------------------- |
+| 1         | Cereals containing gluten     |
+| 2         | Crustaceans                   |
+| 3         | Eggs                          |
+| 4         | Fish                          |
+| 5         | Peanuts                       |
+| 6         | Soybeans                      |
+| 7         | Milk                          |
+| 8         | Nuts                          |
+| 9         | Celery                        |
+| 10        | Mustard                       |
+| 11        | Sesame seeds                  |
+| 12        | Sulphur dioxide and sulphites |
+| 13        | Lupin                         |
+| 14        | Molluscs                      |
+
+Use the [EU Annex II reference](https://eur-lex.europa.eu/eli/reg/2011/1169/oj/eng) and the Commission reference below for reviewed descriptions, specific cereals/nuts and qualifications. Do not copy the legacy descriptions as normative source data: the inspected nuts description omits Brazil nuts and the sulphites description does not cover the liquid threshold. The [legacy backend seed](https://github.com/mortenjenne/miseos/blob/3b570e2184a5b5f98e4cc677d433cdeaafc361de/src/main/java/app/utils/EUAllergens.java) remains useful evidence of the original 1-to-14 ordering.
+
+### Refined user stories
+
+- As Restaurant staff, I can organize my own Restaurant's categories and dishes, enter both languages and positive DKK prices, and save complete valid changes so Customers immediately see the current menu on their next fetch.
+- As Restaurant staff, I can declare allergens and additional food labels, attach an optional secure photo and mark dishes sold out so Customers see accurate information without stock management.
+- As Restaurant staff, I can recover from validation failures, interrupted requests and conflicting edits without losing entered changes, duplicating dishes or overwriting someone else's work.
+- As a Customer, I can read an active Restaurant's menu in Danish or English, distinguish unknown food information, and see closed or sold-out states before attempting to order.
+
+### Acceptance examples and required evidence
+
+These are agreed behavior expressed as reviewable examples, not claims that tests already exist or pass.
+
+| Example                                                                                              | Expected outcome                                                                                                                   | Later evidence                                                                                              |
+| ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Staff submit another Restaurant's category, dish or image identifier, or use revoked access          | Refuse the operation, preserving both Restaurants' data                                                                            | Partner HTTP authorization and ownership integration tests                                                  |
+| Save a category or dish with a missing language, or a supplied description with one language missing | Refuse the complete save, identify the fields and preserve entered values                                                          | HTTP validation and partner browser journey                                                                 |
+| Enter `95,50`, then try `95.555`, zero and a negative price                                          | Save DKK 95.50; refuse each invalid value without rounding                                                                         | Boundary unit tests, HTTP tests and partner journey                                                         |
+| Save valid bilingual content and fetch the menu in each language                                     | Show the selected language, correct category order and exact VAT-inclusive DKK price                                               | Store HTTP and Customer browser journey, including cache refresh                                            |
+| Choose unknown allergens, supplied allergens, precautionary allergens or explicitly none declared    | Preserve each meaning, reject contradictory declarations and show translated labels                                                | Validation and bilingual browser examples, including specific cereals and nuts                              |
+| Toggle sold out while another staff member has an old edit form open                                 | Keep the dish visible but unavailable; refuse the stale form and preserve its entered changes                                      | Concurrent HTTP test and partner conflict/recovery journey                                                  |
+| Remove a category containing dishes, or remove an active Restaurant's last published dish            | Refuse without partial changes; concurrent removals cannot bypass the last-dish rule                                               | Integration tests under concurrent requests                                                                 |
+| Change or remove a dish used by a historical Order and an existing basket                            | Preserve the Order's names, quantities and prices; flag basket changes for review before payment                                   | Menu HTTP tests plus ordering Feature integration evidence                                                  |
+| Browse an active closed Restaurant, then an inactive Restaurant                                      | Closed menu remains readable and cannot receive new Orders; inactive menu is hidden                                                | Store HTTP and Customer browser visibility checks                                                           |
+| Upload a renamed executable, SVG, animation, oversized file or image exceeding the pixel limit       | Refuse safely without changing the dish or publishing original bytes                                                               | Upload validation, authorization and resource-limit integration tests                                       |
+| Upload a valid photo, then interrupt or fail its replacement                                         | Publish only the validated transformed image; keep the old photo on failure and clean abandoned files                              | Image-processing assertions, failure tests and partner journey                                              |
+| Retry an uncertain create request or fail a later save step                                          | At most one dish is created; no partial menu change is visible, and failed changes do not produce successful-change history        | Retry, rollback and recovery integration tests                                                              |
+| Reorder with a keyboard and leave an edited form                                                     | Reorder without drag and drop; confirm before discarding unsaved edits                                                             | Accessible partner browser journey in Danish and English                                                    |
+| Run twenty simultaneous menu browsing journeys                                                       | At least 95% of ordinary browsing requests complete within two seconds under the stated exercise setup                             | Reproducible synthetic workload, timings and environment recorded with delivery evidence                    |
+| Initialize an empty application database, then run setup again                                       | Exactly 14 uniquely numbered EU groups and the separate fixed food labels exist; references and dish declarations remain unchanged | Seed integration tests including repeat setup and uniqueness constraints                                    |
+| Switch between Danish and English while selecting or reading allergens                               | Names change language; EU numbers, icon associations and selected declarations retain their meaning                                | Shared catalogue contract and bilingual partner/Customer browser journeys                                   |
+| Select Contains and May contain with a keyboard or touch and inspect the Customer result             | Announced selected states, readable labels, explicit unknown information and a complete accessible declaration                     | Rendered UI review following both requested design skills, keyboard checks and narrow/wide browser evidence |
+
+### Handoff to the later specification
+
+The team confirmed the combined discovery, including the final UX and seeded-catalogue requirements; no business disagreement is parked. The team invokes `/to-spec` and `/to-tickets` itself afterward. Do not treat the following engineering work as already verified:
+
+- Verify native translation workflows and locale-aware product/category reads with the installed version, then choose storage. The flag and source documentation alone do not prove complete bilingual save behavior. Define any custom food declarations and revision data without duplicating Medusa's commerce models.
+- Specify the partner and store contracts, ownership enforcement, revision/conflict mechanism, all-or-nothing publication visibility, idempotent creation, cache invalidation and successful-change history. Use shared Danish/English messages and API codes under ADR-0017 and ADR-0018.
+- Keep one sellable variant per dish and implement manual availability without exposing variants, options or stock management to staff. Verify the concrete commerce mapping, sales channel, shipping profile and tax-inclusive DKK configuration.
+- Serialize menu changes affecting activation readiness with activation and removal of the last published dish. Ensure a product marked published but missing valid bilingual content cannot satisfy readiness or leak into the Customer menu.
+- Choose durable deployment storage and image-processing tooling, assess their dependencies and define request, pixel, time, concurrency, upload-rate and storage limits. File-provider configuration and deployment verification are required before serving deployed photos; credentials do not belong in the client or documentation.
+- Adapt the synthetic menu seed to the agreed model or replace it through the menu workflows, preserving activation HTTP/browser coverage. Remove its temporary Restaurant README workaround when staff publication is delivered.
+- Define the menu-to-ordering contract: current dish identity, availability and price are checked before payment; any change requires Customer review, and paid Order snapshots remain historical facts. Checkout, commission and refund implementation stay in their respective Features.
+- Preserve the existing eligibility and access rules from #43. Work items that require Restaurant creation and staff sign-in reference delivered #71 and #73; no dependency on completing unrelated #43 behavior is introduced.
+- Carry the mandatory `emil-design-eng` and `frontend-design` skill requirements into the specification and every relevant UI work item, together with the MTOGO design brief and the pinned allergen UX references. Define the seeded catalogue's Medusa module/link boundaries, idempotent initial-data workflow, read contract and trusted icon mapping. Do not introduce legacy Java/React architecture or a second hard-coded runtime catalogue in the UI.
+
+The 50,000-Customer and 200,000-Order reporting baseline belongs to reporting Features; this menu Feature's applicable growth evidence is browsing under the shared twenty-journey workload. The final work-item breakdown must map these examples to independent vertical journeys, effort M or smaller. This discovery creates no implementation tickets.
+
+### Discovery evidence
+
+The [European Commission's allergen reference](https://food.ec.europa.eu/food-safety/campaign-2026/allergies_en) lists the 14 groups: cereals containing gluten, crustaceans, eggs, fish, peanuts, soybeans, milk, nuts, celery, mustard, sesame seeds, sulphur dioxide and sulphites, lupin, and molluscs. The sulphites entry has a concentration threshold; the later specification must preserve the reference's qualifications and identify specific cereals and nuts where relevant. Halal, chili and garlic are additional Restaurant declarations, separate from this list.
+
+Source inspection during discovery #102 found:
+
+| Area                 | Evidence and consequence for the specification                                                                                                                                                                                                                                                                                 |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Restaurant ownership | The pinned recipe's `create-restaurant-products.ts` uses `createProductsWorkflow` and creates Restaurant-product links. The existing `src/links/restaurant-product.ts` already follows that model. Reuse commerce workflows and enforce ownership on every partner operation.                                                  |
+| Category structure   | Installed `@medusajs/product/AGENTS.md` describes categories as a tree and product-category membership as many-to-many. Neither enforces this Feature's flat, Restaurant-owned categories and one-category-per-dish rule; those require explicit validation and Restaurant ownership.                                          |
+| Languages            | Installed `@medusajs/translation/AGENTS.md` describes product and category translation links and workflows. The module is disabled unless its feature flag is enabled. Native translations are a candidate to verify; no storage choice is agreed yet.                                                                         |
+| Activation           | `countPublishedDishes` currently counts linked products with status `published`, without validating bilingual content. Menu publication and readiness must agree on what qualifies as a published dish.                                                                                                                        |
+| Temporary seed       | `seed-demo-menu.ts` creates a single-title synthetic published product, with one variant and inventory tracking disabled. It does not provide separate Danish and English menu content. Resolve seed compatibility and remove the temporary README workaround when staff publication is delivered, as requested on #44.        |
+| Prices               | Installed pricing documentation provides tax-inclusive price preferences; tax documentation provides rate workflows. Verify configuration so the entered DKK price remains the Customer amount with the exercise's VAT included.                                                                                               |
+| Photos               | Installed `@medusajs/file/AGENTS.md` states that file creation does not validate MIME types or sizes. The current backend does not override the default local provider; installed local-provider documentation describes it as development-only. Secure validation and durable deployment storage must be explicitly provided. |
+
+The recipe evidence uses the [pinned workflow source](https://github.com/medusajs/examples/blob/aae76657952903750dfcaaaf28b6746f20ab1af5/restaurant-marketplace/src/workflows/restaurant/workflows/create-restaurant-products.ts). This is source inspection, not runtime verification or an implementation specification.
 
 The restaurant owns the menu decisions. Any proposed MTOGO approval or restriction needs an explicit reason and team agreement; it is not specified by the case.
 
@@ -156,6 +296,6 @@ The restaurant owns the menu decisions. Any proposed MTOGO approval or restricti
   ]}
 />
 
-Record agreed answers and follow-up requirements in [issue #10](https://github.com/DannyShayH/MTGO/issues/10). The business rules and scope were agreed on 11 November 2026. Refine detailed interactions during the Feature grill while preserving Restaurant ownership and historical Order facts.
+The original business rules were agreed in [issue #10](https://github.com/DannyShayH/MTGO/issues/10) on 11 November 2026. Record menu refinements in [discovery #102](https://github.com/DannyShayH/MTGO/issues/102), under [Feature #44](https://github.com/DannyShayH/MTGO/issues/44), while preserving Restaurant ownership and historical Order facts.
 
 </div>

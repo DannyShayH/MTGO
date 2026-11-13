@@ -8,6 +8,8 @@ The service fee is DKK 100 excluding VAT per active Restaurant per month under o
 
 ## Financial recognition and reporting boundary
 
+Clarified on 13 November 2026 in Feature #44 discovery #102: preserve precision during calculations and round exact halfway values away from zero, once at the final amount required by the relevant business rule. For example, DKK `1.005` rounds to `1.01` and `-1.005` to `-1.01`. Menu price entry accepts at most two decimal places and rejects extra precision rather than silently rounding. Full refunds reverse the original recorded commission rather than calculating it again. Implementation and verification of financial calculations belong to the relevant financial Feature.
+
 The exercise assumes 25% VAT on menu prices; this is a project calculation assumption, not a claim about every real transaction. Commission uses the resulting food value excluding VAT, is earned on successful delivery and is rounded once to two decimals. Full refunds reverse the original commission amount. MVP cancellation and refunds concern the whole Order; partial refunds are outside scope. Commercial-term changes affect future business while historical amounts remain unchanged.
 
 | Outcome                                                                 | Restaurant food credit, excluding VAT | Commission        |
