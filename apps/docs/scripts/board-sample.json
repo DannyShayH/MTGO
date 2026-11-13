@@ -452,6 +452,75 @@
           "subIssueCount": 0
         }
       ]
+    },
+    {
+      "number": 46,
+      "title": "Feature: Sample withdrawn capability",
+      "url": "https://github.com/DannyShayH/MTGO/issues/46",
+      "status": "Done",
+      "workType": "unlabelled",
+      "subIssueCount": 2,
+      "state": "CLOSED",
+      "closeReason": "NOT_PLANNED",
+      "closedAt": "2026-11-07T18:00:00Z",
+      "startedAt": null,
+      "blocked": false,
+      "reopened": false,
+      "workStartedAt": null,
+      "priority": null,
+      "size": null,
+      "statusChanges": [],
+      "children": [
+        {
+          "number": 460,
+          "title": "Discovery: Sample withdrawn capability",
+          "url": "https://github.com/DannyShayH/MTGO/issues/460",
+          "subIssueCount": 0
+        },
+        {
+          "number": 461,
+          "title": "Implement sample withdrawn capability",
+          "url": "https://github.com/DannyShayH/MTGO/issues/461",
+          "subIssueCount": 0
+        }
+      ],
+      "body": "Withdrawal reason: Product direction changed after delivered discovery"
+    },
+    {
+      "number": 460,
+      "title": "Discovery: Sample withdrawn capability",
+      "url": "https://github.com/DannyShayH/MTGO/issues/460",
+      "status": "Done",
+      "workType": "development",
+      "subIssueCount": 0,
+      "state": "CLOSED",
+      "closeReason": "COMPLETED",
+      "closedAt": "2026-11-07T17:17:34Z",
+      "startedAt": "2026-11-07",
+      "blocked": false,
+      "reopened": false,
+      "workStartedAt": "2026-11-07T15:10:12Z",
+      "priority": null,
+      "size": null,
+      "statusChanges": []
+    },
+    {
+      "number": 461,
+      "title": "Implement sample withdrawn capability",
+      "url": "https://github.com/DannyShayH/MTGO/issues/461",
+      "status": "Done",
+      "workType": "development",
+      "subIssueCount": 0,
+      "state": "CLOSED",
+      "closeReason": "NOT_PLANNED",
+      "closedAt": "2026-11-07T17:17:34Z",
+      "startedAt": "2026-11-07",
+      "blocked": false,
+      "reopened": false,
+      "workStartedAt": "2026-11-07T15:10:12Z",
+      "priority": null,
+      "size": null,
+      "statusChanges": []
     }
   ]
 }

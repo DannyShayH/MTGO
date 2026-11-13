@@ -20,6 +20,7 @@ import {
   featureBoardResponse,
   FEATURE_OBSERVED_AT,
   acceptedFeatureItems,
+  withdrawnFeatureItems,
   ACCEPTANCE_OBSERVED_AT,
 } from "./fixtures/feature-board.ts"
 
@@ -473,11 +474,28 @@ try {
     }
     return items
   })
+  const withdrawalItems = withdrawnFeatureItems()
+  const missingReason = structuredClone(withdrawalItems[2])
+  Object.assign(missingReason.content!, {
+    id: "ISSUE_109",
+    number: 109,
+    title: "Feature: Withdrawal without recorded reason",
+    url: "https://github.com/DannyShayH/MTGO/issues/109",
+    body: "",
+  })
   const acceptedDataset = await collectBoard({
     token: "fixture-token",
     now: () => ACCEPTANCE_OBSERVED_AT,
     fetch: async () =>
-      new Response(JSON.stringify(featureBoardResponse(demoItems))),
+      new Response(
+        JSON.stringify(
+          featureBoardResponse([
+            ...demoItems,
+            ...withdrawalItems,
+            missingReason,
+          ]),
+        ),
+      ),
   })
   writeFileSync(
     resolve(workspace, ".cache/board.json"),
@@ -538,6 +556,44 @@ try {
   await expect(page.locator("#feature-210")).toContainText(
     "duplicate discovery work",
   )
+  const withdrawn = page.getByRole("region", {
+    name: "Withdrawn Features",
+    exact: true,
+  })
+  await expect(withdrawn.locator("#feature-row-103")).toContainText(
+    "No longer part of the agreed product scope",
+  )
+  await expect(withdrawn.locator("#feature-row-103 td").nth(5)).toHaveText(
+    "Not applicable",
+  )
+  await expect(
+    page
+      .getByRole("region", { name: "Features", exact: true })
+      .locator("#feature-row-103"),
+  ).toHaveCount(0)
+  await expect(withdrawn.locator("#feature-row-109")).toContainText(
+    "Withdrawal reason is missing or ambiguous",
+  )
+  await page.locator("#feature-103 summary").focus()
+  await page.keyboard.press("Enter")
+  await expect(page.locator("#feature-103 table")).toContainText(
+    "Discovery: Acceptance rules",
+  )
+  await expect(page.locator("#feature-103 table")).toContainText(
+    "closed without delivery",
+  )
+  await expect(page.locator("#feature-103 a[href$='/issues/2']")).toBeVisible()
+  assert.equal(
+    acceptedMetrics.features.find((feature) => feature.number === 103)!
+      .leadTimeDays,
+    null,
+  )
+  assert.ok(
+    acceptedMetrics.cycleTime.some(
+      (item) => item.number === 2 && item.days === 1,
+    ),
+  )
+  assert.ok(!acceptedMetrics.cycleTime.some((item) => item.number === 3))
   await page.evaluate(() => window.scrollTo(0, 0))
   await page.screenshot({
     path: resolve(artifacts, "completion-features-desktop.png"),
@@ -553,8 +609,29 @@ try {
     path: resolve(artifacts, "completion-features-mobile.png"),
     fullPage: true,
   })
+  await page.goto("http://flow.test/MTGO/flow-metrics/work-items/")
+  const cycles = page.getByRole("region", {
+    name: "Cycle time by work item",
+    exact: true,
+  })
+  await expect(
+    cycles.locator("tr").filter({ has: page.locator("a[href$='/issues/2']") }),
+  ).toContainText("1 day")
+  await expect(cycles.locator("a[href$='/issues/3']")).toHaveCount(0)
+  await expect(
+    page
+      .getByRole("region", { name: "Closed without delivery", exact: true })
+      .locator("a[href$='/issues/3']"),
+  ).toBeVisible()
+  await expect(
+    page.locator("a[href$='features/#feature-103']").first(),
+  ).toBeVisible()
+  await page.screenshot({
+    path: resolve(artifacts, "withdrawal-work-items.png"),
+    fullPage: true,
+  })
   results.push({
-    scenario: "acceptance-and-reopening",
+    scenario: "acceptance-reopening-and-withdrawal",
     source: acceptedMetrics.source,
     observedAt: acceptedMetrics.observedAt,
     wip: acceptedMetrics.wip.count,
