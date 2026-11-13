@@ -119,6 +119,16 @@ and disappears. Inviting the operator's own email shows the existing-login
 refusal in the dialog. Authorized and former staff stay empty, and the pending
 invitation is still there after a reload.
 
+The activation journey sets up a Restaurant through the Admin and partner APIs
+with a delivery area, terms and one staff member who accepted an invitation, but
+no menu. In Admin, Activate is refused with "Published menu missing" and the
+Restaurant stays Inactive and Closed. The test then runs the menu seed
+(`seed-demo-menu.ts`) for that Restaurant in the backend directory, so the
+browser run needs the same database variables as the harness. After a reload
+the checklist shows the menu as met, Activate makes the Restaurant Active and
+Closed, History shows "Activated by" the operator's email, and the Restaurants
+list shows it Active.
+
 The harness also runs `npm run verify:admin-development`. It starts Medusa's real
 Admin development bundler in a temporary frontend workspace and transforms both
 Restaurant pages with React Refresh enabled. It needs no database, API server or

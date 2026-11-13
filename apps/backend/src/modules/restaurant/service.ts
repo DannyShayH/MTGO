@@ -2,6 +2,7 @@ import { MedusaService } from "@medusajs/framework/utils"
 import Restaurant, {
   CommercialTermsAgreement,
   DeliveryAreaPostalCode,
+  RestaurantHistoryEntry,
   RestaurantStaff,
   StaffInvitation,
 } from "./models/restaurant"
@@ -19,6 +20,7 @@ class RestaurantModuleService extends MedusaService({
   CommercialTermsAgreement,
   RestaurantStaff,
   StaffInvitation,
+  RestaurantHistoryEntry,
 }) {
   protected readonly partnerUrl: string
 

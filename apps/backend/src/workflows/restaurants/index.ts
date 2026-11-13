@@ -2,11 +2,16 @@ import {
   createWorkflow,
   WorkflowResponse,
   transform,
+  when,
 } from "@medusajs/framework/workflows-sdk"
 import { RestaurantDetails } from "./types"
 import { createRestaurantStep } from "./steps/create-restaurant"
 import { updateRestaurantStep } from "./steps/update-restaurant"
-import { acquireLockStep, releaseLockStep } from "@medusajs/medusa/core-flows"
+import {
+  acquireLockStep,
+  emitEventStep,
+  releaseLockStep,
+} from "@medusajs/medusa/core-flows"
 import {
   readRestaurantsStep,
   retrieveRestaurantDetailStep,
@@ -23,6 +28,13 @@ import {
 } from "./steps/commercial-terms"
 import { TermsVersion } from "./commercial-terms"
 import { restaurantLock } from "./restaurant-lock"
+import { activateRestaurantStep } from "./steps/activate-restaurant"
+import {
+  listRestaurantHistoryStep,
+  recordRestaurantHistoryEntryStep,
+} from "./steps/history"
+
+export const RESTAURANT_ACTIVATED = "restaurant.activated"
 
 export const listRestaurantsWorkflow = createWorkflow(
   "list-restaurants",
@@ -106,6 +118,38 @@ export const recordCommercialTermsWorkflow = createWorkflow(
     })
   },
 )
+/** Activate from Admin: checked again under the Restaurant's lock, so a stale page cannot activate (spec story 29). */
+export const activateRestaurantWorkflow = createWorkflow(
+  "activate-restaurant",
+  function (input: { restaurant_id: string; operator_id: string }) {
+    const lock = transform({ input }, ({ input }) =>
+      restaurantLock(input.restaurant_id),
+    )
+    acquireLockStep(lock)
+    const activation = activateRestaurantStep({
+      restaurant_id: input.restaurant_id,
+    })
+    // Activating an active Restaurant records nothing and emits nothing (spec story 36).
+    when({ activation }, ({ activation }) => activation.has_activated).then(
+      () => {
+        const entry = transform({ input }, ({ input }) => ({
+          restaurant_id: input.restaurant_id,
+          kind: "activated" as const,
+          actor: { type: "user" as const, id: input.operator_id },
+        }))
+        recordRestaurantHistoryEntryStep(entry)
+        emitEventStep({
+          eventName: RESTAURANT_ACTIVATED,
+          data: { id: input.restaurant_id },
+        })
+      },
+    )
+    releaseLockStep(lock)
+    return new WorkflowResponse({
+      restaurant: retrieveRestaurantDetailStep({ id: input.restaurant_id }),
+    })
+  },
+)
 export const removeCommercialTermsWorkflow = createWorkflow(
   "remove-commercial-terms",
   function (input: { restaurant_id: string }) {
@@ -118,5 +162,11 @@ export const removeCommercialTermsWorkflow = createWorkflow(
     return new WorkflowResponse({
       restaurant: retrieveRestaurantDetailStep({ id: input.restaurant_id }),
     })
+  },
+)
+export const listRestaurantHistoryWorkflow = createWorkflow(
+  "list-restaurant-history",
+  function (input: { restaurant_id: string }) {
+    return new WorkflowResponse({ history: listRestaurantHistoryStep(input) })
   },
 )

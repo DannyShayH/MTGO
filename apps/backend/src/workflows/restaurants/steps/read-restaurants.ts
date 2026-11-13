@@ -14,6 +14,7 @@ import { evaluateNewOrderEligibility } from "../eligibility"
 import { pickupAddressKey } from "../pickup-address-key"
 import { RestaurantDetails, AddressWarning } from "../types"
 import { restaurantNotFound } from "./restaurant-exists"
+import { activationFactsOf, countPublishedDishes } from "./activation-facts"
 import { presentRestaurantStaff } from "../../restaurant-staff/staff-invitation"
 
 type RestaurantRecord = Awaited<
@@ -139,16 +140,10 @@ export const retrieveRestaurantDetailStep = createStep(
       staffRecords,
       operatorEmails,
     )
-    // Dishes arrive with the product link (#77); until then none can exist.
-    const published_dish_count = 0
-    const missing = evaluateActivationRequirements({
-      ...restaurant,
-      authorized_staff_count: staff.authorized.length,
-      has_commercial_terms: Boolean(agreement),
-      published_dish_count,
-      delivery_area_postal_code_count:
-        restaurant.delivery_area_postal_codes.length,
-    })
+    const published_dish_count = await countPublishedDishes(container, input.id)
+    const missing = evaluateActivationRequirements(
+      activationFactsOf(record, published_dish_count),
+    )
     return new StepResponse({
       ...restaurant,
       delivery_area,

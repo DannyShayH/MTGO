@@ -86,6 +86,30 @@ export type RestaurantResponse = {
   warnings: AddressWarning[]
 }
 export type RestaurantDetailResponse = { restaurant: RestaurantDetail }
+export type HistoryEntry = {
+  id: string
+  kind: "activated" | "deactivated" | "opened" | "closed"
+  occurred_at: string
+  actor_type: "user" | "restaurant_staff"
+  actor_id: string
+  actor_name: string
+  reason: string | null
+}
+export type RestaurantHistoryResponse = { history: HistoryEntry[] }
+export const historyKindLabels: Record<HistoryEntry["kind"], string> = {
+  activated: "Activated",
+  deactivated: "Deactivated",
+  opened: "Opened",
+  closed: "Closed",
+}
+/**
+ * The missing requirement codes a refused activation names. The SDK passes on
+ * only the error's message, and the message lists the codes.
+ */
+export const missingRequirementsIn = (message: string) =>
+  message.startsWith("activation_requirements_missing")
+    ? Object.keys(requirementLabels).filter((code) => message.includes(code))
+    : []
 export const restaurantMessages: Record<string, string> = {
   same_pickup_address:
     "Another Restaurant has this pickup address. You can still save separate kitchens at the same address.",

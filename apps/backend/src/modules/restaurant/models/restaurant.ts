@@ -24,6 +24,9 @@ const Restaurant = model
     staff: model.hasMany(() => RestaurantStaff, {
       mappedBy: "restaurant",
     }),
+    history_entries: model.hasMany(() => RestaurantHistoryEntry, {
+      mappedBy: "restaurant",
+    }),
   })
   .indexes([{ on: ["pickup_address_key"] }])
 
@@ -89,5 +92,25 @@ export const StaffInvitation = model
     staff: model.belongsTo(() => RestaurantStaff, { mappedBy: "invitation" }),
   })
   .indexes([{ on: ["staff_id"], unique: true }])
+
+/**
+ * One change of participation or opening, append-only (ADR-0014). The actor's
+ * name is a snapshot, so history keeps it when the person later changes or
+ * leaves. Billing derives active Copenhagen days from these entries (ADR-0006).
+ */
+export const RestaurantHistoryEntry = model
+  .define("restaurant_history_entry", {
+    id: model.id({ prefix: "rshe" }).primaryKey(),
+    kind: model.enum(["activated", "deactivated", "opened", "closed"]),
+    occurred_at: model.dateTime(),
+    actor_type: model.enum(["user", "restaurant_staff"]),
+    actor_id: model.text(),
+    actor_name: model.text(),
+    reason: model.text().nullable(),
+    restaurant: model.belongsTo(() => Restaurant, {
+      mappedBy: "history_entries",
+    }),
+  })
+  .indexes([{ on: ["restaurant_id", "occurred_at"] }])
 
 export default Restaurant

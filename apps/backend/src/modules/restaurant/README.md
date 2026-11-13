@@ -2,11 +2,11 @@
 
 Owns Restaurant registration and setup: name, structured pickup address, phone,
 email, separate participation (`is_active`) and opening (`is_open`) flags, the
-delivery area, the commercial terms agreement and the Restaurant's staff. Both
-flags default to false. The first migration creates the Restaurant table and a
+delivery area, the commercial terms agreement, the Restaurant's staff and its
+history. Both flags default to false. The first migration creates the Restaurant table and a
 pickup address index that allows duplicates. The second adds the delivery-area
-and terms tables. The third adds the staff table, and the fourth the staff
-invitation table.
+and terms tables. The third adds the staff table, the fourth the staff
+invitation table and the fifth the history entry table.
 
 ## Data models
 
@@ -17,15 +17,19 @@ invitation table.
 | `CommercialTermsAgreement` | The agreement to `terms_version` `common_mvp_v1`, with `agreed_at` (UTC, set when recorded) and `recorded_by` (the operator's user id). At most one current agreement per Restaurant; removed ones are soft-deleted                                                      |
 | `RestaurantStaff`          | A person who may operate the Restaurant: `name`, `email`, `status` (`pending`, `authorized` or `revoked`), `invited_by`, `accepted_at`, `revoked_at`, `revoked_by`. The email is unique among pending and authorized staff; revoked staff stay on record as former staff |
 | `StaffInvitation`          | The current invite `token` and `expires_at` of one pending staff member. Deleting the staff member deletes the invitation                                                                                                                                                |
+| `RestaurantHistoryEntry`   | One change of participation or opening, append-only: `kind` (`activated`, `deactivated`, `opened` or `closed`), `occurred_at` (UTC), `actor_type` (`user` or `restaurant_staff`), `actor_id`, `actor_name` (a snapshot of the name at the time) and `reason`             |
 
 `RestaurantModuleService` extends `MedusaService` with generated CRUD. Workflows
 under `src/workflows/restaurants` own registration, edits, duplicate warnings,
 the delivery area and the commercial terms. API routes and Admin never mutate the
 module directly. Every mutation step has compensation, and each delivery-area or
 terms change takes a lock on `restaurant:<id>` so the guards for active
-Restaurants (#78) cannot race it. The module has no cross-module links and emits
-no domain events yet. Revocation, menus and state transitions belong to
-later onboarding slices.
+Restaurants (#78) cannot race it. Menus, deactivation and opening belong to
+later slices.
+
+The module link `src/links/restaurant-product.ts` connects a Restaurant to a list
+of products, its dishes, as in Medusa's Restaurant-Delivery Marketplace recipe.
+It is the only link from this module.
 
 ## Restaurant staff
 
@@ -143,8 +147,29 @@ codes in checklist order: `pickup_address_missing`, `contacts_missing`,
 `authorized_staff_missing`, `commercial_terms_missing`, `published_menu_missing`,
 `delivery_area_missing`. An empty list means the Restaurant may be activated.
 Readiness counts authorized staff only: pending invitations and former staff do
-not count. The Restaurant ↔ product link (#77) does not exist yet, so the
-published dish count is zero and that requirement always shows as missing.
+not count. The published dish count is the number of products linked to the
+Restaurant with status `published`; sold-out dishes count (rule A8). Menu
+editing arrives with #44 and may change how this fact is computed, not the
+rule.
+
+## Activation
+
+`activateRestaurantWorkflow` takes the `restaurant:<id>` lock and reads the
+facts again, so a stale Admin page cannot activate an incomplete Restaurant. A
+missing requirement refuses with `activation_requirements_missing`
+(`NOT_ALLOWED`, `400`): the message names the missing codes and the response
+carries them as `missing`. Otherwise it sets `is_active` and leaves `is_open`
+false, records an `activated` history entry with the operator as actor and
+emits `restaurant.activated` (`{ id }`). Activating an active Restaurant changes
+nothing, records nothing and emits nothing. Every step has compensation: a
+later failure in the same workflow makes the Restaurant inactive again and
+removes the entry, because the change it records never took effect. Committed
+entries are never changed or deleted.
+
+History entries are appended by `recordRestaurantHistoryEntryStep`, which snapshots the
+actor's name: an operator's first and last name, or their email when Admin has
+no name for them, and a staff member's name. `listRestaurantHistoryWorkflow`
+lists them newest first.
 
 `COMMON_MVP_TERMS_V1` holds the terms shown read-only in Admin (ADR-0006):
 marginal commission of 6% up to DKK 100, 5% to DKK 500, 4% to DKK 1,000 and 3%
@@ -159,8 +184,8 @@ responses. Search uses the model's searchable name and pickup postal code.
 The pure `evaluateNewOrderEligibility` rule returns `receiving_new_orders` and
 `reason`, in this precedence: `restaurant_inactive`, `restaurant_closed`,
 `delivery_area_missing`, then `destination_not_served` when a destination is
-supplied. Responses evaluate it with the Restaurant's delivery area. Every
-Restaurant is still Inactive and Closed until activation (#77).
+supplied. Responses evaluate it with the Restaurant's delivery area. An
+activated Restaurant reports `restaurant_closed` until its staff open it (#79).
 
 ## Demonstration seed
 
@@ -190,8 +215,49 @@ The script refuses remote databases. It permits a loopback development database,
 or a loopback disposable database named `medusa_ci_*`. The application verification
 harness runs it after migrations in its isolated source snapshot.
 
+### Menu seed
+
+```bash
+NODE_ENV=development npm exec medusa exec ./src/scripts/seed-demo-menu.ts [restaurant_id]
+```
+
+This links one published synthetic dish, **Pizza Margherita (synthetic)**, to the
+Restaurant with that id, or to Pizzeria Nørrebro without one, so activation rule
+A9 can be demonstrated before menus exist (#44). It creates the product with
+core-flows' `createProductsWorkflow` and links it with `createLinksWorkflow`; if
+linking fails, it deletes the product again. The product has no sales channel,
+so the storefront does not show it. Running it again for the same Restaurant
+changes nothing. It has the same database restriction as the Restaurant seed.
+
+<!-- Remove this workaround when Feature #44 lets staff publish dishes (see #44). -->
+
+**Devcontainer workaround.** In the devcontainer, `.env` usually reaches the
+database through the host `postgres`. That host is not loopback, so both seeds
+stop with `synthetic_seed_database_required` and create nothing. The same
+PostgreSQL also listens on `localhost:5432`, so point one command at it without
+editing `.env`:
+
+```bash
+DATABASE_URL="$(node -e 'require("dotenv").config({path:".env",quiet:true});const u=new URL(process.env.DATABASE_URL);u.hostname="localhost";process.stdout.write(u.href)')" \
+  NODE_ENV=development npm exec medusa exec ./src/scripts/seed-demo-menu.ts [restaurant_id]
+```
+
+Keep the safety rule itself unchanged: a host such as `postgres` can point at a
+shared server in another setup. Until #44 delivers menu editing, this seed is
+the only way to get a published dish.
+
+Demo: with terms, a delivery area and authorized staff in place, **Activate**
+on Pizzeria Nørrebro is refused with "Published menu missing". Run the menu
+seed, press **Activate** again, and the Restaurant is Active and Closed, with a
+History entry naming the operator.
+
 ## Verification
 
+- HTTP activation: rules A1–A7 refused with exactly the missing codes, A8 (every
+  published dish sold out) and A9 (menu seed) activated and still Closed, the
+  `activated` history entry with time and operator (name, or email without
+  one), the `restaurant.activated` event, a second activation recording
+  nothing, the menu seed run twice, `404`s and operator-only access.
 - Pure eligibility, activation-requirement, postal-code, seed-safety and staff
   invitation (link, token usability, grouping, revocation warning) decision tables:
   `npm run test:unit`.
@@ -223,5 +289,7 @@ harness runs it after migrations in its isolated source snapshot.
 - Operator journey: root `npm run verify:applications`, following the documented
   disposable database setup. Admin navigation: **Restaurants**, **Create**, then
   **Details → Edit**, then the **Delivery area**, **Commercial terms**,
-  **Staff** and **Activation readiness** sections. The staff journey invites,
+  **Staff**, **Activation readiness** (with **Activate**) and **History**
+  sections. The activation journey sees activation refused without a menu, runs
+  the menu seed and activates. The staff journey invites,
   copies the link, resends, cancels and is refused an email with a login. Text is English only (ADR-0018).
