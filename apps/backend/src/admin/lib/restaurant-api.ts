@@ -95,7 +95,12 @@ export type HistoryEntry = {
   actor_name: string
   reason: string | null
 }
-export type RestaurantHistoryResponse = { history: HistoryEntry[] }
+export type RestaurantHistoryResponse = {
+  history: HistoryEntry[]
+  count: number
+  limit: number
+  offset: number
+}
 export const historyKindLabels: Record<HistoryEntry["kind"], string> = {
   activated: "Activated",
   deactivated: "Deactivated",

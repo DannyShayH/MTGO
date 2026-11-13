@@ -13,6 +13,7 @@ import { MedusaError } from "@medusajs/framework/utils"
 import {
   RestaurantDetailsSchema,
   RestaurantUpdateSchema,
+  RestaurantHistoryListSchema,
   RestaurantListSchema,
   PickupAddressSchema,
   PostAdminAddDeliveryAreaPostalCodeSchema,
@@ -96,6 +97,16 @@ export default defineMiddlewares({
       method: "GET",
       middlewares: [
         validateAndTransformQuery(RestaurantListSchema, {
+          defaults: ["id"],
+          isList: true,
+        }),
+      ],
+    },
+    {
+      matcher: "/admin/restaurants/:id/history",
+      method: "GET",
+      middlewares: [
+        validateAndTransformQuery(RestaurantHistoryListSchema, {
           defaults: ["id"],
           isList: true,
         }),

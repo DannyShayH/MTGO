@@ -1,6 +1,7 @@
 import { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
+import { monotonicFactory } from "ulid"
 import RestaurantModuleService from "../../../modules/restaurant/service"
 import { RESTAURANT_MODULE } from "../../../modules/restaurant"
 import { assertRestaurantExists } from "./restaurant-exists"
@@ -35,23 +36,29 @@ async function actorName(container: MedusaContainer, actor: HistoryActor) {
   return fullName || user?.email || actor.id
 }
 
+/** Ids that only grow, even within one millisecond, so `id` breaks ties between entries recorded at the same moment. */
+const nextUlid = monotonicFactory()
+const historyEntryId = () => `rshe_${nextUlid()}`
+
 /**
- * Appends entries in the given order (ADR-0014). Entries recorded together are
- * one millisecond apart, so newest first keeps that order. Compensation
- * removes them again, because the change they record was undone.
+ * Appends entries in the given order (ADR-0014). Entries recorded together
+ * share the true time they happened; their increasing ids keep that order
+ * newest first. Compensation removes them again, because the change they
+ * record was undone.
  */
 export const recordRestaurantHistoryEntriesStep = createStep(
   "record-restaurant-history-entries",
   async (input: { entries: HistoryEntryInput[] }, { container }) => {
     const service =
       container.resolve<RestaurantModuleService>(RESTAURANT_MODULE)
-    const now = Date.now()
+    const occurredAt = new Date()
     const entries = await service.createRestaurantHistoryEntries(
       await Promise.all(
-        input.entries.map(async (entry, index) => ({
+        input.entries.map(async (entry) => ({
+          id: historyEntryId(),
           restaurant_id: entry.restaurant_id,
           kind: entry.kind,
-          occurred_at: new Date(now + index),
+          occurred_at: occurredAt,
           actor_type: entry.actor.type,
           actor_id: entry.actor.id,
           actor_name: await actorName(container, entry.actor),
@@ -72,17 +79,24 @@ export const recordRestaurantHistoryEntriesStep = createStep(
   },
 )
 
-/** A Restaurant's history, newest first. */
+export type ListRestaurantHistoryInput = {
+  restaurant_id: string
+  limit: number
+  offset: number
+}
+
+/** One page of a Restaurant's history, newest first, with the total count. */
 export const listRestaurantHistoryStep = createStep(
   "list-restaurant-history",
-  async (input: { restaurant_id: string }, { container }) => {
+  async (input: ListRestaurantHistoryInput, { container }) => {
     const service =
       container.resolve<RestaurantModuleService>(RESTAURANT_MODULE)
     await assertRestaurantExists(service, input.restaurant_id)
-    const entries = await service.listRestaurantHistoryEntries(
+    const [history, count] = await service.listAndCountRestaurantHistoryEntries(
       { restaurant_id: input.restaurant_id },
       {
-        take: null,
+        skip: input.offset,
+        take: input.limit,
         order: { occurred_at: "DESC", id: "DESC" },
         select: [
           "id",
@@ -95,6 +109,11 @@ export const listRestaurantHistoryStep = createStep(
         ],
       },
     )
-    return new StepResponse(entries)
+    return new StepResponse({
+      history,
+      count,
+      limit: input.limit,
+      offset: input.offset,
+    })
   },
 )
