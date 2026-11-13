@@ -1,3 +1,12 @@
+/**
+ * Why an issue is Feature evidence only (#65). Evidence never joins the
+ * work-item population.
+ * - archived: its Project #2 item is archived
+ * - offBoard: a Feature child outside the board, read by its issue identity
+ * - offProject: such a child that has no Project #2 item at all
+ */
+export type EvidenceOnly = "archived" | "offBoard" | "offProject"
+
 export type BoardIssue = {
   /** Stable GitHub node identity. Optional only for saved datasets from before issue #62. */
   issueNodeId?: string
@@ -13,6 +22,8 @@ export type BoardIssue = {
   subIssueCount: number
   /** Current native direct children, absent in older datasets. */
   children?: (IssueLink & { subIssueCount: number })[]
+  /** Set when the issue was retrieved only as Feature evidence (#65) */
+  evidenceOnly?: EvidenceOnly
   state: "OPEN" | "CLOSED"
   closeReason: "COMPLETED" | "NOT_PLANNED" | null
   closedAt: string | null
@@ -86,6 +97,7 @@ export type WipBreach = {
 }
 
 export type FeatureChild = IssueLink & {
+  isArchived: boolean
   scope: "Required" | "Removed"
   removalReason: string | null
   isWorkItem: boolean
@@ -100,6 +112,7 @@ export type FeatureChild = IssueLink & {
   cycleDays: number | null
 }
 export type FeatureObservation = IssueLink & {
+  isArchived: boolean
   state:
     | "Withdrawn"
     | "Completed"
@@ -170,13 +183,16 @@ export const STATUS = {
 const WIP_STATUSES: string[] = [STATUS.inProgress, STATUS.deliveryInitiated]
 const isWip = (status: string) => WIP_STATUSES.includes(status)
 const hasFeaturePrefix = (title: string) => title.startsWith("Feature: ")
-const isFeature = (
+export const isFeature = (
   item: Pick<BoardIssue, "title"> & Pick<BoardIssue, "previousTitles">,
 ) =>
   hasFeaturePrefix(item.title) ||
   (item.previousTitles ?? []).some(hasFeaturePrefix)
 const isWorkItem = (item: Pick<BoardIssue, "title" | "subIssueCount">) =>
   item.subIssueCount === 0 && !isFeature(item)
+/** A Feature child read by its issue identity, never a Feature row of its own */
+const isChildEvidence = (item: Pick<BoardIssue, "evidenceOnly">) =>
+  item.evidenceOnly === "offBoard" || item.evidenceOnly === "offProject"
 
 type ScopeDecision = { childNumber: number; reason: string }
 
@@ -467,8 +483,9 @@ function observeFeatures(
 ): FeatureObservation[] {
   const today = copenhagenDate(observationTime)
   const byUrl = new Map(dataset.items.map((item) => [item.url, item]))
+  // Child evidence is not a Feature row; an archived Feature is (#65)
   return dataset.items
-    .filter((item) => isFeature(item))
+    .filter((item) => isFeature(item) && !isChildEvidence(item))
     .map((feature) => {
       const problems: DataProblem[] = []
       const problem = (item: IssueLink, text: string) =>
@@ -530,6 +547,7 @@ function observeFeatures(
         const decision = decisionsByChild.get(link.number)
         const base: FeatureChild = {
           ...issueLink(link),
+          isArchived: child?.evidenceOnly === "archived",
           scope: decision ? "Removed" : "Required",
           removalReason: decision?.reason ?? null,
           isWorkItem: false,
@@ -594,7 +612,12 @@ function observeFeatures(
             child,
             "Missing or invalid Start date; Feature timing is not available",
           )
-        if (child.status === STATUS.none && decision === undefined)
+        if (child.evidenceOnly === "offProject" && decision === undefined)
+          problem(
+            child,
+            "Child is not on Project #2; its Status and Start date are not available",
+          )
+        else if (child.status === STATUS.none && decision === undefined)
           problem(
             child,
             "Missing child status; Feature timing is not available",
@@ -719,6 +742,7 @@ function observeFeatures(
       const completed = accepted && !hasUnavailableTiming && startedAt !== null
       return {
         ...issueLink(feature),
+        isArchived: feature.evidenceOnly === "archived",
         withdrawalReason,
         timingState: hasUnavailableTiming
           ? "Not available"
@@ -769,7 +793,10 @@ export function calculateFlowMetrics(
 ): FlowMetrics {
   // ADR-0016: current or retained title evidence identifies Features before decomposition.
   // Apply this before replaying work-item history so a rename cannot change counts.
-  const items = dataset.items.filter(isWorkItem)
+  // Feature evidence (#65) never widens the work-item population.
+  const items = dataset.items.filter(
+    (item) => !item.evidenceOnly && isWorkItem(item),
+  )
   const openColumn = (status: string, limit: number): Column => {
     const issues = items
       .filter((item) => item.state === "OPEN" && item.status === status)

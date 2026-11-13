@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest"
-import { collectBoard, normaliseBoard } from "./board-collector.ts"
+import {
+  collectBoard,
+  normaliseBoard,
+  type RawItem,
+} from "./board-collector.ts"
 import { calculateFlowMetrics } from "./flow-metrics.ts"
 import {
   acceptedFeatureItems,
   ACCEPTANCE_OBSERVED_AT,
   featureBoardResponse,
+  createFixtureFetch,
+  buildChildEvidenceNode,
 } from "./fixtures/feature-board.ts"
 
 async function observe(
@@ -584,4 +590,326 @@ it.each([
       problem: "Invalid reopen date; renewed acceptance cannot be verified",
     }),
   )
+})
+
+describe("archived Feature evidence", () => {
+  it("archiving a completed Feature and its children keeps the reported interval", async () => {
+    const items = acceptedFeatureItems()
+    for (const item of items) item.isArchived = true
+    const dataset = await collectBoard({
+      token: "fixture-token",
+      now: () => ACCEPTANCE_OBSERVED_AT,
+      fetch: createFixtureFetch(items),
+    })
+    const metrics = calculateFlowMetrics(dataset, ACCEPTANCE_OBSERVED_AT)
+    expect(metrics.features).toMatchObject([
+      {
+        number: 103,
+        isArchived: true,
+        state: "Completed",
+        startedAt: "2026-11-16",
+        finishedAt: "2026-11-20",
+        leadTimeDays: 4,
+        problems: [],
+        children: [
+          { number: 2, isArchived: true, delivered: true },
+          { number: 3, isArchived: true, delivered: true },
+        ],
+      },
+    ])
+    expect(metrics).toMatchObject({
+      throughput: [],
+      cycleTime: [],
+      wip: { count: 0 },
+      dataProblems: [],
+    })
+  })
+})
+
+const buildEmptyProjectItemsPage = () => ({
+  pageInfo: { hasNextPage: false, endCursor: null },
+  nodes: [],
+})
+
+const collectWith = (fetchImpl: typeof fetch) =>
+  collectBoard({
+    token: "fixture-token",
+    now: () => ACCEPTANCE_OBSERVED_AT,
+    fetch: fetchImpl,
+  })
+
+describe("Feature children outside the board", () => {
+  it.each([
+    {
+      reason: "EP: retrievable child keeps the delivery interval",
+      readChild: (child: RawItem) => buildChildEvidenceNode(child),
+      expected: {
+        state: "Completed",
+        leadTimeDays: 4,
+        startedAt: "2026-11-16",
+      },
+      problem: null,
+    },
+    {
+      reason: "EP: child that lost its Start date is identified",
+      readChild: (child: RawItem) => {
+        child.fieldValues.nodes = child.fieldValues.nodes.filter(
+          (field) => field.field?.name !== "Start date",
+        )
+        child.fieldValues.totalCount = child.fieldValues.nodes.length
+        return buildChildEvidenceNode(child)
+      },
+      expected: { state: "Not available", leadTimeDays: null, startedAt: null },
+      problem: "Missing or invalid Start date; Feature timing is not available",
+    },
+    {
+      reason: "EP: child on no project has no Status or Start date",
+      readChild: (child: RawItem) => ({
+        ...buildChildEvidenceNode(child),
+        projectItems: buildEmptyProjectItemsPage(),
+      }),
+      expected: { state: "Not available", leadTimeDays: null, startedAt: null },
+      problem:
+        "Child is not on Project #2; its Status and Start date are not available",
+    },
+    {
+      reason: "EP: child GitHub answers NOT_FOUND for stays visible",
+      readChild: null,
+      expected: { state: "Not available", leadTimeDays: null, startedAt: null },
+      problem: "Child board evidence is not available",
+    },
+  ])("$reason", async ({ readChild, expected, problem }) => {
+    const [discovery, child, parent] = acceptedFeatureItems()
+    // Without evidence the fixture answers like GitHub: node null and NOT_FOUND
+    const evidence = readChild ? { ISSUE_3: readChild(child) } : {}
+    const dataset = await collectWith(
+      createFixtureFetch([discovery, parent], evidence),
+    )
+    const metrics = calculateFlowMetrics(dataset, ACCEPTANCE_OBSERVED_AT)
+    const feature = metrics.features[0]
+    expect(feature).toMatchObject({ number: 103, ...expected })
+    expect(feature.children.map((entry) => entry.number)).toEqual([2, 3])
+    if (problem)
+      expect(feature.problems).toContainEqual(
+        expect.objectContaining({ number: 3, problem }),
+      )
+    else expect(feature.problems).toEqual([])
+    // Only discovery is on the board, so only discovery is a work item
+    expect(metrics.cycleTime.map((entry) => entry.number)).toEqual([2])
+    expect(metrics.throughput.reduce((sum, week) => sum + week.count, 0)).toBe(
+      1,
+    )
+    expect(metrics.wip.count).toBe(0)
+    expect(metrics.dataProblems.map((entry) => entry.number)).not.toContain(3)
+  })
+})
+
+describe("Feature evidence collection", () => {
+  const notFound = {
+    type: "NOT_FOUND",
+    path: ["node"],
+    message: "Could not resolve to a node with the global id of 'ISSUE_3'.",
+  }
+
+  // A lone NOT_FOUND on the node is a known missing fact ("Feature children
+  // outside the board"); every other GraphQL answer stops collection
+  it.each([
+    {
+      reason: "EP: any other GraphQL error on the child stops",
+      answer: { errors: [{ message: "Something went wrong" }] },
+    },
+    {
+      reason: "EP: NOT_FOUND together with another error stops",
+      answer: {
+        data: { node: null },
+        errors: [notFound, { message: "Something went wrong" }],
+      },
+    },
+    {
+      reason: "EP: NOT_FOUND below the node, with a node returned, stops",
+      answer: {
+        data: { node: { __typename: "Issue" } },
+        errors: [{ ...notFound, path: ["node", "projectItems"] }],
+      },
+    },
+  ])("$reason", async ({ answer }) => {
+    const [discovery, , parent] = acceptedFeatureItems()
+    const board = createFixtureFetch([discovery, parent])
+    const result = collectWith(async (url, init) => {
+      const { variables } = JSON.parse(String(init?.body))
+      if (variables.id === "ISSUE_3")
+        return new Response(JSON.stringify(answer))
+      return board(url, init)
+    })
+    await expect(result).rejects.toThrow(/GraphQL errors/)
+  })
+
+  type ProjectItemNode = ReturnType<
+    typeof buildChildEvidenceNode
+  >["projectItems"]["nodes"][number]
+  const lastPage = { hasNextPage: false, endCursor: null }
+  const repeatedPage = { hasNextPage: true, endCursor: "PROJECT_ITEMS_1" }
+
+  it.each([
+    {
+      reason: "EP: complete second project-item page",
+      secondPage: (projectItem: ProjectItemNode) => ({
+        projectItems: { pageInfo: lastPage, nodes: [projectItem] },
+      }),
+      rejects: null,
+    },
+    {
+      reason: "EP: unavailable second page stops",
+      secondPage: () => null,
+      rejects: /project item retrieval/,
+    },
+    {
+      reason: "EP: non-advancing cursor stops",
+      secondPage: (projectItem: ProjectItemNode) => ({
+        projectItems: { pageInfo: repeatedPage, nodes: [projectItem] },
+      }),
+      rejects: /project item retrieval/,
+    },
+  ])("$reason", async ({ secondPage, rejects }) => {
+    const [discovery, child, parent] = acceptedFeatureItems()
+    const evidence = buildChildEvidenceNode(child)
+    const projectItem = evidence.projectItems.nodes[0]
+    // Another project's item fills the first page; Project #2 is on the second
+    evidence.projectItems = {
+      pageInfo: repeatedPage,
+      nodes: [{ ...projectItem, id: "PVTI_OTHER", project: { url: "x" } }],
+    }
+    const board = createFixtureFetch([discovery, parent], { ISSUE_3: evidence })
+    const result = collectWith(async (url, init) => {
+      const { variables } = JSON.parse(String(init?.body))
+      if (!variables.projectItemsAfter) return board(url, init)
+      return new Response(
+        JSON.stringify({ data: { node: secondPage(projectItem) } }),
+      )
+    })
+    if (rejects) await expect(result).rejects.toThrow(rejects)
+    else
+      expect(
+        calculateFlowMetrics(await result, ACCEPTANCE_OBSERVED_AT).features[0],
+      ).toMatchObject({ state: "Completed", leadTimeDays: 4, problems: [] })
+  })
+
+  it.each([
+    {
+      reason:
+        "DT R1: a withdrawn Feature's child outside the board is read (#64)",
+      featureCloseReason: "NOT_PLANNED",
+      childOnBoard: "no",
+      isRead: true,
+    },
+    {
+      reason: "DT R2: a child on the board is not read again",
+      featureCloseReason: "COMPLETED",
+      childOnBoard: "yes",
+      isRead: false,
+    },
+    {
+      reason: "DT R3: a child archived on the board is not read again",
+      featureCloseReason: "COMPLETED",
+      childOnBoard: "archived",
+      isRead: false,
+    },
+    {
+      reason: "DT R4: a reported Feature's child outside the board is read",
+      featureCloseReason: "COMPLETED",
+      childOnBoard: "no",
+      isRead: true,
+    },
+  ])("$reason", async ({ featureCloseReason, childOnBoard, isRead }) => {
+    const [discovery, child, parent] = acceptedFeatureItems()
+    parent.content!.stateReason = featureCloseReason
+    if (childOnBoard === "archived") child.isArchived = true
+    const board = createFixtureFetch(
+      childOnBoard === "no" ? [discovery, parent] : [discovery, child, parent],
+      { ISSUE_3: buildChildEvidenceNode(child) },
+    )
+    const readIds: string[] = []
+    const dataset = await collectWith(async (url, init) => {
+      const { query, variables } = JSON.parse(String(init?.body))
+      if (String(query).includes("projectItems")) readIds.push(variables.id)
+      return board(url, init)
+    })
+    expect(readIds).toEqual(isRead ? ["ISSUE_3"] : [])
+    // Stable identity: the child is in the dataset at most once
+    expect(dataset.items.filter((issue) => issue.number === 3).length).toBe(
+      childOnBoard === "no" && !isRead ? 0 : 1,
+    )
+  })
+})
+
+describe("archived items as Feature evidence", () => {
+  it.each([
+    {
+      reason: "DT R1: a board item is kept",
+      subject: "unrelated work",
+      isArchived: false,
+      isKept: true,
+    },
+    {
+      reason: "DT R2: an archived Feature is kept",
+      subject: "Feature",
+      isArchived: true,
+      isKept: true,
+    },
+    {
+      reason: "DT R3: an archived child of a Feature is kept",
+      subject: "Feature child",
+      isArchived: true,
+      isKept: true,
+    },
+    {
+      reason: "DT R4: other archived work is dropped",
+      subject: "unrelated work",
+      isArchived: true,
+      isKept: false,
+    },
+  ])("$reason", ({ subject, isArchived, isKept }) => {
+    const [discovery, child, parent] = acceptedFeatureItems()
+    const unrelatedWork = structuredClone(child)
+    Object.assign(unrelatedWork, { id: "PVTI_50" })
+    Object.assign(unrelatedWork.content!, {
+      id: "ISSUE_50",
+      number: 50,
+      url: "https://github.com/DannyShayH/MTGO/issues/50",
+    })
+    const item =
+      subject === "Feature"
+        ? parent
+        : subject === "Feature child"
+          ? child
+          : unrelatedWork
+    item.isArchived = isArchived
+    const dataset = normaliseBoard(
+      [discovery, child, parent, unrelatedWork],
+      ACCEPTANCE_OBSERVED_AT,
+    )
+    expect(dataset.items.some((issue) => issue.url === item.content!.url)).toBe(
+      isKept,
+    )
+    // Kept archived items are evidence only, never work items
+    const metrics = calculateFlowMetrics(dataset, ACCEPTANCE_OBSERVED_AT)
+    expect(
+      metrics.cycleTime.some((entry) => entry.number === item.content!.number),
+    ).toBe(!isArchived && subject !== "Feature")
+  })
+
+  it("counts board and archived copies of one issue once, as board work", () => {
+    const [discovery, child, parent] = acceptedFeatureItems()
+    const archivedCopy = structuredClone(child)
+    archivedCopy.isArchived = true
+    const dataset = normaliseBoard(
+      [archivedCopy, discovery, child, parent],
+      ACCEPTANCE_OBSERVED_AT,
+    )
+    expect(dataset.items.map((issue) => issue.number)).toEqual([2, 3, 103])
+    expect(dataset.items[1].evidenceOnly).toBeUndefined()
+    const metrics = calculateFlowMetrics(dataset, ACCEPTANCE_OBSERVED_AT)
+    expect(metrics.cycleTime.map((entry) => entry.number)).toEqual([2, 3])
+    expect(metrics.features[0]).toMatchObject({ leadTimeDays: 4 })
+  })
 })

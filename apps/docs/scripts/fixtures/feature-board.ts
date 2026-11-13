@@ -1,4 +1,4 @@
-import type { RawItem } from "../board-collector.ts"
+import { PROJECT_URL, type RawItem } from "../board-collector.ts"
 
 export const FEATURE_OBSERVED_AT = "2026-11-12T12:00:00Z"
 
@@ -49,6 +49,7 @@ export function featureBoardItems(
         subIssues: {
           totalCount: subIssueCount,
           nodes: Array.from({ length: subIssueCount }, (_, index) => ({
+            id: `ISSUE_${900 + number + index}`,
             number: 900 + number + index,
             title: "Child outside the current board",
             url: `https://github.com/DannyShayH/MTGO/issues/${900 + number + index}`,
@@ -138,6 +139,7 @@ export function featureBoardItems(
       totalCount: 1,
       nodes: [
         {
+          id: work[0].content!.id,
           number: work[0].content!.number!,
           title: work[0].content!.title!,
           url: work[0].content!.url!,
@@ -152,6 +154,7 @@ export function featureBoardItems(
       totalCount: 3,
       pageInfo: { hasNextPage: false, endCursor: null },
       nodes: work.map((raw) => ({
+        id: raw.content!.id,
         number: raw.content!.number!,
         title: raw.content!.title!,
         url: raw.content!.url!,
@@ -164,6 +167,7 @@ export function featureBoardItems(
       pageInfo: { hasNextPage: false, endCursor: null },
       nodes: [
         {
+          id: "ISSUE_999",
           number: 999,
           title: "Unavailable discovery",
           url: "https://github.com/DannyShayH/MTGO/issues/999",
@@ -224,6 +228,7 @@ export function acceptedFeatureItems(): RawItem[] {
     subIssues: {
       totalCount: 2,
       nodes: children.map((raw) => ({
+        id: raw.content!.id,
         number: raw.content!.number!,
         title: raw.content!.title!,
         url: raw.content!.url!,
@@ -249,4 +254,63 @@ export function withdrawnFeatureItems(): RawItem[] {
     body: "Withdrawal reason: No longer part of the agreed product scope",
   })
   return items
+}
+
+/**
+ * The issue node GitHub returns for a Feature child read by its identity:
+ * the issue itself plus its project items, here a single Project #2 item.
+ */
+export function buildChildEvidenceNode(raw: RawItem) {
+  return {
+    ...raw.content,
+    projectItems: {
+      pageInfo: { hasNextPage: false, endCursor: null as string | null },
+      nodes: [
+        {
+          id: raw.id,
+          isArchived: raw.isArchived ?? false,
+          project: { url: PROJECT_URL },
+          fieldValues: raw.fieldValues,
+        },
+      ],
+    },
+  }
+}
+
+/**
+ * A GitHub stub for collection: project item pages answer with the board items,
+ * and an issue-node query for Feature child evidence answers with `evidence[id]`.
+ * An id without evidence gets GitHub's answer for an unreadable node: `node: null`
+ * with a NOT_FOUND error. Any other issue-node query (a later timeline or child
+ * page) is not modelled and fails loudly.
+ */
+export function createFixtureFetch(
+  items: RawItem[],
+  evidence: Record<string, unknown> = {},
+): typeof fetch {
+  return async (_url, init) => {
+    const { query, variables } = JSON.parse(String(init?.body))
+    if (variables.id === undefined)
+      return new Response(JSON.stringify(featureBoardResponse(items)))
+    if (!String(query).includes("projectItems"))
+      throw new Error(
+        `fixtureFetch does not answer this query for ${variables.id}`,
+      )
+    if (variables.id in evidence)
+      return new Response(
+        JSON.stringify({ data: { node: evidence[variables.id] } }),
+      )
+    return new Response(
+      JSON.stringify({
+        data: { node: null },
+        errors: [
+          {
+            type: "NOT_FOUND",
+            path: ["node"],
+            message: `Could not resolve to a node with the global id of '${variables.id}'.`,
+          },
+        ],
+      }),
+    )
+  }
 }
