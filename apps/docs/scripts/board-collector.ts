@@ -1,4 +1,5 @@
 import {
+  formerChildren,
   isFeature,
   STATUS,
   WORK_TYPES,
@@ -6,6 +7,7 @@ import {
   type BoardDataset,
   type BoardIssue,
   type EvidenceOnly,
+  type MembershipChange,
   type StatusChange,
   type IssueLink,
 } from "./flow-metrics.ts"
@@ -18,7 +20,7 @@ export const PROJECT_URL = `https://github.com/users/${OWNER}/projects/${PROJECT
 /** GitHub's largest page. Fields and labels are read in one page and checked against totalCount */
 const PAGE_SIZE = 100
 
-const TIMELINE = `timelineItems(first: 100, after: $timelineAfter, itemTypes: [PROJECT_V2_ITEM_STATUS_CHANGED_EVENT, CLOSED_EVENT, REOPENED_EVENT, RENAMED_TITLE_EVENT]) {
+const TIMELINE = `timelineItems(first: 100, after: $timelineAfter, itemTypes: [PROJECT_V2_ITEM_STATUS_CHANGED_EVENT, CLOSED_EVENT, REOPENED_EVENT, RENAMED_TITLE_EVENT, SUB_ISSUE_ADDED_EVENT, SUB_ISSUE_REMOVED_EVENT]) {
   pageInfo { hasNextPage endCursor }
   nodes {
     __typename
@@ -26,6 +28,8 @@ const TIMELINE = `timelineItems(first: 100, after: $timelineAfter, itemTypes: [P
     ... on ClosedEvent { createdAt }
     ... on ReopenedEvent { createdAt }
     ... on RenamedTitleEvent { createdAt previousTitle currentTitle }
+    ... on SubIssueAddedEvent { createdAt subIssue { id number title url } }
+    ... on SubIssueRemovedEvent { createdAt subIssue { id number title url } }
   }
 }`
 
@@ -48,6 +52,7 @@ const FIELD_VALUES = `fieldValues(first: ${PAGE_SIZE}) {
 }`
 
 const ISSUE_FIELDS = `id number title body url state stateReason closedAt
+parent { number title url }
 labels(first: ${PAGE_SIZE}) { totalCount nodes { name } }
 ${CHILDREN}
 ${TIMELINE}`
@@ -100,6 +105,8 @@ type TimelineEvent = {
   previousStatus?: string
   previousTitle?: string
   currentTitle?: string
+  /** The child of a sub-issue event; null when GitHub cannot show it */
+  subIssue?: (IssueLink & { id: string }) | null
 }
 type Timeline = {
   pageInfo: PageInfo
@@ -135,6 +142,7 @@ export type RawItem = {
     state?: string
     stateReason?: string | null
     closedAt?: string | null
+    parent?: IssueLink | null
     labels?: SinglePage<{ name: string }>
     subIssues?: {
       totalCount: number
@@ -195,6 +203,39 @@ function statusHistory(events: TimelineEvent[]): StatusChange[] {
     }))
 }
 
+const MEMBERSHIP_EVENTS: Record<string, MembershipChange["change"]> = {
+  SubIssueAddedEvent: "added",
+  SubIssueRemovedEvent: "removed",
+}
+
+/** Native sub-issue additions and removals, oldest first (#66) */
+function readMembershipChanges(
+  events: TimelineEvent[],
+  number: number,
+): MembershipChange[] {
+  return events
+    .flatMap((event): MembershipChange[] => {
+      const change = MEMBERSHIP_EVENTS[event.__typename]
+      if (!change) return []
+      if (!event.createdAt || event.subIssue === undefined)
+        return fail(number, "sub-issue history is incomplete")
+      const child = event.subIssue
+      return [
+        {
+          change,
+          at: event.createdAt,
+          child: child && {
+            id: child.id,
+            number: child.number,
+            title: child.title,
+            url: child.url,
+          },
+        },
+      ]
+    })
+    .sort((a, b) => Date.parse(a.at) - Date.parse(b.at))
+}
+
 function fieldValue(fields: FieldValue[], type: string, field: string) {
   return fields.find(
     (value) => value.__typename === type && value.field?.name === field,
@@ -250,6 +291,7 @@ function normaliseItem(raw: RawItem): BoardIssue | null {
     return [event.previousTitle]
   })
   const statusChanges = statusHistory(events)
+  const membershipChanges = readMembershipChanges(events, number)
   const labels = wholeList(issue.labels, number, "labels").map(
     (label) => label.name,
   )
@@ -263,6 +305,8 @@ function normaliseItem(raw: RawItem): BoardIssue | null {
     title: issue.title as string,
     body: issue.body ?? null,
     url: issue.url as string,
+    ...(issue.parent !== undefined ? { parent: issue.parent } : {}),
+    ...(membershipChanges.length ? { membershipChanges } : {}),
     previousTitles: [...new Set(previousTitles)],
     status: selectValue(fields, "Status") ?? STATUS.none,
     workType: WORK_TYPES.find((type) => labels.includes(type)) ?? "unlabelled",
@@ -315,7 +359,10 @@ function dropUnrelatedEvidence(issues: BoardIssue[]): BoardIssue[] {
   const childUrls = new Set(
     issues
       .filter(isFeature)
-      .flatMap((feature) => (feature.children ?? []).map((child) => child.url)),
+      .flatMap((feature) => [
+        ...(feature.children ?? []).map((child) => child.url),
+        ...formerChildren(feature).map((child) => child.url),
+      ]),
   )
   return issues.filter(
     (issue) =>
@@ -584,8 +631,8 @@ async function readAllProjectItems(
 }
 
 /**
- * Feature children that are neither on the board nor archived on it, with the
- * issue identity used to read them as Feature evidence. Withdrawn Features are
+ * Current and former Feature children that are neither on the board nor
+ * archived on it, with the issue identity used to read them as Feature evidence. Withdrawn Features are
  * reported too (#64), so their children are read as well.
  */
 function findMissingFeatureChildren(items: RawItem[], issues: BoardIssue[]) {
@@ -596,6 +643,10 @@ function findMissingFeatureChildren(items: RawItem[], issues: BoardIssue[]) {
     if (item.content?.url && features.has(item.content.url))
       for (const child of item.content.subIssues?.nodes ?? [])
         if (!present.has(child.url)) missing.set(child.url, child)
+  // Former children are read by the identity their removal event retains (#66)
+  for (const feature of issues.filter(isFeature))
+    for (const child of formerChildren(feature))
+      if (!present.has(child.url) && child.id) missing.set(child.url, child)
   return [...missing.values()]
 }
 
