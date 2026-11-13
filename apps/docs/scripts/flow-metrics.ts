@@ -101,12 +101,15 @@ export type FeatureChild = IssueLink & {
 }
 export type FeatureObservation = IssueLink & {
   state:
+    | "Withdrawn"
     | "Completed"
     | "Awaiting acceptance"
     | "Reopened"
     | "Ongoing"
     | "Not started"
     | "Not available"
+  timingState: FeatureChild["timingState"]
+  withdrawalReason: string | null
   finishedAt: string | null
   acceptedAt: string | null
   leadTimeDays: number | null
@@ -465,7 +468,7 @@ function observeFeatures(
   const today = copenhagenDate(observationTime)
   const byUrl = new Map(dataset.items.map((item) => [item.url, item]))
   return dataset.items
-    .filter((item) => isFeature(item) && item.closeReason !== "NOT_PLANNED")
+    .filter((item) => isFeature(item))
     .map((feature) => {
       const problems: DataProblem[] = []
       const problem = (item: IssueLink, text: string) =>
@@ -480,6 +483,19 @@ function observeFeatures(
           feature,
           "Direct-child evidence is not available in this dataset",
         )
+      const withdrawn =
+        feature.state === "CLOSED" && feature.closeReason === "NOT_PLANNED"
+      const withdrawalRecords = (feature.body ?? "")
+        .split(/\r?\n/)
+        .filter((line) => /^\s*(?:[-*]\s*)?Withdrawal reason\b/i.test(line))
+      const withdrawalReason =
+        withdrawn && withdrawalRecords.length === 1
+          ? (withdrawalRecords[0].match(
+              /^\s*(?:[-*]\s*)?Withdrawal reason:\s*(\S.*?)\s*$/i,
+            )?.[1] ?? null)
+          : null
+      if (withdrawn && !withdrawalReason)
+        problem(feature, "Withdrawal reason is missing or ambiguous")
       const scope = readScopeDecisions(feature)
       if (scope.malformed)
         problem(
@@ -675,10 +691,11 @@ function observeFeatures(
             : []
         })
       const parentCompleted = closedAs(feature, "COMPLETED", observationTime)
-      if (feature.state === "CLOSED" && !parentCompleted)
+      if (feature.state === "CLOSED" && !withdrawn && !parentCompleted)
         problem(feature, "Missing or invalid parent acceptance evidence")
       if (
         feature.state === "CLOSED" &&
+        !withdrawn &&
         (!allDelivered || reopenedChildren.length)
       )
         problem(
@@ -702,22 +719,31 @@ function observeFeatures(
       const completed = accepted && !hasUnavailableTiming && startedAt !== null
       return {
         ...issueLink(feature),
-        finishedAt: latestDelivery ? copenhagenDate(latestDelivery) : null,
+        withdrawalReason,
+        timingState: hasUnavailableTiming
+          ? "Not available"
+          : startedAt
+            ? "Available"
+            : "Not started",
+        finishedAt:
+          !withdrawn && latestDelivery ? copenhagenDate(latestDelivery) : null,
         acceptedAt: accepted ? feature.closedAt : null,
         leadTimeDays: completed
           ? daysSince(startedAt, copenhagenDate(latestDelivery!))
           : null,
-        state: hasUnavailableTiming
-          ? "Not available"
-          : completed
-            ? "Completed"
-            : reopenedChildren.length
-              ? "Reopened"
-              : allDelivered
-                ? "Awaiting acceptance"
-                : startedAt
-                  ? "Ongoing"
-                  : "Not started",
+        state: withdrawn
+          ? "Withdrawn"
+          : hasUnavailableTiming
+            ? "Not available"
+            : completed
+              ? "Completed"
+              : reopenedChildren.length
+                ? "Reopened"
+                : allDelivered
+                  ? "Awaiting acceptance"
+                  : startedAt
+                    ? "Ongoing"
+                    : "Not started",
         requiredCount: children.filter((child) => child.scope === "Required")
           .length,
         deliveredCount: deliveryKnown
@@ -726,7 +752,10 @@ function observeFeatures(
             ).length
           : null,
         startedAt,
-        ageDays: startedAt && !completed ? daysSince(startedAt, today) : null,
+        ageDays:
+          startedAt && !completed && !withdrawn
+            ? daysSince(startedAt, today)
+            : null,
         children,
         removedChildren: children.filter((child) => child.scope === "Removed"),
         problems,

@@ -238,3 +238,15 @@ export function acceptedFeatureItems(): RawItem[] {
   })
   return [...children, parent]
 }
+
+/** Withdrawal after discovery delivery leaves both child outcomes intact. */
+export function withdrawnFeatureItems(): RawItem[] {
+  const items = acceptedFeatureItems()
+  items[1].content!.stateReason = "NOT_PLANNED"
+  Object.assign(items[2].content!, {
+    title: "Feature: Withdrawn capability",
+    stateReason: "NOT_PLANNED",
+    body: "Withdrawal reason: No longer part of the agreed product scope",
+  })
+  return items
+}
