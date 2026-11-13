@@ -1,76 +1,72 @@
 import { login } from "@lib/data/customer"
 import { LOGIN_VIEW } from "@modules/account/templates/login-template"
-import ErrorMessage from "@modules/checkout/components/error-message"
 import { SubmitButton } from "@modules/checkout/components/submit-button"
 import Input from "@modules/common/components/input"
+import { CUSTOMER_AUTH, Locale } from "@dtc/i18n"
 import { useActionState } from "react"
 
-type Props = {
-  setCurrentView: (view: LOGIN_VIEW) => void
-}
+type Props = { setCurrentView: (view: LOGIN_VIEW) => void; locale: Locale }
 
-const Login = ({ setCurrentView }: Props) => {
+const Login = ({ setCurrentView, locale }: Props) => {
   const [message, formAction] = useActionState(login, null)
-
+  const text = CUSTOMER_AUTH[locale]
   return (
     <div
       className="max-w-sm w-full flex flex-col items-center"
       data-testid="login-page"
+      lang={locale}
     >
-      <h1 className="text-large-semi uppercase mb-6">Welcome back</h1>
+      <h1 className="text-large-semi uppercase mb-6">{text.welcome}</h1>
       <p className="text-center text-base-regular text-ui-fg-base mb-8">
-        Sign in to access an enhanced shopping experience.
+        {text.introduction}
       </p>
       {message?.state === "verification_required" && (
-        <div
-          className="w-full mb-6 text-center text-base-regular text-ui-fg-base bg-ui-bg-subtle border border-ui-border-base rounded-rounded p-4"
-          data-testid="login-verification-message"
-        >
-          We sent a verification link to <strong>{message.email}</strong>.
-          Please verify your email, then sign in.
-        </div>
+        <p role="status">{text.verification}</p>
       )}
       <form className="w-full" action={formAction}>
         <div className="flex flex-col w-full gap-y-2">
           <Input
-            label="Email"
+            id="email"
+            label={text.email}
             name="email"
             type="email"
-            title="Enter a valid email address."
             autoComplete="email"
             required
             data-testid="email-input"
           />
           <Input
-            label="Password"
+            id="password"
+            label={text.password}
             name="password"
             type="password"
             autoComplete="current-password"
             required
+            passwordToggleLabel={text.showPassword}
             data-testid="password-input"
           />
         </div>
-        <ErrorMessage
-          error={message?.state === "error" ? message.error : null}
+        <p
+          role="alert"
+          className="pt-2 text-rose-500 text-small-regular"
           data-testid="login-error-message"
-        />
+        >
+          {message?.state === "error" ? text.errors[message.error] : null}
+        </p>
         <SubmitButton data-testid="sign-in-button" className="w-full mt-6">
-          Sign in
+          {text.signIn}
         </SubmitButton>
       </form>
       <span className="text-center text-ui-fg-base text-small-regular mt-6">
-        Not a member?{" "}
+        {text.newCustomer}{" "}
         <button
           onClick={() => setCurrentView(LOGIN_VIEW.REGISTER)}
           className="underline"
           data-testid="register-button"
         >
-          Join us
+          {text.register}
         </button>
-        .
       </span>
     </div>
   )
 }
-
 export default Login

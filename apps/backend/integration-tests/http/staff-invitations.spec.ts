@@ -67,10 +67,13 @@ medusaIntegrationTestRunner({
       ).result.restaurant.id
     /** A login of the given actor type, registered as Medusa's emailpass provider does. */
     const registerLogin = async (actor: string, email: string) => {
-      const registered = await api.post(`/auth/${actor}/emailpass/register`, {
-        email,
-        password: "ci-only-password",
-      })
+      const registered = await api.post(
+        `/auth/${actor}/${actor === "customer" ? "customer-emailpass" : "emailpass"}/register`,
+        {
+          email,
+          password: "ci-only-password",
+        },
+      )
       return claimsOf(registered.data.token).auth_identity_id as string
     }
 
@@ -217,14 +220,9 @@ medusaIntegrationTestRunner({
         prepare: () => registerLogin("user", "login@pizzeria.example"),
       },
       {
-        reason: "DT: a Customer login",
-        email: "login@pizzeria.example",
-        prepare: () => registerLogin("customer", "login@pizzeria.example"),
-      },
-      {
         reason: "EP: a login whose email differs only in case",
         email: "Login@Pizzeria.Example",
-        prepare: () => registerLogin("customer", "login@pizzeria.example"),
+        prepare: () => registerLogin("user", "login@pizzeria.example"),
       },
       {
         reason: "DT: pending staff of this Restaurant",
@@ -268,8 +266,17 @@ medusaIntegrationTestRunner({
       },
     )
 
+    it.each(["login@pizzeria.example", "Login@Pizzeria.Example"])(
+      "allows a staff invitation alongside a Customer login: %s",
+      async (email) => {
+        await registerLogin("customer", "login@pizzeria.example")
+        const response = await invite({ name: "Customer and staff", email })
+        expect(response.status).toBe(200)
+      },
+    )
+
     it("treats wildcard characters in an email literally", async () => {
-      await registerLogin("customer", "mette@pizzeria.example")
+      await registerLogin("restaurant_staff", "mette@pizzeria.example")
       const response = await invite({
         name: "Mette",
         email: "met_e@pizzeria.example",

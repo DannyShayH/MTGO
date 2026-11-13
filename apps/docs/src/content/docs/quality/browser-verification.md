@@ -174,3 +174,16 @@ Pizzeria Nørrebro (`SEED_STAFF_EMAIL`, `SEED_STAFF_PASSWORD`).
 
 Every test fails on uncaught browser errors. Tracing and video are off, because
 the journey types a password.
+
+## Customer registration and sign-in (#84)
+
+`apps/storefront/e2e/customer-auth.spec.ts` adds Danish/English keyboard journeys:
+email/password-only registration alongside an existing same-email staff login,
+wrong-password feedback, duplicate registration refusal and subsequent sign-in.
+It disables traces and screenshots so authentication inputs are not retained.
+The HTTP suite independently proves role isolation, stable error codes and the
+legacy identity migration preserving Customer IDs, saved addresses and Orders.
+
+Local verification on 13 November 2026 reached the backend/Admin production build
+but was killed with exit code 137 before Playwright started. The complete browser
+run remains required in the ready flow on a runner with sufficient memory.

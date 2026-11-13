@@ -1,4 +1,5 @@
-import { loadEnv, defineConfig } from "@medusajs/framework/utils"
+import { loadEnv, defineConfig, Modules } from "@medusajs/framework/utils"
+import * as linkModules from "@medusajs/medusa/link-modules"
 import { redisModules } from "./src/config/redis-modules"
 
 loadEnv(process.env.NODE_ENV || "development", process.cwd())
@@ -32,12 +33,31 @@ module.exports = defineConfig({
       storeCors: process.env.STORE_CORS!,
       adminCors: process.env.ADMIN_CORS!,
       authCors: process.env.AUTH_CORS!,
+      authMethodsPerActor: {
+        customer: ["customer-emailpass"],
+        restaurant_staff: ["emailpass"],
+        user: ["emailpass"],
+      },
       jwtSecret: process.env.JWT_SECRET,
       cookieSecret: process.env.COOKIE_SECRET,
     },
   },
   modules: [
     ...redisModules(redisUrl),
+    // Resolve links from the app: hoisted framework utilities cannot see a nested Medusa install.
+    { key: Modules.LINK, ...linkModules },
+    {
+      resolve: "@medusajs/medusa/auth",
+      options: {
+        providers: [
+          { resolve: "@medusajs/medusa/auth-emailpass", id: "emailpass" },
+          {
+            resolve: "./src/modules/customer-emailpass",
+            id: "customer-emailpass",
+          },
+        ],
+      },
+    },
     {
       resolve: "./src/modules/restaurant",
       // Invite links point to the partner app's invitation page.

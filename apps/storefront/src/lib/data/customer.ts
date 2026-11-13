@@ -4,6 +4,7 @@ import { sdk } from "@lib/config"
 import medusaError from "@lib/util/medusa-error"
 import { HttpTypes } from "@medusajs/types"
 import { FetchError } from "@medusajs/js-sdk"
+import { CustomerAuthCode } from "@dtc/i18n"
 import { revalidateTag } from "next/cache"
 import { redirect } from "next/navigation"
 import {
@@ -11,16 +12,13 @@ import {
   getCacheOptions,
   getCacheTag,
   getCartId,
-  getPendingCustomer,
   removeAuthToken,
   removeCartId,
-  removePendingCustomer,
   setAuthToken,
-  setPendingCustomer,
 } from "./cookies"
 
 export type CustomerAuthState =
-  | { state: "error"; error: string }
+  | { state: "error"; error: CustomerAuthCode }
   | { state: "verification_required"; email: string }
   | { state: "success" }
   | null
@@ -88,40 +86,34 @@ export async function signup(
   _currentState: unknown,
   formData: FormData,
 ): Promise<CustomerAuthState> {
-  const password = formData.get("password") as string
-  const customerForm = {
-    email: formData.get("email") as string,
-    first_name: formData.get("first_name") as string,
-    last_name: formData.get("last_name") as string,
-    phone: formData.get("phone") as string,
-  }
-
+  const email = String(formData.get("email") ?? "")
+    .trim()
+    .toLowerCase()
+  const password = String(formData.get("password") ?? "")
   try {
-    await sdk.auth.register("customer", "emailpass", {
-      email: customerForm.email,
+    const token = await sdk.auth.register("customer", "customer-emailpass", {
+      email,
       password,
     })
+    await sdk.store.customer.create(
+      { email },
+      {},
+      { authorization: `Bearer ${token}` },
+    )
   } catch (error) {
-    const fetchError = error as FetchError
-    // An existing identity (for example, an admin user with the same email) is
-    // expected and handled: the customer can still log in to link a customer
-    // record. Any other error is surfaced.
-    if (
-      fetchError.statusText !== "Unauthorized" ||
-      fetchError.message !== "Identity with email already exists"
-    ) {
-      return { state: "error", error: String(error) }
-    }
+    return { state: "error", error: customerAuthCode(error) }
   }
+  return completeLogin(email, password)
+}
 
-  // Persist the extra signup fields. The customer record is created during
-  // login, which is deferred until after email verification when the backend
-  // requires it.
-  await setPendingCustomer(customerForm)
-
-  // Continue by logging in. The login response tells us whether the backend
-  // requires email verification — we don't need a storefront-side flag.
-  return completeLogin(customerForm.email, password)
+function customerAuthCode(error: unknown): CustomerAuthCode {
+  if (error instanceof FetchError) {
+    if (error.message === "customer_identity_exists")
+      return "customer_identity_exists"
+    if (error.status === 401 || error.status === 400)
+      return "customer_credentials_invalid"
+  }
+  return "customer_auth_unavailable"
 }
 
 export async function login(
@@ -144,9 +136,12 @@ async function completeLogin(
   let result: Awaited<ReturnType<typeof sdk.auth.login>>
 
   try {
-    result = await sdk.auth.login("customer", "emailpass", { email, password })
+    result = await sdk.auth.login("customer", "customer-emailpass", {
+      email,
+      password,
+    })
   } catch (error) {
-    return { state: "error", error: String(error) }
+    return { state: "error", error: customerAuthCode(error) }
   }
 
   // A `location` is returned by third-party auth providers, which this flow
@@ -154,7 +149,7 @@ async function completeLogin(
   if (typeof result === "object" && "location" in result) {
     return {
       state: "error",
-      error: "This login method isn't supported by the storefront.",
+      error: "customer_auth_unavailable",
     }
   }
 
@@ -176,7 +171,7 @@ async function completeLogin(
   if (typeof result !== "string") {
     return {
       state: "error",
-      error: "Authentication requires additional steps that aren't supported.",
+      error: "customer_auth_unavailable",
     }
   }
 
@@ -193,29 +188,25 @@ async function completeLogin(
     .catch(() => false)
 
   if (!customerExists) {
-    const pending = await getPendingCustomer()
-
     try {
       await sdk.store.customer.create(
         {
           email,
-          first_name: pending?.first_name,
-          last_name: pending?.last_name,
-          phone: pending?.phone,
         },
         {},
         { authorization: `Bearer ${token}` },
       )
 
-      token = (await sdk.auth.login("customer", "emailpass", {
+      const refreshed = await sdk.auth.login("customer", "customer-emailpass", {
         email,
         password,
-      })) as string
+      })
+      if (typeof refreshed !== "string")
+        return { state: "error", error: "customer_auth_unavailable" }
+      token = refreshed
     } catch (error) {
-      return { state: "error", error: String(error) }
+      return { state: "error", error: customerAuthCode(error) }
     }
-
-    await removePendingCustomer()
   }
 
   await setAuthToken(token)
@@ -225,8 +216,8 @@ async function completeLogin(
 
   try {
     await transferCart()
-  } catch (error) {
-    return { state: "error", error: String(error) }
+  } catch {
+    return { state: "error", error: "customer_cart_transfer_failed" }
   }
 
   return { state: "success" }
@@ -243,7 +234,7 @@ export async function confirmEmailVerification(
     await sdk.auth.verification.confirm({ code: token })
     return { success: true }
   } catch (error) {
-    return { success: false, error: String(error) }
+    return { success: false, error: customerAuthCode(error) }
   }
 }
 

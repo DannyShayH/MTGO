@@ -87,20 +87,22 @@ const toIssuedInvitation = async (
 })
 
 /**
- * One email is one MTOGO login, whatever its actor type (operator, Customer or
- * staff), and staff is one Restaurant per login in the MVP. So an email with a
- * login, or held by pending or authorized staff anywhere, is refused.
+ * Staff remains one Restaurant per login. Existing staff/operator emailpass
+ * identities and pending staff reserve the email; Customer credentials live
+ * in a separate provider namespace and may coexist with an invitation.
  */
 export const assertStaffEmailAvailableStep = createStep(
   "assert-staff-email-available",
   async (input: { email: string }, { container }) => {
     const email = { $ilike: escapeIlikeWildcards(input.email) }
-    const identities = await container
-      .resolve(Modules.AUTH)
-      .listProviderIdentities(
-        { provider: "emailpass", entity_id: email },
-        { select: ["id"], take: 1 },
-      )
+    const { data: identities } = await container
+      .resolve(ContainerRegistrationKeys.QUERY)
+      .graph({
+        entity: "provider_identity",
+        fields: ["id"],
+        filters: { provider: "emailpass", entity_id: email },
+        pagination: { take: 1 },
+      })
     if (identities.length) throw emailHasLogin()
     const staff = await restaurantService(container).listRestaurantStaffs(
       { email, status: ["pending", "authorized"] },

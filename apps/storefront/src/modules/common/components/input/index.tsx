@@ -12,12 +12,22 @@ type InputProps = Omit<
   errors?: Record<string, unknown>
   touched?: Record<string, unknown>
   name: string
+  passwordToggleLabel?: string
   topLabel?: string
 }
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
   (
-    { type, name, label, touched: _touched, required, topLabel, ...props },
+    {
+      type,
+      name,
+      label,
+      touched: _touched,
+      required,
+      topLabel,
+      passwordToggleLabel = "Show or hide password",
+      ...props
+    },
     ref,
   ) => {
     const inputRef = React.useRef<HTMLInputElement>(null)
@@ -62,6 +72,8 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           {type === "password" && (
             <button
               type="button"
+              aria-label={passwordToggleLabel}
+              aria-pressed={showPassword}
               onClick={() => setShowPassword(!showPassword)}
               className="text-ui-fg-subtle px-4 focus:outline-none transition-all duration-150 outline-none focus:text-ui-fg-base absolute right-0 top-3"
             >

@@ -18,6 +18,7 @@ const S3_PATHNAME = process.env.MEDUSA_CLOUD_S3_PATHNAME
  */
 const nextConfig = {
   reactStrictMode: true,
+  transpilePackages: ["@dtc/i18n"],
   // AGENTS.md at the repository root guides agents; do not generate one here.
   agentRules: false,
   async headers() {

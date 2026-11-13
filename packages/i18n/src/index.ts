@@ -14,3 +14,4 @@ export {
 } from "./messages.ts"
 export { formatText } from "./format.ts"
 export { accessEndedMessage } from "./access-ended.ts"
+export { CUSTOMER_AUTH, type CustomerAuthCode } from "./customer-auth.ts"
