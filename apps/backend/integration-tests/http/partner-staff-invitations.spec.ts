@@ -228,7 +228,7 @@ medusaIntegrationTestRunner({
         reason: "DT: a Customer registration",
         authorization: async () =>
           (
-            await api.post("/auth/customer/emailpass/register", {
+            await api.post("/auth/customer/customer-emailpass/register", {
               email: mette.email,
               password,
             })

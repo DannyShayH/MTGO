@@ -3,54 +3,33 @@
 import { useActionState } from "react"
 import Input from "@modules/common/components/input"
 import { LOGIN_VIEW } from "@modules/account/templates/login-template"
-import ErrorMessage from "@modules/checkout/components/error-message"
 import { SubmitButton } from "@modules/checkout/components/submit-button"
-import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { signup } from "@lib/data/customer"
+import { CUSTOMER_AUTH, Locale } from "@dtc/i18n"
 
-type Props = {
-  setCurrentView: (view: LOGIN_VIEW) => void
-}
+type Props = { setCurrentView: (view: LOGIN_VIEW) => void; locale: Locale }
 
-const Register = ({ setCurrentView }: Props) => {
+const Register = ({ setCurrentView, locale }: Props) => {
   const [message, formAction] = useActionState(signup, null)
-
+  const text = CUSTOMER_AUTH[locale]
   return (
     <div
       className="max-w-sm flex flex-col items-center"
       data-testid="register-page"
+      lang={locale}
     >
-      <h1 className="text-large-semi uppercase mb-6">Become an MTOGO member</h1>
+      <h1 className="text-large-semi uppercase mb-6">{text.join}</h1>
       <p className="text-center text-base-regular text-ui-fg-base mb-4">
-        Create your MTOGO profile to order and follow your deliveries.
+        {text.description}
       </p>
       {message?.state === "verification_required" && (
-        <div
-          className="w-full mb-4 text-center text-base-regular text-ui-fg-base bg-ui-bg-subtle border border-ui-border-base rounded-rounded p-4"
-          data-testid="register-verification-message"
-        >
-          We sent a verification link to <strong>{message.email}</strong>.
-          Please check your inbox to verify your email, then sign in.
-        </div>
+        <p role="status">{text.verification}</p>
       )}
       <form className="w-full flex flex-col" action={formAction}>
         <div className="flex flex-col w-full gap-y-2">
           <Input
-            label="First name"
-            name="first_name"
-            required
-            autoComplete="given-name"
-            data-testid="first-name-input"
-          />
-          <Input
-            label="Last name"
-            name="last_name"
-            required
-            autoComplete="family-name"
-            data-testid="last-name-input"
-          />
-          <Input
-            label="Email"
+            id="email"
+            label={text.email}
             name="email"
             required
             type="email"
@@ -58,58 +37,37 @@ const Register = ({ setCurrentView }: Props) => {
             data-testid="email-input"
           />
           <Input
-            label="Phone"
-            name="phone"
-            type="tel"
-            autoComplete="tel"
-            data-testid="phone-input"
-          />
-          <Input
-            label="Password"
+            id="password"
+            label={text.password}
             name="password"
             required
             type="password"
             autoComplete="new-password"
+            passwordToggleLabel={text.showPassword}
             data-testid="password-input"
           />
         </div>
-        <ErrorMessage
-          error={message?.state === "error" ? message.error : null}
+        <p
+          role="alert"
+          className="pt-2 text-rose-500 text-small-regular"
           data-testid="register-error"
-        />
-        <span className="text-center text-ui-fg-base text-small-regular mt-6">
-          By creating an account, you agree to MTOGO&apos;s{" "}
-          <LocalizedClientLink
-            href="/content/privacy-policy"
-            className="underline"
-          >
-            Privacy Policy
-          </LocalizedClientLink>{" "}
-          and{" "}
-          <LocalizedClientLink
-            href="/content/terms-of-use"
-            className="underline"
-          >
-            Terms of Use
-          </LocalizedClientLink>
-          .
-        </span>
+        >
+          {message?.state === "error" ? text.errors[message.error] : null}
+        </p>
         <SubmitButton className="w-full mt-6" data-testid="register-button">
-          Join
+          {text.register}
         </SubmitButton>
       </form>
       <span className="text-center text-ui-fg-base text-small-regular mt-6">
-        Already a member?{" "}
+        {text.existing}{" "}
         <button
           onClick={() => setCurrentView(LOGIN_VIEW.SIGN_IN)}
           className="underline"
         >
-          Sign in
+          {text.signIn}
         </button>
-        .
       </span>
     </div>
   )
 }
-
 export default Register

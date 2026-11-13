@@ -14,6 +14,16 @@ import { responseFieldsOf } from "../workflows/common/response-fields"
 export function mtogoErrorHandler(): MedusaErrorHandlerFunction {
   const medusaErrorHandler = errorHandler()
   return (error, req, res, next) => {
+    if (
+      [
+        "customer_identity_exists",
+        "customer_credentials_invalid",
+        "customer_sign_in_required",
+        "customer_provider_not_allowed",
+      ].includes(error.message)
+    ) {
+      error.code = error.message
+    }
     const fields = responseFieldsOf(error)
     const { statusCode, body } = getHttpResponseFromError(error)
     if (!fields || statusCode >= 500)

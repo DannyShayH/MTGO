@@ -1,5 +1,8 @@
-import { asValue, createContainer } from "@medusajs/framework/awilix"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { asValue } from "@medusajs/framework/awilix"
+import {
+  createMedusaContainer,
+  ContainerRegistrationKeys,
+} from "@medusajs/framework/utils"
 import {
   createStep,
   createWorkflow,
@@ -62,7 +65,7 @@ it.each([
     service.createStaffInvitations.mockRejectedValueOnce(
       new Error("Persistence failed"),
     )
-  const container = createContainer()
+  const container = createMedusaContainer()
   container.register({
     [RESTAURANT_MODULE]: asValue(service),
     [ContainerRegistrationKeys.CONFIG_MODULE]: asValue({

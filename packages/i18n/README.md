@@ -1,7 +1,9 @@
 # @dtc/i18n
 
 Danish and English text shared by the MTOGO apps. The partner app takes all of
-its text from here; the storefront can move its text here later (ADR-0017).
+its text from here; the storefront registration and sign-in forms use
+`CUSTOMER_AUTH[locale]` for text and stable account error codes (issue #84).
+Other storefront surfaces can move their text here later (ADR-0017).
 
 - `resolveLocale({ chosen, acceptLanguage })` picks `da` or `en`: a remembered
   choice first, then the browser's `Accept-Language` in quality order, then

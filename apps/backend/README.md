@@ -16,6 +16,15 @@ The MTOGO backend and admin dashboard, built on [Medusa](https://docs.medusajs.c
 
 Each folder has its own README with Medusa's conventions. Layering is Module → Workflow → API route, enforced by `npm run arch` from the repository root.
 
+## Workspace module resolution
+
+`medusa-config.ts` explicitly supplies Medusa's link-module exports under
+`Modules.LINK`. npm can hoist the framework and utilities while keeping Medusa
+inside this app. Loading the link module from the app avoids the framework's
+fallback lookup from the workspace root, which otherwise breaks database link
+setup in integration tests and production migrations. No `NODE_PATH` override
+or dependency placement is required.
+
 ## Commands
 
 Commands, tests and database tasks are described in the root [`AGENTS.md`](../../AGENTS.md). The most common ones, run from `apps/backend`:

@@ -54,8 +54,10 @@ from Admin and sends it themselves.
   invitation persistence or a later workflow step fails, rollback removes the
   new records so the operator can retry the same email.
 - An email is refused with `email_has_login` (`INVALID_DATA`, `400`) when it
-  already has an MTOGO email and password login of any actor type, or belongs to
-  pending or authorized staff of any Restaurant. The comparison ignores case.
+  already has a staff/operator `emailpass` login, or belongs to pending or
+  authorized staff of any Restaurant. The comparison ignores case. A same-email
+  Customer login uses the isolated `customer-emailpass` provider and may coexist
+  with a staff invitation (issue #84).
 - `resendStaffInvitationWorkflow` issues a new token and expiry, so the previous
   link stops working. `cancelStaffInvitationWorkflow` deletes the pending staff
   member together with the invitation and its token.
@@ -265,7 +267,7 @@ History entry naming the operator.
   operator-only access, plus the delivery area, commercial terms and readiness:
   `npm run test:integration:http` with disposable PostgreSQL.
 - HTTP staff invitations: invite, resend (new token and later expiry), cancel,
-  `email_has_login` for operator, Customer and staff emails, validation, `404`s
+  `email_has_login` for operator and staff emails, same-email Customer coexistence, validation, `404`s
   and operator-only access.
 - HTTP staff revocation: Former staff with when and by whom, the
   `last_authorized_staff` warning, revoking the last one without changing

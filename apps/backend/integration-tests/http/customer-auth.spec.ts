@@ -1,0 +1,318 @@
+import { createRestaurantWorkflow } from "../../src/workflows/restaurants"
+import { createAuthorizedStaffWorkflow } from "../../src/workflows/restaurant-staff"
+import { Modules, generateJwtToken } from "@medusajs/framework/utils"
+import { isolateCustomerIdentityWorkflow } from "../../src/workflows/customer-auth"
+import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
+import {
+  createCustomerAccountWorkflow,
+  createCustomerAddressesWorkflow,
+  createOrderWorkflow,
+  createUsersWorkflow,
+  createRegionsWorkflow,
+  createApiKeysWorkflow,
+  createSalesChannelsWorkflow,
+  linkSalesChannelsToApiKeyWorkflow,
+} from "@medusajs/medusa/core-flows"
+
+jest.setTimeout(120000)
+
+medusaIntegrationTestRunner({
+  dbName: "medusa_ci_customer_auth_http",
+  env: { JWT_SECRET: "ci-only-customer-secret", REDIS_URL: "" },
+  testSuite: ({ api, getContainer }) => {
+    const email = "customer@example.test"
+    const password = "ci-only-customer-password"
+    let headers: Record<string, string>
+    const credentials = { email, password }
+    beforeEach(async () => {
+      const { result } = await createApiKeysWorkflow(getContainer()).run({
+        input: {
+          api_keys: [
+            { title: "Customer test", type: "publishable", created_by: "test" },
+          ],
+        },
+      })
+      const { result: salesChannels } = await createSalesChannelsWorkflow(
+        getContainer(),
+      ).run({ input: { salesChannelsData: [{ name: "Customer test" }] } })
+      await linkSalesChannelsToApiKeyWorkflow(getContainer()).run({
+        input: { id: result[0].id, add: [salesChannels[0].id] },
+      })
+      headers = { "x-publishable-api-key": result[0].token }
+    })
+    const register = () =>
+      api.post("/auth/customer/customer-emailpass/register", credentials)
+    const signIn = (body = credentials) =>
+      api.post("/auth/customer/customer-emailpass", body, {
+        validateStatus: () => true,
+      })
+    it("registers with email/password, signs in, and keeps duplicate registration from replacing the Customer", async () => {
+      const registration = await register()
+      const created = await api.post(
+        "/store/customers",
+        { email },
+        {
+          headers: {
+            ...headers,
+            authorization: `Bearer ${registration.data.token}`,
+          },
+        },
+      )
+      const login = await signIn()
+      expect(login.status).toBe(200)
+      const authorization = `Bearer ${login.data.token}`
+      const me = await api.get("/store/customers/me", {
+        headers: { ...headers, authorization },
+      })
+      expect(me.data.customer.id).toBe(created.data.customer.id)
+      const duplicate = await api.post(
+        "/auth/customer/customer-emailpass/register",
+        credentials,
+        { validateStatus: () => true },
+      )
+      expect(duplicate.status).toBe(401)
+      expect(duplicate.data.code).toBe("customer_identity_exists")
+      expect((await signIn()).status).toBe(200)
+    })
+    it.each([
+      {
+        reason: "EP: unknown email",
+        body: { email: "unknown@example.test", password },
+      },
+      { reason: "EP: wrong password", body: { email, password: "wrong" } },
+      { reason: "BVA: empty password", body: { email, password: "" } },
+    ])("refuses invalid credentials ($reason)", async ({ body }) => {
+      await register()
+      const response = await signIn(body)
+      expect(response.status).toBe(401)
+      expect(response.data.code).toBe("customer_credentials_invalid")
+      expect(JSON.stringify(response.data)).not.toContain(
+        body.password || "never-expose",
+      )
+    })
+    it.each(["user", "restaurant_staff", "unknown_role"])(
+      "refuses Customer credentials for %s",
+      async (actor) => {
+        await register()
+        const response = await api.post(
+          `/auth/${actor}/customer-emailpass`,
+          credentials,
+          { validateStatus: () => true },
+        )
+        expect(response.status).toBe(400)
+      },
+    )
+    it("migrates a shared identity without replacing Customer ownership or other-role credentials", async () => {
+      const auth = getContainer().resolve(Modules.AUTH)
+      const legacy = await auth.register("emailpass", { body: credentials })
+      const identityId = legacy.authIdentity!.id
+      const { result: customer } = await createCustomerAccountWorkflow(
+        getContainer(),
+      ).run({
+        input: { authIdentityId: identityId, customerData: { email } },
+      })
+      await auth.updateAuthIdentities({
+        id: identityId,
+        app_metadata: { customer_id: customer.id, user_id: "user_legacy" },
+      })
+      const { result: addresses } = await createCustomerAddressesWorkflow(
+        getContainer(),
+      ).run({
+        input: {
+          addresses: [
+            {
+              customer_id: customer.id,
+              address_1: "Testvej 1",
+              postal_code: "2100",
+              city: "København",
+              country_code: "dk",
+            },
+          ],
+        },
+      })
+      const { result: regions } = await createRegionsWorkflow(
+        getContainer(),
+      ).run({
+        input: {
+          regions: [
+            { name: "Denmark", currency_code: "dkk", countries: ["dk"] },
+          ],
+        },
+      })
+      const { result: order } = await createOrderWorkflow(getContainer()).run({
+        input: {
+          customer_id: customer.id,
+          email,
+          currency_code: "dkk",
+          region_id: regions[0].id,
+          items: [{ title: "Historical dish", quantity: 1, unit_price: 50 }],
+        },
+      })
+      const { result: users } = await createUsersWorkflow(getContainer()).run({
+        input: { users: [{ email }] },
+      })
+      await auth.updateAuthIdentities({
+        id: identityId,
+        app_metadata: { customer_id: customer.id, user_id: users[0].id },
+      })
+      const operatorSession = await api.post(
+        "/auth/user/emailpass",
+        credentials,
+      )
+      const oldToken = generateJwtToken(
+        {
+          actor_type: "customer",
+          actor_id: customer.id,
+          auth_identity_id: identityId,
+          auth_provider: "emailpass",
+        },
+        { secret: "ci-only-customer-secret", expiresIn: "1h" },
+      )
+      await isolateCustomerIdentityWorkflow(getContainer()).run({
+        input: { auth_identity_id: identityId },
+      })
+      await isolateCustomerIdentityWorkflow(getContainer()).run({
+        input: { auth_identity_id: identityId },
+      })
+      const login = await signIn()
+      expect(login.status).toBe(200)
+      const me = await api.get("/store/customers/me", {
+        headers: { ...headers, authorization: `Bearer ${login.data.token}` },
+      })
+      expect(me.data.customer.id).toBe(customer.id)
+      const saved = await api.get("/store/customers/me/addresses", {
+        headers: { ...headers, authorization: `Bearer ${login.data.token}` },
+      })
+      expect(saved.data.addresses).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: addresses[0].id,
+            address_1: "Testvej 1",
+          }),
+        ]),
+      )
+      const history = await api.get("/store/orders", {
+        headers: { ...headers, authorization: `Bearer ${login.data.token}` },
+      })
+      expect(history.data.orders).toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: order.id })]),
+      )
+      const operator = await api.post("/auth/user/emailpass", credentials)
+      expect(
+        JSON.parse(
+          Buffer.from(
+            operator.data.token.split(".")[1],
+            "base64url",
+          ).toString(),
+        ).actor_id,
+      ).toBe(users[0].id)
+      const operatorAccess = await api.get("/admin/users/me", {
+        headers: { authorization: `Bearer ${operatorSession.data.token}` },
+      })
+      expect(operatorAccess.data.user.id).toBe(users[0].id)
+      const oldAccess = await api.get("/store/customers/me", {
+        headers: { ...headers, authorization: `Bearer ${oldToken}` },
+        validateStatus: () => true,
+      })
+      expect(oldAccess.status).toBe(401)
+      const legacyHeaders = { ...headers, authorization: `Bearer ${oldToken}` }
+      const products = await api.get("/store/products", {
+        headers: legacyHeaders,
+      })
+      expect(products.status).toBe(200)
+      const basket = await api.post(
+        "/store/carts",
+        {},
+        { headers: legacyHeaders },
+      )
+      expect(basket.status).toBe(200)
+      expect(basket.data.cart.customer_id).toBeNull()
+      const transfer = await api.post(
+        `/store/carts/${basket.data.cart.id}/customer`,
+        {},
+        { headers: legacyHeaders, validateStatus: () => true },
+      )
+      expect(transfer.status).toBe(401)
+      const session = await api.post(
+        "/auth/session",
+        {},
+        { headers: legacyHeaders, validateStatus: () => true },
+      )
+      expect(session.status).toBe(401)
+
+      const refresh = await api.post(
+        "/auth/token/refresh",
+        {},
+        {
+          headers: { authorization: `Bearer ${oldToken}` },
+          validateStatus: () => true,
+        },
+      )
+      expect(refresh.status).toBe(401)
+    })
+    it("keeps same-email other-role credentials separate", async () => {
+      await api.post("/auth/restaurant_staff/emailpass/register", {
+        email,
+        password: "ci-only-staff-password",
+      })
+      const staffLogin = await api.post("/auth/restaurant_staff/emailpass", {
+        email,
+        password: "ci-only-staff-password",
+      })
+      const staffIdentity = JSON.parse(
+        Buffer.from(
+          staffLogin.data.token.split(".")[1],
+          "base64url",
+        ).toString(),
+      ).auth_identity_id
+      const { result: restaurant } = await createRestaurantWorkflow(
+        getContainer(),
+      ).run({
+        input: {
+          name: "Test kitchen",
+          address_street: "Testvej 1",
+          address_postal_code: "2100",
+          address_city: "København",
+          contact_phone: "+4512345678",
+          contact_email: "kitchen@example.test",
+        },
+      })
+      await createAuthorizedStaffWorkflow(getContainer()).run({
+        input: {
+          restaurant_id: restaurant.restaurant.id,
+          name: "Test staff",
+          email,
+          auth_identity_id: staffIdentity,
+        },
+      })
+      const staffSession = await api.post("/auth/restaurant_staff/emailpass", {
+        email,
+        password: "ci-only-staff-password",
+      })
+      await register()
+      const staffAccess = await api.get("/partner/me", {
+        headers: { authorization: `Bearer ${staffSession.data.token}` },
+      })
+      expect(staffAccess.data.staff.email).toBe(email)
+      expect((await signIn()).status).toBe(200)
+      expect(
+        (await signIn({ email, password: "ci-only-staff-password" })).status,
+      ).toBe(401)
+      expect(
+        (
+          await api.post("/auth/restaurant_staff/emailpass", {
+            email,
+            password: "ci-only-staff-password",
+          })
+        ).status,
+      ).toBe(200)
+      expect(
+        (
+          await api.post("/auth/restaurant_staff/emailpass", credentials, {
+            validateStatus: () => true,
+          })
+        ).status,
+      ).toBe(401)
+    })
+  },
+})

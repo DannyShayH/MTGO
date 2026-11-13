@@ -24,6 +24,11 @@ import {
 import { PostPartnerAcceptStaffInvitationSchema } from "./partner/validators"
 import { isDanishPostalCode } from "../workflows/restaurants/postal-code"
 import { RESTAURANT_STAFF_ACTOR } from "../workflows/restaurant-staff"
+import {
+  discardLegacyCustomerIdentity,
+  requireIsolatedCustomerIdentity,
+  restrictCustomerProvider,
+} from "./customer-identity"
 import { mtogoErrorHandler } from "./error-handler"
 
 /** Medusa has no path-parameter validator, so the postal code in the path is checked here. */
@@ -46,6 +51,41 @@ function validatePostalCodeParam(
 export default defineMiddlewares({
   errorHandler: mtogoErrorHandler(),
   routes: [
+    {
+      matcher: "/auth/:actor_type/:auth_provider*",
+      middlewares: [restrictCustomerProvider],
+    },
+    {
+      matcher: "/store/*",
+      middlewares: [
+        authenticate("customer", ["bearer", "session"], {
+          allowUnauthenticated: true,
+          allowUnregistered: true,
+        }),
+        discardLegacyCustomerIdentity,
+      ],
+    },
+    {
+      matcher: "/auth/token/refresh",
+      middlewares: [
+        authenticate("*", ["bearer", "session"], {
+          allowUnregistered: true,
+          requireMfa: false,
+        }),
+        requireIsolatedCustomerIdentity,
+      ],
+    },
+    {
+      matcher: "/auth/session",
+      method: "POST",
+      middlewares: [
+        authenticate("*", "bearer", {
+          allowUnregistered: true,
+          requireMfa: false,
+        }),
+        requireIsolatedCustomerIdentity,
+      ],
+    },
     {
       matcher: "/admin/restaurants*",
       middlewares: [authenticate("user", ["session", "bearer"])],
