@@ -20,6 +20,7 @@ import {
   PostAdminChangeDeliveryAreaSchema,
   GetAdminPostalCodesSchema,
   PostAdminInviteStaffSchema,
+  PostAdminDeactivateRestaurantSchema,
 } from "./admin/restaurants/validators"
 import { PostPartnerAcceptStaffInvitationSchema } from "./partner/validators"
 import { isDanishPostalCode } from "../workflows/restaurants/postal-code"
@@ -147,6 +148,13 @@ export default defineMiddlewares({
       method: "POST",
       middlewares: [
         validateAndTransformBody(PostAdminRecordCommercialTermsSchema),
+      ],
+    },
+    {
+      matcher: "/admin/restaurants/:id/deactivate",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(PostAdminDeactivateRestaurantSchema),
       ],
     },
     {

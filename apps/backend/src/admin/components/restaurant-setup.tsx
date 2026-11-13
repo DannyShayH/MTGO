@@ -2,19 +2,24 @@ import {
   Alert,
   Button,
   Container,
+  FocusModal,
   Heading,
+  Label,
   StatusBadge,
   Table,
   Text,
+  Textarea,
   toast,
   usePrompt,
 } from "@medusajs/ui"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { FormEvent, useState } from "react"
 import {
   missingRequirementsIn,
   RestaurantDetail,
   RestaurantDetailResponse,
   requirementLabels,
+  restaurantMessages,
   sdk,
   termsVersionNames,
 } from "../lib/restaurant-api"
@@ -153,6 +158,112 @@ const useActivate = (restaurantId: string) => {
   })
 }
 
+const MAX_REASON_LENGTH = 1000
+
+/** Deactivation also closes the Restaurant; the reason goes into the History (spec stories 31 and 32). */
+const DeactivateModal = ({
+  restaurantId,
+  onClose,
+}: {
+  restaurantId: string
+  onClose: () => void
+}) => {
+  const [reason, setReason] = useState("")
+  const [error, setError] = useState("")
+  const queryClient = useQueryClient()
+  const deactivate = useMutation({
+    mutationFn: (body: { reason: string }) =>
+      sdk.client.fetch<RestaurantDetailResponse>(
+        `/admin/restaurants/${restaurantId}/deactivate`,
+        { method: "POST", body },
+      ),
+    onSuccess: async (response) => {
+      queryClient.setQueryData(["restaurant", restaurantId], response)
+      toast.success("Restaurant deactivated. It is Inactive and Closed.")
+      onClose()
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["restaurants"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["restaurant-history", restaurantId],
+        }),
+      ])
+    },
+    onError: (failure) =>
+      setError(
+        failure.message.includes("deactivation_reason_required")
+          ? restaurantMessages.deactivation_reason_required
+          : "Could not deactivate the Restaurant. Try again.",
+      ),
+  })
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    if (!reason.trim()) {
+      setError(restaurantMessages.deactivation_reason_required)
+      return
+    }
+    setError("")
+    deactivate.mutate({ reason })
+  }
+  return (
+    <FocusModal
+      open
+      onOpenChange={(open) => {
+        if (!open && !deactivate.isPending) onClose()
+      }}
+    >
+      <FocusModal.Content>
+        <FocusModal.Header>
+          <FocusModal.Title>Deactivate Restaurant</FocusModal.Title>
+        </FocusModal.Header>
+        <FocusModal.Body className="overflow-auto">
+          <form
+            noValidate
+            onSubmit={submit}
+            className="mx-auto flex w-full max-w-lg flex-col gap-6 p-6"
+          >
+            <Text className="text-ui-fg-subtle">
+              The Restaurant stops receiving new Orders and is closed. Existing
+              Orders are not affected. Reactivating it later checks the
+              activation requirements again and leaves it Closed.
+            </Text>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="deactivation-reason">Reason</Label>
+              <Textarea
+                id="deactivation-reason"
+                required
+                maxLength={MAX_REASON_LENGTH}
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+              />
+              <Text size="small" className="text-ui-fg-subtle">
+                Shown in the History.
+              </Text>
+            </div>
+            {error && <Alert variant="error">{error}</Alert>}
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={onClose}
+                disabled={deactivate.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="danger"
+                isLoading={deactivate.isPending}
+              >
+                Deactivate
+              </Button>
+            </div>
+          </form>
+        </FocusModal.Body>
+      </FocusModal.Content>
+    </FocusModal>
+  )
+}
+
 const readinessSummary = (restaurant: RestaurantDetail) => {
   if (restaurant.is_active) return "The Restaurant is active."
   return restaurant.readiness.can_activate
@@ -166,6 +277,7 @@ export const ReadinessSection = ({
   restaurant: RestaurantDetail
 }) => {
   const activate = useActivate(restaurant.id)
+  const [isDeactivating, setIsDeactivating] = useState(false)
   const refused = activate.error
     ? missingRequirementsIn(activate.error.message)
     : []
@@ -178,7 +290,15 @@ export const ReadinessSection = ({
             {readinessSummary(restaurant)}
           </Text>
         </div>
-        {!restaurant.is_active && (
+        {restaurant.is_active ? (
+          <Button
+            size="small"
+            variant="secondary"
+            onClick={() => setIsDeactivating(true)}
+          >
+            Deactivate
+          </Button>
+        ) : (
           <Button
             size="small"
             isLoading={activate.isPending}
@@ -188,6 +308,12 @@ export const ReadinessSection = ({
           </Button>
         )}
       </div>
+      {isDeactivating && (
+        <DeactivateModal
+          restaurantId={restaurant.id}
+          onClose={() => setIsDeactivating(false)}
+        />
+      )}
       {activate.error && (
         <div className="px-6 py-4">
           <Alert variant="error">

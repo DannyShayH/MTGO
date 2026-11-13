@@ -5,7 +5,11 @@ import { POSTAL_CODE_MODULE } from "../../../modules/postal-code"
 import RestaurantModuleService from "../../../modules/restaurant/service"
 import { RESTAURANT_MODULE } from "../../../modules/restaurant"
 import { planDeliveryAreaChange } from "../delivery-area-change"
-import { assertRestaurantExists } from "./restaurant-exists"
+import {
+  emptiesActiveDeliveryArea,
+  notAllowedWhileActive,
+} from "../participation"
+import { readParticipationOrThrow } from "./restaurant-exists"
 
 export type DeliveryAreaChange = {
   restaurant_id: string
@@ -44,7 +48,10 @@ export const changeDeliveryAreaStep = createStep(
   async (input: DeliveryAreaChange, { container }) => {
     const service =
       container.resolve<RestaurantModuleService>(RESTAURANT_MODULE)
-    await assertRestaurantExists(service, input.restaurant_id)
+    const { is_active } = await readParticipationOrThrow(
+      service,
+      input.restaurant_id,
+    )
     const current = await service.listDeliveryAreaPostalCodes(
       { restaurant_id: input.restaurant_id },
       { take: null, select: ["id", "postal_code"] },
@@ -54,6 +61,14 @@ export const changeDeliveryAreaStep = createStep(
       add: input.add,
       remove: input.remove,
     })
+    if (
+      emptiesActiveDeliveryArea({
+        is_active,
+        remaining_count:
+          current.length - plan.remove.length + plan.create.length,
+      })
+    )
+      throw notAllowedWhileActive("last_postal_code_while_active")
     const removedIds = current
       .filter(({ postal_code }) => plan.remove.includes(postal_code))
       .map(({ id }) => id)

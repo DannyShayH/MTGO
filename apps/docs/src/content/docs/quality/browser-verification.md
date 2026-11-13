@@ -129,6 +129,14 @@ the checklist shows the menu as met, Activate makes the Restaurant Active and
 Closed, History shows "Activated by" the operator's email, and the Restaurants
 list shows it Active.
 
+The deactivation journey sets up the same Restaurant, runs the menu seed and
+activates it in Admin. Removing its only town and its commercial terms are both
+refused with a message to deactivate first, and both are still there after a
+reload. Deactivate without a reason shows "Enter a reason for the
+deactivation."; with a reason the Restaurant is Inactive and Closed and History
+shows "Deactivated by" with the reason on top. Activate again makes it Active
+and Closed with three History entries.
+
 The harness also runs `npm run verify:admin-development`. It starts Medusa's real
 Admin development bundler in a temporary frontend workspace and transforms both
 Restaurant pages with React Refresh enabled. It needs no database, API server or

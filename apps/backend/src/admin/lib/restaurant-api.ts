@@ -121,6 +121,11 @@ export const restaurantMessages: Record<string, string> = {
     "This email already has an MTOGO login or belongs to Restaurant staff. Ask the person for a different email.",
   staff_invitation_not_found:
     "This invitation no longer exists. Reload to see the current staff.",
+  last_postal_code_while_active:
+    "An active Restaurant must keep at least one postal code. Deactivate it first to remove the last one.",
+  commercial_terms_required_while_active:
+    "An active Restaurant must keep its commercial terms. Deactivate it first to remove them.",
+  deactivation_reason_required: "Enter a reason for the deactivation.",
   last_authorized_staff:
     "This is the last authorized staff member. Afterwards nobody can open the Restaurant or accept Orders. Consider deactivating the Restaurant instead.",
 }

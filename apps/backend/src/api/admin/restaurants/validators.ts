@@ -86,3 +86,22 @@ export const PostAdminInviteStaffSchema = z.strictObject({
 export type PostAdminInviteStaffBody = z.infer<
   typeof PostAdminInviteStaffSchema
 >
+// Medusa keeps the message only of a custom issue, so a missing, empty or
+// non-text reason is one custom check that carries the agreed code, and the
+// length limit is a custom check too so `field_too_long` reaches the response.
+export const DEACTIVATION_REASON_MAX_LENGTH = 1000
+export const PostAdminDeactivateRestaurantSchema = z.strictObject({
+  reason: z
+    .custom<string>(
+      (value) => typeof value === "string" && value.trim().length > 0,
+      "reason:deactivation_reason_required",
+    )
+    .transform((reason) => reason.trim())
+    .refine(
+      (reason) => reason.length <= DEACTIVATION_REASON_MAX_LENGTH,
+      "reason:field_too_long",
+    ),
+})
+export type PostAdminDeactivateRestaurantBody = z.infer<
+  typeof PostAdminDeactivateRestaurantSchema
+>

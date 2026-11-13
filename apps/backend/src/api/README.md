@@ -340,9 +340,14 @@ codes the Restaurant does not serve are ignored on removal.
 
 **Success:** `200` with `{ "restaurant": { ... } }` as in the GET above.
 
+An active Restaurant always keeps at least one postal code: a change that
+would leave it none is refused and changes nothing. Replacing every code in one
+change (`add` and `remove` together) is allowed.
+
 | Status | When                                                                                                                                               |
 | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `400`  | Both lists empty, a code in both, too many codes, unknown field, or codes not in the register (`postal_code_invalid: 0000, 9999`, nothing changes) |
+| `400`  | `not_allowed` with `last_postal_code_while_active`: the change would leave an active Restaurant without a delivery area                            |
 | `404`  | Unknown Restaurant                                                                                                                                 |
 
 ### GET /admin/postal-codes
@@ -373,14 +378,14 @@ codes the Restaurant does not serve are ignored on removal.
 ### DELETE /admin/restaurants/{id}/delivery-area-postal-codes/{postal_code}
 
 **Actor:** MTOGO operator. Removes one postal code. Removing one the Restaurant
-does not serve changes nothing. The guard for the last postal code of an active
-Restaurant arrives with deactivation (#78). **Success:** `200` with
+does not serve changes nothing. **Success:** `200` with
 `{ "restaurant": { ... } }`.
 
-| Status | When                                                                 |
-| ------ | -------------------------------------------------------------------- |
-| `400`  | `postal_code` in the path is not four digits (`postal_code_invalid`) |
-| `404`  | Unknown Restaurant                                                   |
+| Status | When                                                                                            |
+| ------ | ----------------------------------------------------------------------------------------------- |
+| `400`  | `postal_code` in the path is not four digits (`postal_code_invalid`)                            |
+| `400`  | `not_allowed` with `last_postal_code_while_active`: it is the last code of an active Restaurant |
+| `404`  | Unknown Restaurant                                                                              |
 
 ### POST /admin/restaurants/{id}/commercial-terms
 
@@ -406,10 +411,14 @@ terms v1, with the current time as `agreed_at` and the signed-in operator as
 ### DELETE /admin/restaurants/{id}/commercial-terms
 
 **Actor:** MTOGO operator. Removes the current agreement; it stays soft-deleted
-in the database. Removing when none is recorded changes nothing. The guard
-against removing the terms of an active Restaurant arrives with deactivation
-(#78). **Success:** `200` with `{ "restaurant": { ... } }`. **Failure:** `404`
-for an unknown Restaurant.
+in the database. Removing when none is recorded changes nothing. An active
+Restaurant always keeps agreed terms, so deactivate it first. **Success:** `200`
+with `{ "restaurant": { ... } }`.
+
+| Status | When                                                                      |
+| ------ | ------------------------------------------------------------------------- |
+| `400`  | `not_allowed` with `commercial_terms_required_while_active`: it is active |
+| `404`  | Unknown Restaurant                                                        |
 
 ### POST /admin/restaurants/{id}/staff-invitations
 
@@ -525,12 +534,42 @@ names the missing codes in checklist order, and `missing` lists them for the UI:
 | `401`  | Not signed in as an operator         |
 | `404`  | Unknown Restaurant                   |
 
+### POST /admin/restaurants/{id}/deactivate
+
+**Actor:** MTOGO operator. Stops the Restaurant's participation: it becomes
+`is_active: false` and `is_open: false`, so reactivating it later never brings
+Orders by surprise. Under the Restaurant's lock it records a `deactivated`
+history entry with the operator and the reason, and emits
+`restaurant.deactivated` with `{ "id": "res_..." }`. When the Restaurant was
+open it first records `closed` with the operator as actor, so newest first
+shows `deactivated` on top, and also emits `restaurant.closed`. Deactivating an inactive Restaurant returns the
+current state, records nothing and emits nothing. Existing Orders are not
+touched.
+
+| Field    | Type   | Required | Rules                                                              |
+| -------- | ------ | -------- | ------------------------------------------------------------------ |
+| `reason` | string | yes      | Not blank after trimming, at most 1,000 characters; stored trimmed |
+
+```json
+{ "reason": "Hygiene inspection pending" }
+```
+
+**Success:** `200` with `{ "restaurant": { ... } }` as in the GET above.
+Reactivation is `POST /admin/restaurants/{id}/activate`: it checks the
+activation requirements again and leaves the Restaurant Closed.
+
+| Status | When                                                                                                                                   |
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `400`  | `invalid_data`: the reason is missing, empty, blank or not text (`reason:deactivation_reason_required`), too long, or an unknown field |
+| `401`  | Not signed in as an operator                                                                                                           |
+| `404`  | Unknown Restaurant                                                                                                                     |
+
 ### GET /admin/restaurants/{id}/history
 
 **Actor:** MTOGO operator. Lists the Restaurant's history entries, newest first.
 Entries are append-only. `actor_name` is the actor's name when the entry was
 recorded: an operator's first and last name, or their email when Admin has no
-name for them. `reason` is set only for `deactivated` (#78).
+name for them. `reason` is set only for `deactivated`.
 
 ```json
 {

@@ -1,6 +1,10 @@
 import { toast } from "@medusajs/ui"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { RestaurantDetailResponse, sdk } from "./restaurant-api"
+import {
+  RestaurantDetailResponse,
+  restaurantMessages,
+  sdk,
+} from "./restaurant-api"
 
 type SetupRequest = {
   path: string
@@ -8,7 +12,10 @@ type SetupRequest = {
   body?: Record<string, unknown>
 }
 
-/** Every setup route answers with the whole Restaurant, so the page updates without a reload. */
+/**
+ * Every setup route answers with the whole Restaurant, so the page updates
+ * without a reload. A refusal with a known code shows its own text.
+ */
 export const useRestaurantChange = (id: string, failure: string) => {
   const queryClient = useQueryClient()
   return useMutation({
@@ -21,6 +28,7 @@ export const useRestaurantChange = (id: string, failure: string) => {
       queryClient.setQueryData(["restaurant", id], response)
       await queryClient.invalidateQueries({ queryKey: ["restaurants"] })
     },
-    onError: () => toast.error(failure),
+    onError: (error) =>
+      toast.error(restaurantMessages[error.message] || failure),
   })
 }
