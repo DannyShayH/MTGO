@@ -23,6 +23,7 @@ import {
   sdk,
   termsVersionNames,
 } from "../lib/restaurant-api"
+import { DEACTIVATION_REASON_MAX_LENGTH } from "../../workflows/restaurants/deactivation-reason"
 import { useRestaurantChange } from "../lib/use-restaurant-change"
 
 const formatDkk = (amount: number) => `DKK ${amount.toLocaleString("en-GB")}`
@@ -158,8 +159,6 @@ const useActivate = (restaurantId: string) => {
   })
 }
 
-const MAX_REASON_LENGTH = 1000
-
 /** Deactivation also closes the Restaurant; the reason goes into the History (spec stories 31 and 32). */
 const DeactivateModal = ({
   restaurantId,
@@ -231,7 +230,7 @@ const DeactivateModal = ({
               <Textarea
                 id="deactivation-reason"
                 required
-                maxLength={MAX_REASON_LENGTH}
+                maxLength={DEACTIVATION_REASON_MAX_LENGTH}
                 value={reason}
                 onChange={(event) => setReason(event.target.value)}
               />

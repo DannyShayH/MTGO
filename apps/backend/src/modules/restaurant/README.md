@@ -198,8 +198,9 @@ read under the same lock:
 History entries are appended by `recordRestaurantHistoryEntriesStep`, which
 snapshots the actor's name: an operator's first and last name, or their email
 when Admin has no name for them, and a staff member's name. Entries recorded
-together get `occurred_at` one millisecond apart, so newest first keeps their
-order. `listRestaurantHistoryWorkflow` lists them newest first.
+together share the true `occurred_at` and get monotonic ULID ids, so ordering by
+`occurred_at` then `id` keeps their order. `listRestaurantHistoryWorkflow` lists
+one page of them newest first, with the total count.
 
 `COMMON_MVP_TERMS_V1` holds the terms shown read-only in Admin (ADR-0006):
 marginal commission of 6% up to DKK 100, 5% to DKK 500, 4% to DKK 1,000 and 3%

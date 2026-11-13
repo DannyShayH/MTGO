@@ -209,7 +209,8 @@ medusaIntegrationTestRunner({
           actor_id: operatorId,
           actor_name: "Lene Holm",
         }
-        expect(await history()).toEqual([
+        const entries = await history()
+        expect(entries).toEqual([
           expect.objectContaining({
             kind: "deactivated",
             reason: "Hygiene inspection",
@@ -222,6 +223,8 @@ medusaIntegrationTestRunner({
           }),
           expect.objectContaining({ kind: "activated", ...operator }),
         ])
+        // One change at one moment: the order comes from the ids, not from shifted times.
+        expect(entries[0].occurred_at).toBe(entries[1].occurred_at)
       })
 
       it("records only deactivated when the Restaurant is already Closed", async () => {
@@ -243,6 +246,36 @@ medusaIntegrationTestRunner({
           is_open: false,
         })
         expect(await history()).toHaveLength(2)
+      })
+
+      it("pages the history newest first with the total count", async () => {
+        await activeRestaurant()
+        await open()
+        await deactivate({ reason: "Hygiene inspection" })
+        const page = async (query: string) =>
+          (await api.get(`${path}/history?${query}`, { headers })).data
+        const first = await page("limit=2&offset=0")
+        expect(first).toMatchObject({ count: 3, limit: 2, offset: 0 })
+        expect(first.history.map(({ kind }) => kind)).toEqual([
+          "deactivated",
+          "closed",
+        ])
+        const second = await page("limit=2&offset=2")
+        expect(second).toMatchObject({ count: 3, limit: 2, offset: 2 })
+        expect(second.history.map(({ kind }) => kind)).toEqual(["activated"])
+      })
+
+      it.each([
+        ["BVA: limit 0", "limit=0"],
+        ["BVA: limit 101", "limit=101"],
+        ["BVA: offset -1", "offset=-1"],
+        ["EP: limit is not a number", "limit=many"],
+      ])("refuses a history page (%s)", async (_reason, query) => {
+        const response = await api.get(`${path}/history?${query}`, {
+          headers,
+          validateStatus: () => true,
+        })
+        expect(response.status).toBe(400)
       })
 
       it("records nothing when a never-activated Restaurant is deactivated", async () => {

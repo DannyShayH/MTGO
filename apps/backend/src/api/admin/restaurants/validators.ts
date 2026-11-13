@@ -1,5 +1,6 @@
 import { z } from "@medusajs/framework/zod"
 import { COMMON_MVP_TERMS_V1 } from "../../../workflows/restaurants/commercial-terms"
+import { DEACTIVATION_REASON_MAX_LENGTH } from "../../../workflows/restaurants/deactivation-reason"
 import { isDanishPostalCode } from "../../../workflows/restaurants/postal-code"
 
 const required = z
@@ -31,6 +32,13 @@ export const RestaurantListSchema = z.object({
   offset: z.coerce.number().int().min(0).default(0),
 })
 export type RestaurantListQuery = z.infer<typeof RestaurantListSchema>
+export const RestaurantHistoryListSchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  offset: z.coerce.number().int().min(0).default(0),
+})
+export type RestaurantHistoryListQuery = z.infer<
+  typeof RestaurantHistoryListSchema
+>
 export const PickupAddressSchema = z.strictObject({
   ...RestaurantDetailsSchema.pick({
     address_street: true,
@@ -86,10 +94,10 @@ export const PostAdminInviteStaffSchema = z.strictObject({
 export type PostAdminInviteStaffBody = z.infer<
   typeof PostAdminInviteStaffSchema
 >
+
 // Medusa keeps the message only of a custom issue, so a missing, empty or
 // non-text reason is one custom check that carries the agreed code, and the
 // length limit is a custom check too so `field_too_long` reaches the response.
-export const DEACTIVATION_REASON_MAX_LENGTH = 1000
 export const PostAdminDeactivateRestaurantSchema = z.strictObject({
   reason: z
     .custom<string>(

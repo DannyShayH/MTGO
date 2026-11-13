@@ -31,6 +31,7 @@ import { restaurantLock } from "./restaurant-lock"
 import { activateRestaurantStep } from "./steps/activate-restaurant"
 import { deactivateRestaurantStep } from "./steps/deactivate-restaurant"
 import {
+  ListRestaurantHistoryInput,
   listRestaurantHistoryStep,
   recordRestaurantHistoryEntriesStep,
 } from "./steps/history"
@@ -228,7 +229,7 @@ export const removeCommercialTermsWorkflow = createWorkflow(
 )
 export const listRestaurantHistoryWorkflow = createWorkflow(
   "list-restaurant-history",
-  function (input: { restaurant_id: string }) {
-    return new WorkflowResponse({ history: listRestaurantHistoryStep(input) })
+  function (input: ListRestaurantHistoryInput) {
+    return new WorkflowResponse(listRestaurantHistoryStep(input))
   },
 )

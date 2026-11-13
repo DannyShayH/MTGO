@@ -566,7 +566,10 @@ activation requirements again and leaves the Restaurant Closed.
 
 ### GET /admin/restaurants/{id}/history
 
-**Actor:** MTOGO operator. Lists the Restaurant's history entries, newest first.
+**Actor:** MTOGO operator. Lists one page of the Restaurant's history entries,
+newest first. Query: `limit` (1–100, default 20) and `offset` (0 or more,
+default 0); `count` is the total number of entries. Entries recorded together
+share their time and keep their order by `id`.
 Entries are append-only. `actor_name` is the actor's name when the entry was
 recorded: an operator's first and last name, or their email when Admin has no
 name for them. `reason` is set only for `deactivated`.
@@ -583,7 +586,10 @@ name for them. `reason` is set only for `deactivated`.
       "actor_name": "Lene Holm",
       "reason": null
     }
-  ]
+  ],
+  "count": 1,
+  "limit": 20,
+  "offset": 0
 }
 ```
 
@@ -592,6 +598,7 @@ name for them. `reason` is set only for `deactivated`.
 
 | Status | When                         |
 | ------ | ---------------------------- |
+| `400`  | `limit` or `offset` invalid  |
 | `401`  | Not signed in as an operator |
 | `404`  | Unknown Restaurant           |
 
