@@ -151,17 +151,27 @@ The rules enforce: no circular dependencies, apps may import packages but never 
 
 Run the suites from `apps/backend` — it defines no plain `test` script, so the root `<pm> run test` runs nothing there.
 
-For backend/admin or storefront behavior, run `<pm> run verify:applications` from
-the root with the disposable CI variables in
+**Local checks and the ready flow.** Before `gh wrapup`, run `<pm> run lint`,
+`cd apps/backend && <pm> run test:affected`, and `npm test` in each changed
+`packages/*`. `test:affected` runs the unit, module and HTTP specs that import
+something changed since `origin/main`, plus changed spec files; a change under
+`src/api/`, `src/links/` or `medusa-config` runs every HTTP spec. After
+`gh deliver`, the ready flow runs the full suites and every browser journey on
+GitHub, so the full local runs are unnecessary.
+
+Run `<pm> run verify:applications` locally when you change a Playwright spec or
+the verification harness, or to debug a failed ready run. Run it from the root
+with the disposable CI variables in
 [application build verification](apps/docs/src/content/docs/quality/application-builds.md).
 It runs production builds and Playwright against a source snapshot without
 developer `.env` files. Use a loopback PostgreSQL database named `medusa_ci_*`,
 install Chromium first, and keep ports 9000/8000/8100 free. See
 [browser verification](apps/docs/src/content/docs/quality/browser-verification.md)
 for coverage, reports and payment-provider limits. Do not aim browser tests at a
-live store. The ready flow requires this check.
+live store.
 
 ```bash
+cd apps/backend && <pm> run test:affected                  # specs affected since origin/main
 cd apps/backend && <pm> run test:unit                      # **/src/**/__tests__/**/*.unit.spec.ts
 cd apps/backend && <pm> run test:integration:modules       # **/src/modules/*/__tests__/**
 cd apps/backend && <pm> run test:integration:http          # **/integration-tests/http/*.spec.ts
@@ -173,8 +183,9 @@ The devcontainer shares a few GB of memory with VS Code and the editor agents. W
 
 - Never run builds, `verify:applications`, Playwright or the integration suites in parallel, and never start one while another is still running in the background.
 - Stop dev servers you started before running `verify:applications` or a full suite.
-- While developing, run the single test file you are changing; run the full suites once, at the end.
-- Pass `--maxWorkers=2` to Jest and `--concurrency=1` to Turbo builds.
+- While developing, run the single test file you are changing.
+- Leave `JEST_MAX_WORKERS` unset locally, so the backend HTTP and coverage suites run in band. Each worker boots its own Medusa app, and CI sets 2 on its 16 GB runners.
+- Pass `--concurrency=1` to Turbo builds.
 
 Single test — pass a path/pattern through to Jest, keeping `TEST_TYPE`:
 
@@ -267,7 +278,7 @@ This repo uses the TakT trunk-based workflow ([mindovermachine-dev/how-we-work](
 - **Work only on the current issue branch** (`<issue-number>-<title>`, created by `gh workon`). Never create, rename or switch branches, and never commit to `main`. Only the ready flow (`.github/workflows/on_ready.yml`) merges to `main`.
 - **One issue at a time.** Keep changes within the scope of the current issue. Run one writing agent at a time: never run agents in parallel that edit files, commit, or run builds, tests or servers on the same branch. Read-only subagents (code review, research, search) may run in parallel.
 - **After editing files, run `gh insitu run fix-all`.** AI edits bypass editor format-on-save. The pre-commit hook runs `gh insitu run trunk-worthy` (cspell, markdownlint, prettier). If it fails, fix the cause. Never bypass it with `--no-verify`.
-- **Also run the app checks** from [Commands](#commands) that match the change: `<pm> run lint`, and the backend tests for backend changes.
+- **Also run the local checks** in [Tests and browser verification](#tests-and-browser-verification) before `gh wrapup`.
 - **SonarQube review:** follow the [static analysis guidance](apps/docs/src/content/docs/quality/static-analysis.md) when reviewing quality evidence or checking a delivery. Verify the Sonar job and analysis revision for the delivered commit; report a failed gate so a fix issue can be opened immediately.
 - **Update documentation in the same issue as the code.** A module's README lives next to the module. Project-wide docs live in the docs site (`apps/docs/src/content/docs`). `GLOSSARY.md` and `docs/adr/` stay at the repo root.
 - **GitHub Actions workflows must run on `ubuntu-latest`.**

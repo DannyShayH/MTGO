@@ -37,3 +37,9 @@ preference adopt the current resolved browser language on their next sign-in.
 Explicit account changes persist before the browser cookie is updated. The
 account language form and its pending, success and failure text use
 `CUSTOMER_AUTH`. Existing Order language stays independent.
+
+`CATEGORY_TEXT[locale]` supplies category forms, validation and revision recovery
+text for the partner Menu workspace. `isCategoryErrorCode` allowlists structured
+API codes before the interface maps them to translated messages.
+`CATEGORY_SUGGESTIONS` lists common bilingual menu categories, and
+`remainingCategorySuggestions` hides those already on a menu by either name.

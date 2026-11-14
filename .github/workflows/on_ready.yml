@@ -48,6 +48,10 @@ jobs:
 
       - name: Lint and backend tests
         env:
+          # Each HTTP spec has its own database and a free port, so CI runs
+          # two Jest workers. Locally the default stays 1 (in band) to fit an
+          # 8 GB devcontainer.
+          JEST_MAX_WORKERS: 2
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DB_HOST: localhost
           DB_PORT: 5432

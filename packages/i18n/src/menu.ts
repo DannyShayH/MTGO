@@ -20,7 +20,7 @@ export const MENU_TEXT: Record<Locale, MenuText> = {
   da: {
     title: "Menu",
     intro:
-      "Madoplysninger samlet ét sted. Brug kataloget som opslagsværk til restaurantens menu.",
+      "Organisér dine kategorier, og brug madkataloget som opslagsværk til din menu.",
     allergens: "De 14 EU-allergener",
     legend_intro:
       "Åbn et allergen for at læse beskrivelsen og eventuelle specifikke typer.",

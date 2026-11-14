@@ -21,3 +21,12 @@ export {
   type CustomerAuthCode,
 } from "./customer-auth.ts"
 export { MENU_TEXT } from "./menu.ts"
+
+export {
+  CATEGORY_SUGGESTIONS,
+  CATEGORY_TEXT,
+  isCategoryErrorCode,
+  remainingCategorySuggestions,
+  type CategoryErrorCode,
+  type CategorySuggestion,
+} from "./categories.ts"

@@ -24,6 +24,9 @@ const Restaurant = model
     staff: model.hasMany(() => RestaurantStaff, {
       mappedBy: "restaurant",
     }),
+    menu_categories: model.hasMany(() => MenuCategory, {
+      mappedBy: "restaurant",
+    }),
     history_entries: model.hasMany(() => RestaurantHistoryEntry, {
       mappedBy: "restaurant",
     }),
@@ -112,5 +115,23 @@ export const RestaurantHistoryEntry = model
     }),
   })
   .indexes([{ on: ["restaurant_id", "occurred_at"] }])
+
+/** Bilingual publication, revision and successful-change history share one atomic row write. */
+export const MenuCategory = model
+  .define("menu_category", {
+    id: model.id({ prefix: "mcat" }).primaryKey(),
+    name_da: model.text(),
+    name_en: model.text(),
+    revision: model.number().default(1),
+    position: model.number().default(0),
+    request_id: model.text(),
+    creation_name: model.json(),
+    is_removed: model.boolean().default(false),
+    history: model.json(),
+    restaurant: model.belongsTo(() => Restaurant, {
+      mappedBy: "menu_categories",
+    }),
+  })
+  .indexes([{ on: ["restaurant_id", "request_id"], unique: true }])
 
 export default Restaurant

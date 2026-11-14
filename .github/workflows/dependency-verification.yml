@@ -30,9 +30,63 @@ permissions:
   contents: read
   actions: read
 
+env:
+  GH_TOKEN: ${{ github.token }}
+  DB_HOST: localhost
+  DB_PORT: 5432
+  DB_USERNAME: postgres
+  DB_PASSWORD: postgres
+  DATABASE_URL: postgres://postgres:postgres@localhost:5432/medusa_ci_dependencies
+  JWT_SECRET: ci-only-jwt-secret
+  COOKIE_SECRET: ci-only-cookie-secret
+  STORE_CORS: http://localhost:8000
+  ADMIN_CORS: http://localhost:9000
+  AUTH_CORS: http://localhost:8000,http://localhost:9000
+  NEXT_PUBLIC_MEDUSA_BACKEND_URL: http://localhost:9000
+  NEXT_PUBLIC_BASE_URL: http://localhost:8000
+  NEXT_PUBLIC_DEFAULT_REGION: dk
+  MEDUSA_TELEMETRY_DISABLED: "1"
+  NEXT_TELEMETRY_DISABLED: "1"
+
 jobs:
-  verify:
-    name: Verify dependencies without deployment
+  # The three stages mirror ready-checks in .insitu.yml and run in parallel, as
+  # in on_ready.yml. Each runner has its own memory, so this does not change
+  # how much a developer machine needs. Run the harnesses directly so server
+  # output streams instead of being buffered until the entire check exits.
+  backend:
+    name: Lint and backend tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: medusa_ci_dependencies
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Each HTTP spec has its own database and a free port. Locally the
+      # default stays 1 (in band) to fit an 8 GB devcontainer.
+      JEST_MAX_WORKERS: 2
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/prep-runner
+        with:
+          report-statuses: "false"
+      - name: Run lint and backend tests
+        run: |
+          for check in lint coverage integration-modules; do
+            GITHUB_ACTIONS=false gh insitu task "$check" --verbose
+          done
+
+  applications:
+    name: Build applications and run browser journeys
     runs-on: ubuntu-latest
     timeout-minutes: 35
     services:
@@ -48,23 +102,6 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-    env:
-      GH_TOKEN: ${{ github.token }}
-      DB_HOST: localhost
-      DB_PORT: 5432
-      DB_USERNAME: postgres
-      DB_PASSWORD: postgres
-      DATABASE_URL: postgres://postgres:postgres@localhost:5432/medusa_ci_dependencies
-      JWT_SECRET: ci-only-jwt-secret
-      COOKIE_SECRET: ci-only-cookie-secret
-      STORE_CORS: http://localhost:8000
-      ADMIN_CORS: http://localhost:9000
-      AUTH_CORS: http://localhost:8000,http://localhost:9000
-      NEXT_PUBLIC_MEDUSA_BACKEND_URL: http://localhost:9000
-      NEXT_PUBLIC_BASE_URL: http://localhost:8000
-      NEXT_PUBLIC_DEFAULT_REGION: dk
-      MEDUSA_TELEMETRY_DISABLED: "1"
-      NEXT_TELEMETRY_DISABLED: "1"
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/prep-runner
@@ -73,21 +110,8 @@ jobs:
       - name: Install Chromium
         working-directory: apps/storefront
         run: npm exec -- playwright install chromium
-      # Keep these stages aligned with ready-checks in .insitu.yml. Run the
-      # application harness directly so server output streams instead of being
-      # buffered until the entire application check exits.
-      - name: Run lint and backend tests
-        run: |
-          for check in lint coverage integration-modules; do
-            GITHUB_ACTIONS=false gh insitu task "$check" --verbose
-          done
       - name: Build applications and run browser journeys
         run: npm run verify:applications
-      - name: Verify documentation
-        run: |
-          for check in docs-tests docs-build; do
-            GITHUB_ACTIONS=false gh insitu task "$check" --verbose
-          done
       - name: Upload browser evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -100,6 +124,21 @@ jobs:
             apps/partner/test-results
           if-no-files-found: ignore
           retention-days: 3
+
+  docs:
+    name: Verify documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/prep-runner
+        with:
+          report-statuses: "false"
+      - name: Verify documentation
+        run: |
+          for check in docs-tests docs-build; do
+            GITHUB_ACTIONS=false gh insitu task "$check" --verbose
+          done
       - name: Package the verified Pages output
         uses: actions/upload-pages-artifact@v5
         with:

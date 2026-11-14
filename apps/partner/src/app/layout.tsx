@@ -1,3 +1,4 @@
+import { UnsavedChangesProvider } from "@modules/common/components/unsaved-changes"
 import type { Metadata } from "next"
 import { getMessages } from "@lib/i18n"
 // Inter, self-hosted: Medusa UI's type classes name it, and no font request
@@ -21,7 +22,7 @@ export default async function RootLayout({
   return (
     <html lang={locale}>
       <body className="bg-ui-bg-subtle text-ui-fg-base antialiased">
-        {children}
+        <UnsavedChangesProvider>{children}</UnsavedChangesProvider>
       </body>
     </html>
   )

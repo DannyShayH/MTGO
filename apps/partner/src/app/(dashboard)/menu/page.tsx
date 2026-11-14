@@ -1,3 +1,5 @@
+import { retrieveMenuCategories } from "@lib/data/menu-categories"
+import { Categories } from "@modules/menu/components/categories"
 import Link from "next/link"
 import { MENU_TEXT } from "@dtc/i18n"
 import { Container, Heading, Text } from "@medusajs/ui"
@@ -11,6 +13,7 @@ export default async function MenuPage() {
   const { locale } = await getMessages()
   const text = MENU_TEXT[locale]
   const catalogue = await retrieveFoodCatalogue()
+  const categories = await retrieveMenuCategories()
   const complete =
     catalogue &&
     catalogue.allergens.length === 14 &&
@@ -21,6 +24,7 @@ export default async function MenuPage() {
         <Heading level="h1">{text.title}</Heading>
         <Text className="text-ui-fg-subtle mt-2 max-w-prose">{text.intro}</Text>
       </header>
+      <Categories initial={categories.categories} locale={locale} />
       {complete ? (
         <Catalogue catalogue={catalogue} locale={locale} />
       ) : (

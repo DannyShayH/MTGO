@@ -169,3 +169,35 @@ Server application events use the server-only `src/lib/logger.ts` and shared
 `@dtc/logging` allowlist (ADR-0019). See
 [the logging guide](../docs/src/content/docs/quality/logging.md) for event names,
 request correlation, coverage and local/Droplet log retrieval.
+
+## Menu categories (#104)
+
+The Menu workspace lists all saved categories, including empty ones. Staff can
+create, rename and remove empty categories. The editor always asks for both the
+Danish and English name and keeps entered values after a refusal. A stale save
+shows translated guidance: load the current names, compare them with your own,
+and explicitly choose to keep your names against the reviewed revision before
+saving again. Removing a category containing dishes is refused by the backend.
+
+Unsaved names prompt before links, language/sign-out forms and browser navigation;
+reloading or closing the page uses the browser's native unsaved-change warning.
+Cancelling the editor also confirms discarding changed names. Pending controls
+prevent duplicate clicks; creation keeps its request key for safe retries after
+an uncertain response. Success returns focus to the category section.
+
+Below the list, a Suggestions section offers common categories from
+`CATEGORY_SUGGESTIONS` in `@dtc/i18n` (for example Forretter/Starters,
+Drikkevarer/Drinks). One click saves both names through the normal creation
+request, so ownership, validation, revision and history rules are unchanged.
+Each suggestion keeps its request key until it is saved, so a retry after a
+lost response cannot add it twice. Suggestions whose Danish or English name is
+already on the menu, ignoring case, are hidden, and reappear after removal.
+Staff can still create their own categories and rename added suggestions.
+
+`src/lib/data/menu-categories.ts` makes server-only requests with the httpOnly
+staff token. As with `/partner/me`, it uses the native server transport because
+SDK 2.22.4's FetchError discards structured `code` fields. It interprets status
+and allowlisted codes, never error message text, and logs only safe metadata.
+The underlying storage/revision decisions and HTTP contract are documented in
+the Restaurant module README. Browser evidence runs in the disposable application
+harness, never against a live Restaurant.

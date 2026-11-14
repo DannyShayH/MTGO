@@ -25,12 +25,14 @@ the delivery area and the commercial terms. API routes and Admin never mutate th
 module directly. Every mutation step has compensation, and each delivery-area or
 terms change takes a lock on `restaurant:<id>` so the guards for active
 Restaurants cannot race activation or deactivation. Opening and closing by
-staff live in `src/workflows/restaurant-staff` and take the same lock. Menus
-belong to a later slice.
+staff live in `src/workflows/restaurant-staff` and take the same lock. Category
+management lives in `src/workflows/menu-categories` and uses this lock too.
 
 The module link `src/links/restaurant-product.ts` connects a Restaurant to a list
 of products, its dishes, as in Medusa's Restaurant-Delivery Marketplace recipe.
-It is the only link from this module.
+The `menu-category-product.ts` link connects each Product to one MenuCategory,
+with many Products allowed in a category. Category removal checks this link,
+including unpublished and sold-out Products. Dish editing remains a later slice.
 
 ## Restaurant staff
 
@@ -375,3 +377,72 @@ Inactive and Closed and the History shows "Deactivated by" with the reason.
   **Deactivate** without a reason, deactivates with one and reactivates it
   Closed. The staff journey invites,
   copies the link, resends, cancels and is refused an email with a login. Text is English only (ADR-0018).
+
+## Bilingual menu categories (#104)
+
+`MenuCategory` belongs to exactly one Restaurant through a required foreign key.
+It has no parent or sharing relation. Both trimmed names (`name_da`, `name_en`),
+its integer revision, removal flag and successful-change history are saved in
+one row write. Names require 1–120 characters per language and allow only
+letters (any script, with accents), numbers, spaces and basic punctuation
+(`. , - ' ’ & ( ) / ! ? : + " %`), with at least one letter or number.
+Markup, braces, emoji, other symbols and control characters are refused by
+`CATEGORY_NAME_PATTERN` in `src/workflows/menu-categories/validation.ts`, which
+HTTP validation and direct workflow callers share. React still renders names as
+text nodes. Empty categories remain visible to staff.
+
+The installed Product Module 2.22.4 provides a category tree and many-to-many
+Product membership. Those do not express the agreed flat, exclusive ownership.
+The installed Translation Module is disabled by default behind
+`MEDUSA_FF_TRANSLATION`; it stores language records separately. This slice uses
+explicit bilingual columns, as the food catalogue does, without enabling that
+flag or introducing a partially translated publication. This adapts the recipe's
+Product/link pattern rather than adopting its shared category tree.
+
+Every mutation acquires `restaurant:<id>`, then rechecks staff authorization and
+Restaurant ownership. This shares synchronization with revocation, opening and
+participation. New categories append using a position assigned under that lock,
+including removed records when calculating the next position. Renaming preserves
+position. Every later dish membership workflow must use the same lock and verify
+that the category belongs to that dish's Restaurant and is not removed.
+
+Creation requires a client-generated `request_id` and revision `0`. The key is
+unique within a Restaurant; the original trimmed names are retained. An exact
+retry returns the existing category without another change or history entry.
+Reusing the key with different names returns `category_retry_conflict`; retrying
+a creation after removal returns `category_retry_removed`. Keys remain reserved
+for the lifetime of the Restaurant. After a lost rename response, refresh and
+review the current revision rather than blindly overwriting it.
+
+Rename and removal require the last-read category revision. A competing save
+returns `409 category_stale`. Nonempty removal returns
+`409 category_not_empty` at the workflow boundary. A removed category stays as a
+tombstone (`is_removed`) with its key, revision and audit history; it is excluded
+from staff lists. No Product or historical Order is deleted or rewritten.
+
+History is an append-only `history.entries` JSON array on the category, recording
+change kind, actor id, actor-name snapshot and UTC time (and both names for saves).
+The category row supplies resource and Restaurant identity. Sharing the atomic
+row write ensures the published names, revision and history cannot diverge.
+Compensation restores all of them together if a later workflow step fails.
+Rejected changes and exact creation retries append nothing. There is no history
+screen, separate draft or publication status; the current row is the complete
+publication to use on the next menu fetch. Dish and public-menu journeys remain
+outside #104.
+
+The partner routes are `GET/POST /partner/restaurants/{id}/categories` and
+`POST/DELETE /partner/restaurants/{id}/categories/{category_id}`. They declare the
+Restaurant-staff actor, refuse another Restaurant/category as `404`, and return
+`403 staff_access_revoked` for revoked staff. Bodies use `{ name: { da, en },
+revision }`, adding `request_id` for creation; deletion needs only `revision`.
+Lists and mutations expose `{ id, name: { da, en }, revision }`. Invalid bodies
+return `400 category_input_invalid`. The central handler preserves category
+conflict codes because Medusa's default 2.22.4 handler replaces conflict codes
+with `invalid_state_error`.
+
+HTTP and direct workflow evidence live in
+`integration-tests/http/menu-categories.spec.ts`; the disposable partner journey
+is `apps/partner/e2e/menu-categories.spec.ts`. They cover bilingual boundaries,
+ownership/revocation, flat input, retries, stale saves and nonempty removal;
+the browser covers translated forms, retained input, safe text rendering,
+reviewing a competing save, narrow layouts and unsaved-navigation confirmation.

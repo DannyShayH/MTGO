@@ -98,6 +98,7 @@ inventory:
 
   - id: coverage
     name: Run backend unit and HTTP tests with coverage (lcov in apps/backend/coverage)
+    timeout: 15m
     command: |
       cd apps/backend && npm run test:coverage
 

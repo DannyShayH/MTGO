@@ -31,6 +31,10 @@ movement are **not verified** by the manual provider scenario.
 
 ## Run locally
 
+The ready flow runs every browser journey on GitHub after `gh deliver`. Run them
+locally when you change a Playwright spec or the verification harness, or to
+debug a failed ready run.
+
 Install dependencies with `npm ci`, then install the matching browser:
 
 ```bash

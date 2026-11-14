@@ -23,7 +23,12 @@ import {
   PostAdminInviteStaffSchema,
   PostAdminDeactivateRestaurantSchema,
 } from "./admin/restaurants/validators"
-import { PostPartnerAcceptStaffInvitationSchema } from "./partner/validators"
+import {
+  PostPartnerCreateCategorySchema,
+  PostPartnerRenameCategorySchema,
+  DeletePartnerCategorySchema,
+  PostPartnerAcceptStaffInvitationSchema,
+} from "./partner/validators"
 import { isDanishPostalCode } from "../workflows/restaurants/postal-code"
 import { RESTAURANT_STAFF_ACTOR } from "../workflows/restaurant-staff"
 import {
@@ -230,6 +235,21 @@ export default defineMiddlewares({
     {
       matcher: "/partner/restaurants*",
       middlewares: [authenticate(RESTAURANT_STAFF_ACTOR, "bearer")],
+    },
+    {
+      matcher: "/partner/restaurants/:id/categories",
+      method: "POST",
+      middlewares: [validateAndTransformBody(PostPartnerCreateCategorySchema)],
+    },
+    {
+      matcher: "/partner/restaurants/:id/categories/:category_id",
+      method: "POST",
+      middlewares: [validateAndTransformBody(PostPartnerRenameCategorySchema)],
+    },
+    {
+      matcher: "/partner/restaurants/:id/categories/:category_id",
+      method: "DELETE",
+      middlewares: [validateAndTransformBody(DeletePartnerCategorySchema)],
     },
     // Public: the invite link's token is the credential, as in Medusa's
     // admin invite. A bearer token, when sent, is read but not required.

@@ -65,15 +65,22 @@ test("shopper can discover a product, update and remove cart items, and complete
     .getByTestId("product-row")
     .getByRole("button", { name: "Remove item" })
     .click()
+  // Leaving before the removal completes aborts its server action.
+  await expect(page.getByTestId("empty-cart-message")).toBeVisible()
 
   await page.goto("/dk/store")
+  // The header loads the cart through a server action on every page. A late
+  // reply after client navigation returns the browser to the page that sent it.
+  await page.waitForLoadState("networkidle")
   await page
     .getByRole("link", { name: /Medusa T-Shirt/ })
     .first()
     .click()
+  await expect(page).toHaveURL(/\/dk\/products\/t-shirt/)
   await expect(
     page.getByRole("heading", { name: "Medusa T-Shirt", exact: true }),
   ).toBeVisible()
+  await page.waitForLoadState("networkidle")
   await page
     .getByRole("group", { name: "Select Size" })
     .getByText("S", { exact: true })

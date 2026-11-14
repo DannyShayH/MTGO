@@ -11,7 +11,44 @@ import {
   correlatedRoute,
   initializeRequestCorrelation,
 } from "./request-logging"
-import { responseFieldsOf } from "../workflows/common/response-fields"
+import {
+  ErrorResponseFields,
+  responseFieldsOf,
+} from "../workflows/common/response-fields"
+
+const CATEGORY_ROUTE =
+  /^\/partner\/restaurants\/[^/]+\/categories(?:\/[^/]+)?\/?$/
+const CATEGORY_CONFLICT_CODES = new Set([
+  "category_stale",
+  "category_not_empty",
+  "category_retry_conflict",
+  "category_retry_removed",
+])
+
+/**
+ * The stable partner category refusal, or nothing for any other error.
+ * Validation middleware may reject before the category workflow runs, so a
+ * 400 on a category route keeps one code without interpreting its message.
+ */
+function categoryRefusalBody(
+  code: string | undefined,
+  url: string,
+  statusCode: number,
+  body: { type?: string },
+  fields: ErrorResponseFields | undefined,
+) {
+  if (statusCode === 400 && CATEGORY_ROUTE.test(url.split("?")[0])) {
+    return {
+      type: body.type,
+      code: "category_input_invalid",
+      message: "category_input_invalid",
+    }
+  }
+  if (statusCode === 409 && code && CATEGORY_CONFLICT_CODES.has(code)) {
+    return { ...fields, ...body, code, message: code }
+  }
+  return undefined
+}
 
 /**
  * Preserve Medusa responses and additional refusal fields. The correlated
@@ -50,6 +87,17 @@ export function mtogoErrorHandler(): MedusaErrorHandlerFunction {
       ? error.message
       : undefined
     if (stableErrorCode) body.code = stableErrorCode
+    const categoryBody = categoryRefusalBody(
+      error.code,
+      req.originalUrl,
+      statusCode,
+      body,
+      fields,
+    )
+    if (categoryBody) {
+      res.status(statusCode).json(categoryBody)
+      return
+    }
     // The demonstrated login path logs once on response finish. Delegating to
     // Medusa here would also log raw error messages/objects without correlation.
     if (correlatedRoute(req)) {
