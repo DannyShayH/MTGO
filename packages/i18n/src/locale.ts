@@ -33,3 +33,15 @@ export function resolveLocale(input: {
     .sort((a, b) => b.quality - a.quality || a.position - b.position)
   return (preferences[0]?.language as Locale | undefined) ?? DEFAULT_LOCALE
 }
+
+/** Saved Customer language wins over the resolved browser language (issue #85). */
+export function resolveCustomerLocale(
+  preferredLanguage: unknown,
+  browserLocale: string | null,
+): Locale {
+  return resolveLocale({
+    chosen: isLocale(preferredLanguage)
+      ? preferredLanguage
+      : (browserLocale ?? undefined),
+  })
+}

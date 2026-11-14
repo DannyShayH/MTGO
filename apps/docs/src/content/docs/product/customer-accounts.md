@@ -144,3 +144,23 @@ The specification's behavioral contracts still need implementation design and ev
 Feature #45 owns account access, saved details, preferences and the own-Order history surface. Feature #46 consumes the authenticated, verified Customer and the reviewed destination, contact details and language, and demonstrates their preservation when placing an Order. The later timeline Feature supplies business progress events. Their integration must preserve the agreed rules without claiming those later capabilities are already delivered.
 
 Related: [Customer ordering](/MTGO/product/customer-ordering/), [domain model](/MTGO/product/domain-model/) and [shared product acceptance](/MTGO/quality/product-acceptance/).
+
+## Account language
+
+Issue [#85](https://github.com/DannyShayH/MTGO/issues/85) adds the account language
+journey. Before sign-in, the storefront chooses the remembered language, then the
+browser preference, then Danish. The sign-in language selector remembers explicit
+choices across visits. Registration saves its language with the Customer.
+
+After sign-in, the saved account language takes precedence. The account page
+shows a keyboard-operable Danish/English selector and save button, with translated
+pending, success and failure states. A later sign-in on another browser restores
+the saved preference even when that browser remembers another language. Older
+accounts without a preference adopt the resolved browser language at sign-in.
+
+The existing Customer API exposes `metadata.preferred_language` for later
+security-message generation. Order language is historical and is never rewritten
+by a preference change. HTTP coverage verifies supported values, invalid input,
+wrong-owner and wrong-role refusals, persistence and preserved Order language;
+Playwright covers browser fallbacks, remembered choices, registration, account
+settings and another-device sign-in.

@@ -844,3 +844,30 @@ data; no other Restaurant's private menu data is returned.
 | ------ | -------------------------------------------------------- |
 | `401`  | Missing, expired or wrong-actor bearer token             |
 | `403`  | Missing or revoked staff record (`staff_access_revoked`) |
+
+### Customer account language
+
+Issue #85 uses the existing Medusa Customer boundary and core workflows:
+`POST /store/customers` accepts the registration language in
+`metadata.preferred_language`; authenticated Customers read it with
+`GET /store/customers/me` and explicitly change it with
+`POST /store/customers/me`. The field accepts only `"da"` or `"en"`; unsupported,
+empty, non-string and null language values, null metadata and unknown top-level
+fields return `400`. Omit metadata to leave it unchanged. Other metadata keys
+retain Medusa's merge behavior. These routes still require a publishable key.
+
+```json
+{ "metadata": { "preferred_language": "en" } }
+```
+
+Success is `200` with the usual `{ "customer": { ... } }` response, including
+`customer.metadata.preferred_language`. Updates always target the authenticated
+Customer; another Customer ID in the request is refused. Signed-out and wrong-role
+updates return `401`. Medusa Admin remains English only.
+
+Security-message generation can read the current preference from the Customer
+module's `metadata.preferred_language` (or the existing Customer HTTP boundary),
+using the registration value for initial verification. It must not derive a
+security-message language from an Order. This issue supplies the preference;
+message generation belongs to the account-security work items. No Order is
+updated, and no custom persistence model or migration is needed.

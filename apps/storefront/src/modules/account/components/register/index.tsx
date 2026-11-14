@@ -26,6 +26,7 @@ const Register = ({ setCurrentView, locale }: Props) => {
         <p role="status">{text.verification}</p>
       )}
       <form className="w-full flex flex-col" action={formAction}>
+        <input type="hidden" name="language" value={locale} />
         <div className="flex flex-col w-full gap-y-2">
           <Input
             id="email"

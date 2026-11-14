@@ -3,6 +3,7 @@ export {
   LOCALES,
   isLocale,
   resolveLocale,
+  resolveCustomerLocale,
   type Locale,
 } from "./locale.ts"
 export {

@@ -1,3 +1,6 @@
+import { resolveCustomerLocale } from "@dtc/i18n"
+import { retrieveCustomer } from "@lib/data/customer"
+import { getLocale } from "@lib/data/locale-actions"
 import { getBaseURL } from "@lib/util/env"
 import { Metadata } from "next"
 // Inter, self-hosted: Medusa UI's type classes name it, and no font request
@@ -11,9 +14,14 @@ export const metadata: Metadata = {
   metadataBase: new URL(getBaseURL()),
 }
 
-export default function RootLayout(props: { children: React.ReactNode }) {
+export default async function RootLayout(props: { children: React.ReactNode }) {
+  const customer = await retrieveCustomer()
+  const locale = resolveCustomerLocale(
+    customer?.metadata?.preferred_language,
+    await getLocale(),
+  )
   return (
-    <html lang="en" data-mode="light">
+    <html lang={locale} data-mode="light">
       <head>
         <link rel="ucp" href="/.well-known/ucp" />
       </head>

@@ -31,6 +31,10 @@ import {
   requireIsolatedCustomerIdentity,
   restrictCustomerProvider,
 } from "./customer-identity"
+import {
+  PostStoreCustomerSchema,
+  PostStoreUpdateCustomerSchema,
+} from "./store/customers/validators"
 import { mtogoErrorHandler } from "./error-handler"
 
 /** Medusa has no path-parameter validator, so the postal code in the path is checked here. */
@@ -53,6 +57,16 @@ function validatePostalCodeParam(
 export default defineMiddlewares({
   errorHandler: mtogoErrorHandler(),
   routes: [
+    {
+      matcher: "/store/customers",
+      method: "POST",
+      middlewares: [validateAndTransformBody(PostStoreCustomerSchema)],
+    },
+    {
+      matcher: "/store/customers/me",
+      method: "POST",
+      middlewares: [validateAndTransformBody(PostStoreUpdateCustomerSchema)],
+    },
     {
       matcher: "/auth/:actor_type/:auth_provider*",
       middlewares: [restrictCustomerProvider],
