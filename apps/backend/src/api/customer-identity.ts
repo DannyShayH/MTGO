@@ -5,6 +5,7 @@ import {
   MedusaResponse,
 } from "@medusajs/framework/http"
 import { MedusaError, Modules } from "@medusajs/framework/utils"
+import { requireVerifiedCustomerWorkflow } from "../workflows/customer-auth/require-verified-customer"
 
 /** Reject legacy Customer sessions after the identity split, including refreshes. */
 export async function requireIsolatedCustomerIdentity(
@@ -17,6 +18,18 @@ export async function requireIsolatedCustomerIdentity(
       MedusaError.Types.UNAUTHORIZED,
       "customer_sign_in_required",
     )
+  next()
+}
+
+/** Checkout may only be completed by a Customer whose email verification is current. */
+export async function requireVerifiedCustomer(
+  req: AuthenticatedMedusaRequest,
+  _res: MedusaResponse,
+  next: MedusaNextFunction,
+) {
+  await requireVerifiedCustomerWorkflow(req.scope).run({
+    input: req.auth_context,
+  })
   next()
 }
 

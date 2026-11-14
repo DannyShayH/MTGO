@@ -21,23 +21,39 @@ import {
 
 export type CustomerAuthState =
   | { state: "error"; error: CustomerAuthCode }
-  | { state: "verification_required"; email: string }
+  | {
+      state: "verification_required"
+      email: string
+      delivery_failed?: boolean
+    }
   | { state: "success" }
   | null
 
 // Requests a verification email for the given customer. The request must be
 // authenticated with a token tied to the auth identity (the token returned by
 // register or by a login that requires verification).
-async function requestVerificationEmail(email: string, token: string) {
-  await sdk.auth.verification.request(
-    {
+async function requestVerificationEmail(
+  email: string,
+  token: string,
+  language?: string,
+  returnTo?: string,
+) {
+  const metadata = {
+    ...(language ? { preferred_language: language } : {}),
+    ...(returnTo?.startsWith("/") && !returnTo.startsWith("//")
+      ? { return_to: returnTo }
+      : {}),
+  }
+  await sdk.client.fetch("/auth/customer-verification/request", {
+    method: "POST",
+    body: {
       entity_id: email,
-      entity_type: "email",
+      metadata: Object.keys(metadata).length ? metadata : undefined,
     },
-    {
+    headers: {
       authorization: `Bearer ${token}`,
     },
-  )
+  })
 }
 
 export const retrieveCustomer =
@@ -54,7 +70,7 @@ export const retrieveCustomer =
       ...(await getCacheOptions("customers")),
     }
 
-    return await sdk.client
+    const customer = await sdk.client
       .fetch<{ customer: HttpTypes.StoreCustomer }>(`/store/customers/me`, {
         method: "GET",
         query: {
@@ -66,6 +82,18 @@ export const retrieveCustomer =
       })
       .then(({ customer }) => customer)
       .catch(() => null)
+
+    if (!customer) return null
+
+    const verification = await sdk.client
+      .fetch<{ verified: true }>("/store/customers/me/verification", {
+        method: "GET",
+        headers,
+      })
+      .then(() => true)
+      .catch(() => false)
+
+    return verification ? customer : null
   }
 
 export const updateCustomer = async (body: HttpTypes.StoreUpdateCustomer) => {
@@ -114,13 +142,13 @@ export async function signup(
   } catch (error) {
     return { state: "error", error: customerAuthCode(error) }
   }
-  return completeLogin(email, password)
+  return completeLogin(email, password, String(formData.get("next") ?? ""))
 }
 
 function customerAuthCode(error: unknown): CustomerAuthCode {
   if (error instanceof FetchError) {
-    if (error.message === "customer_identity_exists")
-      return "customer_identity_exists"
+    if (error.status === 409) return "customer_identity_exists"
+    if (error.status === 403) return "customer_email_verification_required"
     if (error.status === 401 || error.status === 400)
       return "customer_credentials_invalid"
   }
@@ -134,7 +162,7 @@ export async function login(
   const email = formData.get("email") as string
   const password = formData.get("password") as string
 
-  return completeLogin(email, password)
+  return completeLogin(email, password, String(formData.get("next") ?? ""))
 }
 
 // Logs the customer in and reconciles the customer record. The behavior is
@@ -143,6 +171,7 @@ export async function login(
 async function completeLogin(
   email: string,
   password: string,
+  next?: string,
 ): Promise<CustomerAuthState> {
   let result: Awaited<ReturnType<typeof sdk.auth.login>>
 
@@ -172,11 +201,20 @@ async function completeLogin(
     result.verification_required
   ) {
     try {
-      await requestVerificationEmail(email, result.token)
+      await requestVerificationEmail(
+        email,
+        result.token,
+        (await getLocale()) ?? undefined,
+        next,
+      )
+      return { state: "verification_required", email }
     } catch {
-      // Ignore: the customer can resend from the verification page.
+      return {
+        state: "verification_required",
+        email,
+        delivery_failed: true,
+      }
     }
-    return { state: "verification_required", email }
   }
 
   if (typeof result !== "string") {
@@ -253,6 +291,8 @@ async function completeLogin(
   } catch {
     return { state: "error", error: "customer_cart_transfer_failed" }
   }
+
+  if (next?.startsWith("/") && !next.startsWith("//")) redirect(next)
 
   return { state: "success" }
 }

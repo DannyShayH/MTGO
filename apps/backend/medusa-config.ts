@@ -38,6 +38,11 @@ module.exports = defineConfig({
         restaurant_staff: ["emailpass"],
         user: ["emailpass"],
       },
+      authVerificationsPerActor: {
+        customer: [
+          { auth_provider: "customer-emailpass", entity_type: "email" },
+        ],
+      },
       jwtSecret: process.env.JWT_SECRET,
       cookieSecret: process.env.COOKIE_SECRET,
     },
@@ -54,6 +59,21 @@ module.exports = defineConfig({
           {
             resolve: "./src/modules/customer-emailpass",
             id: "customer-emailpass",
+          },
+        ],
+        verification: {
+          providers: [{ id: "token", options: { ttl_seconds: 900 } }],
+        },
+      },
+    },
+    {
+      resolve: "@medusajs/medusa/notification",
+      options: {
+        providers: [
+          {
+            resolve: "@medusajs/medusa/notification-local",
+            id: "local",
+            options: { channels: ["email"] },
           },
         ],
       },

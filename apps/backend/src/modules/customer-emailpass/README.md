@@ -52,9 +52,11 @@ with their existing password. Unexpected identity lookup failures propagate to t
 central error handler rather than becoming sign-in errors.
 Staff/operator sessions retain their access. Shared verification or MFA state is
 not copied to the new identity: it cannot establish Customer-only verification.
-No schema migration, new token lifetime or resend policy is introduced here.
-Email delivery, verification requirements and security-change revocation are
-subsequent Feature #45 slices.
+No schema migration is introduced here. Customer email verification uses
+Medusa's built-in single-use token provider with a configured 15-minute expiry;
+the verification request is delivered through the app's captured private
+mailbox subscriber. A failed delivery never creates a Customer session, so the
+Customer remains locked out of checkout and can retry by signing in again.
 
 ## Evidence
 

@@ -9,10 +9,15 @@ export const metadata: Metadata = {
   description: "Sign in to your MTOGO account.",
 }
 
-export default async function Login() {
+export default async function Login({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>
+}) {
   const locale = resolveLocale({
     chosen: (await cookies()).get("_medusa_locale")?.value,
     acceptLanguage: (await headers()).get("accept-language") ?? undefined,
   })
-  return <LoginTemplate initialLocale={locale} />
+  const { next } = await searchParams
+  return <LoginTemplate initialLocale={locale} next={next} />
 }

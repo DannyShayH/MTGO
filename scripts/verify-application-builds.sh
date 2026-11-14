@@ -54,6 +54,11 @@ export SEED_STAFF_PASSWORD="ci-only-partner-password"
 # Invite links copied in Admin point to the partner app started below.
 export PARTNER_BASE_URL="${PARTNER_BASE_URL:-http://localhost:8100}"
 export PARTNER_PUBLIC_URL="$PARTNER_BASE_URL"
+if [[ "${1:-}" = "--browser" ]]; then
+  export E2E_DISPOSABLE=1
+  export TEST_MAILBOX_FAIL_RECIPIENT="delivery-failure@example.test"
+  export TEST_MAILBOX_KEY="ci-only-mailbox-key"
+fi
 
 npm run build -- --filter=@dtc/backend --force
 (
@@ -88,7 +93,6 @@ export MEDUSA_BACKEND_URL="$NEXT_PUBLIC_MEDUSA_BACKEND_URL"
 npm run build -- --filter=@dtc/partner --force
 
 if [[ "${1:-}" = "--browser" ]]; then
-  export E2E_DISPOSABLE=1
   E2E_ADMIN_EMAIL="smoke-$(node -p 'require("node:crypto").randomUUID()')@example.test"
   export E2E_ADMIN_EMAIL
   export E2E_ADMIN_PASSWORD="ci-only-browser-password"
