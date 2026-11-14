@@ -3,10 +3,13 @@ import {
   AuthenticatedMedusaRequest,
   MedusaResponse,
 } from "@medusajs/framework/http"
-import { MedusaError } from "@medusajs/framework/utils"
+import { MedusaError, Modules } from "@medusajs/framework/utils"
+import { asValue } from "@medusajs/deps/awilix"
+import { createMedusaContainer } from "@medusajs/utils"
 import {
   discardLegacyCustomerIdentity,
   requireIsolatedCustomerIdentity,
+  requireVerifiedCustomer,
 } from "../customer-identity"
 
 function customerRequest(provider = "customer-emailpass") {
@@ -20,20 +23,26 @@ function customerRequest(provider = "customer-emailpass") {
     app_metadata: { customer_id: "cus_test" },
     provider_identities: [{ provider: "customer-emailpass" }],
   })
+  const listAuthVerifications = jest
+    .fn()
+    .mockResolvedValue([{ verified_at: new Date() }])
+  const scope = createMedusaContainer()
+  scope.register(
+    Modules.AUTH,
+    asValue({ retrieveAuthIdentity, listAuthVerifications }),
+  )
+  scope.register(
+    "configModule",
+    asValue({ projectConfig: { http: { jwtSecret: "ci-only-secret" } } }),
+  )
+  scope.register("logger", asValue({ debug: jest.fn(), info: jest.fn() }))
   const req = {
     auth_context: context,
     headers: { authorization: "Bearer legacy-token" },
     session: { auth_context: context },
-    scope: {
-      resolve: jest.fn((key: string) => {
-        if (key === "auth") return { retrieveAuthIdentity }
-        if (key === "configModule")
-          return { projectConfig: { http: { jwtSecret: "ci-only-secret" } } }
-        return { debug: jest.fn() }
-      }),
-    },
+    scope,
   } as unknown as AuthenticatedMedusaRequest
-  return { req, retrieveAuthIdentity }
+  return { req, retrieveAuthIdentity, listAuthVerifications }
 }
 
 const res = {} as MedusaResponse
@@ -112,5 +121,25 @@ it("rejects legacy credentials for refresh and session creation", async () => {
   ).rejects.toMatchObject({
     type: MedusaError.Types.UNAUTHORIZED,
     message: "customer_sign_in_required",
+  })
+})
+
+it("allows a verified Customer to complete checkout", async () => {
+  const { req } = customerRequest()
+  const next = jest.fn()
+
+  await requireVerifiedCustomer(req, res, next)
+
+  expect(next).toHaveBeenCalledTimes(1)
+})
+
+it("refuses an unverified Customer at the checkout boundary", async () => {
+  const { req, listAuthVerifications } = customerRequest()
+  listAuthVerifications.mockResolvedValue([{ verified_at: null }])
+  await expect(
+    requireVerifiedCustomer(req, res, jest.fn()),
+  ).rejects.toMatchObject({
+    type: MedusaError.Types.UNAUTHORIZED,
+    message: "customer_email_verification_required",
   })
 })

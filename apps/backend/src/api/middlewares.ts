@@ -28,6 +28,7 @@ import { isDanishPostalCode } from "../workflows/restaurants/postal-code"
 import { RESTAURANT_STAFF_ACTOR } from "../workflows/restaurant-staff"
 import {
   discardLegacyCustomerIdentity,
+  requireVerifiedCustomer,
   requireIsolatedCustomerIdentity,
   restrictCustomerProvider,
 } from "./customer-identity"
@@ -35,6 +36,7 @@ import {
   PostStoreCustomerSchema,
   PostStoreUpdateCustomerSchema,
 } from "./store/customers/validators"
+import { PostCustomerVerificationRequestSchema } from "./auth/customer-verification/validators"
 import { mtogoErrorHandler } from "./error-handler"
 import { correlateRequest } from "./request-logging"
 
@@ -60,6 +62,22 @@ export default defineMiddlewares({
   routes: [
     { matcher: "/*", middlewares: [correlateRequest] },
     {
+      matcher: "/store/carts/:id/complete",
+      method: "POST",
+      middlewares: [
+        authenticate("customer", ["bearer", "session"]),
+        requireVerifiedCustomer,
+      ],
+    },
+    {
+      matcher: "/store/carts/:id/customer",
+      method: "POST",
+      middlewares: [
+        authenticate("customer", ["bearer", "session"]),
+        requireVerifiedCustomer,
+      ],
+    },
+    {
       matcher: "/store/customers",
       method: "POST",
       middlewares: [validateAndTransformBody(PostStoreCustomerSchema)],
@@ -72,6 +90,17 @@ export default defineMiddlewares({
     {
       matcher: "/auth/:actor_type/:auth_provider*",
       middlewares: [restrictCustomerProvider],
+    },
+    {
+      matcher: "/auth/customer-verification/request",
+      method: "POST",
+      middlewares: [
+        authenticate("*", ["session", "bearer"], {
+          allowUnregistered: true,
+          requireMfa: false,
+        }),
+        validateAndTransformBody(PostCustomerVerificationRequestSchema),
+      ],
     },
     {
       matcher: "/store/*",

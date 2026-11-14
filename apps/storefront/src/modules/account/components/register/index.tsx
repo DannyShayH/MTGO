@@ -7,9 +7,13 @@ import { SubmitButton } from "@modules/checkout/components/submit-button"
 import { signup } from "@lib/data/customer"
 import { CUSTOMER_AUTH, Locale } from "@dtc/i18n"
 
-type Props = { setCurrentView: (view: LOGIN_VIEW) => void; locale: Locale }
+type Props = {
+  setCurrentView: (view: LOGIN_VIEW) => void
+  locale: Locale
+  next?: string
+}
 
-const Register = ({ setCurrentView, locale }: Props) => {
+const Register = ({ setCurrentView, locale, next }: Props) => {
   const [message, formAction] = useActionState(signup, null)
   const text = CUSTOMER_AUTH[locale]
   return (
@@ -23,10 +27,15 @@ const Register = ({ setCurrentView, locale }: Props) => {
         {text.description}
       </p>
       {message?.state === "verification_required" && (
-        <p role="status">{text.verification}</p>
+        <p role="status">
+          {message.delivery_failed
+            ? text.verificationDeliveryFailed
+            : text.verification}
+        </p>
       )}
       <form className="w-full flex flex-col" action={formAction}>
         <input type="hidden" name="language" value={locale} />
+        {next && <input type="hidden" name="next" value={next} />}
         <div className="flex flex-col w-full gap-y-2">
           <Input
             id="email"

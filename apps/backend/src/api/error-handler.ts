@@ -3,7 +3,10 @@ import {
   getHttpResponseFromError,
   MedusaErrorHandlerFunction,
 } from "@medusajs/framework/http"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import {
+  ContainerRegistrationKeys,
+  MedusaError,
+} from "@medusajs/framework/utils"
 import {
   correlatedRoute,
   initializeRequestCorrelation,
@@ -16,19 +19,37 @@ import { responseFieldsOf } from "../workflows/common/response-fields"
  */
 export function mtogoErrorHandler(): MedusaErrorHandlerFunction {
   const medusaErrorHandler = errorHandler()
+  const stableErrorCodes = new Set([
+    "customer_identity_exists",
+    "customer_email_verification_required",
+    "customer_credentials_invalid",
+    "customer_sign_in_required",
+    "customer_provider_not_allowed",
+    "customer_verification_delivery_failed",
+  ])
   return (error, req, res, next) => {
-    if (
+    if (error.message === "customer_identity_exists") {
+      error.type = MedusaError.Types.CONFLICT
+      error.code = error.message
+    } else if (error.message === "customer_email_verification_required") {
+      error.type = MedusaError.Types.FORBIDDEN
+      error.code = error.message
+    } else if (
       [
-        "customer_identity_exists",
         "customer_credentials_invalid",
         "customer_sign_in_required",
         "customer_provider_not_allowed",
+        "customer_verification_delivery_failed",
       ].includes(error.message)
     ) {
       error.code = error.message
     }
     const fields = responseFieldsOf(error)
     const { statusCode, body } = getHttpResponseFromError(error)
+    const stableErrorCode = stableErrorCodes.has(error.message)
+      ? error.message
+      : undefined
+    if (stableErrorCode) body.code = stableErrorCode
     // The demonstrated login path logs once on response finish. Delegating to
     // Medusa here would also log raw error messages/objects without correlation.
     if (correlatedRoute(req)) {
@@ -58,7 +79,7 @@ export function mtogoErrorHandler(): MedusaErrorHandlerFunction {
       }
       return
     }
-    if (!fields || statusCode >= 500)
+    if ((!fields && !stableErrorCode) || statusCode >= 500)
       return medusaErrorHandler(error, req, res, next)
     req.scope.resolve(ContainerRegistrationKeys.LOGGER).info(error.message)
     res.status(statusCode).json({ ...fields, ...body })

@@ -1,7 +1,51 @@
 import { expect, test } from "@playwright/test"
+import type { APIRequestContext, Page } from "@playwright/test"
 
 // Authentication traces can contain credentials; keep them disabled.
 test.use({ trace: "off", screenshot: "off" })
+
+type TestMailbox = {
+  messages: Array<{ status: string; verification_url: string }>
+}
+
+async function readMailbox(request: APIRequestContext, email: string) {
+  const backend =
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
+  const response = await request.get(
+    `${backend}/store/test-mailboxes?email=${encodeURIComponent(email)}`,
+    {
+      headers: {
+        "x-publishable-api-key":
+          process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY!,
+        "x-test-mailbox-key": process.env.TEST_MAILBOX_KEY!,
+      },
+    },
+  )
+
+  return (await response.json()) as TestMailbox
+}
+
+async function verifyAndSignIn(
+  page: Page,
+  request: APIRequestContext,
+  email: string,
+  password: string,
+) {
+  await expect
+    .poll(async () => (await readMailbox(request, email)).messages, {
+      timeout: 10_000,
+    })
+    .toEqual([expect.objectContaining({ status: "success" })])
+  const mailbox = await readMailbox(request, email)
+  await page.goto(mailbox.messages[0].verification_url)
+  await expect(page.getByTestId("verify-account-page")).toContainText(
+    /Your email is verified|Din e-mail er bekræftet/,
+  )
+  await page.getByRole("link", { name: /Go to sign in|Gå til login/ }).click()
+  await page.getByTestId("email-input").fill(email)
+  await page.getByTestId("password-input").fill(password)
+  await page.getByTestId("password-input").press("Enter")
+}
 
 for (const locale of ["da", "en"] as const) {
   test(`Customer can register and sign in using a keyboard (${locale})`, async ({
@@ -35,9 +79,28 @@ for (const locale of ["da", "en"] as const) {
     await page.keyboard.press("Tab")
     await page.keyboard.type(password)
     await page.keyboard.press("Enter")
-    await expect(page.getByTestId("logout-button").last()).toBeVisible()
-    await expect(page.getByTestId("account-language")).toHaveValue(locale)
-    await page.getByTestId("logout-button").last().click()
+    await expect(page.getByTestId("register-page")).toContainText(
+      locale === "da" ? "Tjek din indbakke" : "Check your inbox",
+    )
+    await expect
+      .poll(async () => (await readMailbox(request, email)).messages, {
+        timeout: 10_000,
+      })
+      .toEqual([expect.objectContaining({ status: "success" })])
+    const mailbox = await readMailbox(request, email)
+    await page.goto(mailbox.messages[0].verification_url)
+    await expect(page.getByTestId("verify-account-page")).toContainText(
+      locale === "da" ? "Din e-mail er bekræftet" : "Your email is verified",
+    )
+    await page.goto(mailbox.messages[0].verification_url)
+    await expect(page.getByTestId("verify-account-page")).toContainText(
+      locale === "da" ? "ugyldigt eller udløbet" : "invalid or has expired",
+    )
+    await page
+      .getByRole("link", {
+        name: locale === "da" ? "Gå til login" : "Go to sign in",
+      })
+      .click()
     await expect(page.getByTestId("login-page")).toBeVisible()
     await page.getByRole("combobox").selectOption(locale)
     await page.getByTestId("email-input").fill(email)
@@ -75,6 +138,56 @@ for (const locale of ["da", "en"] as const) {
     ).toBeTruthy()
   })
 }
+
+test("verification delivery failure keeps checkout verification pending", async ({
+  page,
+  request,
+}) => {
+  expect(process.env.E2E_DISPOSABLE).toBe("1")
+  const email = "delivery-failure@example.test"
+  const password = "ci-only-customer-password"
+  const backend =
+    process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000"
+
+  await page.goto("/dk/account")
+  await page.getByRole("combobox").selectOption("en")
+  await page.getByTestId("register-button").click()
+  await page.getByTestId("email-input").fill(email)
+  await page.getByTestId("password-input").fill(password)
+  await page.getByTestId("password-input").press("Enter")
+  await expect(page.getByTestId("register-page")).toContainText(
+    "could not deliver",
+  )
+  await expect
+    .poll(
+      async () =>
+        (
+          await request.get(
+            `${backend}/store/test-mailboxes?email=${encodeURIComponent(email)}`,
+            {
+              headers: {
+                "x-publishable-api-key":
+                  process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY!,
+                "x-test-mailbox-key": process.env.TEST_MAILBOX_KEY!,
+              },
+            },
+          )
+        ).json(),
+      { timeout: 2_000 },
+    )
+    .toEqual({ messages: [] })
+
+  await page
+    .getByTestId("register-page")
+    .getByRole("button", { name: "Sign in" })
+    .click()
+  await page.getByTestId("email-input").fill(email)
+  await page.getByTestId("password-input").fill(password)
+  await page.getByTestId("password-input").press("Enter")
+  await expect(page.getByTestId("login-page")).toContainText(
+    "could not deliver",
+  )
+})
 
 for (const scenario of [
   {
@@ -133,6 +246,7 @@ test("registration and explicit account language follow the Customer across devi
   page,
   browser,
   baseURL,
+  request,
 }) => {
   expect(process.env.E2E_DISPOSABLE).toBe("1")
   const email = `language-${Date.now()}@example.test`
@@ -143,6 +257,7 @@ test("registration and explicit account language follow the Customer across devi
   await page.getByTestId("email-input").fill(email)
   await page.getByTestId("password-input").fill(password)
   await page.getByTestId("password-input").press("Enter")
+  await verifyAndSignIn(page, request, email, password)
   await expect(page.getByTestId("account-language")).toHaveValue("en")
 
   const device = await browser.newContext({ locale: "da-DK" })
@@ -176,16 +291,18 @@ test("account language failure keeps the selection and shows a translated retry 
   page,
   context,
   baseURL,
+  request,
 }) => {
   expect(process.env.E2E_DISPOSABLE).toBe("1")
+  const email = `language-error-${Date.now()}@example.test`
+  const password = "ci-only-customer-password"
   await page.goto("/dk/account")
   await page.getByRole("combobox").selectOption("en")
   await page.getByTestId("register-button").click()
-  await page
-    .getByTestId("email-input")
-    .fill(`language-error-${Date.now()}@example.test`)
-  await page.getByTestId("password-input").fill("ci-only-customer-password")
+  await page.getByTestId("email-input").fill(email)
+  await page.getByTestId("password-input").fill(password)
   await page.getByTestId("password-input").press("Enter")
+  await verifyAndSignIn(page, request, email, password)
   await expect(page.getByTestId("account-language")).toHaveValue("en")
   await context.addCookies([
     { name: "_medusa_jwt", value: "expired-session", url: baseURL! },

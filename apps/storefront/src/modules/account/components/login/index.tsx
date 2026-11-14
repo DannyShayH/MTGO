@@ -5,9 +5,13 @@ import Input from "@modules/common/components/input"
 import { CUSTOMER_AUTH, Locale } from "@dtc/i18n"
 import { useActionState } from "react"
 
-type Props = { setCurrentView: (view: LOGIN_VIEW) => void; locale: Locale }
+type Props = {
+  setCurrentView: (view: LOGIN_VIEW) => void
+  locale: Locale
+  next?: string
+}
 
-const Login = ({ setCurrentView, locale }: Props) => {
+const Login = ({ setCurrentView, locale, next }: Props) => {
   const [message, formAction] = useActionState(login, null)
   const text = CUSTOMER_AUTH[locale]
   return (
@@ -21,9 +25,14 @@ const Login = ({ setCurrentView, locale }: Props) => {
         {text.introduction}
       </p>
       {message?.state === "verification_required" && (
-        <p role="status">{text.verification}</p>
+        <p role="status">
+          {message.delivery_failed
+            ? text.verificationDeliveryFailed
+            : text.verification}
+        </p>
       )}
       <form className="w-full" action={formAction}>
+        {next && <input type="hidden" name="next" value={next} />}
         <div className="flex flex-col w-full gap-y-2">
           <Input
             id="email"

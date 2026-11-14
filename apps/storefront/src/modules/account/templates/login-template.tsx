@@ -15,8 +15,10 @@ export enum LOGIN_VIEW {
 
 const LoginTemplate = ({
   initialLocale = "da",
+  next,
 }: {
   initialLocale?: Locale
+  next?: string
 }) => {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -54,9 +56,9 @@ const LoginTemplate = ({
       </label>
       {error && <p role="alert">{CUSTOMER_AUTH[locale].languageError}</p>}
       {currentView === "sign-in" ? (
-        <Login setCurrentView={setCurrentView} locale={locale} />
+        <Login setCurrentView={setCurrentView} locale={locale} next={next} />
       ) : (
-        <Register setCurrentView={setCurrentView} locale={locale} />
+        <Register setCurrentView={setCurrentView} locale={locale} next={next} />
       )}
     </div>
   )

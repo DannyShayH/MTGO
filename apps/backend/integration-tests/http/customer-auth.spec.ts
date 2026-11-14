@@ -40,12 +40,115 @@ medusaIntegrationTestRunner({
       })
       headers = { "x-publishable-api-key": result[0].token }
     })
-    const register = () =>
-      api.post("/auth/customer/customer-emailpass/register", credentials)
+    const register = async () => {
+      return registerAndVerify(email, password)
+    }
+    const registerAndVerify = async (
+      customerEmail: string,
+      customerPassword: string,
+    ) => {
+      const registration = await api.post(
+        "/auth/customer/customer-emailpass/register",
+        { email: customerEmail, password: customerPassword },
+      )
+      const authIdentityId = JSON.parse(
+        Buffer.from(
+          registration.data.token.split(".")[1],
+          "base64url",
+        ).toString(),
+      ).auth_identity_id
+      const auth = getContainer().resolve(Modules.AUTH)
+      const verification = await auth.requestAuthVerification({
+        auth_identity_id: authIdentityId,
+        entity_id: customerEmail,
+        entity_type: "email",
+        code_provider: "token",
+      })
+      await auth.confirmAuthVerification({
+        code: verification.code,
+        code_provider: "token",
+      })
+      return registration
+    }
     const signIn = (body = credentials) =>
       api.post("/auth/customer/customer-emailpass", body, {
         validateStatus: () => true,
       })
+    it("requires email verification before a Customer can receive checkout access", async () => {
+      const unverifiedEmail = "unverified@example.test"
+      const registration = await api.post(
+        "/auth/customer/customer-emailpass/register",
+        { email: unverifiedEmail, password },
+      )
+      const login = await api.post("/auth/customer/customer-emailpass", {
+        email: unverifiedEmail,
+        password,
+      })
+      expect(login.data.verification_required).toBe(true)
+
+      const protectedAccess = await api.get("/store/customers/me", {
+        headers: {
+          ...headers,
+          authorization: `Bearer ${registration.data.token}`,
+        },
+        validateStatus: () => true,
+      })
+      expect(protectedAccess.status).toBe(401)
+
+      for (const path of [
+        "/store/carts/cart_test/customer",
+        "/store/carts/cart_test/complete",
+      ]) {
+        const checkoutAccess = await api.post(
+          path,
+          {},
+          {
+            headers: {
+              ...headers,
+              authorization: `Bearer ${registration.data.token}`,
+            },
+            validateStatus: () => true,
+          },
+        )
+        expect(checkoutAccess.status).toBe(401)
+      }
+    })
+    it("reports verification delivery failures and permits a retry", async () => {
+      const deliveryEmail = "delivery-failure@example.test"
+      const registration = await api.post(
+        "/auth/customer/customer-emailpass/register",
+        { email: deliveryEmail, password },
+      )
+      const requestVerification = () =>
+        api.post(
+          "/auth/customer-verification/request",
+          {
+            entity_id: deliveryEmail,
+            metadata: { preferred_language: "en" },
+          },
+          {
+            headers: {
+              authorization: `Bearer ${registration.data.token}`,
+            },
+            validateStatus: () => true,
+          },
+        )
+      const previousFailureRecipient = process.env.TEST_MAILBOX_FAIL_RECIPIENT
+
+      try {
+        process.env.TEST_MAILBOX_FAIL_RECIPIENT = deliveryEmail
+        const failed = await requestVerification()
+        expect(failed.status).toBe(400)
+        expect(failed.data.code).toBe("customer_verification_delivery_failed")
+
+        delete process.env.TEST_MAILBOX_FAIL_RECIPIENT
+        expect((await requestVerification()).status).toBe(200)
+      } finally {
+        if (previousFailureRecipient === undefined)
+          delete process.env.TEST_MAILBOX_FAIL_RECIPIENT
+        else process.env.TEST_MAILBOX_FAIL_RECIPIENT = previousFailureRecipient
+      }
+    })
     it("registers with email/password, signs in, and keeps duplicate registration from replacing the Customer", async () => {
       const registration = await register()
       const created = await api.post(
@@ -70,7 +173,7 @@ medusaIntegrationTestRunner({
         credentials,
         { validateStatus: () => true },
       )
-      expect(duplicate.status).toBe(401)
+      expect(duplicate.status).toBe(409)
       expect(duplicate.data.code).toBe("customer_identity_exists")
       expect((await signIn()).status).toBe(200)
     })
@@ -208,9 +311,9 @@ medusaIntegrationTestRunner({
         },
       })
       const otherCredentials = { email: "other@example.test", password }
-      const otherRegistration = await api.post(
-        "/auth/customer/customer-emailpass/register",
-        otherCredentials,
+      const otherRegistration = await registerAndVerify(
+        otherCredentials.email,
+        otherCredentials.password,
       )
       await api.post(
         "/store/customers",
@@ -397,11 +500,19 @@ medusaIntegrationTestRunner({
         },
         { secret: "ci-only-customer-secret", expiresIn: "1h" },
       )
-      await isolateCustomerIdentityWorkflow(getContainer()).run({
-        input: { auth_identity_id: identityId },
+      const { result: isolatedIdentityId } =
+        await isolateCustomerIdentityWorkflow(getContainer()).run({
+          input: { auth_identity_id: identityId },
+        })
+      const isolatedVerification = await auth.requestAuthVerification({
+        auth_identity_id: isolatedIdentityId,
+        entity_id: email,
+        entity_type: "email",
+        code_provider: "token",
       })
-      await isolateCustomerIdentityWorkflow(getContainer()).run({
-        input: { auth_identity_id: identityId },
+      await auth.confirmAuthVerification({
+        code: isolatedVerification.code,
+        code_provider: "token",
       })
       const login = await signIn()
       expect(login.status).toBe(200)
