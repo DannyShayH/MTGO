@@ -30,3 +30,4 @@ export {
   type CategoryErrorCode,
   type CategorySuggestion,
 } from "./categories.ts"
+export { CUSTOMER_MENU_TEXT, formatDkk } from "./customer-menu.ts"

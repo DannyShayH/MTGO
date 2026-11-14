@@ -18,6 +18,8 @@ invitation table and the fifth the history entry table.
 | `RestaurantStaff`          | A person who may operate the Restaurant: `name`, `email`, `status` (`pending`, `authorized` or `revoked`), `invited_by`, `accepted_at`, `revoked_at`, `revoked_by`. The email is unique among pending and authorized staff; revoked staff stay on record as former staff |
 | `StaffInvitation`          | The current invite `token` and `expires_at` of one pending staff member. Deleting the staff member deletes the invitation                                                                                                                                                |
 | `RestaurantHistoryEntry`   | One change of participation or opening, append-only: `kind` (`activated`, `deactivated`, `opened` or `closed`), `occurred_at` (UTC), `actor_type` (`user` or `restaurant_staff`), `actor_id`, `actor_name` (a snapshot of the name at the time) and `reason`             |
+| `MenuCategory`             | One flat, Restaurant-owned category with both names, `position`, `revision`, removal flag and change history (see [Bilingual menu categories](#bilingual-menu-categories-104))                                                                                           |
+| `MenuDish`                 | The Restaurant-owned state of one dish, linked to its product: both names, optional descriptions, `is_sold_out`, `position` and `revision` (see [Published menu](#published-menu-and-the-customer-read-105))                                                             |
 
 `RestaurantModuleService` extends `MedusaService` with generated CRUD. Workflows
 under `src/workflows/restaurants` own registration, edits, duplicate warnings,
@@ -32,7 +34,9 @@ The module link `src/links/restaurant-product.ts` connects a Restaurant to a lis
 of products, its dishes, as in Medusa's Restaurant-Delivery Marketplace recipe.
 The `menu-category-product.ts` link connects each Product to one MenuCategory,
 with many Products allowed in a category. Category removal checks this link,
-including unpublished and sold-out Products. Dish editing remains a later slice.
+including unpublished and sold-out Products. The `menu-dish-product.ts` link
+joins a Product to its `MenuDish`, the Restaurant-owned dish content. Dish
+editing by staff remains a later slice.
 
 ## Restaurant staff
 
@@ -152,10 +156,10 @@ codes in checklist order: `pickup_address_missing`, `contacts_missing`,
 `authorized_staff_missing`, `commercial_terms_missing`, `published_menu_missing`,
 `delivery_area_missing`. An empty list means the Restaurant may be activated.
 Readiness counts authorized staff only: pending invitations and former staff do
-not count. The published dish count is the number of products linked to the
-Restaurant with status `published`; sold-out dishes count (rule A8). Menu
-editing arrives with #44 and may change how this fact is computed, not the
-rule.
+not count. The published dish count is the number of valid published dishes,
+by the one definition the Customer menu also uses (see
+[Published menu](#published-menu-and-the-customer-read-105)): a linked product
+with status `published` alone does not count, and sold-out dishes do (rule A8).
 
 ## Activation
 
@@ -280,13 +284,29 @@ harness runs it after migrations in its isolated source snapshot.
 NODE_ENV=development npm exec medusa exec ./src/scripts/seed-demo-menu.ts [restaurant_id]
 ```
 
-This links one published synthetic dish, **Pizza Margherita (synthetic)**, to the
-Restaurant with that id, or to Pizzeria Nørrebro without one, so activation rule
-A9 can be demonstrated before menus exist (#44). It creates the product with
-core-flows' `createProductsWorkflow` and links it with `createLinksWorkflow`; if
-linking fails, it deletes the product again. The product has no sales channel,
-so the storefront does not show it. Running it again for the same Restaurant
-changes nothing. It has the same database restriction as the Restaurant seed.
+This publishes one valid synthetic dish in the real menu model for the
+Restaurant with that id, or for Pizzeria Nørrebro without one: the category
+**Pizza** with **Pizza Margherita (syntetisk)** / **Pizza Margherita
+(synthetic)**, DKK 95. Activation rule A9 and the Customer menu can then be
+demonstrated before staff publish dishes themselves (#44). It runs
+`publishSyntheticMenuWorkflow`, which takes the Restaurant's lock and rolls
+back completely if a step fails. Running it again for the same Restaurant
+changes nothing. If the pre-#105 single-title seed already exists, the command
+creates a valid bilingual replacement under a distinct handle and retains the
+old product and variant for historical references. The old product remains
+excluded from the menu and readiness count. Repeating the upgrade creates
+nothing more. It has the same database restriction as the Restaurant seed.
+
+```bash
+NODE_ENV=development npm exec medusa exec ./src/scripts/seed-demo-menu.ts <restaurant_id> showcase
+```
+
+`showcase` publishes a fuller menu for the Customer menu journey instead: a
+second, sold-out pizza at DKK 109.50, the category **Drikkevarer** / **Drinks**
+with a lemonade that has no description, and the empty category **Desserter** /
+**Desserts**. It also links one published product that has only its single
+native title. That product is deliberately not a valid dish, so it stays off
+the menu and out of the readiness count (3 published dishes).
 
 <!-- Remove this workaround when Feature #44 lets staff publish dishes (see #44). -->
 
@@ -318,7 +338,8 @@ Inactive and Closed and the History shows "Deactivated by" with the reason.
 
 ## Verification
 
-- HTTP activation: rules A1–A7 refused with exactly the missing codes, A8 (every
+- HTTP activation: rules A1–A7 refused with exactly the missing codes, A5b (only
+  a published product without bilingual dish content) refused, A8 (every
   published dish sold out) and A9 (menu seed) activated and still Closed, the
   `activated` history entry with time and operator (name, or email without
   one), the `restaurant.activated` event, a second activation recording
@@ -446,3 +467,84 @@ is `apps/partner/e2e/menu-categories.spec.ts`. They cover bilingual boundaries,
 ownership/revocation, flat input, retries, stale saves and nonempty removal;
 the browser covers translated forms, retained input, safe text rendering,
 reviewing a competing save, narrow layouts and unsaved-navigation confirmation.
+
+## Published menu and the Customer read (#105)
+
+`MenuDish` holds the Restaurant-owned state of one dish, apart from the native
+product: both trimmed names (`name_da`, `name_en`), optional descriptions
+(`description_da`, `description_en`), the manual `is_sold_out` switch, the
+`position` within its category and the `revision` of the published version.
+The link `src/links/menu-dish-product.ts` joins one product to one `MenuDish`.
+Ownership stays on the existing links: Restaurant to products, and each product
+to one `MenuCategory`. Declarations, photos and staff editing come with later
+slices of #44.
+
+### One validity definition
+
+`publishedMenuOf` in `src/workflows/menu/published-menu.ts` is the only
+definition of a valid published dish. `readPublishedMenu` reads the records and
+applies it. Activation readiness counts its dishes and
+`GET /store/restaurants/{id}/menu` shows its dishes, so the two cannot disagree.
+A dish is valid when all of these hold:
+
+- the product has status `published` and a linked `MenuDish`
+- both names are 1–120 characters after trimming
+- the descriptions are both absent, or both 1–2,000 characters
+- the product has exactly one variant
+- that variant's calculated DKK price is positive, has at most two decimal
+  places (checked exactly with `MathBN`, without a rounding tolerance) and
+  includes tax
+- the product is in a category of the same Restaurant that is not removed
+
+A published product with only its single native title is therefore neither
+counted nor shown. A sold-out dish is valid: it stays on the menu and counts.
+Categories are ordered by `position`, dishes by `position` and then id.
+Categories without a valid dish are left out for Customers.
+
+### Verified against Medusa 2.22.4
+
+- **One variant:** each dish is a product with one option value and one
+  variant, with `manage_inventory: false`. Sold out is `MenuDish.is_sold_out`
+  and never a stock quantity.
+- **Price:** the price is read as the variant's `calculated_price` for the
+  currency `dkk`, the amount a cart would charge. Medusa stores display units,
+  so DKK 109.50 is `109.5`; nothing converts to or from øre.
+- **Tax-inclusive DKK:** `ensureMenuCommerceSetupWorkflow` creates the price
+  preference `currency_code = dkk` with `is_tax_inclusive: true`, or corrects
+  an existing one. Medusa then treats DKK prices as including tax, so a menu
+  price gains no VAT on top (ADR-0006). A DKK price that does not include tax
+  is not a valid dish.
+- **Sales channel:** dishes are sold through the dedicated channel **MTOGO
+  menus**, which the same workflow creates. It is not bound to the storefront's
+  publishable key, so Medusa's native `/store/products` and search never list
+  dishes, and an inactive Restaurant's dishes stay hidden there too. The menu
+  route does not depend on the key's channels. Ordering (#46) decides how a
+  basket reaches this channel.
+- **Shipping profile:** each dish gets the default shipping profile, which the
+  workflow creates when the database has none.
+- **Languages:** both languages are stored in explicit columns and returned
+  together, as categories and the food catalogue do. The Translation Module
+  stays disabled behind `MEDUSA_FF_TRANSLATION`; no locale parameter or header
+  changes a menu read.
+
+`medusa db:migrate` runs `src/migration-scripts/menu-commerce-setup.ts`, which
+executes the workflow. It takes the `menu-commerce:setup` lock and repeating it
+changes nothing. The menu seed runs it too, so an older database is corrected.
+
+### Customer read
+
+`readRestaurantMenuWorkflow` answers `GET /store/restaurants/{id}/menu`; the
+API README holds the contract. An active Restaurant's menu is readable whether
+it is Open or Closed, with the shared eligibility rule's
+`receiving_new_orders` and `reason`. An inactive Restaurant answers
+`restaurant_not_found`, exactly like an unknown one; Order reads do not go
+through this route and are unaffected. Until declarations and photos are
+stored, every dish reports allergens and food labels as `unknown` and
+`photo: null`.
+
+Evidence: `src/workflows/menu/__tests__/published-menu.unit.spec.ts` (the
+validity decision table), `integration-tests/http/restaurant-menu.spec.ts`
+(visible, closed and hidden states, the invalid single-title product, the
+shared count, the commerce configuration through Admin and store APIs,
+repeated setup and the workload) and `apps/storefront/e2e/restaurant-menu.spec.ts`
+(the bilingual Customer journey).

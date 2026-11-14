@@ -13,17 +13,86 @@ import {
 import { syntheticSeedAllowed } from "../lib/synthetic-seed-allowed"
 import { RESTAURANT_MODULE } from "../modules/restaurant"
 import {
+  publishSyntheticMenuWorkflow,
+  SyntheticCategory,
+} from "../workflows/menu"
+import {
   listRestaurantsWorkflow,
   retrieveRestaurantWorkflow,
 } from "../workflows/restaurants"
 
+const SHOWCASE = "showcase"
+
+const MARGHERITA = {
+  name: {
+    da: "Pizza Margherita (syntetisk)",
+    en: "Pizza Margherita (synthetic)",
+  },
+  description: {
+    da: "En syntetisk ret til demonstrationer. Ikke en rigtig ret.",
+    en: "A synthetic dish seeded for demonstrations. Not a real menu item.",
+  },
+  price: 95,
+}
+
+/** The one dish that makes the menu published, in the category Pizza. */
+const baseMenu = (handle: string): SyntheticCategory[] => [
+  { name: { da: "Pizza", en: "Pizza" }, dishes: [{ handle, ...MARGHERITA }] },
+]
+
 /**
- * Links one published synthetic dish to a Restaurant, so activation rule A9 can
- * be demonstrated before menus exist (#44). The Restaurant id is the first
- * argument; without it, the synthetic Pizzeria Nørrebro is used. Running it
- * again for the same Restaurant changes nothing.
+ * A fuller menu for the Customer menu journey: three more valid dishes, one
+ * of them sold out and one with a decimal price and no description.
+ */
+const showcaseMenu = (handle: string): SyntheticCategory[] => [
+  {
+    name: { da: "Pizza", en: "Pizza" },
+    dishes: [
+      { handle, ...MARGHERITA },
+      {
+        handle: `${handle}-pepperoni`,
+        name: {
+          da: "Pizza Pepperoni (syntetisk)",
+          en: "Pizza Pepperoni (synthetic)",
+        },
+        description: {
+          da: "Tomat, mozzarella og pepperoni. Syntetisk ret.",
+          en: "Tomato, mozzarella and pepperoni. Synthetic dish.",
+        },
+        price: 109.5,
+        is_sold_out: true,
+      },
+    ],
+  },
+  {
+    name: { da: "Drikkevarer", en: "Drinks" },
+    dishes: [
+      {
+        handle: `${handle}-lemonade`,
+        name: {
+          da: "Hjemmelavet hyldeblomstlimonade (syntetisk)",
+          en: "Homemade elderflower lemonade (synthetic)",
+        },
+        price: 32,
+      },
+    ],
+  },
+  // Stays empty, so Customers never see it.
+  { name: { da: "Desserter", en: "Desserts" }, dishes: [] },
+]
+
+/**
+ * Publishes a synthetic menu for a Restaurant in the real menu model, so
+ * activation rule A9 and the Customer menu can be demonstrated before staff
+ * publish dishes themselves (#44). The Restaurant id is the first argument;
+ * without it, the synthetic Pizzeria Nørrebro is used. Running it again for
+ * the same Restaurant changes nothing.
  *
- *   medusa exec ./src/scripts/seed-demo-menu.ts [restaurant_id]
+ *   medusa exec ./src/scripts/seed-demo-menu.ts [restaurant_id] [showcase]
+ *
+ * `showcase` publishes the fuller menu and also links one published product
+ * that has only its single native title. That product is deliberately not a
+ * valid dish: it must stay off the menu and out of the readiness count.
  */
 export default async function seedDemoMenu({ container, args }: ExecArgs) {
   const config = container.resolve(ContainerRegistrationKeys.CONFIG_MODULE)
@@ -39,33 +108,56 @@ export default async function seedDemoMenu({ container, args }: ExecArgs) {
       "synthetic_seed_database_required",
     )
   }
-  const restaurantId = args?.[0] || (await findPizzeriaNorrebro(container))
+  const isShowcase = args?.includes(SHOWCASE) ?? false
+  const [givenId] = (args ?? []).filter((argument) => argument !== SHOWCASE)
+  const restaurantId = givenId || (await findPizzeriaNorrebro(container))
   // Refuses an unknown id with restaurant_not_found before creating anything.
   await retrieveRestaurantWorkflow(container).run({
     input: { id: restaurantId },
   })
-  const handle = `synthetic-dish-${restaurantId.toLowerCase().replace(/_/g, "-")}`
+  const baseHandle = `synthetic-dish-${restaurantId.toLowerCase().replace(/_/g, "-")}`
+  const replacementHandle = `${baseHandle}-bilingual`
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
   const { data: existing } = await query.graph({
     entity: "product",
-    fields: ["id"],
-    filters: { handle },
+    fields: ["id", "menu_dish.id"],
+    filters: { handle: [baseHandle, replacementHandle] },
   })
-  if (existing.length) return
+  if (existing.some((product) => product.menu_dish?.id)) return
+  // Retain the old single-title product and variant for any historical Orders.
+  // A valid replacement gets its own identity; reruns find its linked content.
+  const handle = existing.length ? replacementHandle : baseHandle
+  const { result } = await publishSyntheticMenuWorkflow(container).run({
+    input: {
+      restaurant_id: restaurantId,
+      categories: isShowcase ? showcaseMenu(handle) : baseMenu(handle),
+    },
+  })
+  if (isShowcase)
+    await linkSingleTitleProduct(container, {
+      restaurantId,
+      categoryId: result.category_ids[0],
+      handle: `${handle}-single-title`,
+    })
+}
+
+/** A published product as the seed made them before the menu model: one title, no dish content. */
+async function linkSingleTitleProduct(
+  container: ExecArgs["container"],
+  input: { restaurantId: string; categoryId: string; handle: string },
+) {
   const { result: products } = await createProductsWorkflow(container).run({
     input: {
       products: [
         {
-          title: "Pizza Margherita (synthetic)",
-          handle,
-          description:
-            "A synthetic dish seeded for demonstrations. Not a real menu item.",
+          title: "Single-title product (synthetic, not a valid dish)",
+          handle: input.handle,
           status: ProductStatus.PUBLISHED,
-          options: [{ title: "Size", values: ["Regular"] }],
+          options: [{ title: "Portion", values: ["Regular"] }],
           variants: [
             {
               title: "Regular",
-              options: { Size: "Regular" },
+              options: { Portion: "Regular" },
               manage_inventory: false,
               prices: [{ amount: 95, currency_code: "dkk" }],
             },
@@ -74,19 +166,25 @@ export default async function seedDemoMenu({ container, args }: ExecArgs) {
       ],
     },
   })
-  const [dish] = products
+  const [product] = products
   try {
     await createLinksWorkflow(container).run({
       input: [
         {
-          [RESTAURANT_MODULE]: { restaurant_id: restaurantId },
-          [Modules.PRODUCT]: { product_id: dish.id },
+          [RESTAURANT_MODULE]: { restaurant_id: input.restaurantId },
+          [Modules.PRODUCT]: { product_id: product.id },
+        },
+        {
+          [RESTAURANT_MODULE]: { menu_category_id: input.categoryId },
+          [Modules.PRODUCT]: { product_id: product.id },
         },
       ],
     })
   } catch (failure) {
-    // Leave no unlinked dish behind, so a rerun starts clean.
-    await deleteProductsWorkflow(container).run({ input: { ids: [dish.id] } })
+    // Leave no unlinked product behind.
+    await deleteProductsWorkflow(container).run({
+      input: { ids: [product.id] },
+    })
     throw failure
   }
 }

@@ -43,3 +43,8 @@ text for the partner Menu workspace. `isCategoryErrorCode` allowlists structured
 API codes before the interface maps them to translated messages.
 `CATEGORY_SUGGESTIONS` lists common bilingual menu categories, and
 `remainingCategorySuggestions` hides those already on a menu by either name.
+
+`CUSTOMER_MENU_TEXT[locale]` supplies the storefront's Restaurant menu page:
+open and closed status, sold out, unknown allergen information and the empty,
+not-found and failure states. `formatDkk(amount, locale)` formats a menu price
+in kroner as the design brief shows it (`129,00 kr.`, `DKK 129.00`).

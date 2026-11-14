@@ -1,4 +1,5 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
+import winston from "winston"
 import {
   ContainerRegistrationKeys,
   generateJwtToken,
@@ -19,10 +20,16 @@ medusaIntegrationTestRunner({
         .filter((record) => record.service === "backend")
     beforeEach(() => {
       output = ""
-      jest.spyOn(process.stdout, "write").mockImplementation((chunk) => {
-        output += String(chunk)
-        return true
-      })
+      // Winston can use Jest's buffered console instead of process.stdout in
+      // multi-suite runs. Observe the final formatted output at its transport,
+      // preserving the real logger, formatting and console write.
+      const write = winston.transports.Console.prototype.log
+      jest
+        .spyOn(winston.transports.Console.prototype, "log")
+        .mockImplementation(function (info, callback) {
+          output += `${info[Symbol.for("message")]}\n`
+          write.call(this, info, callback)
+        })
     })
     afterEach(() => {
       jest.restoreAllMocks()

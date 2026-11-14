@@ -13,6 +13,7 @@ import {
   createProductsWorkflow,
 } from "@medusajs/medusa/core-flows"
 import { RESTAURANT_ACTIVATED } from "../../src/workflows/restaurants"
+import { publishSyntheticMenuWorkflow } from "../../src/workflows/menu"
 import seedDemoMenu from "../../src/scripts/seed-demo-menu"
 import { RESTAURANT_MODULE } from "../../src/modules/restaurant"
 
@@ -87,23 +88,20 @@ medusaIntegrationTestRunner({
       )
     const seedMenu = (id = restaurantId) =>
       seedDemoMenu({ container: getContainer(), args: [id] } as ExecArgs)
-    /** A dish of the Restaurant's own; a sold-out one has a stocked variant without inventory. */
-    const linkDish = async (
-      status: "draft" | "published",
-      { isSoldOut = false } = {},
-    ) => {
+    /** A product linked to the Restaurant with only its single native title: not a valid dish. */
+    const linkSingleTitleProduct = async (status: "draft" | "published") => {
       const { result } = await createProductsWorkflow(getContainer()).run({
         input: {
           products: [
             {
-              title: `Dish ${status}${isSoldOut ? " sold out" : ""}`,
+              title: `Single-title product ${status}`,
               status,
               options: [{ title: "Size", values: ["Regular"] }],
               variants: [
                 {
                   title: "Regular",
                   options: { Size: "Regular" },
-                  manage_inventory: isSoldOut,
+                  manage_inventory: false,
                   prices: [{ amount: 95, currency_code: "dkk" }],
                 },
               ],
@@ -120,6 +118,26 @@ medusaIntegrationTestRunner({
         ],
       })
     }
+    /** A valid bilingual dish of the Restaurant's own that staff have marked sold out. */
+    const publishSoldOutDish = () =>
+      publishSyntheticMenuWorkflow(getContainer()).run({
+        input: {
+          restaurant_id: restaurantId,
+          categories: [
+            {
+              name: { da: "Pizza", en: "Pizza" },
+              dishes: [
+                {
+                  handle: "sold-out-dish",
+                  name: { da: "Udsolgt ret", en: "Sold-out dish" },
+                  price: 95,
+                  is_sold_out: true,
+                },
+              ],
+            },
+          ],
+        },
+      })
     const completeSetup = async () => {
       await authorizeStaff()
       await recordTerms()
@@ -287,10 +305,21 @@ medusaIntegrationTestRunner({
           await authorizeStaff()
           await recordTerms()
           await addDeliveryArea()
-          await linkDish("draft")
+          await linkSingleTitleProduct("draft")
         },
         missing: ["published_menu_missing"],
         reason: "EP: only unpublished dishes",
+      },
+      {
+        rule: "A5b",
+        setup: async () => {
+          await authorizeStaff()
+          await recordTerms()
+          await addDeliveryArea()
+          await linkSingleTitleProduct("published")
+        },
+        missing: ["published_menu_missing"],
+        reason: "EP: only a published product without bilingual dish content",
       },
       {
         rule: "A6",
@@ -324,8 +353,9 @@ medusaIntegrationTestRunner({
       await authorizeStaff()
       await recordTerms()
       await addDeliveryArea()
-      await linkDish("published", { isSoldOut: true })
-      await linkDish("draft")
+      await publishSoldOutDish()
+      await linkSingleTitleProduct("draft")
+      await linkSingleTitleProduct("published")
       const response = await activate()
       expect(response.status).toBe(200)
       expect(response.data.restaurant).toMatchObject({

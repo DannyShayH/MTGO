@@ -1,30 +1,21 @@
 import { MedusaContainer } from "@medusajs/framework/types"
-import {
-  ContainerRegistrationKeys,
-  ProductStatus,
-} from "@medusajs/framework/utils"
 import RestaurantModuleService from "../../../modules/restaurant/service"
 import { RESTAURANT_MODULE } from "../../../modules/restaurant"
 import { ActivationFacts } from "../activation-requirements"
+import { countPublishedDishes as countDishes } from "../../menu/published-menu"
+import { readPublishedMenu } from "../../menu/steps/read-menu"
 import { restaurantNotFound } from "./restaurant-exists"
 
-/** The published-menu fact: products linked to the Restaurant with status published. Sold-out dishes count. */
+/**
+ * The published-menu fact: the dishes Customers would see on the menu. A
+ * published product without complete bilingual dish content does not count;
+ * sold-out dishes do.
+ */
 export async function countPublishedDishes(
   container: MedusaContainer,
   restaurant_id: string,
 ): Promise<number> {
-  const { data } = await container
-    .resolve(ContainerRegistrationKeys.QUERY)
-    .graph({
-      entity: "restaurant",
-      fields: ["products.id", "products.status"],
-      filters: { id: restaurant_id },
-    })
-  // The link's generated query types exist only after a build, so the shape is stated here.
-  const [restaurant] = data as { products?: ({ status: string } | null)[] }[]
-  return (restaurant?.products ?? []).filter(
-    (product) => product?.status === ProductStatus.PUBLISHED,
-  ).length
+  return countDishes(await readPublishedMenu(container, restaurant_id))
 }
 
 type RestaurantWithSetup = Awaited<

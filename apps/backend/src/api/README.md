@@ -845,6 +845,99 @@ data; no other Restaurant's private menu data is returned.
 | `401`  | Missing, expired or wrong-actor bearer token             |
 | `403`  | Missing or revoked staff record (`staff_access_revoked`) |
 
+## Restaurant menu
+
+### GET /store/restaurants/{id}/menu
+
+Reads the current menu of one active Restaurant for Customers and signed-out
+visitors. No login is needed; Medusa requires `x-publishable-api-key`. There is
+no locale parameter: every name and description carries both languages and the
+client chooses `da` or `en`. The response is never cached
+(`Cache-Control: no-store`), so a saved change shows on the next fetch.
+
+```json
+{
+  "restaurant": {
+    "id": "res_01…",
+    "name": "Pizzeria Nørrebro",
+    "is_open": false,
+    "receiving_new_orders": false,
+    "reason": "restaurant_closed"
+  },
+  "categories": [
+    {
+      "id": "mcat_01…",
+      "revision": 1,
+      "name": { "da": "Pizza", "en": "Pizza" },
+      "dishes": [
+        {
+          "id": "prod_01…",
+          "variant_id": "variant_01…",
+          "revision": 1,
+          "name": { "da": "Pizza Margherita", "en": "Pizza Margherita" },
+          "description": {
+            "da": "Tomat og mozzarella",
+            "en": "Tomato and mozzarella"
+          },
+          "price": {
+            "amount": 109.5,
+            "currency_code": "dkk",
+            "includes_tax": true
+          },
+          "is_sold_out": false,
+          "photo": null,
+          "food_information": {
+            "allergens": { "status": "unknown" },
+            "labels": {
+              "halal": "unknown",
+              "chili": "unknown",
+              "garlic": "unknown"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+| Field                             | Meaning                                                                                                                                                                         |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `restaurant.is_open`              | Whether staff have opened the Restaurant. A Closed Restaurant's menu stays readable                                                                                             |
+| `restaurant.receiving_new_orders` | Whether a new Order could be placed now. `reason` is `restaurant_closed` or `delivery_area_missing` when it is `false`, otherwise `null`                                        |
+| `categories`                      | The Restaurant's own categories in its order. A category without a valid dish is left out                                                                                       |
+| `categories[].id`, `revision`     | Stable category identity and the revision of its published names                                                                                                                |
+| `dishes`                          | The category's valid published dishes in the Restaurant's order, sold-out ones included                                                                                         |
+| `dishes[].id`                     | Stable dish identity (the product id). It does not change when the dish is edited                                                                                               |
+| `dishes[].variant_id`             | The dish's one sellable variant, which an Order line refers to                                                                                                                  |
+| `dishes[].revision`               | Revision of the dish's published version. Every later change to its content, price or availability must raise it                                                                |
+| `dishes[].description`            | Both languages, or `null` when the Restaurant gave none                                                                                                                         |
+| `dishes[].price`                  | Current price in kroner including VAT and delivery. `amount` is in display units with at most two decimals (`109.5` is DKK 109.50); nothing is added to it and it is not in øre |
+| `dishes[].is_sold_out`            | The manual availability switch. A sold-out dish is shown but cannot be ordered                                                                                                  |
+| `dishes[].photo`                  | `null` until dish photos are stored; clients show their placeholder                                                                                                             |
+| `dishes[].food_information`       | `unknown` until declarations are stored. Unknown is never an allergen-free claim                                                                                                |
+
+A dish can be ordered only when `restaurant.receiving_new_orders` is `true` and
+`is_sold_out` is `false`.
+
+**Ordering handoff (#46).** A basket keeps `dishes[].id`, `variant_id`,
+`revision` and `price.amount` as the Customer saw them. Before payment it reads
+this route again: a dish that is missing was removed or is no longer valid, and
+a different `revision`, `price.amount`, `is_sold_out` or
+`receiving_new_orders` means the Customer must review the basket. Nothing is
+substituted or charged at a higher price silently. This slice adds no basket or
+payment behavior.
+
+| Status | When                                                                                          |
+| ------ | --------------------------------------------------------------------------------------------- |
+| `200`  | The Restaurant is active, Open or Closed                                                      |
+| `400`  | Missing or invalid publishable key (Medusa's standard response)                               |
+| `404`  | `restaurant_not_found`: the Restaurant does not exist or is inactive. Both answer identically |
+
+Only valid published dishes appear; the Restaurant module README defines valid.
+The same definition gives Admin's `menu.published_dish_count` and the
+`published_menu_missing` activation requirement.
+
 ### Customer account language
 
 Issue #85 uses the existing Medusa Customer boundary and core workflows:

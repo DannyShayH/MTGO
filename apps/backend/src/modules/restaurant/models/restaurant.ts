@@ -134,4 +134,20 @@ export const MenuCategory = model
   })
   .indexes([{ on: ["restaurant_id", "request_id"], unique: true }])
 
+/**
+ * The Restaurant-owned state of one dish, kept apart from the native product
+ * it is linked to: the bilingual publication, the manual sold-out switch, the
+ * place within its category and the revision of the published version.
+ */
+export const MenuDish = model.define("menu_dish", {
+  id: model.id({ prefix: "mdsh" }).primaryKey(),
+  name_da: model.text(),
+  name_en: model.text(),
+  description_da: model.text().nullable(),
+  description_en: model.text().nullable(),
+  is_sold_out: model.boolean().default(false),
+  position: model.number().default(0),
+  revision: model.number().default(1),
+})
+
 export default Restaurant

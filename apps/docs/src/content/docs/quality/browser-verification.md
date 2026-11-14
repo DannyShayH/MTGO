@@ -212,3 +212,84 @@ legacy identity migration preserving Customer IDs, saved addresses and Orders.
 Local verification on 13 November 2026 reached the backend/Admin production build
 but was killed with exit code 137 before Playwright started. The complete browser
 run remains required in the ready flow on a runner with sufficient memory.
+
+## Customer menu reading (#105)
+
+`apps/storefront/e2e/restaurant-menu.spec.ts` sets up its own Restaurant and
+staff member through the APIs and publishes the showcase menu with
+`seed-demo-menu.ts <restaurant_id> showcase`. In Danish and in English it
+checks that:
+
+- the inactive Restaurant's menu is hidden, with the same message as an unknown
+  Restaurant
+- after activation the Closed Restaurant's menu is readable and says it takes
+  no Orders
+- categories and dishes appear in the Restaurant's order, with translated
+  names, descriptions and prices (`109,50 kr.` and `DKK 109.50`), and the empty
+  category is left out
+- the published single-title product is not shown
+- the sold-out dish stays visible with a text label
+- every dish without a photo has the same placeholder
+- "Allergens: unknown" is visible and its explanation opens with the keyboard
+- a 360px-wide screen wraps long Danish names without scrolling sideways
+- after staff open the Restaurant the next fetch shows Open, and after
+  deactivation the menu is hidden again
+
+Screenshots of the narrow Closed and wide Open menu are attached to the report.
+
+### Browsing workload
+
+Requirement: twenty simultaneous browsing journeys with at least 95% of ordinary
+requests within two seconds. It is measured at two seams, and both tests fail
+below 95%.
+
+| Seam                   | Test                                             | Journey (three requests each)                    |
+| ---------------------- | ------------------------------------------------ | ------------------------------------------------ |
+| Store API              | `integration-tests/http/restaurant-menu.spec.ts` | Menu, food catalogue, menu again                 |
+| Storefront page (HTML) | `apps/storefront/e2e/restaurant-menu.spec.ts`    | Menu page in Danish, in English, in Danish again |
+
+Recorded on 14 November 2026 at the store API seam, running the suite on its
+own: 60 requests, p50 440 ms, p95 788 ms, slowest 856 ms, 100% within two
+seconds. An earlier version that read the Restaurant in a separate query
+measured p95 1,981 ms (95% within two seconds) at the end of a full in-band run
+of every HTTP suite, so the margin on a loaded devcontainer is small.
+
+The follow-up review on 14 November 2026 reran every HTTP suite in band. The
+menu workload passed with 60 requests, p50 542 ms, p95 974 ms, slowest 1,083 ms
+and 100% within two seconds under the same dataset and cache conditions below.
+
+- **Environment:** the devcontainer (7 GB memory shared with the editor), one
+  Medusa application started by the HTTP test runner, in-memory event bus and
+  locking, PostgreSQL 16.15 on the same host. Client and server share one Node.js
+  process.
+- **Dataset:** one active, open Restaurant with the showcase menu (three valid
+  dishes in two categories, one empty category and one invalid product), one
+  delivery-area postal code and the seeded food catalogue (14 allergens, their
+  details and three labels).
+- **Cache:** none. Both routes answer `no-store` and every request reads the
+  database. All twenty journeys start at once.
+
+The storefront page measurement runs against production builds in the ready
+flow, after one warm-up request, with the menu fetched uncached on every page
+request. Its numbers are attached to the Playwright report as
+`menu-browsing-workload`. The follow-up review on 14 November 2026 completed
+all production builds, 19 storefront tests, 31 partner tests and the Admin
+development check locally. A memory guard monitored the shared devcontainer and
+did not need to stop the run. The HTML workload measured 60 requests, p50 693 ms,
+p95 1,301 ms, slowest 1,435 ms and 100% within two seconds. The report contains
+Danish/English narrow and wide menu screenshots; the wide capture waits for the
+menu heading to be visible after streaming finishes.
+
+The follow-up found six request-logging capture failures that also reproduced
+on the untouched `90e56bf` baseline when suites ran together. The fix captures
+Winston's final formatted Console output while preserving real writes; the old
+stdout-only spy missed Jest's buffered console. The complete affected backend
+run now passes all 16 HTTP suites (328 tests), including those six checks, plus
+48 unit tests. A menu HTTP regression also verifies upgrading the pre-#105
+single-title demo seed to valid bilingual content without deleting its old
+product or duplicating dishes on a repeated run.
+
+Backend compilation also passed after the seed fix. Rebuilding the Admin bundle
+with the developer's servers running was stopped by the shared-memory guard;
+that rebuild remains for the ready flow. The earlier complete production and
+browser verification above passed before these seed/test-harness follow-ups.

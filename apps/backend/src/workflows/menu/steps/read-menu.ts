@@ -1,0 +1,136 @@
+import { MedusaContainer } from "@medusajs/framework/types"
+import {
+  ContainerRegistrationKeys,
+  QueryContext,
+} from "@medusajs/framework/utils"
+import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
+import { evaluateNewOrderEligibility } from "../../restaurants/eligibility"
+import { restaurantNotFound } from "../../restaurants/steps/restaurant-exists"
+import {
+  MENU_CURRENCY,
+  MenuCategoryRecord,
+  MenuProductRecord,
+  PublishedCategory,
+  publishedMenuOf,
+} from "../published-menu"
+
+type RestaurantMenuRecord = {
+  id: string
+  name: string
+  is_active: boolean
+  is_open: boolean
+  delivery_area_postal_codes?: { postal_code: string }[]
+  menu_categories?: MenuCategoryRecord[]
+  products?: ({ id: string } | null)[]
+}
+
+/**
+ * The Restaurant with its valid published menu, read fresh; nothing when the
+ * Restaurant does not exist. The price is Medusa's calculated DKK price, the
+ * amount a cart would charge, in display units.
+ */
+async function readRestaurantWithMenu(
+  container: MedusaContainer,
+  restaurant_id: string,
+): Promise<{
+  restaurant: RestaurantMenuRecord
+  menu: PublishedCategory[]
+} | null> {
+  const query = container.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({
+    entity: "restaurant",
+    fields: [
+      "id",
+      "name",
+      "is_active",
+      "is_open",
+      "delivery_area_postal_codes.postal_code",
+      "menu_categories.*",
+      "products.id",
+    ],
+    filters: { id: restaurant_id },
+  })
+  // The links' generated query types exist only after a build, so the shape is stated here.
+  const [restaurant] = data as unknown as RestaurantMenuRecord[]
+  if (!restaurant) return null
+  const productIds = (restaurant.products ?? []).flatMap((product) =>
+    product ? [product.id] : [],
+  )
+  if (!productIds.length) return { restaurant, menu: [] }
+  const { data: products } = await query.graph({
+    entity: "product",
+    fields: [
+      "id",
+      "status",
+      "menu_category.id",
+      "menu_dish.*",
+      "variants.id",
+      "variants.calculated_price.*",
+    ],
+    filters: { id: productIds },
+    context: {
+      variants: {
+        calculated_price: QueryContext({ currency_code: MENU_CURRENCY }),
+      },
+    },
+  })
+  return {
+    restaurant,
+    menu: publishedMenuOf(
+      restaurant.menu_categories ?? [],
+      products as unknown as MenuProductRecord[],
+    ),
+  }
+}
+
+/** The valid published menu that activation readiness counts and Customers see. */
+export async function readPublishedMenu(
+  container: MedusaContainer,
+  restaurant_id: string,
+): Promise<PublishedCategory[]> {
+  return (await readRestaurantWithMenu(container, restaurant_id))?.menu ?? []
+}
+
+/** Declarations and photos are not stored yet, so every dish states them as unknown or absent. */
+const UNDECLARED = {
+  photo: null,
+  food_information: {
+    allergens: { status: "unknown" as const },
+    labels: {
+      halal: "unknown" as const,
+      chili: "unknown" as const,
+      garlic: "unknown" as const,
+    },
+  },
+}
+
+/**
+ * The public menu of an active Restaurant, open or closed. An inactive
+ * Restaurant answers exactly like one that does not exist.
+ */
+export const readRestaurantMenuStep = createStep(
+  "read-restaurant-menu",
+  async (input: { restaurant_id: string }, { container }) => {
+    const found = await readRestaurantWithMenu(container, input.restaurant_id)
+    if (!found?.restaurant.is_active) throw restaurantNotFound()
+    const { restaurant, menu } = found
+    return new StepResponse({
+      restaurant: {
+        id: restaurant.id,
+        name: restaurant.name,
+        is_open: restaurant.is_open,
+        ...evaluateNewOrderEligibility({
+          is_active: restaurant.is_active,
+          is_open: restaurant.is_open,
+          delivery_postal_codes: (
+            restaurant.delivery_area_postal_codes ?? []
+          ).map(({ postal_code }) => postal_code),
+        }),
+      },
+      categories: menu.map((category) => ({
+        ...category,
+        dishes: category.dishes.map((dish) => ({ ...dish, ...UNDECLARED })),
+      })),
+    })
+  },
+)

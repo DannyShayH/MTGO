@@ -2,6 +2,7 @@ import { MedusaService } from "@medusajs/framework/utils"
 import Restaurant, {
   CommercialTermsAgreement,
   MenuCategory,
+  MenuDish,
   DeliveryAreaPostalCode,
   RestaurantHistoryEntry,
   RestaurantStaff,
@@ -18,6 +19,7 @@ const DEFAULT_PARTNER_URL = "http://localhost:8100"
 class RestaurantModuleService extends MedusaService({
   Restaurant,
   MenuCategory,
+  MenuDish,
   DeliveryAreaPostalCode,
   CommercialTermsAgreement,
   RestaurantStaff,

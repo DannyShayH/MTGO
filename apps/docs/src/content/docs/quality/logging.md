@@ -179,6 +179,14 @@ Troubleshooting:
   Correlated refusal/error events remain available. Startup/framework lines keep
   Medusa's formatting and do not acquire application fields automatically.
 
+## HTTP verification
+
+`integration-tests/http/request-logging.spec.ts` exercises the real Medusa auth
+and partner routes. It captures the Console transport's final formatted JSON
+while preserving its actual write, so correlation and secret-exclusion checks
+work with both Jest's single-suite console and its buffered multi-suite console.
+A stdout-only spy misses Winston's buffered-console output during combined runs.
+
 ## Planned DigitalOcean Droplet operations
 
 There is no deployed Compose/Caddy logging setup in this issue. Once deployment
