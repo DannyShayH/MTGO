@@ -5,6 +5,19 @@ import Dish from "@modules/menu/components/dish"
 const page =
   "content-container flex min-h-[60vh] max-w-3xl flex-col gap-6 py-8 small:py-12"
 
+/** Back to the homepage, keeping the selected location. */
+function BackLink({ href, locale }: { href: string; locale: Locale }) {
+  return (
+    <a
+      href={href}
+      className="inline-flex min-h-11 w-fit items-center rounded-md text-base font-medium text-mtogo-text-link underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mtogo-focus-ring"
+      data-testid="menu-back-link"
+    >
+      {CUSTOMER_MENU_TEXT[locale].back_to_restaurants}
+    </a>
+  )
+}
+
 function StatusBadge({
   restaurant,
   locale,
@@ -33,15 +46,18 @@ function StatusBadge({
 export default function MenuTemplate({
   menu,
   locale,
+  backHref,
 }: {
   menu: RestaurantMenu
   locale: Locale
+  backHref?: string
 }) {
   const text = CUSTOMER_MENU_TEXT[locale]
   const { restaurant, categories } = menu
   return (
     <div className="bg-mtogo-surface-page" lang={locale}>
       <div className={page} data-testid="restaurant-menu">
+        {backHref && <BackLink href={backHref} locale={locale} />}
         <header className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <h1 className="text-balance text-3xl font-semibold leading-tight text-mtogo-text-primary">
@@ -122,16 +138,19 @@ export function MenuNotice({
   kind,
   locale,
   retryHref,
+  backHref,
 }: {
   kind: "not_found" | "unavailable"
   locale: Locale
   retryHref?: string
+  backHref?: string
 }) {
   const text = CUSTOMER_MENU_TEXT[locale]
   const isError = kind === "unavailable"
   return (
     <div className="bg-mtogo-surface-page" lang={locale}>
       <div className={page} data-testid={`restaurant-menu-${kind}`}>
+        {backHref && <BackLink href={backHref} locale={locale} />}
         <div
           className={`rounded-card px-4 py-6 ${
             isError

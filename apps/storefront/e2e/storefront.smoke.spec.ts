@@ -91,7 +91,9 @@ test("shopper can discover a product, update and remove cart items, and complete
     .click()
   await expect(page.getByTestId("add-product-button")).toBeEnabled()
   await page.getByTestId("add-product-button").click()
-  await expect(page.getByTestId("nav-cart-link")).toHaveText("Cart (1)")
+  await expect(page.getByTestId("nav-cart-link")).toHaveText(
+    /^(Basket|Kurv) \(1\)$/,
+  )
   await page.getByTestId("nav-cart-link").click()
   const row = page.getByTestId("product-row")
   await expect(row.getByTestId("product-title")).toHaveText("Medusa T-Shirt")
@@ -112,7 +114,9 @@ test("shopper can discover a product, update and remove cart items, and complete
     .getByText("Black", { exact: true })
     .click()
   await page.getByTestId("add-product-button").click()
-  await expect(page.getByTestId("nav-cart-link")).toHaveText("Cart (1)")
+  await expect(page.getByTestId("nav-cart-link")).toHaveText(
+    /^(Basket|Kurv) \(1\)$/,
+  )
   await page.getByTestId("nav-cart-link").click()
   await page.getByTestId("checkout-button").click()
   await expect(page).toHaveURL(/\/dk\/checkout/)

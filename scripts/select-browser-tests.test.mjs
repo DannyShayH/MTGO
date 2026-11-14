@@ -20,6 +20,24 @@ test("menu backend changes cover Customer, partner and operator menu boundaries"
     "restaurants.admin.spec.ts",
   ])
 })
+test("public browsing routes and texts select the Customer homepage and menu journeys", () => {
+  assert.deepEqual(
+    selectBrowserTests([
+      "apps/backend/src/api/store/restaurants/route.ts",
+      "apps/backend/src/workflows/restaurants/delivery-area-match.ts",
+    ]),
+    {
+      partner: [],
+      storefront: ["restaurant-browsing.spec.ts", "restaurant-menu.spec.ts"],
+      admin: false,
+    },
+  )
+  assert.deepEqual(selectBrowserTests(["packages/i18n/src/customer-home.ts"]), {
+    partner: [],
+    storefront: ["restaurant-browsing.spec.ts"],
+    admin: false,
+  })
+})
 test("unknown and shared runtime changes retain full coverage", () => {
   assert.deepEqual(
     selectBrowserTests(["apps/backend/src/api/middlewares.ts"]),

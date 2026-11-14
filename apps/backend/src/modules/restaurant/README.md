@@ -538,6 +538,25 @@ shared count, the commerce configuration through Admin and store APIs,
 repeated setup and the workload) and `apps/storefront/e2e/restaurant-menu.spec.ts`
 (the bilingual Customer journey).
 
+### Public listing (#119)
+
+`browseRestaurantsWorkflow` answers `GET /store/restaurants`, the Customer
+homepage. `resolveBrowsingLocationStep` turns the selected postal code or
+town into the registered codes through the postal-code module, refusing an
+unknown code (`postal_code_unknown`) or town (`town_unknown`) so a failed
+selection never widens to every Restaurant. `readPublicRestaurantsStep` reads
+the active Restaurants with their delivery areas and keeps an explicit public
+allowlist. The pure `matchDeliveryArea` rule lists the Restaurants whose
+delivery area contains one of the location's codes, each once, with how many
+of the codes they serve; the pickup address is never a delivery claim. Active
+closed Restaurants stay listed with `restaurant_closed`; inactive ones are
+absent, as their menus are. Nothing here mutates: location selection is a
+browsing filter only.
+
+Evidence: `src/workflows/restaurants/__tests__/delivery-area-match.unit.spec.ts`,
+`integration-tests/http/restaurant-browsing.spec.ts` and
+`apps/storefront/e2e/restaurant-browsing.spec.ts`.
+
 ## Staff dish publication
 
 `GET /partner/restaurants/{id}/dishes` reads the current published dishes for

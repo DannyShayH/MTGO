@@ -24,8 +24,11 @@ const countItems = (cart?: HttpTypes.StoreCart | null) =>
 
 const CartDropdown = ({
   cart: serverCart,
+  label,
 }: {
   cart?: HttpTypes.StoreCart | null
+  /** The header link's name in the Customer's language; the count follows it. */
+  label: string
 }) => {
   // Statically rendered pages can't read the cart cookie, so the cart is loaded in the browser.
   const [clientCart, setClientCart] = useState<HttpTypes.StoreCart | null>(null)
@@ -110,10 +113,10 @@ const CartDropdown = ({
       <Popover className="relative h-full">
         <PopoverButton className="h-full">
           <LocalizedClientLink
-            className="hover:text-ui-fg-base"
+            className="inline-flex min-h-11 items-center rounded-md px-2 text-base font-medium text-mtogo-text-primary hover:text-mtogo-text-link focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mtogo-focus-ring focus-visible:ring-offset-2"
             href="/cart"
             data-testid="nav-cart-link"
-          >{`Cart (${totalItems})`}</LocalizedClientLink>
+          >{`${label} (${totalItems})`}</LocalizedClientLink>
         </PopoverButton>
         <Transition
           show={cartDropdownOpen}

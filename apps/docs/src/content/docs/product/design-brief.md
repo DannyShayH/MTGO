@@ -123,6 +123,7 @@ The target is WCAG 2.2 AA.
 - Medusa Admin keeps its own design system and is not restyled (ADR-0018).
 - The brief is a direction, not a component library. Use Medusa UI components and the storefront's shared components in `src/modules/common/components/ui`.
 - The starter's existing screens still use Medusa's greys and a fixed `lang="en"`. They take on the brief when a Feature replaces them or the storefront gets its language switch.
+- The homepage, header, side menu and footer follow the brief since #119: Inter, the tokens, translated navigation and the four states. The cart dropdown's own content is still the starter's and belongs to the basket Feature.
 - Already mapped: the page background, the logo, and the colours and focus ring of the shared `Button`, `IconButton` and `Input` (whose text is 16px). Their heights (32 to 40px) are still below the 44px touch target. The first Feature that reworks a screen with them raises the heights.
 
 ## How agents use it

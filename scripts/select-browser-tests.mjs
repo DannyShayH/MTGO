@@ -73,6 +73,26 @@ export function selectBrowserTests(files) {
     )
       continue
     if (
+      /^apps\/backend\/src\/(api\/store\/(restaurants|postal-codes)\/|workflows\/restaurants\/(steps\/browse-restaurants|delivery-area-match)\.ts)/.test(
+        file,
+      )
+    ) {
+      add(
+        "storefront",
+        "restaurant-browsing.spec.ts",
+        "restaurant-menu.spec.ts",
+      )
+      continue
+    }
+    if (
+      /^packages\/i18n\/src\/(customer-home|customer-navigation)\.ts$/.test(
+        file,
+      )
+    ) {
+      add("storefront", "restaurant-browsing.spec.ts")
+      continue
+    }
+    if (
       /^apps\/backend\/src\/(workflows\/menu|api\/partner\/restaurants\/.*\/(dishes|categories)|links\/menu)/.test(
         file,
       )

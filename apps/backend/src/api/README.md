@@ -938,6 +938,93 @@ Only valid published dishes appear; the Restaurant module README defines valid.
 The same definition gives Admin's `menu.published_dish_count` and the
 `published_menu_missing` activation requirement.
 
+## Restaurant browsing (#119)
+
+The Customer homepage lists participating Restaurants and filters them by
+where they deliver. Both routes are public store reads: no login, only
+Medusa's `x-publishable-api-key`. Neither changes a delivery area, a saved
+address or a basket; the storefront never calls `/admin/postal-codes`.
+
+### GET /store/restaurants
+
+Lists the active Restaurants in name order, Open or Closed, with the shared
+eligibility rule's `receiving_new_orders` and `reason`. Inactive Restaurants
+are absent, exactly as their menus are. With a location, only the Restaurants
+whose **delivery area** contains one of its codes are listed, each once; the
+pickup address plays no part. The response is never cached
+(`Cache-Control: no-store`), so activation, opening and delivery-area changes
+show on the next fetch.
+
+**Actor:** Customer or signed-out visitor
+
+| Query         | Type   | Required | Rules                                                                   |
+| ------------- | ------ | -------- | ----------------------------------------------------------------------- |
+| `postal_code` | string | no       | Four digits, in the Danish register; matches by delivery-area code      |
+| `town`        | string | no       | A whole town name from the lookup, case ignored; resolves all its codes |
+
+At most one of the two. A code and a town together answer `location_ambiguous`.
+
+```json
+{
+  "restaurants": [
+    {
+      "id": "res_01…",
+      "name": "Pizzeria Nørrebro",
+      "address_city": "København N",
+      "is_open": true,
+      "receiving_new_orders": true,
+      "reason": null,
+      "cover": null,
+      "delivery_area_match": {
+        "served_postal_codes": 2,
+        "location_postal_codes": 213
+      }
+    }
+  ],
+  "count": 1,
+  "location": { "kind": "town", "name": "København K", "postal_codes": 213 }
+}
+```
+
+| Field                               | Meaning                                                                                                                                                                                |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `restaurants[]`                     | An explicit public allowlist: identity, name, pickup city, opening and eligibility. Staff, contacts, terms, history and internal keys are never included                               |
+| `restaurants[].cover`               | `null` until Restaurant covers are stored (#113); clients show the name placeholder                                                                                                    |
+| `restaurants[].delivery_area_match` | Only with a location: how many of the location's codes the delivery area contains. Below `location_postal_codes` means part of the town; exact eligibility needs the destination code  |
+| `location`                          | `null` without a filter. For a code: `kind` `postal_code`, `postal_code`, the town `name` and `postal_codes` `1`. For a town: `kind` `town`, `name` and the number of registered codes |
+
+| Status | When                                                                                                   |
+| ------ | ------------------------------------------------------------------------------------------------------ |
+| `200`  | The list, possibly empty                                                                               |
+| `400`  | Missing or invalid publishable key; `postal_code` not four digits; `town` blank or over 255 characters |
+| `400`  | `postal_code_unknown`: the code is not in the register                                                 |
+| `400`  | `town_unknown`: no registered town has exactly that name                                               |
+| `400`  | `location_ambiguous`: both parameters given                                                            |
+
+A refused location is never answered with the unfiltered list.
+
+### GET /store/postal-codes
+
+The register search that operators use to pick a delivery area
+(`searchPostalCodesWorkflow`), read-only for Customers: towns and
+municipalities by text, any case, and postal codes by prefix. The storefront
+groups the rows by town, so København K is one choice holding all 213 codes.
+
+**Actor:** Customer or signed-out visitor
+
+| Query | Type   | Required | Rules               |
+| ----- | ------ | -------- | ------------------- |
+| `q`   | string | yes      | 1 to 255 characters |
+
+**Success:** `200` with `{ "postal_codes": [{ "postal_code", "name", "municipality" }] }`
+in postal-code order, as `GET /admin/postal-codes` answers.
+
+| Status | When                                                     |
+| ------ | -------------------------------------------------------- |
+| `400`  | Missing or invalid publishable key; `q` missing or blank |
+
+Evidence: `integration-tests/http/restaurant-browsing.spec.ts`.
+
 ### Customer account language
 
 Issue #85 uses the existing Medusa Customer boundary and core workflows:

@@ -10,23 +10,25 @@ import { Fragment } from "react"
 import CountrySelect from "../country-select"
 import LanguageSelect from "../language-select"
 import { Locale } from "@lib/data/locales"
-
-const SideMenuItems = {
-  Home: "/",
-  Store: "/store",
-  Account: "/account",
-  Cart: "/cart",
-}
+import { CUSTOMER_NAVIGATION_TEXT, type Locale as Language } from "@dtc/i18n"
 
 type SideMenuProps = {
   regions: HttpTypes.StoreRegion[] | null
   locales: Locale[] | null
-  currentLocale: string | null
+  locale: Language
 }
 
-const SideMenu = ({ regions, locales, currentLocale }: SideMenuProps) => {
+/** The phone navigation: the same destinations as the top bar, in the Customer's language. */
+const SideMenu = ({ regions, locales, locale }: SideMenuProps) => {
   const countryToggleState = useToggleState()
   const languageToggleState = useToggleState()
+  const text = CUSTOMER_NAVIGATION_TEXT[locale]
+  const currentLocale = locale
+  const items = [
+    { key: "restaurants", name: text.restaurants, href: "/" },
+    { key: "account", name: text.account, href: "/account" },
+    { key: "basket", name: text.basket, href: "/cart" },
+  ]
 
   return (
     <div className="h-full">
@@ -37,9 +39,12 @@ const SideMenu = ({ regions, locales, currentLocale }: SideMenuProps) => {
               <div className="relative flex h-full">
                 <Popover.Button
                   data-testid="nav-menu-button"
-                  className="relative h-full flex items-center transition-all ease-out duration-200 focus:outline-none hover:text-ui-fg-base"
+                  className={clx(
+                    "relative flex h-full min-w-11 items-center rounded-md px-2 text-base font-medium text-mtogo-text-primary hover:text-mtogo-text-link",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mtogo-focus-ring focus-visible:ring-offset-2",
+                  )}
                 >
-                  Menu
+                  {text.menu_button}
                 </Popover.Button>
               </div>
 
@@ -70,26 +75,24 @@ const SideMenu = ({ regions, locales, currentLocale }: SideMenuProps) => {
                       <button
                         data-testid="close-menu-button"
                         onClick={close}
-                        aria-label="Close menu"
+                        aria-label={text.close_menu}
                       >
                         <XMark />
                       </button>
                     </div>
                     <ul className="flex flex-col gap-6 items-start justify-start">
-                      {Object.entries(SideMenuItems).map(([name, href]) => {
-                        return (
-                          <li key={name}>
-                            <LocalizedClientLink
-                              href={href}
-                              className="text-3xl leading-10 hover:text-ui-fg-disabled"
-                              onClick={close}
-                              data-testid={`${name.toLowerCase()}-link`}
-                            >
-                              {name}
-                            </LocalizedClientLink>
-                          </li>
-                        )
-                      })}
+                      {items.map(({ key, name, href }) => (
+                        <li key={key}>
+                          <LocalizedClientLink
+                            href={href}
+                            className="text-3xl leading-10 hover:text-ui-fg-disabled"
+                            onClick={close}
+                            data-testid={`${key}-link`}
+                          >
+                            {name}
+                          </LocalizedClientLink>
+                        </li>
+                      ))}
                     </ul>
                     <div className="flex flex-col gap-y-6">
                       {!!locales?.length && (
@@ -130,7 +133,7 @@ const SideMenu = ({ regions, locales, currentLocale }: SideMenuProps) => {
                         />
                       </div>
                       <Text className="flex justify-between txt-compact-small">
-                        © {new Date().getFullYear()} MTOGO. All rights reserved.
+                        © {new Date().getFullYear()} MTOGO. {text.rights}
                       </Text>
                     </div>
                   </div>

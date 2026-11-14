@@ -20,7 +20,8 @@ type CustomerMenuText = Record<
   | "unavailable_note"
   | "retry"
   | "not_found_title"
-  | "not_found_note",
+  | "not_found_note"
+  | "back_to_restaurants",
   string
 >
 
@@ -52,6 +53,7 @@ export const CUSTOMER_MENU_TEXT: Record<Locale, CustomerMenuText> = {
     not_found_title: "Vi kan ikke finde restauranten",
     not_found_note:
       "Restauranten findes ikke, eller den er ikke med på MTOGO lige nu.",
+    back_to_restaurants: "Tilbage til restauranterne",
   },
   en: {
     page_title: "Menu",
@@ -79,6 +81,7 @@ export const CUSTOMER_MENU_TEXT: Record<Locale, CustomerMenuText> = {
     not_found_title: "We cannot find the Restaurant",
     not_found_note:
       "The Restaurant does not exist, or it is not on MTOGO right now.",
+    back_to_restaurants: "Back to the Restaurants",
   },
 }
 

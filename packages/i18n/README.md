@@ -48,3 +48,9 @@ API codes before the interface maps them to translated messages.
 open and closed status, sold out, unknown allergen information and the empty,
 not-found and failure states. `formatDkk(amount, locale)` formats a menu price
 in kroner as the design brief shows it (`129,00 kr.`, `DKK 129.00`).
+
+`CUSTOMER_HOME_TEXT[locale]` supplies the storefront homepage (#119): the
+location search, its choices and lookup states, the selected location, the
+Restaurant cards' status and delivery-coverage text, and the empty, refused
+and failed listing states. `CUSTOMER_NAVIGATION_TEXT[locale]` supplies the
+Customer header, side menu and footer.

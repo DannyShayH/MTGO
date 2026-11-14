@@ -1,6 +1,4 @@
-import { resolveCustomerLocale } from "@dtc/i18n"
-import { retrieveCustomer } from "@lib/data/customer"
-import { getLocale } from "@lib/data/locale-actions"
+import { getCustomerLocale } from "@lib/data/customer-locale"
 import { getBaseURL } from "@lib/util/env"
 import { Metadata } from "next"
 // Inter, self-hosted: Medusa UI's type classes name it, and no font request
@@ -15,11 +13,7 @@ export const metadata: Metadata = {
 }
 
 export default async function RootLayout(props: { children: React.ReactNode }) {
-  const customer = await retrieveCustomer()
-  const locale = resolveCustomerLocale(
-    customer?.metadata?.preferred_language,
-    await getLocale(),
-  )
+  const locale = await getCustomerLocale()
   return (
     <html lang={locale} data-mode="light">
       <head>

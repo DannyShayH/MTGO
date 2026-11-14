@@ -294,6 +294,40 @@ with the developer's servers running was stopped by the shared-memory guard;
 that rebuild remains for the ready flow. The earlier complete production and
 browser verification above passed before these seed/test-harness follow-ups.
 
+## Customer homepage and Restaurant browsing (#119)
+
+`apps/storefront/e2e/restaurant-browsing.spec.ts` sets up four Restaurants
+through the operator and partner APIs, each with a real published dish: one in
+Aarhus delivering to 2200 (active, open), one in Nørrebro delivering only to
+8000 (active, closed), one serving two of København K's 213 codes (active,
+open) and one inactive. In Danish and in English it checks that:
+
+- the normal entry URL opens the MTOGO homepage in the chosen language, with
+  no starter product, category, collection, Medusa or GitHub content in the
+  page, header, side menu or footer, and translated Restaurants, Account and
+  Basket navigation
+- active open and closed Restaurants are listed from persisted data with
+  translated status text and the name placeholder in the 16:9 cover area, and
+  the inactive one is absent
+- typing `københavn` offers København K with all 213 codes; choosing it by
+  keyboard filters to the Restaurant serving part of the town, described as
+  `2 af 213 postnumre`, and the clear link restores every Restaurant
+- choosing 2200 lists the Aarhus Restaurant that delivers there and not the
+  Nørrebro one located there
+- the card opens the #105 menu with the location in the URL, the page stays
+  on the menu while the header cart is used, and the back link returns to the
+  filtered homepage
+- an unregistered code, an unknown town, unmatched search text and a served
+  code with no Restaurant each get their own translated guidance without an
+  unfiltered list, and the form-submitted search lists the choices as links
+- a 360px-wide screen wraps names without sideways scrolling, and deactivation
+  hides the Restaurant on the next fetch and from its direct menu URL
+
+Screenshots of the narrow and wide homepage are attached to the report. Failed
+lookups and listings cannot be provoked from the browser against the real
+backend; their translated states are covered by the HTTP suite's refusal codes
+and the i18n parity test.
+
 ## First real dish publication
 
 The partner `menu-dishes.spec.ts` journey sets up an independent Restaurant
@@ -309,7 +343,8 @@ synthetic menu and activation journeys retain their disposable fixtures.
 
 Application verification selects browser files from changes since `origin/main`,
 including working-tree changes. Partner UI changes run partner journeys;
-menu workflows add Customer menu and operator activation journeys. Shared or
+menu workflows add Customer menu and operator activation journeys; the public
+browsing routes and the homepage texts add the Customer homepage journey. Shared or
 unknown runtime changes keep full browser coverage. Documentation-only changes
 skip browser journeys. All production builds still run. The selection is visible in the verification log; the selector has regression tests
 run by verification itself. The Ready job fetches history for the comparison.

@@ -35,6 +35,11 @@ import {
   listRestaurantHistoryStep,
   recordRestaurantHistoryEntriesStep,
 } from "./steps/history"
+import {
+  BrowseRestaurantsInput,
+  readPublicRestaurantsStep,
+  resolveBrowsingLocationStep,
+} from "./steps/browse-restaurants"
 
 export const RESTAURANT_ACTIVATED = "restaurant.activated"
 export const RESTAURANT_DEACTIVATED = "restaurant.deactivated"
@@ -45,6 +50,14 @@ export const listRestaurantsWorkflow = createWorkflow(
   "list-restaurants",
   function (input: { q?: string; limit: number; offset: number }) {
     return new WorkflowResponse(readRestaurantsStep(input))
+  },
+)
+/** The Customer homepage: active Restaurants, optionally those serving a postal code or town (#119). */
+export const browseRestaurantsWorkflow = createWorkflow(
+  "browse-restaurants",
+  function (input: BrowseRestaurantsInput) {
+    const location = resolveBrowsingLocationStep(input)
+    return new WorkflowResponse(readPublicRestaurantsStep({ location }))
   },
 )
 export const retrieveRestaurantWorkflow = createWorkflow(

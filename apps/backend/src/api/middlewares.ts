@@ -44,6 +44,8 @@ import {
   PostStoreUpdateCustomerSchema,
 } from "./store/customers/validators"
 import { PostCustomerVerificationRequestSchema } from "./auth/customer-verification/validators"
+import { GetStoreRestaurantsSchema } from "./store/restaurants/validators"
+import { GetStorePostalCodesSchema } from "./store/postal-codes/validators"
 import { mtogoErrorHandler } from "./error-handler"
 import { correlateRequest } from "./request-logging"
 
@@ -118,6 +120,17 @@ export default defineMiddlewares({
         }),
         discardLegacyCustomerIdentity,
       ],
+    },
+    // Public browsing (#119): the publishable key is the only requirement.
+    {
+      matcher: "/store/restaurants",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(GetStoreRestaurantsSchema, {})],
+    },
+    {
+      matcher: "/store/postal-codes",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(GetStorePostalCodesSchema, {})],
     },
     {
       matcher: "/auth/token/refresh",
