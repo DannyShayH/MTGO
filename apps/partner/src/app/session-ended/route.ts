@@ -1,5 +1,6 @@
+import { requestId, httpStatus } from "@dtc/logging"
+import { log } from "@lib/logger"
 import { NextRequest, NextResponse } from "next/server"
-import { FetchError } from "@medusajs/js-sdk"
 import { ACCESS_ENDED_COOKIE, PARTNER_TOKEN_COOKIE } from "@lib/config"
 import {
   retrieveStaffSession,
@@ -17,6 +18,12 @@ import { cookieOptions } from "@lib/partner-token"
  * cannot put another name in MTOGO's message.
  */
 export async function GET(request: NextRequest) {
+  const id = requestId(request.headers.get("x-request-id"))
+  log("auth.session.ended", {
+    request_id: id,
+    route: "/session-ended",
+    method: "GET",
+  })
   const code = request.nextUrl.searchParams.get("code")
   const target = new URL("/sign-in", request.nextUrl)
   if (SESSION_ENDED_CODES.includes(code as SessionEndedCode))
@@ -27,21 +34,25 @@ export async function GET(request: NextRequest) {
   if (code === "staff_access_revoked") {
     const name = await endedRestaurantName(
       request.cookies.get(PARTNER_TOKEN_COOKIE)?.value,
+      id,
     )
     if (name) response.cookies.set(ACCESS_ENDED_COOKIE, name, cookieOptions(60))
   }
   return response
 }
 
-async function endedRestaurantName(token: string | undefined) {
+async function endedRestaurantName(token: string | undefined, id: string) {
   try {
-    const session = await retrieveStaffSession(token)
+    const session = await retrieveStaffSession(token, id)
     return session.status === "ended" ? session.restaurant_name : undefined
   } catch (error) {
     // The message falls back to "the Restaurant"; signing out must not fail.
     // Log only the status, never the token or the response (coding standard 7.2).
-    console.error("Partner access-ended lookup failed", {
-      status: error instanceof FetchError ? error.status : undefined,
+    log("upstream.request.failed", {
+      request_id: id,
+      route: "/partner/me",
+      method: "GET",
+      status: httpStatus(error),
     })
     return undefined
   }

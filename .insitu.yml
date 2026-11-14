@@ -86,6 +86,7 @@ inventory:
       cd packages/i18n && npm test
       cd ../ui && npm test
       cd ../next-react && npm test
+      cd ../logging && npm test
 
   - id: react-copies
     name: Check that each Next.js app renders with its own React copy (#82)

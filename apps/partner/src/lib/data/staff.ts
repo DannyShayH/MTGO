@@ -1,4 +1,6 @@
 import "server-only"
+import { requestId } from "@dtc/logging"
+import { headers } from "next/headers"
 import { cache } from "react"
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
@@ -39,10 +41,16 @@ export type StaffSession =
  */
 export async function retrieveStaffSession(
   token: string | undefined,
+  correlationId?: string,
 ): Promise<StaffSession> {
   if (!token) return { status: "signed_out" }
+  const id = correlationId ?? requestId((await headers()).get("x-request-id"))
   const response = await fetch(new URL("/partner/me", BACKEND_URL), {
-    headers: { authorization: `Bearer ${token}`, accept: "application/json" },
+    headers: {
+      authorization: `Bearer ${token}`,
+      accept: "application/json",
+      "x-request-id": id,
+    },
     cache: "no-store",
   })
   if (response.ok)

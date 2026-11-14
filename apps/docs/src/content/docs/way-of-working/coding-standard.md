@@ -5,7 +5,7 @@ sidebar:
   order: 3
 ---
 
-Version 1.1 (draft), 12 November 2026. Proposed in [issue #9](https://github.com/DannyShayH/MTGO/issues/9), with the SonarQube review requirement added in [issue #80](https://github.com/DannyShayH/MTGO/issues/80); the team has not approved it yet.
+Version 1.2 (draft), 14 November 2026. Proposed in [issue #9](https://github.com/DannyShayH/MTGO/issues/9), with the SonarQube review requirement added in [issue #80](https://github.com/DannyShayH/MTGO/issues/80); the team has not approved the full draft yet. The logging baseline in section 7 was agreed in [issue #28](https://github.com/DannyShayH/MTGO/issues/28).
 
 ## 1. Overview
 
@@ -186,11 +186,11 @@ Rules:
 
 - **Validate the request shape in middleware** with `validateAndTransformBody` and a Zod schema. Validate business rules in a workflow step.
 - **Never swallow an error.** No empty `catch`. Catch only to translate an error into a `MedusaError`, to recover, or to clean up. Otherwise let it propagate, so the workflow can compensate.
-- **Do not hide unexpected errors.** Let them propagate unchanged, so the central handler logs them once with their stack trace. When you translate a known low-level failure into a `MedusaError`, say in the message what failed, without sensitive data.
+- **Do not hide unexpected errors.** Let them propagate unchanged to the central handler. Application logs use the safe error classification in section 7.3. When you translate a known low-level failure into a `MedusaError`, say in the message what failed, without sensitive data.
 - **Messages are for the client.** A 4xx message says what is wrong and is safe to show (`Restaurant res_01 was not found`). Never put secrets, personal data, SQL or stack traces in a message.
 - **Error responses use Medusa's shape:** `type`, `message` and sometimes `code`. The storefront and the docs rely on it.
 
-**Logging:** use Medusa's logger from the container (`ContainerRegistrationKeys.LOGGER`), never `console.log` in backend code. Log once, at the boundary: do not log and rethrow. Never log passwords, tokens, cookies, payment details or a Customer's personal data. Issue #28 will define the full logging strategy; until then these rules apply.
+**Logging:** use Medusa's logger from the container (`ContainerRegistrationKeys.LOGGER`), never `console.log` in backend code. Log once, at the boundary: do not log and rethrow. Never log passwords, tokens, cookies, payment details or a Customer's personal data. Follow [ADR-0019](/MTGO/architecture/decisions/0019-safe-application-logging-and-request-correlation/) and the [logging guide](/MTGO/quality/logging/).
 
 ### 7.2 Storefront
 
@@ -198,6 +198,39 @@ Rules:
 - Branch on the status code or `type`, never on the text of `message`.
 - Show users a friendly message in their language, not technical details. Log the technical details on the server.
 - Do not log full responses, headers or request bodies. They can contain personal data and tokens.
+
+### 7.3 Application log records
+
+Use Winston through the app's server-only logger in Next.js; resolve Medusa's
+existing container logger in the backend. The shared `@dtc/logging` builder
+allowlists fields at runtime. Production Next.js output is JSON on stdout;
+Medusa retains its formatter. No file transport or `LOG_FILE`.
+
+Records contain `time`, `level`, `service`, `env`, `event`, `msg`, optionally
+`request_id`, `route`, `method`, `status`, opaque `actor_type`/`actor_id`,
+`restaurant_id`, `order_id` and `err`. Messages are constant sentences selected by
+the event vocabulary; variable data belongs in allowed fields. Routes are
+constant patterns without query strings. Unexpected `request.failed` errors
+carry only a safe built-in type classification in `err`, never raw error text,
+stack, cause or provider data.
+
+Vocabulary: `auth.sign_in.succeeded` (info), `auth.sign_in.failed` (warn),
+`auth.session.ended` (info), `access.denied` (warn), `input.rejected` (info),
+`upstream.request.failed` (warn for 5xx/no response, info for expected 4xx),
+`request.failed` (error). Extend it centrally when needed. Use debug in
+development and info elsewhere; security events must stay visible.
+
+Accept `x-request-id` only as 1–64 ASCII letters, digits or hyphens; generate a
+UUID otherwise. Pass it explicitly through a flow and backend request headers.
+Never trust it for authorization. Log once at each app's boundary.
+
+Never log passwords, tokens, cookies, authorization headers, API keys, connection
+strings, payment details, Stripe objects, emails, names, phone numbers, delivery
+addresses or other Customer personal data. Never spread request, response,
+header or error objects into a call. An allowed field must never carry a secret.
+Do not import server logging into Client Components; browser output is not an
+application log. Customer-facing errors use safe messages/codes, not backend or
+provider text.
 
 ## 8. Testing
 

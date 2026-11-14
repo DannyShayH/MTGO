@@ -18,6 +18,7 @@ const S3_PATHNAME = process.env.MEDUSA_CLOUD_S3_PATHNAME
  */
 const nextConfig = {
   reactStrictMode: true,
+  serverExternalPackages: ["winston", "@dtc/logging"],
   transpilePackages: ["@dtc/i18n"],
   // AGENTS.md at the repository root guides agents; do not generate one here.
   agentRules: false,
@@ -48,11 +49,8 @@ const nextConfig = {
       ],
     }
   },
-  logging: {
-    fetches: {
-      fullUrl: true,
-    },
-  },
+  // Next dev logs can include action arguments, URLs and browser errors.
+  logging: false,
   images: {
     unoptimized: true,
     remotePatterns: [

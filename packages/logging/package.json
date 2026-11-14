@@ -1,0 +1,18 @@
+{
+  "name": "@dtc/logging",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Safe application log records and explicit request correlation",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.cts",
+      "default": "./src/index.cjs"
+    }
+  },
+  "scripts": {
+    "test": "node --test src/__tests__/*.test.cjs"
+  },
+  "dependencies": {
+    "winston": "3.19.0"
+  }
+}

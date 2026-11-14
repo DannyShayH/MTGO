@@ -12,8 +12,14 @@ export const BACKEND_URL =
  * One client for all requests is safe because it stores no token: every call
  * passes the signed-in staff member's token itself (ADR-0017).
  */
-export const sdk = new Medusa({
-  baseUrl: BACKEND_URL,
-  debug: false,
-  auth: { type: "jwt", jwtTokenStorageMethod: "nostore" },
-})
+export const sdk = createPartnerSdk()
+
+/** A login owns its correlation header; never mutate the shared client. */
+export function createPartnerSdk(requestId?: string) {
+  return new Medusa({
+    globalHeaders: requestId ? { "x-request-id": requestId } : {},
+    baseUrl: BACKEND_URL,
+    debug: false,
+    auth: { type: "jwt", jwtTokenStorageMethod: "nostore" },
+  })
+}

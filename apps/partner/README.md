@@ -162,3 +162,10 @@ sulphite thresholds, separate food labels, loaded symbols and horizontal overflo
 The production backend-stub tests in `e2e/sign-in-failures.spec.ts` also cover
 catalogue connection failures, server failures and unseeded data in both
 languages, with keyboard access to the retry link.
+
+## Application logging
+
+Server application events use the server-only `src/lib/logger.ts` and shared
+`@dtc/logging` allowlist (ADR-0019). See
+[the logging guide](../docs/src/content/docs/quality/logging.md) for event names,
+request correlation, coverage and local/Droplet log retrieval.
