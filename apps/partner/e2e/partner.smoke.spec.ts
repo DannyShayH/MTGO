@@ -55,7 +55,7 @@ test.describe("with a Danish browser", () => {
       page.getByRole("heading", { name: "Pizzeria Nørrebro" }),
     ).toBeVisible()
     const navigation = page.getByRole("navigation", { name: "Hovedmenu" })
-    await expect(navigation.getByRole("link")).toHaveText(["Overblik"])
+    await expect(navigation.getByRole("link")).toHaveText(["Overblik", "Menu"])
 
     const token = (await context.cookies()).find(
       (cookie) => cookie.name === "mtogo_partner_token",

@@ -1,0 +1,231 @@
+{
+  "allergens": [
+    {
+      "code": "cereals",
+      "number": 1,
+      "name_da": "Korn, der indeholder gluten",
+      "name_en": "Cereals containing gluten",
+      "description_da": "Hvede (herunder spelt og khorasanhvede), rug, byg, havre og hybridiserede stammer samt produkter heraf. Undtaget: hvedebaseret glukosesirup, herunder dextrose; hvedebaseret maltodextrin; bygbaseret glukosesirup; korn til alkoholholdige destillater. Undtagelserne for hvedesirup og hvedemaltodextrin gælder også afledte produkter, hvis behandlingen ikke øger allergeniciteten.",
+      "description_en": "Wheat (including spelt and khorasan wheat), rye, barley, oats, hybridised strains and their products. Exceptions: wheat glucose syrups including dextrose; wheat maltodextrins; barley glucose syrups; cereals for alcoholic distillates. The wheat syrup and maltodextrin exceptions also cover derived products where processing does not increase allergenicity."
+    },
+    {
+      "code": "crustaceans",
+      "number": 2,
+      "name_da": "Krebsdyr",
+      "name_en": "Crustaceans",
+      "description_da": "Krebsdyr og produkter heraf, eksempelvis rejer, krabber og hummer.",
+      "description_en": "Crustaceans and their products, including prawns, crabs and lobster."
+    },
+    {
+      "code": "eggs",
+      "number": 3,
+      "name_da": "Æg",
+      "name_en": "Eggs",
+      "description_da": "Æg og produkter heraf.",
+      "description_en": "Eggs and their products."
+    },
+    {
+      "code": "fish",
+      "number": 4,
+      "name_da": "Fisk",
+      "name_en": "Fish",
+      "description_da": "Fisk og produkter heraf. Undtaget: fiskegelatine som bærestof for vitamin- eller carotenoidpræparater; fiskegelatine eller husblas til klaring af øl og vin.",
+      "description_en": "Fish and their products. Exceptions: fish gelatine carrying vitamin or carotenoid preparations; fish gelatine or isinglass used to clarify beer and wine."
+    },
+    {
+      "code": "peanuts",
+      "number": 5,
+      "name_da": "Jordnødder",
+      "name_en": "Peanuts",
+      "description_da": "Jordnødder og produkter heraf. Jordnødder er en særskilt gruppe fra nødder.",
+      "description_en": "Peanuts and their products. Peanuts are a separate group from nuts."
+    },
+    {
+      "code": "soybeans",
+      "number": 6,
+      "name_da": "Sojabønner",
+      "name_en": "Soybeans",
+      "description_da": "Sojabønner og produkter heraf. Undtaget: fuldt raffineret sojaolie og -fedt; naturlige blandede tocopheroler (E306), naturligt D-alpha-tocopherol og dets acetat og succinat fra soja; phytosteroler og phytosterolestere fra sojaolie; plantestanolestere fra vegetabilske steroler fra sojaolie. Undtagelsen for raffineret olie og fedt omfatter afledte produkter, hvis behandlingen ikke øger allergeniciteten.",
+      "description_en": "Soybeans and their products. Exceptions: fully refined soybean oil and fat; natural mixed tocopherols (E306), natural D-alpha tocopherol and its acetate and succinate from soy; phytosterols and phytosterol esters from soybean oil; plant stanol esters from soybean vegetable-oil sterols. The refined oil and fat exception includes derived products where processing does not increase allergenicity."
+    },
+    {
+      "code": "milk",
+      "number": 7,
+      "name_da": "Mælk",
+      "name_en": "Milk",
+      "description_da": "Mælk og produkter heraf, herunder laktose. Undtaget: valle til alkoholholdige destillater; lactitol.",
+      "description_en": "Milk and its products, including lactose. Exceptions: whey for alcoholic distillates; lactitol."
+    },
+    {
+      "code": "nuts",
+      "number": 8,
+      "name_da": "Nødder",
+      "name_en": "Nuts",
+      "description_da": "Mandler, hasselnødder, valnødder, cashewnødder, pekannødder, paranødder, pistacienødder og macadamianødder (Queenslandnødder) samt produkter heraf. Undtaget: nødder til alkoholholdige destillater.",
+      "description_en": "Almonds, hazelnuts, walnuts, cashews, pecans, Brazil nuts, pistachios and macadamia (Queensland) nuts and their products. Exception: nuts for alcoholic distillates."
+    },
+    {
+      "code": "celery",
+      "number": 9,
+      "name_da": "Selleri",
+      "name_en": "Celery",
+      "description_da": "Selleri og produkter heraf.",
+      "description_en": "Celery and its products."
+    },
+    {
+      "code": "mustard",
+      "number": 10,
+      "name_da": "Sennep",
+      "name_en": "Mustard",
+      "description_da": "Sennep og produkter heraf.",
+      "description_en": "Mustard and its products."
+    },
+    {
+      "code": "sesame",
+      "number": 11,
+      "name_da": "Sesamfrø",
+      "name_en": "Sesame seeds",
+      "description_da": "Sesamfrø og produkter heraf.",
+      "description_en": "Sesame seeds and their products."
+    },
+    {
+      "code": "sulphites",
+      "number": 12,
+      "name_da": "Svovldioxid og sulfitter",
+      "name_en": "Sulphur dioxide and sulphites",
+      "description_da": "Over 10 mg/kg eller 10 mg/liter som samlet SO2 i produktet, som det er klar til indtagelse eller rekonstitueret efter fabrikantens anvisninger.",
+      "description_en": "Above 10 mg/kg or 10 mg/litre as total SO2 in the product ready to consume, or reconstituted following the manufacturer’s instructions."
+    },
+    {
+      "code": "lupin",
+      "number": 13,
+      "name_da": "Lupin",
+      "name_en": "Lupin",
+      "description_da": "Lupin og produkter heraf.",
+      "description_en": "Lupin and its products."
+    },
+    {
+      "code": "molluscs",
+      "number": 14,
+      "name_da": "Bløddyr",
+      "name_en": "Molluscs",
+      "description_da": "Bløddyr og produkter heraf, eksempelvis muslinger, østers og blæksprutter.",
+      "description_en": "Molluscs and their products, including mussels, oysters and squid."
+    }
+  ],
+  "details": [
+    {
+      "code": "wheat",
+      "parent_number": 1,
+      "name_da": "Hvede",
+      "name_en": "Wheat"
+    },
+    {
+      "code": "spelt",
+      "parent_number": 1,
+      "name_da": "Spelt",
+      "name_en": "Spelt"
+    },
+    {
+      "code": "khorasan_wheat",
+      "parent_number": 1,
+      "name_da": "Khorasanhvede",
+      "name_en": "Khorasan wheat"
+    },
+    {
+      "code": "rye",
+      "parent_number": 1,
+      "name_da": "Rug",
+      "name_en": "Rye"
+    },
+    {
+      "code": "barley",
+      "parent_number": 1,
+      "name_da": "Byg",
+      "name_en": "Barley"
+    },
+    {
+      "code": "oats",
+      "parent_number": 1,
+      "name_da": "Havre",
+      "name_en": "Oats"
+    },
+    {
+      "code": "hybridised_cereals",
+      "parent_number": 1,
+      "name_da": "Hybridiserede kornsorter",
+      "name_en": "Hybridised cereals"
+    },
+    {
+      "code": "almond",
+      "parent_number": 8,
+      "name_da": "Mandel",
+      "name_en": "Almond"
+    },
+    {
+      "code": "hazelnut",
+      "parent_number": 8,
+      "name_da": "Hasselnød",
+      "name_en": "Hazelnut"
+    },
+    {
+      "code": "walnut",
+      "parent_number": 8,
+      "name_da": "Valnød",
+      "name_en": "Walnut"
+    },
+    {
+      "code": "cashew",
+      "parent_number": 8,
+      "name_da": "Cashewnød",
+      "name_en": "Cashew"
+    },
+    {
+      "code": "pecan",
+      "parent_number": 8,
+      "name_da": "Pekannød",
+      "name_en": "Pecan"
+    },
+    {
+      "code": "brazil_nut",
+      "parent_number": 8,
+      "name_da": "Paranød",
+      "name_en": "Brazil nut"
+    },
+    {
+      "code": "pistachio",
+      "parent_number": 8,
+      "name_da": "Pistacienød",
+      "name_en": "Pistachio"
+    },
+    {
+      "code": "macadamia",
+      "parent_number": 8,
+      "name_da": "Macadamianød",
+      "name_en": "Macadamia"
+    }
+  ],
+  "food_labels": [
+    {
+      "code": "halal",
+      "name_da": "Halal",
+      "name_en": "Halal",
+      "description_da": "Restaurantens egen angivelse af halal. MTOGO certificerer ikke maden.",
+      "description_en": "Halal as declared by the Restaurant. MTOGO does not certify the food."
+    },
+    {
+      "code": "chili",
+      "name_da": "Chili",
+      "name_en": "Chili",
+      "description_da": "Angiver chili som ingrediens, ikke styrke.",
+      "description_en": "Declares chili as an ingredient, without a heat level."
+    },
+    {
+      "code": "garlic",
+      "name_da": "Hvidløg",
+      "name_en": "Garlic",
+      "description_da": "Angiver hvidløg som ingrediens.",
+      "description_en": "Declares garlic as an ingredient."
+    }
+  ]
+}

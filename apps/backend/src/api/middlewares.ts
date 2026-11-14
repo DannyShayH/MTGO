@@ -175,6 +175,10 @@ export default defineMiddlewares({
     },
     // Partner routes get no default authentication from Medusa (ADR-0017).
     {
+      matcher: "/partner/food-catalogue",
+      middlewares: [authenticate(RESTAURANT_STAFF_ACTOR, "bearer")],
+    },
+    {
       matcher: "/partner/me",
       middlewares: [authenticate(RESTAURANT_STAFF_ACTOR, "bearer")],
     },

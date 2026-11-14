@@ -169,6 +169,13 @@ cd apps/backend && <pm> run test:integration:http          # **/integration-test
 
 Inside the devcontainer, PostgreSQL is on `localhost:5432` and the `DB_*` variables are already set in the environment (`.devcontainer/compose.yaml`), as in CI, so the integration suites need no extra setup. Do not point the tests at the `postgres` hostname: Medusa's test runner then forces SSL and the suite hangs until the hook timeout. If a suite still cannot connect, the devcontainer probably predates this setup; ask the developer to rebuild it instead of working around it. `verify:applications` needs about 12 GB for the container; when it is killed with exit code 137, report that and leave it to the ready flow.
 
+The devcontainer shares a few GB of memory with VS Code and the editor agents. When it runs out, the kernel kills processes and the editor disconnects. So run heavy commands one at a time:
+
+- Never run builds, `verify:applications`, Playwright or the integration suites in parallel, and never start one while another is still running in the background.
+- Stop dev servers you started before running `verify:applications` or a full suite.
+- While developing, run the single test file you are changing; run the full suites once, at the end.
+- Pass `--maxWorkers=2` to Jest and `--concurrency=1` to Turbo builds.
+
 Single test — pass a path/pattern through to Jest, keeping `TEST_TYPE`:
 
 ```bash

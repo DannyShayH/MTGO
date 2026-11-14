@@ -4,14 +4,15 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import type { Locale, Messages } from "@dtc/i18n"
 import { Button, Text, clx } from "@medusajs/ui"
-import { House } from "@medusajs/icons"
+import { House, ListBullet } from "@medusajs/icons"
 import { signOut } from "@lib/data/session"
 import { BrandMark } from "../brand-mark"
 import { LanguageSwitch } from "../language-switch"
 
-/** Only Overview exists until later Features add their tools (spec story 46). */
+/** Restaurant staff tools, with the current page announced by the navigation. */
 const NAVIGATION = [
   { href: "/overview", label: "overview", Icon: House },
+  { href: "/menu", label: "menu", Icon: ListBullet },
 ] as const
 
 export function Sidebar({

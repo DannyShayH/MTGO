@@ -13,6 +13,11 @@ Other storefront surfaces can move their text here later (ADR-0017).
   `staff_access_revoked`. The API returns codes, never sentences (ADR-0018), so a
   new code gets a Danish and an English text here.
 
+`MENU_TEXT[locale]` supplies the partner Menu reference workspace, including
+loading and recovery messages. Allergen and food-label names/descriptions come
+from the backend catalogue in both languages; this package does not duplicate
+that reference data.
+
 The package has no build step: apps import its TypeScript source and Next.js
 transpiles it (`transpilePackages`). Packages never import apps, and apps never
 import each other (`npm run arch`).

@@ -10,6 +10,7 @@ let partner: ChildProcess
 let origin: string
 let failurePath = ""
 let failureStatus = 503
+let catalogueMode = false
 
 test.beforeAll(async () => {
   // Browser interception cannot affect server-side SDK calls. Give a separate
@@ -20,6 +21,30 @@ test.beforeAll(async () => {
       return
     }
     response.setHeader("content-type", "application/json")
+    if (catalogueMode && request.url === "/partner/me") {
+      response.end(
+        JSON.stringify({
+          staff: {
+            id: "test",
+            name: "Mette",
+            email: "mette@example.test",
+            status: "authorized",
+            restaurant_id: "test",
+          },
+          restaurant: { id: "test", name: "Test Restaurant" },
+        }),
+      )
+      return
+    }
+    if (
+      catalogueMode &&
+      request.url === "/partner/food-catalogue" &&
+      failureStatus === 200
+    ) {
+      response.end(JSON.stringify({ allergens: [], food_labels: [] }))
+      return
+    }
+
     if (request.url === failurePath) {
       response.writeHead(failureStatus)
       response.end(JSON.stringify({ message: "backend failure" }))
@@ -72,6 +97,10 @@ test.beforeAll(async () => {
       { timeout: 30_000 },
     )
     .toBe(200)
+})
+
+test.beforeEach(() => {
+  catalogueMode = false
 })
 
 test.afterAll(async () => {
@@ -165,3 +194,37 @@ test.describe("ended sessions on direct sign-in visits", () => {
     })
   }
 })
+
+for (const { locale, title, retry } of [
+  {
+    locale: "da-DK",
+    title: "Kataloget er ikke tilgængeligt",
+    retry: "Prøv igen",
+  },
+  { locale: "en-GB", title: "Catalogue unavailable", retry: "Try again" },
+]) {
+  test.describe(`catalogue failures with a ${locale} browser`, () => {
+    test.use({ locale })
+    for (const status of [0, 503, 200]) {
+      test(`offers a keyboard retry for ${status === 200 ? "unseeded data" : status || "a dropped connection"}`, async ({
+        page,
+        context,
+      }) => {
+        catalogueMode = true
+        failurePath = "/partner/food-catalogue"
+        failureStatus = status
+        await context.addCookies([
+          { name: "mtogo_partner_token", value: "staff-token", url: origin },
+        ])
+        await page.goto(`${origin}/menu`)
+        await expect(page.getByRole("heading", { name: title })).toBeVisible()
+        await expect(page.locator("main summary")).toHaveCount(0)
+        const link = page.getByRole("link", { name: retry, exact: true })
+        await link.focus()
+        await expect(link).toBeFocused()
+        await page.keyboard.press("Enter")
+        await expect(page.getByRole("heading", { name: title })).toBeVisible()
+      })
+    }
+  })
+}
