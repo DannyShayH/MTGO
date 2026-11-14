@@ -1,11 +1,17 @@
 "use server"
 
-import { cookies } from "next/headers"
+import { requestId, httpStatus } from "@dtc/logging"
+import { log } from "@lib/logger"
+import { cookies, headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import { FetchError } from "@medusajs/js-sdk"
 import { isLocale, type MessageCode } from "@dtc/i18n"
-import { LOCALE_COOKIE, PARTNER_TOKEN_COOKIE, sdk } from "@lib/config"
+import {
+  LOCALE_COOKIE,
+  PARTNER_TOKEN_COOKIE,
+  createPartnerSdk,
+} from "@lib/config"
 import { cookieOptions, storePartnerToken } from "@lib/partner-token"
 import { retrieveStaffSession, type StaffSession } from "./staff"
 
@@ -20,30 +26,56 @@ export async function signIn(
   _previous: SignInState,
   form: FormData,
 ): Promise<SignInState> {
+  const id = requestId((await headers()).get("x-request-id"))
+  const fields = {
+    request_id: id,
+    route: "/auth/restaurant_staff/emailpass",
+    method: "POST",
+  }
   const email = String(form.get("email") ?? "").trim()
   const password = String(form.get("password") ?? "")
-  if (!email || !password) return { error: "sign_in_failed" }
+  if (!email || !password) {
+    log("auth.sign_in.failed", { ...fields, status: 400 })
+    return { error: "sign_in_failed" }
+  }
   let token: string
   let session: StaffSession
   try {
-    const result = await sdk.auth.login("restaurant_staff", "emailpass", {
-      email,
-      password,
-    })
-    if (typeof result !== "string") return { error: "unknown_error" }
+    const result = await createPartnerSdk(id).auth.login(
+      "restaurant_staff",
+      "emailpass",
+      {
+        email,
+        password,
+      },
+    )
+    if (typeof result !== "string") {
+      log("auth.sign_in.failed", fields)
+      return { error: "unknown_error" }
+    }
     token = result
-    session = await retrieveStaffSession(token)
+    fields.route = "/partner/me"
+    fields.method = "GET"
+    session = await retrieveStaffSession(token, id)
   } catch (error) {
+    const status = httpStatus(error)
+    log("auth.sign_in.failed", { ...fields, status })
     if (error instanceof FetchError && error.status === 401)
       return { error: "sign_in_failed" }
-    // SDK error messages may contain backend details. Log only the status,
-    // never credentials, tokens, request bodies or full error responses.
-    console.error("Partner sign-in request failed", {
-      status: error instanceof FetchError ? error.status : undefined,
-    })
     return { error: "unknown_error" }
   }
-  if (session.status === "ended")
+  if (session.status !== "authorized") {
+    log("auth.sign_in.failed", {
+      ...fields,
+      route: "/partner/me",
+      method: "GET",
+      status:
+        session.status === "ended" && session.code === "staff_access_revoked"
+          ? 403
+          : 401,
+    })
+    if (session.status === "signed_out") return { error: "sign_in_failed" }
+
     // A login that never became staff gets the same message as a wrong
     // password, so the form does not reveal which emails have a login.
     return session.code === "staff_access_revoked"
@@ -52,11 +84,23 @@ export async function signIn(
           restaurant_name: session.restaurant_name,
         }
       : { error: "sign_in_failed" }
+  }
   await storePartnerToken(token)
+  log("auth.sign_in.succeeded", {
+    ...fields,
+    actor_type: "restaurant_staff",
+    actor_id: session.current.staff.id,
+    restaurant_id: session.current.restaurant.id,
+  })
   redirect("/overview")
 }
 
 export async function signOut() {
+  log("auth.session.ended", {
+    request_id: requestId((await headers()).get("x-request-id")),
+    route: "/sign-out",
+    method: "POST",
+  })
   ;(await cookies()).delete(PARTNER_TOKEN_COOKIE)
   redirect("/sign-in?message=signed_out")
 }

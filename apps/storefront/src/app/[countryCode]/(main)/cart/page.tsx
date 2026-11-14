@@ -1,3 +1,5 @@
+import { httpStatus } from "@dtc/logging"
+import { log } from "@lib/logger"
 import { retrieveCart } from "@lib/data/cart"
 import { retrieveCustomer } from "@lib/data/customer"
 import CartTemplate from "@modules/cart/templates"
@@ -11,7 +13,11 @@ export const metadata: Metadata = {
 
 export default async function Cart() {
   const cart = await retrieveCart().catch((error) => {
-    console.error(error)
+    log("upstream.request.failed", {
+      route: "/:countryCode/cart",
+      method: "GET",
+      status: httpStatus(error),
+    })
     return notFound()
   })
 

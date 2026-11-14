@@ -11,11 +11,19 @@ let origin: string
 let failurePath = ""
 let failureStatus = 503
 let catalogueMode = false
+let logOutput = ""
+let requestIds: string[] = []
 
 test.beforeAll(async () => {
   // Browser interception cannot affect server-side SDK calls. Give a separate
   // production app its own backend stub instead of changing the real backend.
   backend = createServer((request, response) => {
+    if (
+      ["/auth/restaurant_staff/emailpass", "/partner/me"].includes(
+        request.url || "",
+      )
+    )
+      requestIds.push(String(request.headers["x-request-id"] || ""))
     if (request.url === failurePath && failureStatus === 0) {
       request.socket.destroy()
       return
@@ -32,6 +40,27 @@ test.beforeAll(async () => {
             restaurant_id: "test",
           },
           restaurant: { id: "test", name: "Test Restaurant" },
+        }),
+      )
+      return
+    }
+    if (catalogueMode && request.url === "/partner/restaurants/test") {
+      response.end(
+        JSON.stringify({
+          restaurant: {
+            id: "test",
+            name: "Test Restaurant",
+            address_street: "Test Street 1",
+            address_postal_code: "2200",
+            address_city: "Copenhagen",
+            contact_phone: "12345678",
+            contact_email: "fixture@example.test",
+            delivery_area: [],
+            is_active: true,
+            is_open: false,
+            receiving_new_orders: false,
+            reason: "closed",
+          },
         }),
       )
       return
@@ -82,9 +111,15 @@ test.beforeAll(async () => {
         NODE_ENV: "production",
         MEDUSA_BACKEND_URL: `http://127.0.0.1:${backendAddress.port}`,
       },
-      stdio: "ignore",
+      stdio: ["ignore", "pipe", "pipe"],
     },
   )
+  partner.stdout?.on("data", (chunk) => {
+    logOutput += chunk.toString()
+  })
+  partner.stderr?.on("data", (chunk) => {
+    logOutput += chunk.toString()
+  })
   await expect
     .poll(
       async () => {
@@ -101,6 +136,8 @@ test.beforeAll(async () => {
 
 test.beforeEach(() => {
   catalogueMode = false
+  logOutput = ""
+  requestIds = []
 })
 
 test.afterAll(async () => {
@@ -188,6 +225,10 @@ test.describe("ended sessions on direct sign-in visits", () => {
       await page.goto(`${origin}/sign-in`)
       await expect(page).toHaveURL(`${origin}/sign-in?message=${code}`)
       await expect(page.getByRole("status")).toHaveText(message)
+      await expect
+        .poll(() => logOutput)
+        .toContain('"event":"auth.session.ended"')
+      expect(logOutput).not.toContain("ended-token")
       expect(await context.cookies()).not.toContainEqual(
         expect.objectContaining({ name: "mtogo_partner_token" }),
       )
@@ -228,3 +269,101 @@ for (const { locale, title, retry } of [
     }
   })
 }
+
+test.describe("safe sign-in logging", () => {
+  test.use({ locale: "en-GB" })
+  for (const path of ["/auth/restaurant_staff/emailpass", "/partner/me"]) {
+    test(`correlates a refused ${path} without logging credentials`, async ({
+      page,
+    }) => {
+      failurePath = path
+      failureStatus = 401
+      await page.setExtraHTTPHeaders({ "x-request-id": "login-28" })
+      await page.goto(`${origin}/sign-in`)
+      await page.getByLabel("Email").fill("secret-email@example.test")
+      await page.getByLabel("Password").fill("secret-password")
+      await page.getByRole("button", { name: "Sign in", exact: true }).click()
+      await expect(page.getByRole("alert")).toBeVisible()
+      await expect
+        .poll(() => logOutput)
+        .toContain('"event":"auth.sign_in.failed"')
+      const record = logOutput
+        .split("\n")
+        .filter((line) => line.startsWith("{"))
+        .map((line) => JSON.parse(line))
+        .find((record) => record.event === "auth.sign_in.failed")
+      expect(record).toMatchObject({
+        level: "warn",
+        service: "partner",
+        env: "production",
+        request_id: "login-28",
+      })
+      expect(requestIds.length).toBeGreaterThan(0)
+      expect(requestIds.every((id) => id === "login-28")).toBe(true)
+      expect(logOutput + (await page.locator("body").innerText())).not.toMatch(
+        /secret-email|secret-password|test-staff-token/,
+      )
+    })
+  }
+  test("replaces an invalid incoming ID consistently across both sign-in calls", async ({
+    page,
+  }) => {
+    failurePath = "/partner/me"
+    failureStatus = 401
+    await page.setExtraHTTPHeaders({ "x-request-id": "invalid_id" })
+    await page.goto(`${origin}/sign-in`)
+    await page.getByLabel("Email").fill("secret-email@example.test")
+    await page.getByLabel("Password").fill("secret-password")
+    await page.getByRole("button", { name: "Sign in", exact: true }).click()
+    await expect(page.getByRole("alert")).toBeVisible()
+    await expect
+      .poll(() => logOutput)
+      .toContain('"event":"auth.sign_in.failed"')
+    expect(requestIds).toHaveLength(2)
+    expect(requestIds[0]).toMatch(/^[0-9a-f-]{36}$/)
+    expect(requestIds[1]).toBe(requestIds[0])
+    const record = logOutput
+      .split("\n")
+      .filter((line) => line.startsWith("{"))
+      .map((line) => JSON.parse(line))
+      .find((record) => record.event === "auth.sign_in.failed")
+    expect(record.request_id).toBe(requestIds[0])
+    expect(logOutput).not.toMatch(
+      /invalid_id|secret-email|secret-password|test-staff-token/,
+    )
+  })
+
+  test("logs authorized sign-in with opaque staff and Restaurant IDs", async ({
+    page,
+    context,
+  }) => {
+    catalogueMode = true
+    failureStatus = 200
+    failurePath = ""
+    await page.goto(`${origin}/sign-in`)
+    await page.getByLabel("Email").fill("secret-email@example.test")
+    await page.getByLabel("Password").fill("secret-password")
+    await page.getByRole("button", { name: "Sign in", exact: true }).click()
+    await expect
+      .poll(() => logOutput)
+      .toContain('"event":"auth.sign_in.succeeded"')
+    const record = logOutput
+      .split("\n")
+      .filter((line) => line.startsWith("{"))
+      .map((line) => JSON.parse(line))
+      .find((record) => record.event === "auth.sign_in.succeeded")
+    expect(record).toMatchObject({
+      level: "info",
+      actor_id: "test",
+      restaurant_id: "test",
+    })
+    expect(await context.cookies()).toContainEqual(
+      expect.objectContaining({ name: "mtogo_partner_token", httpOnly: true }),
+    )
+    expect(requestIds[0]).toMatch(/^[0-9a-f-]{36}$/)
+    expect(requestIds[1]).toBe(requestIds[0])
+    expect(logOutput).not.toMatch(
+      /secret-email|secret-password|test-staff-token|mette@example.test/,
+    )
+  })
+})

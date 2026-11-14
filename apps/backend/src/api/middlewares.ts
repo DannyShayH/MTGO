@@ -36,6 +36,7 @@ import {
   PostStoreUpdateCustomerSchema,
 } from "./store/customers/validators"
 import { mtogoErrorHandler } from "./error-handler"
+import { correlateRequest } from "./request-logging"
 
 /** Medusa has no path-parameter validator, so the postal code in the path is checked here. */
 function validatePostalCodeParam(
@@ -57,6 +58,7 @@ function validatePostalCodeParam(
 export default defineMiddlewares({
   errorHandler: mtogoErrorHandler(),
   routes: [
+    { matcher: "/*", middlewares: [correlateRequest] },
     {
       matcher: "/store/customers",
       method: "POST",

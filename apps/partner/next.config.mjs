@@ -7,6 +7,9 @@ pinOwnReact(import.meta.dirname)
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  serverExternalPackages: ["winston", "@dtc/logging"],
+  // Next dev logs can include action arguments, URLs and browser errors.
+  logging: false,
   // AGENTS.md at the repository root guides agents; do not generate one here.
   agentRules: false,
   // The shared packages ship TypeScript source, without a build step.
