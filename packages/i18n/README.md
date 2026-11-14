@@ -27,3 +27,13 @@ Tests use Node's built-in runner, which runs TypeScript directly:
 ```bash
 cd packages/i18n && npm test
 ```
+
+Customer language (#85): the storefront uses `resolveLocale` for signed-out
+resolution (remembered choice, browser preference, Danish). Registration saves
+that language as Customer `metadata.preferred_language`. After sign-in, a valid
+saved account preference wins over the browser choice through the shared
+`resolveCustomerLocale(preferredLanguage, browserLocale)` rule. Accounts without a saved
+preference adopt the current resolved browser language on their next sign-in.
+Explicit account changes persist before the browser cookie is updated. The
+account language form and its pending, success and failure text use
+`CUSTOMER_AUTH`. Existing Order language stays independent.

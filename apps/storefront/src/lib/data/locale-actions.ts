@@ -2,6 +2,8 @@
 
 import { sdk } from "@lib/config"
 import { revalidateTag } from "next/cache"
+import { isLocale, resolveLocale } from "@dtc/i18n"
+import { headers } from "next/headers"
 import { cookies as nextCookies } from "next/headers"
 import { getAuthHeaders, getCacheTag, getCartId } from "./cookies"
 
@@ -13,7 +15,10 @@ const LOCALE_COOKIE_NAME = "_medusa_locale"
 export const getLocale = async (): Promise<string | null> => {
   try {
     const cookies = await nextCookies()
-    return cookies.get(LOCALE_COOKIE_NAME)?.value ?? null
+    return resolveLocale({
+      chosen: cookies.get(LOCALE_COOKIE_NAME)?.value,
+      acceptLanguage: (await headers()).get("accept-language") ?? undefined,
+    })
   } catch {
     return null
   }
@@ -23,8 +28,10 @@ export const getLocale = async (): Promise<string | null> => {
  * Sets the locale cookie
  */
 export const setLocaleCookie = async (locale: string) => {
+  if (!isLocale(locale)) throw new Error("customer_language_invalid")
   const cookies = await nextCookies()
   cookies.set(LOCALE_COOKIE_NAME, locale, {
+    path: "/",
     maxAge: 60 * 60 * 24 * 365, // 1 year
     httpOnly: false, // Allow client-side access
     sameSite: "strict",
@@ -37,6 +44,16 @@ export const setLocaleCookie = async (locale: string) => {
  * Also updates the cart with the new locale if one exists.
  */
 export const updateLocale = async (localeCode: string): Promise<string> => {
+  if (!isLocale(localeCode)) throw new Error("customer_language_invalid")
+  const authHeaders = await getAuthHeaders()
+  if ("authorization" in authHeaders) {
+    await sdk.store.customer.update(
+      { metadata: { preferred_language: localeCode } },
+      {},
+      authHeaders,
+    )
+    revalidateTag(await getCacheTag("customers"), { expire: 0 })
+  }
   await setLocaleCookie(localeCode)
 
   // Update cart with the new locale if a cart exists

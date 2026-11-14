@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { resolveLocale } from "../locale.ts"
+import { resolveCustomerLocale, resolveLocale } from "../locale.ts"
 
 // Decision table for spec stories 44-45: a remembered choice wins, then the
 // browser's languages in quality order, then Danish.
@@ -64,5 +64,50 @@ for (const row of cases) {
       }),
       row.expected,
     )
+  })
+}
+
+const customerCases = [
+  {
+    reason: "DT: saved English wins",
+    saved: "en",
+    browser: "da",
+    expected: "en",
+  },
+  {
+    reason: "DT: saved Danish wins",
+    saved: "da",
+    browser: "en",
+    expected: "da",
+  },
+  {
+    reason: "EP: missing preference",
+    saved: undefined,
+    browser: "en",
+    expected: "en",
+  },
+  {
+    reason: "EP: unsupported preference",
+    saved: "fr",
+    browser: "en",
+    expected: "en",
+  },
+  {
+    reason: "EP: non-string preference",
+    saved: 12,
+    browser: "en",
+    expected: "en",
+  },
+  {
+    reason: "DT: no preference or browser language",
+    saved: null,
+    browser: null,
+    expected: "da",
+  },
+] as const
+
+for (const row of customerCases) {
+  test(`resolves Customer language (${row.reason})`, () => {
+    assert.equal(resolveCustomerLocale(row.saved, row.browser), row.expected)
   })
 }

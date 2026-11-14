@@ -15,6 +15,10 @@ export const CUSTOMER_AUTH = {
     verification:
       "Tjek din indbakke for at bekræfte din e-mail, og log derefter ind.",
     language: "Sprog",
+    saveLanguage: "Gem sprog",
+    savingLanguage: "Gemmer sprog…",
+    languageSaved: "Dit sprog er gemt.",
+    languageError: "Dit sprog kunne ikke gemmes. Prøv igen.",
     showPassword: "Vis eller skjul adgangskode",
     errors: {
       customer_identity_exists:
@@ -39,6 +43,10 @@ export const CUSTOMER_AUTH = {
     newCustomer: "New to MTOGO?",
     verification: "Check your inbox to verify your email, then sign in.",
     language: "Language",
+    saveLanguage: "Save language",
+    savingLanguage: "Saving language…",
+    languageSaved: "Your language has been saved.",
+    languageError: "Your language could not be saved. Please try again.",
     showPassword: "Show or hide password",
     errors: {
       customer_identity_exists:

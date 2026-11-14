@@ -13,6 +13,7 @@ import ReactCountryFlag from "react-country-flag"
 
 import { StateType } from "@lib/hooks/use-toggle-state"
 import { updateLocale } from "@lib/data/locale-actions"
+import { CUSTOMER_AUTH, resolveLocale, isLocale } from "@dtc/i18n"
 import { Locale } from "@lib/data/locales"
 
 type LanguageOption = {
@@ -74,23 +75,26 @@ const LanguageSelect = ({
   currentLocale,
 }: LanguageSelectProps) => {
   const [current, setCurrent] = useState<LanguageOption | undefined>(undefined)
+  const [hasError, setHasError] = useState(false)
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
 
   const { state, close } = toggleState
 
   const options = useMemo(() => {
-    const localeOptions = locales.map((locale) => ({
-      code: locale.code,
-      name: locale.name,
-      localizedName: getLocalizedLanguageName(
-        locale.code,
-        locale.name,
-        currentLocale ?? "en-US",
-      ),
-      countryCode: getCountryCodeFromLocale(locale.code),
-    }))
-    return [DEFAULT_OPTION, ...localeOptions]
+    const localeOptions = locales
+      .filter((locale) => isLocale(locale.code))
+      .map((locale) => ({
+        code: locale.code,
+        name: locale.name,
+        localizedName: getLocalizedLanguageName(
+          locale.code,
+          locale.name,
+          currentLocale ?? "en-US",
+        ),
+        countryCode: getCountryCodeFromLocale(locale.code),
+      }))
+    return localeOptions
   }, [locales, currentLocale])
 
   useEffect(() => {
@@ -106,14 +110,27 @@ const LanguageSelect = ({
 
   const handleChange = (option: LanguageOption) => {
     startTransition(async () => {
-      await updateLocale(option.code)
-      close()
-      router.refresh()
+      setHasError(false)
+      try {
+        await updateLocale(option.code)
+        close()
+        router.refresh()
+      } catch {
+        setHasError(true)
+      }
     })
   }
 
   return (
     <div>
+      {hasError && (
+        <p role="alert">
+          {
+            CUSTOMER_AUTH[resolveLocale({ chosen: currentLocale ?? undefined })]
+              .languageError
+          }
+        </p>
+      )}
       <Listbox
         as="span"
         onChange={handleChange}

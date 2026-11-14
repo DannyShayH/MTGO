@@ -4,6 +4,8 @@ import { sdk } from "@lib/config"
 import medusaError from "@lib/util/medusa-error"
 import { HttpTypes } from "@medusajs/types"
 import { FetchError } from "@medusajs/js-sdk"
+import { getLocale, setLocaleCookie } from "./locale-actions"
+import { resolveLocale, resolveCustomerLocale, isLocale } from "@dtc/i18n"
 import { CustomerAuthCode } from "@dtc/i18n"
 import { revalidateTag } from "next/cache"
 import { redirect } from "next/navigation"
@@ -96,7 +98,16 @@ export async function signup(
       password,
     })
     await sdk.store.customer.create(
-      { email },
+      {
+        email,
+        metadata: {
+          preferred_language: resolveLocale({
+            chosen: String(
+              formData.get("language") ?? (await getLocale()) ?? "",
+            ),
+          }),
+        },
+      },
       {},
       { authorization: `Bearer ${token}` },
     )
@@ -192,6 +203,11 @@ async function completeLogin(
       await sdk.store.customer.create(
         {
           email,
+          metadata: {
+            preferred_language: resolveLocale({
+              chosen: (await getLocale()) ?? undefined,
+            }),
+          },
         },
         {},
         { authorization: `Bearer ${token}` },
@@ -207,6 +223,24 @@ async function completeLogin(
     } catch (error) {
       return { state: "error", error: customerAuthCode(error) }
     }
+  }
+
+  try {
+    const { customer } = await sdk.store.customer.retrieve(
+      {},
+      { authorization: `Bearer ${token}` },
+    )
+    const saved = customer.metadata?.preferred_language
+    const locale = resolveCustomerLocale(saved, await getLocale())
+    if (!isLocale(saved))
+      await sdk.store.customer.update(
+        { metadata: { preferred_language: locale } },
+        {},
+        { authorization: `Bearer ${token}` },
+      )
+    await setLocaleCookie(locale)
+  } catch {
+    return { state: "error", error: "customer_auth_unavailable" }
   }
 
   await setAuthToken(token)

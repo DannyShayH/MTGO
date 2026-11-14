@@ -74,6 +74,235 @@ medusaIntegrationTestRunner({
       expect(duplicate.data.code).toBe("customer_identity_exists")
       expect((await signIn()).status).toBe(200)
     })
+    it("keeps registration language across sessions and validates later selections", async () => {
+      const registration = await register()
+      await api.post(
+        "/store/customers",
+        {
+          email,
+          metadata: { preferred_language: "en" },
+        },
+        {
+          headers: {
+            ...headers,
+            authorization: `Bearer ${registration.data.token}`,
+          },
+        },
+      )
+      const login = await signIn()
+      const ownerHeaders = {
+        ...headers,
+        authorization: `Bearer ${login.data.token}`,
+      }
+      const me = await api.get("/store/customers/me", { headers: ownerHeaders })
+      expect(me.data.customer.metadata.preferred_language).toBe("en")
+      const invalid = await api.post(
+        "/store/customers/me",
+        {
+          metadata: { preferred_language: "fr" },
+        },
+        { headers: ownerHeaders, validateStatus: () => true },
+      )
+      expect(invalid.status).toBe(400)
+      await api.post(
+        "/store/customers/me",
+        {
+          metadata: { preferred_language: "da" },
+        },
+        { headers: ownerHeaders },
+      )
+      const anotherSession = await signIn()
+      const restored = await api.get("/store/customers/me", {
+        headers: {
+          ...headers,
+          authorization: `Bearer ${anotherSession.data.token}`,
+        },
+      })
+      expect(restored.data.customer.metadata.preferred_language).toBe("da")
+    })
+    it.each([
+      {
+        reason: "EP: unsupported language",
+        metadata: { preferred_language: "fr" },
+      },
+      { reason: "BVA: empty language", metadata: { preferred_language: "" } },
+      { reason: "EP: null language", metadata: { preferred_language: null } },
+      {
+        reason: "EP: non-string language",
+        metadata: { preferred_language: 12 },
+      },
+      { reason: "EP: clearing metadata", metadata: null },
+    ])(
+      "rejects invalid registration and account language ($reason)",
+      async ({ metadata }) => {
+        const registration = await register()
+        const registrationHeaders = {
+          ...headers,
+          authorization: `Bearer ${registration.data.token}`,
+        }
+        const invalid = await api.post(
+          "/store/customers",
+          { email, metadata },
+          {
+            headers: registrationHeaders,
+            validateStatus: () => true,
+          },
+        )
+        expect(invalid.status).toBe(400)
+        await api.post(
+          "/store/customers",
+          { email, metadata: { preferred_language: "en" } },
+          { headers: registrationHeaders },
+        )
+        const login = await signIn()
+        const ownerHeaders = {
+          ...headers,
+          authorization: `Bearer ${login.data.token}`,
+        }
+        const update = await api.post(
+          "/store/customers/me",
+          { metadata },
+          { headers: ownerHeaders, validateStatus: () => true },
+        )
+        expect(update.status).toBe(400)
+        expect(
+          (await api.get("/store/customers/me", { headers: ownerHeaders })).data
+            .customer.metadata.preferred_language,
+        ).toBe("en")
+      },
+    )
+    it("refuses another Customer's target ID and preserves Order language", async () => {
+      const registration = await register()
+      const created = await api.post(
+        "/store/customers",
+        { email, metadata: { preferred_language: "en", unrelated: "keep" } },
+        {
+          headers: {
+            ...headers,
+            authorization: `Bearer ${registration.data.token}`,
+          },
+        },
+      )
+      const login = await signIn()
+      const ownerHeaders = {
+        ...headers,
+        authorization: `Bearer ${login.data.token}`,
+      }
+      const { result: regions } = await createRegionsWorkflow(
+        getContainer(),
+      ).run({
+        input: {
+          regions: [
+            { name: "Denmark", currency_code: "dkk", countries: ["dk"] },
+          ],
+        },
+      })
+      const { result: order } = await createOrderWorkflow(getContainer()).run({
+        input: {
+          region_id: regions[0].id,
+          customer_id: created.data.customer.id,
+          email,
+          currency_code: "dkk",
+          metadata: { language: "en" },
+          items: [{ title: "Historical dish", quantity: 1, unit_price: 50 }],
+        },
+      })
+      const otherCredentials = { email: "other@example.test", password }
+      const otherRegistration = await api.post(
+        "/auth/customer/customer-emailpass/register",
+        otherCredentials,
+      )
+      await api.post(
+        "/store/customers",
+        { email: otherCredentials.email },
+        {
+          headers: {
+            ...headers,
+            authorization: `Bearer ${otherRegistration.data.token}`,
+          },
+        },
+      )
+      const otherLogin = await signIn(otherCredentials)
+      const wrongOwner = await api.post(
+        "/store/customers/me",
+        {
+          id: created.data.customer.id,
+          metadata: { preferred_language: "da" },
+        },
+        {
+          headers: {
+            ...headers,
+            authorization: `Bearer ${otherLogin.data.token}`,
+          },
+          validateStatus: () => true,
+        },
+      )
+      expect(wrongOwner.status).toBe(400)
+      const wrongPath = await api.post(
+        `/store/customers/${created.data.customer.id}`,
+        { metadata: { preferred_language: "da" } },
+        {
+          headers: {
+            ...headers,
+            authorization: `Bearer ${otherLogin.data.token}`,
+          },
+          validateStatus: () => true,
+        },
+      )
+      expect(wrongPath.status).toBe(404)
+      expect(
+        (await api.get("/store/customers/me", { headers: ownerHeaders })).data
+          .customer.metadata.preferred_language,
+      ).toBe("en")
+      await api.post(
+        "/store/customers/me",
+        { metadata: { preferred_language: "da" } },
+        { headers: ownerHeaders },
+      )
+      const me = await api.get("/store/customers/me", { headers: ownerHeaders })
+      expect(me.data.customer.metadata).toEqual({
+        preferred_language: "da",
+        unrelated: "keep",
+      })
+      const history = await api.get("/store/orders", { headers: ownerHeaders })
+      expect(history.data.orders).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: order.id,
+            metadata: { language: "en" },
+          }),
+        ]),
+      )
+    })
+    it.each([
+      { reason: "DT: signed out", actor: null },
+      { reason: "DT: Restaurant staff", actor: "restaurant_staff" },
+      { reason: "DT: MTOGO operator", actor: "user" },
+    ])(
+      "refuses preference updates for the wrong role ($reason)",
+      async ({ actor }) => {
+        let authorization: string | undefined
+        if (actor) {
+          const registered = await api.post(
+            `/auth/${actor}/emailpass/register`,
+            credentials,
+          )
+          authorization = `Bearer ${registered.data.token}`
+        }
+        const response = await api.post(
+          "/store/customers/me",
+          { metadata: { preferred_language: "en" } },
+          {
+            headers: {
+              ...headers,
+              ...(authorization ? { authorization } : {}),
+            },
+            validateStatus: () => true,
+          },
+        )
+        expect(response.status).toBe(401)
+      },
+    )
     it.each([
       {
         reason: "EP: unknown email",
@@ -206,6 +435,20 @@ medusaIntegrationTestRunner({
           ).toString(),
         ).actor_id,
       ).toBe(users[0].id)
+      const operatorPreference = await api.post(
+        "/store/customers/me",
+        {
+          metadata: { preferred_language: "en" },
+        },
+        {
+          headers: {
+            ...headers,
+            authorization: `Bearer ${operatorSession.data.token}`,
+          },
+          validateStatus: () => true,
+        },
+      )
+      expect(operatorPreference.status).toBe(401)
       const operatorAccess = await api.get("/admin/users/me", {
         headers: { authorization: `Bearer ${operatorSession.data.token}` },
       })
@@ -294,6 +537,21 @@ medusaIntegrationTestRunner({
         headers: { authorization: `Bearer ${staffSession.data.token}` },
       })
       expect(staffAccess.data.staff.email).toBe(email)
+      const staffPreference = await api.post(
+        "/store/customers/me",
+        {
+          metadata: { preferred_language: "en" },
+        },
+        {
+          headers: {
+            ...headers,
+            authorization: `Bearer ${staffSession.data.token}`,
+          },
+          validateStatus: () => true,
+        },
+      )
+      expect(staffPreference.status).toBe(401)
+
       expect((await signIn()).status).toBe(200)
       expect(
         (await signIn({ email, password: "ci-only-staff-password" })).status,
