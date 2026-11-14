@@ -288,7 +288,8 @@ This publishes one valid synthetic dish in the real menu model for the
 Restaurant with that id, or for Pizzeria Nørrebro without one: the category
 **Pizza** with **Pizza Margherita (syntetisk)** / **Pizza Margherita
 (synthetic)**, DKK 95. Activation rule A9 and the Customer menu can then be
-demonstrated before staff publish dishes themselves (#44). It runs
+demonstrated with synthetic fixtures. Staff can instead create their own dishes
+through the partner app (#106). It runs
 `publishSyntheticMenuWorkflow`, which takes the Restaurant's lock and rolls
 back completely if a step fails. Running it again for the same Restaurant
 changes nothing. If the pre-#105 single-title seed already exists, the command
@@ -308,22 +309,10 @@ with a lemonade that has no description, and the empty category **Desserter** /
 native title. That product is deliberately not a valid dish, so it stays off
 the menu and out of the readiness count (3 published dishes).
 
-<!-- Remove this workaround when Feature #44 lets staff publish dishes (see #44). -->
-
-**Devcontainer workaround.** In the devcontainer, `.env` usually reaches the
-database through the host `postgres`. That host is not loopback, so both seeds
-stop with `synthetic_seed_database_required` and create nothing. The same
-PostgreSQL also listens on `localhost:5432`, so point one command at it without
-editing `.env`:
-
-```bash
-DATABASE_URL="$(node -e 'require("dotenv").config({path:".env",quiet:true});const u=new URL(process.env.DATABASE_URL);u.hostname="localhost";process.stdout.write(u.href)')" \
-  NODE_ENV=development npm exec medusa exec ./src/scripts/seed-demo-menu.ts [restaurant_id]
-```
-
-Keep the safety rule itself unchanged: a host such as `postgres` can point at a
-shared server in another setup. Until #44 delivers menu editing, this seed is
-the only way to get a published dish.
+Staff now publish real dishes from **Menu** in the partner app. The synthetic
+seed remains for disposable demos and existing browser/activation fixtures;
+it is no longer required for staff onboarding. Its loopback/disposable-database
+safety restrictions are unchanged.
 
 Demo: with terms, a delivery area and authorized staff in place, **Activate**
 on Pizzeria Nørrebro is refused with "Published menu missing". Run the menu
@@ -548,3 +537,67 @@ validity decision table), `integration-tests/http/restaurant-menu.spec.ts`
 shared count, the commerce configuration through Admin and store APIs,
 repeated setup and the workload) and `apps/storefront/e2e/restaurant-menu.spec.ts`
 (the bilingual Customer journey).
+
+## Staff dish publication
+
+`GET /partner/restaurants/{id}/dishes` reads the current published dishes for
+current authorized staff, including while their Restaurant is inactive or
+closed. `POST` creates a complete dish with this body:
+
+```json
+{
+  "request_id": "a-client-generated-uuid",
+  "category_id": "mcat_own-category",
+  "name": { "da": "Dagens ret", "en": "Dish of the day" },
+  "price": "95,50"
+}
+```
+
+Names are trimmed plain text, required in both languages and at most 120
+characters each. Price is a positive display-unit DKK string with at most two
+decimal places: `95`, `95,50` and `95.50` are accepted without rounding. It
+includes VAT and delivery. Exactly one own, nonremoved category is required;
+new dishes append. The response is `{ categories }`, with current bilingual
+dishes, variants and inclusive prices. No draft, inventory, options, separate
+publication or approval interface is exposed. Food declarations are explicitly
+Unknown and the optional photo is absent, using the Customer placeholder.
+
+Every request rechecks current staff access and Restaurant ownership. The
+workflow takes the existing Restaurant lock, rechecks category ownership and
+never changes activation or opening. Commerce writes use core-flows. A durable
+`menu_dish_creation` row reserves `(restaurant_id, request_id)`, the normalized
+creation input and original actor. Reusing an identity with changed input
+returns `409 dish_retry_conflict`.
+
+The operation's stable product handle locates interrupted work after a restart.
+Uncommitted attempts are removed through the product deletion core-flow and
+rebuilt on retry. Already committed dishes are returned without another write
+or successful-change record. The dish content starts with
+`publication_committed: false`; both Customer reads and activation readiness
+exclude it. Only after product, variant, price and all three links exist does
+one content-row update commit visibility together with the actor, time and
+product resource in `successful_change`. Prior menu entries remain visible
+through failed attempts. The visibility write is the final persistence action:
+no response read follows it, and lock-release failures cannot trigger rollback.
+A lost commit acknowledgement returns `503 dish_publication_uncertain` without
+compensating potentially committed data; retry reconciles the persisted state.
+Before that boundary normal workflow failures compensate product/content and
+links. A category refusal is definitive and the form renews its operation
+identity before allowing a replacement category. The synthetic seed uses committed content and retains
+its existing fixtures.
+
+Validation returns `400 dish_input_invalid`; an unavailable/foreign category
+returns `404 category_not_found`, and another Restaurant retains the existing
+`404 restaurant_not_found` boundary. Revoked access returns
+`403 staff_access_revoked`. An unexpectedly inconsistent committed product
+returns `409 dish_recovery_required`. These codes are translated in
+`@dtc/i18n`. The partner form retains validation failures. An uncertain submitted
+operation is kept in browser session storage until checked successfully, with
+its fields locked during reconciliation. The form is stored only after submission.
+Leaving unsaved entries requires confirmation. Menu reads use `no-store`, and a
+successful partner save revalidates `/menu`, so the next fetch is current.
+
+Evidence: `menu-dishes.spec.ts` exercises HTTP validation, authorization,
+publication, retries and interrupted creation; `restaurant-menu.spec.ts`
+checks the real publication-to-readiness/Customer boundary. The partner browser
+journey publishes a real dish and checks both languages in the Customer app.

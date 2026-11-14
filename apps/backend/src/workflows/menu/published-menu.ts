@@ -20,6 +20,7 @@ export type MenuCategoryRecord = {
 }
 
 type DishContent = {
+  publication_committed?: boolean
   name_da: string
   name_en: string
   description_da: string | null
@@ -84,7 +85,12 @@ const isMenuAmount = (amount: number) =>
 
 function publishedDishOf(product: MenuProductRecord): PublishedDish | null {
   const content = product.menu_dish
-  if (product.status !== "published" || !content) return null
+  if (
+    product.status !== "published" ||
+    !content ||
+    content.publication_committed === false
+  )
+    return null
   const name = bilingual(content.name_da, content.name_en, NAME_MAX_LENGTH)
   if (!name) return null
   const hasDescription =

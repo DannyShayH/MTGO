@@ -201,3 +201,15 @@ and allowlisted codes, never error message text, and logs only safe metadata.
 The underlying storage/revision decisions and HTTP contract are documented in
 the Restaurant module README. Browser evidence runs in the disposable application
 harness, never against a live Restaurant.
+
+## Menu navigation
+
+The sidebar separates **Menu**, **Categories** and **Allergens**, in Danish and
+English. Menu lists dishes and links to `/menu/new`. Creation uses a dedicated
+page so bilingual fields, validation and uncertain-request recovery stay visible
+on narrow screens. Cancelling or leaving unsaved work confirms the discard;
+a submitted operation remains recoverable after navigation or reload. Categories
+and the fixed allergen/food-label reference each have their own page. The shared
+shell keeps navigation visible on desktop and centres content within a 1440px maximum width with more top space on large screens, with
+44px controls and visible keyboard focus. These patterns also apply to Overview
+and account/session screens through the shared layout and components.

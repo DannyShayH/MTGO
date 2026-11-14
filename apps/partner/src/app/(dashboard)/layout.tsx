@@ -17,8 +17,8 @@ export default async function DashboardLayout({
         staffName={current.staff.name}
         restaurantName={current.restaurant.name}
       />
-      <main className="flex-1 px-4 py-6 md:px-8 md:py-8">
-        <div className="mx-auto w-full max-w-4xl">{children}</div>
+      <main className="min-w-0 flex-1 px-4 py-6 md:px-8 md:py-10 xl:py-16">
+        <div className="mx-auto w-full max-w-[90rem]">{children}</div>
       </main>
     </div>
   )

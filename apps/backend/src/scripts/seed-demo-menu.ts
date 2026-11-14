@@ -83,8 +83,8 @@ const showcaseMenu = (handle: string): SyntheticCategory[] => [
 
 /**
  * Publishes a synthetic menu for a Restaurant in the real menu model, so
- * activation rule A9 and the Customer menu can be demonstrated before staff
- * publish dishes themselves (#44). The Restaurant id is the first argument;
+ * activation rule A9 and the Customer menu can be demonstrated with fixtures.
+ * Staff publish real dishes through the partner app (#106). The Restaurant id is the first argument;
  * without it, the synthetic Pizzeria Nørrebro is used. Running it again for
  * the same Restaurant changes nothing.
  *

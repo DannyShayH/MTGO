@@ -12,7 +12,10 @@ export function SignInForm({ messages }: { messages: Messages }) {
   // password only needs the password typed again.
   const [email, setEmail] = useState("")
   return (
-    <form action={action} className="flex flex-col gap-y-4">
+    <form
+      action={action}
+      className="flex flex-col gap-y-4 [&_button]:min-h-11 [&_input]:min-h-11 [&_input]:text-base"
+    >
       {state.error && (
         <Alert variant="error" role="alert">
           {state.error === "staff_access_revoked"

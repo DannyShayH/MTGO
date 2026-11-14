@@ -8,12 +8,12 @@ test("staff read numbered food information in both languages with keyboard and n
   expect(process.env.E2E_DISPOSABLE).toBe("1")
   const errors: string[] = []
   page.on("pageerror", (error) => errors.push(error.message))
-  await page.goto("/menu")
+  await page.goto("/allergens")
   await expect(page).toHaveURL(/\/sign-in$/)
   await page.getByLabel("E-mail").fill(process.env.SEED_STAFF_EMAIL!)
   await page.getByLabel("Adgangskode").fill(process.env.SEED_STAFF_PASSWORD!)
   await page.getByRole("button", { name: "Log ind", exact: true }).click()
-  await page.getByRole("link", { name: "Menu", exact: true }).click()
+  await page.getByRole("link", { name: "Allergener", exact: true }).click()
   await expect(
     page.getByRole("heading", { name: "De 14 EU-allergener" }),
   ).toBeVisible()

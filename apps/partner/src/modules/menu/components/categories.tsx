@@ -27,9 +27,11 @@ type Editor = {
 export function Categories({
   initial,
   locale,
+  headingLevel = "h2",
 }: {
   initial: MenuCategory[] | undefined
   locale: Locale
+  headingLevel?: "h1" | "h2"
 }) {
   const text = CATEGORY_TEXT[locale]
   const [categories, setCategories] = useState(initial)
@@ -175,7 +177,7 @@ export function Categories({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div tabIndex={-1} ref={heading} className="outline-none">
-            <Heading level="h2">{text.title}</Heading>
+            <Heading level={headingLevel}>{text.title}</Heading>
           </div>
           <Text className="text-ui-fg-subtle mt-2 max-w-prose">
             {text.intro}

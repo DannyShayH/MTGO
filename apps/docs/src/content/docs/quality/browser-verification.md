@@ -293,3 +293,39 @@ Backend compilation also passed after the seed fix. Rebuilding the Admin bundle
 with the developer's servers running was stopped by the shared-memory guard;
 that rebuild remains for the ready flow. The earlier complete production and
 browser verification above passed before these seed/test-harness follow-ups.
+
+## First real dish publication
+
+The partner `menu-dishes.spec.ts` journey sets up an independent Restaurant
+through the operator APIs, accepts its staff invitation, and creates a category
+and real bilingual dish in the partner interface. It checks invalid price
+preservation, unsaved navigation, exact inclusive DKK pricing, operator menu
+readiness and activation, then reads the dish and Unknown allergens through the
+Customer interface. Both Danish and English run, with wide and narrow partner
+screenshots. No synthetic menu seed is used for this journey. Existing
+synthetic menu and activation journeys retain their disposable fixtures.
+
+## Affected browser journeys
+
+Application verification selects browser files from changes since `origin/main`,
+including working-tree changes. Partner UI changes run partner journeys;
+menu workflows add Customer menu and operator activation journeys. Shared or
+unknown runtime changes keep full browser coverage. Documentation-only changes
+skip browser journeys. All production builds still run. The selection is visible in the verification log; the selector has regression tests
+run by verification itself. The Ready job fetches history for the comparison.
+
+Set `BROWSER_TEST_ALL=1` to force every journey. For local follow-up work already
+verified on this branch, `BROWSER_TEST_BASE=HEAD npm run verify:applications`
+selects only changes since the last commit. Both forms retain the disposable
+database, isolated snapshot and port requirements above.
+
+Partner navigation separates `/menu` (published dishes), `/menu/new` (complete
+creation with validation/recovery), `/categories` (organisation and suggestions)
+and `/allergens` (the fixed reference catalogue). The partner menu, category,
+catalogue and failure journeys exercise those destinations in both languages.
+
+For simultaneous development, verification also accepts alternate loopback ports
+through `NEXT_PUBLIC_MEDUSA_BACKEND_URL`, `NEXT_PUBLIC_BASE_URL` and
+`PARTNER_BASE_URL`. The port checks and disposable servers use those addresses;
+set the matching CORS variables as usual. Existing development servers can stay
+running on their own ports.

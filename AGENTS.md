@@ -156,8 +156,8 @@ Run the suites from `apps/backend` — it defines no plain `test` script, so the
 `packages/*`. `test:affected` runs the unit, module and HTTP specs that import
 something changed since `origin/main`, plus changed spec files; a change under
 `src/api/`, `src/links/` or `medusa-config` runs every HTTP spec. After
-`gh deliver`, the ready flow runs the full suites and every browser journey on
-GitHub, so the full local runs are unnecessary.
+`gh deliver`, the ready flow runs the full backend suites and affected browser journeys on
+GitHub (shared or unknown runtime changes retain full browser coverage), so the full local runs are unnecessary.
 
 Run `<pm> run verify:applications` locally when you change a Playwright spec or
 the verification harness, or to debug a failed ready run. Run it from the root

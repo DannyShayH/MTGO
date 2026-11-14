@@ -57,6 +57,15 @@ const dishIds = (
   )
 
 describe("published menu", () => {
+  it("keeps a fully linked but uncommitted creation out of both the menu and readiness", () => {
+    const menu = publishedMenuOf(
+      [category("pizza", 0)],
+      [dish("existing"), dish("pending", {}, { publication_committed: false })],
+    )
+    expect(menu[0].dishes.map(({ id }) => id)).toEqual(["existing"])
+    expect(countPublishedDishes(menu)).toBe(1)
+  })
+
   it("presents a valid bilingual dish with its identities, revision, availability and inclusive DKK price", () => {
     const menu = publishedMenuOf(
       [category("pizza", 0, { revision: 3 })],

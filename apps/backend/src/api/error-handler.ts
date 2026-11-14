@@ -50,6 +50,22 @@ function categoryRefusalBody(
   return undefined
 }
 
+function dishRefusalBody(
+  error: { code?: string; message: string },
+  url: string,
+  statusCode: number,
+  body: { type?: string },
+) {
+  if (
+    (statusCode >= 500 && error.code !== "dish_publication_uncertain") ||
+    !/^\/partner\/restaurants\/[^/]+\/dishes\/?$/.test(url.split("?")[0])
+  )
+    return undefined
+  const code =
+    statusCode === 400 ? "dish_input_invalid" : error.code || error.message
+  return { type: body.type, code, message: code }
+}
+
 /**
  * Preserve Medusa responses and additional refusal fields. The correlated
  * sign-in path handles failures safely and logs once when the response ends.
@@ -82,18 +98,16 @@ export function mtogoErrorHandler(): MedusaErrorHandlerFunction {
       error.code = error.message
     }
     const fields = responseFieldsOf(error)
-    const { statusCode, body } = getHttpResponseFromError(error)
+    const { statusCode: originalStatus, body } = getHttpResponseFromError(error)
+    const statusCode =
+      error.code === "dish_publication_uncertain" ? 503 : originalStatus
     const stableErrorCode = stableErrorCodes.has(error.message)
       ? error.message
       : undefined
     if (stableErrorCode) body.code = stableErrorCode
-    const categoryBody = categoryRefusalBody(
-      error.code,
-      req.originalUrl,
-      statusCode,
-      body,
-      fields,
-    )
+    const categoryBody =
+      dishRefusalBody(error, req.originalUrl, statusCode, body) ??
+      categoryRefusalBody(error.code, req.originalUrl, statusCode, body, fields)
     if (categoryBody) {
       res.status(statusCode).json(categoryBody)
       return

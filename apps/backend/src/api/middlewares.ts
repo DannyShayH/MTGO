@@ -1,3 +1,5 @@
+import { z } from "@medusajs/framework/zod"
+import { dishCreateSchema } from "../workflows/menu-dishes/validation"
 import {
   authenticate,
   validateAndTransformBody,
@@ -250,6 +252,15 @@ export default defineMiddlewares({
       matcher: "/partner/restaurants/:id/categories/:category_id",
       method: "DELETE",
       middlewares: [validateAndTransformBody(DeletePartnerCategorySchema)],
+    },
+    {
+      matcher: "/partner/restaurants/:id/dishes",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(
+          dishCreateSchema.omit({ price: true }).extend({ price: z.string() }),
+        ),
+      ],
     },
     // Public: the invite link's token is the credential, as in Medusa's
     // admin invite. A bearer token, when sent, is read but not required.

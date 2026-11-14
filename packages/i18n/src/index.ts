@@ -31,3 +31,4 @@ export {
   type CategorySuggestion,
 } from "./categories.ts"
 export { CUSTOMER_MENU_TEXT, formatDkk } from "./customer-menu.ts"
+export { DISH_TEXT, isDishErrorCode, type DishErrorCode } from "./dishes.ts"

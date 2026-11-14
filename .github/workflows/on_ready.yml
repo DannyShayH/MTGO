@@ -107,6 +107,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Set up and verify runner environment
         uses: ./.github/actions/prep-runner

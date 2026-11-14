@@ -55,7 +55,21 @@ test.describe("with a Danish browser", () => {
       page.getByRole("heading", { name: "Pizzeria Nørrebro" }),
     ).toBeVisible()
     const navigation = page.getByRole("navigation", { name: "Hovedmenu" })
-    await expect(navigation.getByRole("link")).toHaveText(["Overblik", "Menu"])
+    await expect(navigation.getByRole("link")).toHaveText([
+      "Overblik",
+      "Menu",
+      "Kategorier",
+      "Allergener",
+    ])
+    for (const [name, href] of [
+      ["Overblik", "/overview"],
+      ["Menu", "/menu"],
+      ["Kategorier", "/categories"],
+      ["Allergener", "/allergens"],
+    ])
+      await expect(
+        navigation.getByRole("link", { name, exact: true }),
+      ).toHaveAttribute("href", href)
 
     const token = (await context.cookies()).find(
       (cookie) => cookie.name === "mtogo_partner_token",
@@ -76,6 +90,25 @@ test.describe("with a Danish browser", () => {
       page.getByRole("heading", { level: 1, name: "Overview" }),
     ).toBeVisible()
     await expect(page.locator("html")).toHaveAttribute("lang", "en")
+    const englishNavigation = page.getByRole("navigation", {
+      name: "Main menu",
+    })
+    await expect(englishNavigation.getByRole("link")).toHaveText([
+      "Overview",
+      "Menu",
+      "Categories",
+      "Allergens",
+    ])
+    for (const [name, href] of [
+      ["Overview", "/overview"],
+      ["Menu", "/menu"],
+      ["Categories", "/categories"],
+      ["Allergens", "/allergens"],
+    ])
+      await expect(
+        englishNavigation.getByRole("link", { name, exact: true }),
+      ).toHaveAttribute("href", href)
+
     await testInfo.attach("partner-overview", {
       body: await page.screenshot({ fullPage: true }),
       contentType: "image/png",

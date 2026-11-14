@@ -21,7 +21,10 @@ export function InvitationForm({
 }) {
   const [state, action, pending] = useActionState(acceptInvitation, {})
   return (
-    <form action={action} className="flex flex-col gap-y-4">
+    <form
+      action={action}
+      className="flex flex-col gap-y-4 [&_button]:min-h-11 [&_input]:min-h-11 [&_input]:text-base"
+    >
       {state.error && (
         <Alert variant="error" role="alert">
           {formatText(codes[state.error], { min: MIN_PASSWORD_LENGTH })}

@@ -54,13 +54,16 @@ export SEED_STAFF_PASSWORD="ci-only-partner-password"
 # Invite links copied in Admin point to the partner app started below.
 export PARTNER_BASE_URL="${PARTNER_BASE_URL:-http://localhost:8100}"
 export PARTNER_PUBLIC_URL="$PARTNER_BASE_URL"
+backend_port=$(node -p 'new URL(process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL).port || "80"')
+storefront_port=$(node -p 'new URL(process.env.NEXT_PUBLIC_BASE_URL).port || "80"')
+partner_port=$(node -p 'new URL(process.env.PARTNER_BASE_URL).port || "80"')
 if [[ "${1:-}" = "--browser" ]]; then
   export E2E_DISPOSABLE=1
   export TEST_MAILBOX_FAIL_RECIPIENT="delivery-failure@example.test"
   export TEST_MAILBOX_KEY="ci-only-mailbox-key"
 fi
 
-npm run build -- --filter=@dtc/backend --force
+npm run build -- --concurrency=1 --filter=@dtc/backend --force
 (
   cd apps/backend
   npm exec --no -- medusa db:migrate
@@ -74,7 +77,7 @@ export NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY
 
 (
   cd apps/backend/.medusa/server
-  exec setsid npm run start
+  exec setsid npm run start -- --port "$backend_port"
 ) > "$build_tmp/backend.log" 2>&1 &
 backend_pid=$!
 
@@ -86,11 +89,11 @@ curl --fail --silent --show-error --max-time 10 \
   -H "x-publishable-api-key: $NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY" \
   "$NEXT_PUBLIC_MEDUSA_BACKEND_URL/store/regions" > /dev/null
 
-npm run build -- --filter=@dtc/storefront --force
+npm run build -- --concurrency=1 --filter=@dtc/storefront --force
 
 # The partner app calls the backend only from its server side.
 export MEDUSA_BACKEND_URL="$NEXT_PUBLIC_MEDUSA_BACKEND_URL"
-npm run build -- --filter=@dtc/partner --force
+npm run build -- --concurrency=1 --filter=@dtc/partner --force
 
 if [[ "${1:-}" = "--browser" ]]; then
   E2E_ADMIN_EMAIL="smoke-$(node -p 'require("node:crypto").randomUUID()')@example.test"
@@ -102,7 +105,7 @@ if [[ "${1:-}" = "--browser" ]]; then
   )
   (
     cd apps/storefront
-    exec setsid npm run start
+    exec setsid npm exec --no -- next start --port "$storefront_port"
   ) > "$build_tmp/storefront.log" 2>&1 &
   storefront_pid=$!
   curl --fail --silent --show-error --retry 60 --retry-connrefused \
@@ -110,11 +113,11 @@ if [[ "${1:-}" = "--browser" ]]; then
     "$NEXT_PUBLIC_BASE_URL/dk/store" > /dev/null
   (
     cd apps/storefront
-    npm run test:e2e
+    node ../../scripts/run-browser-tests.mjs storefront
   )
   (
     cd apps/partner
-    exec setsid npm run start
+    exec setsid npm exec --no -- next start --port "$partner_port"
   ) > "$build_tmp/partner.log" 2>&1 &
   partner_pid=$!
   curl --fail --silent --show-error --retry 60 --retry-connrefused \
@@ -122,7 +125,9 @@ if [[ "${1:-}" = "--browser" ]]; then
     "$PARTNER_BASE_URL/sign-in" > /dev/null
   (
     cd apps/partner
-    npm run test:e2e
+    node ../../scripts/run-browser-tests.mjs partner
   )
+  if node -e 'process.exit(JSON.parse(process.env.BROWSER_TEST_SELECTION || "{\"admin\":true}").admin ? 0 : 1)'; then
   timeout --signal=TERM --kill-after=5s 30s node scripts/verify-admin-development.mjs
+  fi
 fi

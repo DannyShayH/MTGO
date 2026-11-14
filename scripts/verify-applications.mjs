@@ -6,6 +6,11 @@ import { fileURLToPath } from "node:url"
 
 // Framework CLIs load .env implicitly. Verify in a source snapshot that has none.
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..")
+execFileSync(
+  process.execPath,
+  [join(root, "scripts/select-browser-tests.test.mjs")],
+  { cwd: root, stdio: "inherit" },
+)
 const database = new URL(
   process.env.DATABASE_URL || "postgres://invalid/invalid",
 )
@@ -26,7 +31,12 @@ for (const name of ["NEXT_PUBLIC_MEDUSA_BACKEND_URL", "NEXT_PUBLIC_BASE_URL"]) {
 }
 
 // Refuse existing application servers rather than testing another local store.
-for (const port of [9000, 8000, 8100]) {
+for (const address of [
+  process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL,
+  process.env.NEXT_PUBLIC_BASE_URL,
+  process.env.PARTNER_BASE_URL || "http://localhost:8100",
+]) {
+  const port = Number(new URL(address).port || 80)
   await new Promise((done, fail) => {
     const server = createServer()
     server.once("error", () =>
@@ -114,12 +124,22 @@ try {
       .filter((name) => process.env[name] !== undefined)
       .map((name) => [name, process.env[name]]),
   )
+  const selection = execFileSync(
+    process.execPath,
+    [join(root, "scripts/select-browser-tests.mjs")],
+    { cwd: root, encoding: "utf8" },
+  ).trim()
+  console.log(`Affected browser selection: ${selection}`)
   const child = spawn(
     "bash",
     ["scripts/verify-application-builds.sh", "--browser"],
     {
       cwd: snapshot,
-      env: { ...environment, APPLICATION_VERIFICATION_ISOLATED: "1" },
+      env: {
+        ...environment,
+        APPLICATION_VERIFICATION_ISOLATED: "1",
+        BROWSER_TEST_SELECTION: selection,
+      },
       stdio: "inherit",
     },
   )

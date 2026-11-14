@@ -164,6 +164,44 @@ medusaIntegrationTestRunner({
       )
     })
 
+    it("counts a real staff-published dish for activation and returns it on the next Customer fetch", async () => {
+      const headers = { authorization: staffToken }
+      expect((await activate()).status).toBe(400)
+      const category = await api.post(
+        `/partner/restaurants/${restaurantId}/categories`,
+        {
+          request_id: "real-category",
+          revision: 0,
+          name: { da: "Mad", en: "Food" },
+        },
+        { headers },
+      )
+      const published = await api.post(
+        `/partner/restaurants/${restaurantId}/dishes`,
+        {
+          request_id: "real-dish",
+          category_id: category.data.category.id,
+          name: { da: "Dagens ret", en: "Dish of the day" },
+          price: "95.50",
+        },
+        { headers },
+      )
+      expect(published.status).toBe(200)
+      expect((await adminView()).menu.published_dish_count).toBe(1)
+      expect((await readMenu()).status).toBe(404)
+      expect((await activate()).status).toBe(200)
+      const customer = await readMenu()
+      expect(customer.data.restaurant.is_open).toBe(false)
+      expect(customer.data.categories[0].dishes).toEqual([
+        expect.objectContaining({
+          name: { da: "Dagens ret", en: "Dish of the day" },
+          price: { amount: 95.5, currency_code: "dkk", includes_tax: true },
+          food_information: UNKNOWN_FOOD_INFORMATION,
+          photo: null,
+        }),
+      ])
+    })
+
     it("shows an active, open Restaurant's bilingual menu in order, without empty categories or invalid products", async () => {
       await seedMenu("showcase")
       expect((await activate()).status).toBe(200)

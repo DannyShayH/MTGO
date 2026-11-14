@@ -29,6 +29,12 @@ test.beforeAll(async () => {
       return
     }
     response.setHeader("content-type", "application/json")
+    if (request.url === failurePath && failureStatus !== 200) {
+      response.writeHead(failureStatus)
+      response.end(JSON.stringify({ message: "backend failure" }))
+      return
+    }
+
     if (catalogueMode && request.url === "/partner/me") {
       response.end(
         JSON.stringify({
@@ -63,6 +69,16 @@ test.beforeAll(async () => {
           },
         }),
       )
+      return
+    }
+    if (
+      catalogueMode &&
+      [
+        "/partner/restaurants/test/categories",
+        "/partner/restaurants/test/dishes",
+      ].includes(request.url || "")
+    ) {
+      response.end(JSON.stringify({ categories: [] }))
       return
     }
     if (
@@ -257,7 +273,7 @@ for (const { locale, title, retry } of [
         await context.addCookies([
           { name: "mtogo_partner_token", value: "staff-token", url: origin },
         ])
-        await page.goto(`${origin}/menu`)
+        await page.goto(`${origin}/allergens`)
         await expect(page.getByRole("heading", { name: title })).toBeVisible()
         await expect(page.locator("main summary")).toHaveCount(0)
         const link = page.getByRole("link", { name: retry, exact: true })
@@ -269,6 +285,82 @@ for (const { locale, title, retry } of [
     }
   })
 }
+
+test("dish creation explains category-load failures and offers a keyboard retry", async ({
+  page,
+  context,
+}) => {
+  catalogueMode = true
+  failurePath = "/partner/restaurants/test/categories"
+  failureStatus = 503
+  await context.addCookies([
+    { name: "mtogo_partner_token", value: "staff-token", url: origin },
+    { name: "mtogo_partner_locale", value: "en", url: origin },
+  ])
+  await page.goto(`${origin}/menu/new`)
+  await expect(page.locator("main").getByRole("alert")).toContainText(
+    "Categories could not be loaded",
+  )
+  await expect(page.getByLabel("Dish name in Danish")).toHaveCount(0)
+  const retry = page.getByRole("link", { name: "Check and retry", exact: true })
+  await retry.focus()
+  await page.keyboard.press("Enter")
+  await expect(page.locator("main").getByRole("alert")).toContainText(
+    "Categories could not be loaded",
+  )
+})
+
+test("partner navigation keeps tasks separate and the creation form visible", async ({
+  page,
+  context,
+}, testInfo) => {
+  catalogueMode = true
+  failurePath = "/partner/food-catalogue"
+  failureStatus = 200
+  await context.addCookies([
+    { name: "mtogo_partner_token", value: "staff-token", url: origin },
+    { name: "mtogo_partner_locale", value: "en", url: origin },
+  ])
+  await page.goto(`${origin}/menu`)
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Menu", exact: true }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole("heading", { name: "Categories", exact: true }),
+  ).toHaveCount(0)
+  for (const label of ["Overview", "Menu", "Categories", "Allergens"]) {
+    await expect(
+      page.getByRole("link", { name: label, exact: true }).locator("svg"),
+    ).toHaveCount(1)
+  }
+  await page.getByRole("link", { name: "Create dish", exact: true }).click()
+  await expect(
+    page.getByRole("link", { name: "Menu", exact: true }),
+  ).toHaveAttribute("aria-current", "page")
+  await expect(page.getByLabel("Dish name in Danish")).toBeFocused()
+  await page.getByLabel("Dish name in Danish").fill("Dagens ret")
+  page.once("dialog", (dialog) => dialog.dismiss())
+  await page.getByRole("link", { name: "Categories", exact: true }).click()
+  await expect(page).toHaveURL(/\/menu\/new$/)
+  await expect(page.getByLabel("Dish name in Danish")).toHaveValue("Dagens ret")
+  for (const width of [2560, 320]) {
+    await page.setViewportSize({ width, height: 1000 })
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true)
+    if (width === 2560) {
+      const bounds = await page.locator("main > div").boundingBox()
+      expect(bounds!.width).toBeLessThanOrEqual(1440)
+      expect(bounds!.y).toBeGreaterThanOrEqual(64)
+    }
+    await testInfo.attach(`partner-creation-${width}`, {
+      body: await page.screenshot({ fullPage: true }),
+      contentType: "image/png",
+    })
+  }
+})
 
 test.describe("safe sign-in logging", () => {
   test.use({ locale: "en-GB" })

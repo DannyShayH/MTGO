@@ -9,11 +9,11 @@ test("staff manage bilingual categories, preserve invalid and stale input and co
   expect(process.env.E2E_DISPOSABLE).toBe("1")
   const errors: string[] = []
   page.on("pageerror", (error) => errors.push(error.message))
-  await page.goto("/menu")
+  await page.goto("/categories")
   await page.getByLabel("E-mail").fill(process.env.SEED_STAFF_EMAIL!)
   await page.getByLabel("Adgangskode").fill(process.env.SEED_STAFF_PASSWORD!)
   await page.getByRole("button", { name: "Log ind", exact: true }).click()
-  await page.getByRole("link", { name: "Menu", exact: true }).click()
+  await page.getByRole("link", { name: "Kategorier", exact: true }).click()
   await expect(
     page.getByRole("heading", { name: "Kategorier", exact: true }),
   ).toBeVisible()
@@ -34,12 +34,12 @@ test("staff manage bilingual categories, preserve invalid and stale input and co
   ).toBeVisible()
   await page.getByRole("link", { name: "Overview", exact: true }).click()
   await expect(page).toHaveURL(/\/overview$/)
-  await page.getByRole("link", { name: "Menu", exact: true }).click()
-  await expect(page).toHaveURL(/\/menu$/)
+  await page.getByRole("link", { name: "Categories", exact: true }).click()
+  await expect(page).toHaveURL(/\/categories$/)
   await page.getByRole("link", { name: "Overview", exact: true }).click()
   await expect(page).toHaveURL(/\/overview$/)
   await page.goBack()
-  await expect(page).toHaveURL(/\/menu$/)
+  await expect(page).toHaveURL(/\/categories$/)
   await page
     .getByRole("button", { name: "Rename: Drinks", exact: true })
     .click()
@@ -62,7 +62,7 @@ test("staff manage bilingual categories, preserve invalid and stale input and co
 
   page.once("dialog", (dialog) => dialog.dismiss())
   await page.getByRole("link", { name: "Overview", exact: true }).click()
-  await expect(page).toHaveURL(/\/menu$/)
+  await expect(page).toHaveURL(/\/categories$/)
   await expect(page.getByLabel("Danish name")).toHaveValue("Pizza & pasta")
   page.once("dialog", (dialog) => dialog.dismiss())
   await page.getByRole("button", { name: "Dansk", exact: true }).click()
@@ -73,23 +73,23 @@ test("staff manage bilingual categories, preserve invalid and stale input and co
   page.once("dialog", (dialog) => dialog.dismiss())
   await page.evaluate(() => window.history.back())
   await backDialog
-  await expect(page).toHaveURL(/\/menu$/)
+  await expect(page).toHaveURL(/\/categories$/)
   await expect(page.getByLabel("Danish name")).toHaveValue("Pizza & pasta")
   const forwardDialog = page.waitForEvent("dialog")
   page.once("dialog", (dialog) => dialog.dismiss())
   await page.evaluate(() => window.history.forward())
   await forwardDialog
-  await expect(page).toHaveURL(/\/menu$/)
+  await expect(page).toHaveURL(/\/categories$/)
   await expect(page.getByLabel("Danish name")).toHaveValue("Pizza & pasta")
   const jumpDialog = page.waitForEvent("dialog")
   page.once("dialog", (dialog) => dialog.dismiss())
   await page.evaluate(() => window.history.go(-2))
   await jumpDialog
-  await expect(page).toHaveURL(/\/menu$/)
+  await expect(page).toHaveURL(/\/categories$/)
   await expect(page.getByLabel("Danish name")).toHaveValue("Pizza & pasta")
 
   const other = await context.newPage()
-  await other.goto("/menu")
+  await other.goto("/categories")
   await other
     .getByRole("button", { name: "Rename: Drinks", exact: true })
     .click()
@@ -165,7 +165,7 @@ test("staff manage bilingual categories, preserve invalid and stale input and co
   await page.getByLabel("Danish name").fill("Desserter")
   await page.getByLabel("English name").fill("Desserts")
   let lost = false
-  await page.route("**/menu", async (route) => {
+  await page.route("**/categories", async (route) => {
     if (
       !lost &&
       route.request().method() === "POST" &&
@@ -182,7 +182,7 @@ test("staff manage bilingual categories, preserve invalid and stale input and co
   )
   expect(lost).toBe(true)
   await expect(page.getByLabel("Danish name")).toHaveValue("Desserter")
-  await page.unroute("**/menu")
+  await page.unroute("**/categories")
   await page.getByLabel("English name").fill("Sweets")
   await page.getByRole("button", { name: "Save category", exact: true }).click()
   await expect(page.locator("main").getByRole("alert")).toContainText(

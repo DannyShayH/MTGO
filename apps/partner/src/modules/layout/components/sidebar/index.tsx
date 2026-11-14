@@ -4,7 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import type { Locale, Messages } from "@dtc/i18n"
 import { Button, Text, clx } from "@medusajs/ui"
-import { House, ListBullet } from "@medusajs/icons"
+import { House, ListBullet, Tag, InformationCircle } from "@medusajs/icons"
 import { signOut } from "@lib/data/session"
 import { BrandMark } from "../brand-mark"
 import { LanguageSwitch } from "../language-switch"
@@ -13,6 +13,8 @@ import { LanguageSwitch } from "../language-switch"
 const NAVIGATION = [
   { href: "/overview", label: "overview", Icon: House },
   { href: "/menu", label: "menu", Icon: ListBullet },
+  { href: "/categories", label: "categories", Icon: Tag },
+  { href: "/allergens", label: "allergens", Icon: InformationCircle },
 ] as const
 
 export function Sidebar({
@@ -28,7 +30,7 @@ export function Sidebar({
 }) {
   const pathname = usePathname()
   return (
-    <aside className="bg-ui-bg-base border-ui-border-base flex w-full flex-col border-b md:h-screen md:w-60 md:border-b-0 md:border-r">
+    <aside className="bg-ui-bg-base border-ui-border-base flex w-full flex-col border-b md:sticky md:top-0 md:h-screen md:w-60 md:shrink-0 md:border-b-0 md:border-r">
       <div className="border-ui-border-base flex flex-col gap-y-1 border-b px-4 py-4">
         <BrandMark name={text.app_name} />
         <Text size="small" className="text-ui-fg-subtle truncate">
@@ -38,14 +40,14 @@ export function Sidebar({
       <nav aria-label={text.navigation} className="flex-1 px-2 py-3">
         <ul className="flex flex-col gap-y-0.5">
           {NAVIGATION.map(({ href, label, Icon }) => {
-            const current = pathname === href
+            const current = pathname === href || pathname.startsWith(`${href}/`)
             return (
               <li key={href}>
                 <Link
                   href={href}
                   aria-current={current ? "page" : undefined}
                   className={clx(
-                    "txt-compact-small-plus focus-visible:ring-mtogo-focus-ring flex min-h-11 items-center gap-x-2 rounded-md px-2 py-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 [@media(pointer:fine)]:min-h-8",
+                    "txt-compact-small-plus focus-visible:ring-mtogo-focus-ring flex min-h-11 items-center gap-x-2 rounded-md px-2 py-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
                     current
                       ? "bg-ui-bg-base-pressed text-ui-fg-base"
                       : "text-ui-fg-subtle hover:bg-ui-bg-base-hover",
@@ -75,7 +77,7 @@ export function Sidebar({
               type="submit"
               variant="secondary"
               size="small"
-              className="min-h-11 [@media(pointer:fine)]:min-h-0"
+              className="min-h-11"
             >
               {text.sign_out}
             </Button>

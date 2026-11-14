@@ -148,6 +148,20 @@ export const MenuDish = model.define("menu_dish", {
   is_sold_out: model.boolean().default(false),
   position: model.number().default(0),
   revision: model.number().default(1),
+  publication_committed: model.boolean().default(true),
+  successful_change: model.json().nullable(),
 })
+
+/** Durable creation intent survives compensation and process interruption. */
+export const MenuDishCreation = model
+  .define("menu_dish_creation", {
+    id: model.id({ prefix: "mdcr" }).primaryKey(),
+    restaurant_id: model.text(),
+    request_id: model.text(),
+    input: model.json(),
+    actor_id: model.text(),
+    actor_name: model.text(),
+  })
+  .indexes([{ on: ["restaurant_id", "request_id"], unique: true }])
 
 export default Restaurant

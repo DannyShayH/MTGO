@@ -2,6 +2,7 @@
 
 import {
   createContext,
+  useId,
   useCallback,
   useContext,
   useEffect,
@@ -10,14 +11,17 @@ import {
 } from "react"
 
 type Guard = { dirty: boolean; message: string }
-const GuardContext = createContext<((value?: Guard) => void) | null>(null)
+const GuardContext = createContext<
+  ((id: string, value?: Guard) => void) | null
+>(null)
 const POSITION = "mtogoNavigationPosition"
 
 /** Lives across app routes so every same-document history entry gets a position. */
 export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
-  const guard = useRef<Guard | undefined>(undefined)
-  const updateGuard = useCallback((value?: Guard) => {
-    guard.current = value
+  const guards = useRef(new Map<string, Guard>())
+  const updateGuard = useCallback((id: string, value?: Guard) => {
+    if (value) guards.current.set(id, value)
+    else guards.current.delete(id)
   }, [])
   useEffect(() => {
     const originalPush = window.history.pushState
@@ -50,10 +54,14 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
         url,
       )
     }
-    const mayLeave = () =>
-      !guard.current?.dirty || window.confirm(guard.current.message)
+    const activeGuard = () =>
+      [...guards.current.values()].find(({ dirty }) => dirty)
+    const mayLeave = () => {
+      const guard = activeGuard()
+      return !guard || window.confirm(guard.message)
+    }
     const unload = (event: BeforeUnloadEvent) => {
-      if (guard.current?.dirty) {
+      if (activeGuard()) {
         event.preventDefault()
         event.returnValue = ""
       }
@@ -70,6 +78,7 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
       if (
         event.target instanceof HTMLFormElement &&
         !event.target.hasAttribute("data-category-editor") &&
+        !event.target.hasAttribute("data-dish-editor") &&
         !mayLeave()
       ) {
         event.preventDefault()
@@ -113,8 +122,9 @@ export function UnsavedChangesProvider({ children }: { children: ReactNode }) {
 
 export function useUnsavedChanges(dirty: boolean, message: string) {
   const updateGuard = useContext(GuardContext)
+  const id = useId()
   useEffect(() => {
-    updateGuard?.({ dirty, message })
-    return () => updateGuard?.()
-  }, [dirty, message, updateGuard])
+    updateGuard?.(id, { dirty, message })
+    return () => updateGuard?.(id)
+  }, [dirty, message, updateGuard, id])
 }
