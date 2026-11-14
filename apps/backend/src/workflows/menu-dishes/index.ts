@@ -10,6 +10,7 @@ import {
   createProductsWorkflow,
   deleteProductsWorkflow,
   createRemoteLinkStep,
+  updateProductsWorkflow,
 } from "@medusajs/medusa/core-flows"
 import { RESTAURANT_MODULE } from "../../modules/restaurant"
 import { restaurantLock } from "../restaurants/restaurant-lock"
@@ -23,6 +24,11 @@ import {
   commitDishPublicationStep,
   readStaffMenuStep,
 } from "./steps/publication"
+import {
+  EditDishCommand,
+  prepareDishEditStep,
+  commitDishEditStep,
+} from "./steps/edit"
 
 export const createMenuDishWorkflow = createWorkflow(
   "create-menu-dish",
@@ -178,5 +184,63 @@ export const listMenuDishesWorkflow = createWorkflow(
     return new WorkflowResponse(
       readStaffMenuStep({ restaurant_id: input.restaurant_id }),
     )
+  },
+)
+
+export const editMenuDishWorkflow = createWorkflow(
+  "edit-menu-dish",
+  function (input: Omit<EditDishCommand, "actor_name">) {
+    const lock = transform({ input }, ({ input }) =>
+      restaurantLock(input.restaurant_id),
+    )
+    acquireLockStep(lock)
+    const current = retrieveAuthorizedStaffStep({ staff_id: input.staff_id })
+    const scope = transform({ input, current }, ({ input, current }) => ({
+      id: input.restaurant_id,
+      staff_restaurant_id: current.restaurant.id,
+    }))
+    assertOwnRestaurantStep(scope)
+    const command = transform({ input, current }, ({ input, current }) => ({
+      ...input,
+      actor_name: current.staff.name,
+    }))
+    const prepared = prepareDishEditStep(command)
+    when(
+      "dish-edit-needs-commerce-update",
+      prepared,
+      ({ saved }) => !saved,
+    ).then(() => {
+      const update = transform({ prepared }, ({ prepared }) => {
+        if (prepared.saved) return { products: [] }
+        return {
+          products: [
+            {
+              id: prepared.product_id,
+              title: prepared.data.name.en,
+              variants: [
+                {
+                  id: prepared.variant_id,
+                  prices: [
+                    { amount: prepared.data.price, currency_code: "dkk" },
+                  ],
+                },
+              ],
+            },
+          ],
+        }
+      })
+      updateProductsWorkflow.runAsStep({ input: update })
+    })
+    const commit = transform(
+      { prepared, input, current, lock },
+      ({ prepared, input, current, lock }) => ({
+        prepared,
+        actor_id: input.staff_id,
+        actor_name: current.staff.name,
+        request_id: input.request_id,
+        lock_key: lock.key,
+      }),
+    )
+    return new WorkflowResponse(commitDishEditStep(commit))
   },
 )

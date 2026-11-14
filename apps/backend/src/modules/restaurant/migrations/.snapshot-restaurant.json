@@ -148,6 +148,22 @@
           "enumItems": [],
           "mappedType": "boolean"
         },
+        "published_price": {
+          "name": "published_price",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "text"
+        },
         "successful_change": {
           "name": "successful_change",
           "type": "jsonb",

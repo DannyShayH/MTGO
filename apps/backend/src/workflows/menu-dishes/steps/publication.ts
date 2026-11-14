@@ -156,6 +156,11 @@ export const commitDishPublicationStep = createStep(
         await service.updateMenuDishes({
           id: input.content_id,
           publication_committed: true,
+          published_price: String(
+            input.categories
+              .flatMap(({ dishes }) => dishes)
+              .find(({ id }) => id === input.product_id)?.price.amount,
+          ),
           successful_change: {
             kind: "create",
             actor_id: input.actor_id,

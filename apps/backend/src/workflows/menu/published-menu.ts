@@ -28,6 +28,7 @@ type DishContent = {
   is_sold_out: boolean
   position: number
   revision: number
+  published_price?: string | null
 }
 
 type VariantRecord = {
@@ -107,7 +108,7 @@ function publishedDishOf(product: MenuProductRecord): PublishedDish | null {
   const [variant] = variants
   const price = variant?.calculated_price
   if (variants.length !== 1 || !variant || !price) return null
-  const amount = Number(price.calculated_amount)
+  const amount = Number(content.published_price ?? price.calculated_amount)
   if (
     price.calculated_amount === null ||
     price.currency_code !== MENU_CURRENCY ||

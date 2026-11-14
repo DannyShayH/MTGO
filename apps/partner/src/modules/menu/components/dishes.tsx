@@ -176,6 +176,12 @@ export function Dishes({
                   <Text className="font-semibold">
                     {formatDkk(dish.price.amount, locale)}
                   </Text>
+                  <Link
+                    href={`/menu/${encodeURIComponent(dish.id)}`}
+                    className="inline-flex min-h-11 items-center text-mtogo-text-link underline"
+                  >
+                    {text.edit_action}
+                  </Link>
                 </li>
               )),
             )}

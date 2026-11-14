@@ -93,6 +93,7 @@ export const createSyntheticDishContentStep = createStep(
             is_sold_out: dish.is_sold_out ?? false,
             position,
             revision: 1,
+            published_price: String(dish.price),
           })),
         ),
       )

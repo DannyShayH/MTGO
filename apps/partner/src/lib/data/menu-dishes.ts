@@ -15,9 +15,18 @@ export type CreateDish = {
   name: { da: string; en: string }
   price: string
 }
+export type EditDish = {
+  request_id: string
+  revision: number
+  name: { da: string; en: string }
+  description: { da: string; en: string } | null
+  price: string
+}
 export type StaffDish = {
   id: string
+  revision: number
   name: { da: string; en: string }
+  description: { da: string; en: string } | null
   price: { amount: number; currency_code: "dkk" }
 }
 export type StaffMenu = {
@@ -28,8 +37,9 @@ export type StaffMenu = {
   }[]
 }
 export async function dishRequest(
-  body?: CreateDish,
-): Promise<{ menu?: StaffMenu; error?: DishErrorCode }> {
+  body?: CreateDish | EditDish,
+  dishId?: string,
+): Promise<{ menu?: StaffMenu; error?: DishErrorCode; dish?: StaffDish }> {
   const current = await requireCurrentStaff()
   const token = (await cookies()).get(PARTNER_TOKEN_COOKIE)?.value
   const id = requestId((await headers()).get("x-request-id"))
@@ -39,7 +49,7 @@ export async function dishRequest(
     // As with categories, the server transport preserves the SDK's discarded error codes.
     response = await fetch(
       new URL(
-        `/partner/restaurants/${encodeURIComponent(current.restaurant.id)}/dishes`,
+        `/partner/restaurants/${encodeURIComponent(current.restaurant.id)}/dishes${dishId ? `/${encodeURIComponent(dishId)}` : ""}`,
         BACKEND_URL,
       ),
       {
@@ -77,7 +87,11 @@ export async function dishRequest(
       refusal && typeof refusal === "object" && "code" in refusal
         ? refusal.code
         : undefined
-    return { error: isDishErrorCode(code) ? code : "unknown_error" }
+    const dish =
+      refusal && typeof refusal === "object" && "dish" in refusal
+        ? (refusal.dish as StaffDish)
+        : undefined
+    return { error: isDishErrorCode(code) ? code : "unknown_error", dish }
   }
   const menu: StaffMenu | undefined = await response
     .json()

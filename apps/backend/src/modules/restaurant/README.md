@@ -620,3 +620,32 @@ Evidence: `menu-dishes.spec.ts` exercises HTTP validation, authorization,
 publication, retries and interrupted creation; `restaurant-menu.spec.ts`
 checks the real publication-to-readiness/Customer boundary. The partner browser
 journey publishes a real dish and checks both languages in the Customer app.
+
+### Editing a published dish (#107)
+
+Authorized Restaurant staff edit both names, an optional complete bilingual
+description, and the inclusive DKK price through
+`POST /partner/restaurants/:id/dishes/:dish_id`. The body carries the displayed
+`revision`, a stable `request_id`, both names, a nullable bilingual description
+and a display-unit price string. Empty descriptions are represented by `null`;
+both languages are otherwise required, plain text and at most 2,000 characters.
+
+The Restaurant lock serializes edits. A stale revision returns `409 dish_stale`
+and leaves the newer version intact. A retry with the same request identity and
+normalized payload returns the committed version without another change;
+changing that payload returns `409 dish_retry_conflict`. Ownership, authorization
+and revocation are checked on every request, including reads.
+
+The dish row stores a published price snapshot. Before the product update the
+workflow pins the old price, so a Customer menu read keeps the old complete
+version while Medusa's product workflow changes the native variant price.
+The final dish-row update commits both languages, description, published price,
+revision and actor/time/resource history together. On a failed acknowledgement,
+the workflow reads the durable row: a committed revision is kept, while an
+uncommitted revision restores the previous native price through the product
+core-flow. A late failed write leaves the prior published menu, native price
+and prior successful-change record visible. If reconciliation cannot be
+confirmed, the API returns `503 dish_publication_uncertain` for retry.
+The native price is updated before the published snapshot, so ordering can
+detect a price change and require the Customer to review the basket before
+payment. Existing Order snapshots are not edited.

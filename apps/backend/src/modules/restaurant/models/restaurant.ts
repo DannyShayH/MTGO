@@ -149,6 +149,7 @@ export const MenuDish = model.define("menu_dish", {
   position: model.number().default(0),
   revision: model.number().default(1),
   publication_committed: model.boolean().default(true),
+  published_price: model.text().nullable(),
   successful_change: model.json().nullable(),
 })
 

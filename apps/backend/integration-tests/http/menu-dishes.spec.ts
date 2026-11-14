@@ -2,6 +2,7 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import {
   ContainerRegistrationKeys,
   generateJwtToken,
+  QueryContext,
 } from "@medusajs/framework/utils"
 import { createProductsWorkflow } from "@medusajs/medusa/core-flows"
 import { RESTAURANT_MODULE } from "../../src/modules/restaurant"
@@ -45,6 +46,37 @@ medusaIntegrationTestRunner({
         config,
       )
     const menu = () => readPublishedMenu(getContainer(), restaurantId)
+    const nativePrice = async (dishId: string) => {
+      const { data } = await getContainer()
+        .resolve(ContainerRegistrationKeys.QUERY)
+        .graph({
+          entity: "product",
+          fields: ["variants.calculated_price.calculated_amount"],
+          filters: { id: dishId },
+          context: {
+            variants: {
+              calculated_price: QueryContext({ currency_code: "dkk" }),
+            },
+          },
+        })
+      const [product] = data as unknown as {
+        variants?: { calculated_price?: { calculated_amount?: number } }[]
+      }[]
+      return Number(product?.variants?.[0]?.calculated_price?.calculated_amount)
+    }
+    const edit = (dishId: string, change = {}, id = restaurantId) =>
+      api.post(
+        `/partner/restaurants/${id}/dishes/${dishId}`,
+        {
+          request_id: "first-edit",
+          revision: 1,
+          name: { da: "Ny ret", en: "New dish" },
+          description: { da: "Tomat", en: "Tomato" },
+          price: "105,50",
+          ...change,
+        },
+        config,
+      )
     beforeEach(async () => {
       restaurantId = (await restaurant("own")).id
       staffId = (
@@ -107,6 +139,111 @@ medusaIntegrationTestRunner({
       expect(second.status).toBe(200)
       expect(first.data).toEqual(second.data)
       expect(first.data.categories[0].dishes).toHaveLength(1)
+    })
+    it("publishes an edit together and refuses a colleague's stale version", async () => {
+      const created = await post()
+      const dishId = created.data.categories[0].dishes[0].id
+      const [anna, bo] = await Promise.all([
+        edit(dishId, { request_id: "anna", price: "95" }),
+        edit(dishId, { request_id: "bo", price: "105" }),
+      ])
+      expect([anna.status, bo.status].sort()).toEqual([200, 409])
+      expect((await menu())[0].dishes[0]).toMatchObject({
+        revision: 2,
+        description: { da: "Tomat", en: "Tomato" },
+      })
+      const winner = anna.status === 200 ? anna : bo
+      expect((await menu())[0].dishes[0].price.amount).toBe(
+        winner === anna ? 95 : 105,
+      )
+      const stale = await edit(dishId, { revision: 1 })
+      expect(stale.data.code).toBe("dish_stale")
+      expect(stale.data.dish).toMatchObject({ id: dishId, revision: 2 })
+      expect(
+        (
+          await edit(dishId, {
+            request_id: winner === anna ? "anna" : "bo",
+            price: winner === anna ? "95" : "105",
+          })
+        ).status,
+      ).toBe(200)
+    })
+    it("keeps the previous menu and change record if the visibility write fails", async () => {
+      const created = await post()
+      const before = await menu()
+      const dishId = before[0].dishes[0].id
+      const original = service().updateMenuDishes.bind(service())
+      const failed = jest
+        .spyOn(service(), "updateMenuDishes")
+        .mockImplementationOnce(original)
+        .mockRejectedValueOnce(new Error("injected late failure"))
+      const response = await edit(dishId)
+      expect(response.status).toBe(503)
+      failed.mockRestore()
+      expect(await menu()).toEqual(before)
+      expect(await nativePrice(dishId)).toBe(before[0].dishes[0].price.amount)
+      const content = (await service().listMenuDishes({}))[0]
+      expect(content.revision).toBe(1)
+      expect(content.successful_change).toMatchObject({ kind: "create" })
+      expect((await edit(dishId)).status).toBe(200)
+    })
+    it("reconciles a lost acknowledgement for a committed edit", async () => {
+      const dishId = (await post()).data.categories[0].dishes[0].id
+      const original = service().updateMenuDishes.bind(service())
+      const update = jest
+        .spyOn(service(), "updateMenuDishes")
+        .mockImplementationOnce(original)
+        .mockImplementationOnce(async (...args) => {
+          await original(...args)
+          throw new Error("acknowledgement lost")
+        })
+      const first = await edit(dishId)
+      expect(first.status).toBe(200)
+      update.mockRestore()
+      expect((await menu())[0].dishes[0]).toMatchObject({ revision: 2 })
+      expect((await edit(dishId)).status).toBe(200)
+      expect(await nativePrice(dishId)).toBe(105.5)
+    })
+    it("changes and removes an optional bilingual description without changing dish identity", async () => {
+      const dishId = (await post()).data.categories[0].dishes[0].id
+      expect((await edit(dishId)).status).toBe(200)
+      expect(
+        (
+          await edit(dishId, {
+            request_id: "second-edit",
+            revision: 2,
+            description: { da: "Ost", en: "Cheese" },
+          })
+        ).status,
+      ).toBe(200)
+      const removed = await edit(dishId, {
+        request_id: "third-edit",
+        revision: 3,
+        description: null,
+      })
+      expect(removed.status).toBe(200)
+      expect((await menu())[0].dishes[0]).toMatchObject({
+        id: dishId,
+        revision: 4,
+        description: null,
+      })
+    })
+    it("validates paired descriptions and protects ownership and revoked access", async () => {
+      const dishId = (await post()).data.categories[0].dishes[0].id
+      for (const description of [
+        { da: "Only Danish", en: "" },
+        { da: "a".repeat(2001), en: "English" },
+        { da: "<b>markup</b>", en: "English" },
+      ])
+        expect((await edit(dishId, { description })).status).toBe(400)
+      const other = await restaurant("foreign-edit")
+      expect((await edit(dishId, {}, other.id)).status).toBe(404)
+      await service().updateRestaurantStaffs({ id: staffId, status: "revoked" })
+      expect((await edit(dishId)).status).toBe(403)
+      expect(
+        (await api.get(`/partner/restaurants/${restaurantId}/dishes`, config))
+          .status,
+      ).toBe(403)
     })
 
     it("reconciles a lost database acknowledgement after the publication commit", async () => {

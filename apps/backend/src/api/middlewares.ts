@@ -1,5 +1,8 @@
 import { z } from "@medusajs/framework/zod"
-import { dishCreateSchema } from "../workflows/menu-dishes/validation"
+import {
+  dishCreateSchema,
+  dishEditSchema,
+} from "../workflows/menu-dishes/validation"
 import {
   authenticate,
   validateAndTransformBody,
@@ -272,6 +275,15 @@ export default defineMiddlewares({
       middlewares: [
         validateAndTransformBody(
           dishCreateSchema.omit({ price: true }).extend({ price: z.string() }),
+        ),
+      ],
+    },
+    {
+      matcher: "/partner/restaurants/:id/dishes/:dish_id",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(
+          dishEditSchema.omit({ price: true }).extend({ price: z.string() }),
         ),
       ],
     },

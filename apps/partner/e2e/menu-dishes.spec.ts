@@ -119,6 +119,9 @@ for (const locale of ["da", "en"] as const) {
         exact: true,
       })
       .click()
+    await expect(page.getByRole("status")).toContainText(
+      locale === "da" ? "Kategorien er gemt." : "Category saved.",
+    )
     await page.getByRole("link", { name: "Menu", exact: true }).click()
     await page
       .getByRole("link", {
@@ -222,6 +225,119 @@ for (const locale of ["da", "en"] as const) {
     await expect(customer.getByTestId("restaurant-menu")).toContainText(
       locale === "da" ? "Allergener: ukendt" : "Allergens: unknown",
     )
+    await page
+      .getByRole("link", { name: locale === "da" ? "Rediger" : "Edit" })
+      .click()
+    await page
+      .getByLabel(
+        locale === "da"
+          ? "Beskrivelse på dansk (valgfri)"
+          : "Description in Danish (optional)",
+      )
+      .fill("Tomat")
+    await page
+      .getByLabel(
+        locale === "da"
+          ? "Beskrivelse på engelsk (valgfri)"
+          : "Description in English (optional)",
+      )
+      .fill("Tomato")
+    await page
+      .getByLabel(locale === "da" ? "Pris i DKK" : "Price in DKK")
+      .fill("105")
+    await page
+      .getByRole("button", {
+        name: locale === "da" ? "Gem ændringer" : "Save changes",
+      })
+      .click()
+    await expect(page).toHaveURL(/\/menu\?saved=1/)
+    await customer.reload()
+    await expect(customer.getByTestId("restaurant-menu")).toContainText(
+      locale === "da" ? "Tomat" : "Tomato",
+    )
+    await expect(customer.getByTestId("restaurant-menu")).toContainText("105")
+    await page
+      .getByRole("link", { name: locale === "da" ? "Rediger" : "Edit" })
+      .click()
+    await page
+      .getByLabel(
+        locale === "da" ? "Rettens danske navn" : "Dish name in Danish",
+      )
+      .fill("Annas ret")
+    await page
+      .getByLabel(locale === "da" ? "Pris i DKK" : "Price in DKK")
+      .fill("110")
+    page.once("dialog", (dialog) => dialog.dismiss())
+    await page
+      .getByRole("link", {
+        name: locale === "da" ? "Overblik" : "Overview",
+        exact: true,
+      })
+      .click()
+    await expect(
+      page.getByLabel(
+        locale === "da" ? "Rettens danske navn" : "Dish name in Danish",
+      ),
+    ).toHaveValue("Annas ret")
+    const partnerToken = (await context.cookies(baseURL)).find(
+      ({ name }) => name === "mtogo_partner_token",
+    )?.value
+    expect(partnerToken).toBeTruthy()
+    const currentMenu = await request.get(
+      `${backend}/partner/restaurants/${id}/dishes`,
+      {
+        headers: { authorization: `Bearer ${partnerToken}` },
+      },
+    )
+    const currentDish = (await currentMenu.json()).categories[0].dishes[0]
+    const colleague = await request.post(
+      `${backend}/partner/restaurants/${id}/dishes/${currentDish.id}`,
+      {
+        headers: { authorization: `Bearer ${partnerToken}` },
+        data: {
+          request_id: randomUUID(),
+          revision: 2,
+          name: { da: "Bos ret", en: "Bo's dish" },
+          description: { da: "Tomat", en: "Tomato" },
+          price: "115",
+        },
+      },
+    )
+    expect(colleague.ok()).toBe(true)
+    await page
+      .getByRole("button", {
+        name: locale === "da" ? "Gem ændringer" : "Save changes",
+      })
+      .click()
+    await expect(page.locator("main").getByRole("alert")).toContainText(
+      locale === "da" ? "kollega" : "colleague",
+    )
+    await expect(
+      page.getByLabel(
+        locale === "da" ? "Rettens danske navn" : "Dish name in Danish",
+      ),
+    ).toHaveValue("Annas ret")
+    await expect(
+      page.getByRole("button", {
+        name: locale === "da" ? "Gem ændringer" : "Save changes",
+      }),
+    ).toBeDisabled()
+    await page
+      .getByRole("button", {
+        name:
+          locale === "da"
+            ? "Jeg har gennemgået den nyeste version"
+            : "I have reviewed the latest version",
+      })
+      .click()
+    await page
+      .getByRole("button", {
+        name: locale === "da" ? "Gem ændringer" : "Save changes",
+      })
+      .click()
+    await expect(page).toHaveURL(/\/menu\?saved=1/)
+    await customer.reload()
+    await expect(customer.getByTestId("restaurant-menu")).toContainText("110")
     await customer.close()
     expect(errors).toEqual([])
   })

@@ -55,15 +55,18 @@ function dishRefusalBody(
   url: string,
   statusCode: number,
   body: { type?: string },
+  fields: ErrorResponseFields | undefined,
 ) {
   if (
     (statusCode >= 500 && error.code !== "dish_publication_uncertain") ||
-    !/^\/partner\/restaurants\/[^/]+\/dishes\/?$/.test(url.split("?")[0])
+    !/^\/partner\/restaurants\/[^/]+\/dishes(?:\/[^/]+)?\/?$/.test(
+      url.split("?")[0],
+    )
   )
     return undefined
   const code =
     statusCode === 400 ? "dish_input_invalid" : error.code || error.message
-  return { type: body.type, code, message: code }
+  return { ...fields, type: body.type, code, message: code }
 }
 
 /**
@@ -106,7 +109,7 @@ export function mtogoErrorHandler(): MedusaErrorHandlerFunction {
       : undefined
     if (stableErrorCode) body.code = stableErrorCode
     const categoryBody =
-      dishRefusalBody(error, req.originalUrl, statusCode, body) ??
+      dishRefusalBody(error, req.originalUrl, statusCode, body, fields) ??
       categoryRefusalBody(error.code, req.originalUrl, statusCode, body, fields)
     if (categoryBody) {
       res.status(statusCode).json(categoryBody)

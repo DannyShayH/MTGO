@@ -31,3 +31,27 @@ export const dishCreateSchema = z.strictObject({
     ),
 })
 export type DishCreateInput = z.input<typeof dishCreateSchema>
+
+const plainDescription = z
+  .string()
+  .trim()
+  .min(1)
+  .max(2000)
+  .refine(
+    (value) =>
+      !/[<>]/.test(value) &&
+      [...value].every(
+        (character) => character === "\n" || !/\p{C}/u.test(character),
+      ),
+  )
+
+export const dishEditSchema = z.strictObject({
+  request_id: dishCreateSchema.shape.request_id,
+  revision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+  name: categoryNameSchema,
+  description: z
+    .strictObject({ da: plainDescription, en: plainDescription })
+    .nullable(),
+  price: dishCreateSchema.shape.price,
+})
+export type DishEditInput = z.input<typeof dishEditSchema>

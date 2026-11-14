@@ -1,5 +1,50 @@
 # Custom API Routes
 
+## Partner dish editing (#107)
+
+### POST /partner/restaurants/:id/dishes/:dish_id
+
+Changes a published dish's bilingual content and inclusive DKK price. The
+Restaurant menu uses the next revision on its next fetch. The product and
+variant identities remain stable; historical Order lines are untouched.
+
+**Actor:** authorized Restaurant staff belonging to `:id` (bearer token).
+
+| Field                | Type             | Required | Rules                                                                                                  |
+| -------------------- | ---------------- | -------- | ------------------------------------------------------------------------------------------------------ |
+| `request_id`         | string           | yes      | Stable retry identity, 1–100 ASCII letters, digits, `_` or `-`                                         |
+| `revision`           | integer          | yes      | Positive revision displayed when the form was opened                                                   |
+| `name.da`, `name.en` | string           | yes      | Both nonblank plain-text names, at most 120 characters each                                            |
+| `description`        | object or `null` | yes      | `null` removes it; otherwise both `da` and `en` are nonblank plain text, at most 2,000 characters each |
+| `price`              | string           | yes      | Positive DKK display amount with at most two decimals, dot or comma separator                          |
+
+```json
+{
+  "request_id": "edit-2026-11-14-1",
+  "revision": 1,
+  "name": { "da": "Dagens ret", "en": "Dish of the day" },
+  "description": { "da": "Tomat", "en": "Tomato" },
+  "price": "105,50"
+}
+```
+
+**Success:** `200` with `{ "categories": [ ... ] }`, the current published
+menu including dish `revision: 2` and price `amount: 105.5`. Repeating the
+same identity and payload returns the saved version.
+
+| Status | Code                                       | When                                                                                      |
+| ------ | ------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| `400`  | `dish_input_invalid`                       | A field fails validation                                                                  |
+| `401`  | authentication error                       | No valid staff token                                                                      |
+| `403`  | `staff_access_revoked`                     | Access was revoked before this request                                                    |
+| `404`  | `restaurant_not_found` or `dish_not_found` | Another Restaurant or no current published dish                                           |
+| `409`  | `dish_stale`                               | Revision changed; response includes the latest `dish` for review                          |
+| `409`  | `dish_retry_conflict`                      | A saved retry identity has different values                                               |
+| `503`  | `dish_publication_uncertain`               | A commit acknowledgement or compensation could not be confirmed; retry with the same body |
+
+`GET /partner/restaurants/:id/dishes` remains the ownership-checked,
+`no-store` read used to refresh the menu after a save or conflict.
+
 An API Route is a REST API endpoint.
 
 An API Route is created in a TypeScript or JavaScript file under the `/src/api` directory of your Medusa application. The file’s name must be `route.ts` or `route.js`.

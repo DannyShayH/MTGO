@@ -1,10 +1,36 @@
-import { dishCreateSchema } from "../validation"
+import { dishCreateSchema, dishEditSchema } from "../validation"
 
 const input = (price: string) => ({
   request_id: "first-dish",
   category_id: "mcat_own",
   name: { da: "  Dagens ret  ", en: " Dish of the day " },
   price,
+})
+
+describe("dish edit input", () => {
+  const edit = (description: unknown) => ({
+    request_id: "edit-one",
+    revision: 1,
+    name: { da: "Ny ret", en: "New dish" },
+    description,
+    price: "105,50",
+  })
+  it("accepts a complete bilingual description and a removed description", () => {
+    expect(
+      dishEditSchema.parse(edit({ da: " Tomat ", en: " Tomato " })),
+    ).toMatchObject({
+      description: { da: "Tomat", en: "Tomato" },
+      price: 105.5,
+    })
+    expect(dishEditSchema.parse(edit(null)).description).toBeNull()
+  })
+  it.each([
+    { da: "Tomat", en: "" },
+    { da: "a".repeat(2001), en: "Tomato" },
+    { da: "<b>Tomat</b>", en: "Tomato" },
+  ])("refuses incomplete or unsafe descriptions", (description) => {
+    expect(dishEditSchema.safeParse(edit(description)).success).toBe(false)
+  })
 })
 
 describe("dish publication input", () => {

@@ -7,6 +7,15 @@ export const DISH_TEXT = {
     categories_link: "Administrer kategorier",
     empty: "Ingen retter endnu. Opret din første ret i en kategori.",
     add: "Opret ret",
+    edit: "Rediger ret",
+    edit_action: "Rediger",
+    save_changes: "Gem ændringer",
+    description_da: "Beskrivelse på dansk (valgfri)",
+    description_en: "Beskrivelse på engelsk (valgfri)",
+    review_latest: "Jeg har gennemgået den nyeste version",
+    latest_version: "Nyeste gemte version",
+    description_hint:
+      "Udfyld begge beskrivelser, eller lad begge være tomme. Højst 2.000 tegn i hvert sprog.",
     save: "Gem ret",
     saved: "Retten er gemt og vises på kundemenuen, når restauranten er aktiv.",
     name_da: "Rettens danske navn",
@@ -27,13 +36,16 @@ export const DISH_TEXT = {
       dish_publication_uncertain:
         "Oprettelsen kunne ikke bekræftes. Kontrollér og prøv igen med de samme oplysninger.",
       dish_input_invalid:
-        "Udfyld begge navne med højst 120 tegn og kun almindelig tekst. Prisen skal være positiv med højst to decimaler.",
+        "Udfyld begge navne med højst 120 tegn. Beskrivelser skal enten være tomme eller udfyldt på begge sprog med højst 2.000 tegn. Brug almindelig tekst. Prisen skal være positiv med højst to decimaler.",
       category_not_found:
         "Kategorien findes ikke længere. Vælg en anden kategori.",
       dish_retry_conflict:
         "Denne oprettelse har allerede andre værdier. Kontrollér den oprindelige oprettelse.",
       dish_recovery_required:
         "Oprettelsen skal kontrolleres. Prøv igen, eller kontakt MTOGO.",
+      dish_stale:
+        "En kollega har ændret retten. Gennemgå den nyeste version nedenfor, før du gemmer dine indtastninger igen.",
+      dish_not_found: "Retten findes ikke længere. Gå tilbage til menuen.",
       unknown_error:
         "Retten kunne ikke bekræftes. Kontrollér og prøv igen med de samme oplysninger.",
     },
@@ -46,6 +58,15 @@ export const DISH_TEXT = {
     categories_link: "Manage categories",
     empty: "No dishes yet. Create your first dish in a category.",
     add: "Create dish",
+    edit: "Edit dish",
+    edit_action: "Edit",
+    save_changes: "Save changes",
+    description_da: "Description in Danish (optional)",
+    description_en: "Description in English (optional)",
+    review_latest: "I have reviewed the latest version",
+    latest_version: "Latest saved version",
+    description_hint:
+      "Fill in both descriptions, or leave both empty. Up to 2,000 characters per language.",
     save: "Save dish",
     saved:
       "Dish saved. It appears on the Customer menu when the Restaurant is active.",
@@ -67,13 +88,16 @@ export const DISH_TEXT = {
       dish_publication_uncertain:
         "Publication could not be confirmed. Check and retry with the same details.",
       dish_input_invalid:
-        "Enter both names as plain text with at most 120 characters. The price must be positive with at most two decimal places.",
+        "Enter both names with at most 120 characters. Descriptions must be empty or filled in both languages with at most 2,000 characters. Use plain text. The price must be positive with at most two decimal places.",
       category_not_found:
         "This category no longer exists. Choose another category.",
       dish_retry_conflict:
         "This creation already has different values. Check the original creation.",
       dish_recovery_required:
         "This creation needs checking. Retry or contact MTOGO.",
+      dish_stale:
+        "A colleague changed this dish. Review the latest version below before saving your entries again.",
+      dish_not_found: "This dish is no longer available. Return to the menu.",
       unknown_error:
         "The dish could not be confirmed. Check and retry with the same details.",
     },
