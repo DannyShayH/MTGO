@@ -40,7 +40,7 @@ English text comes from `@dtc/i18n`.
   retry after a failed accept signs in with the already registered login
   instead. Any unusable link shows "This invitation is no longer valid. Ask
   MTOGO for a new one." without saying why.
-- **Dashboard.** A sidebar with only Overview; on phones it sits on top as a
+- **Dashboard.** A sidebar with Overview and Menu; on phones it sits on top as a
   compact bar. Controls are 44px high for touch (coarse pointers) and compact
   with a mouse. The Overview has three cards, all from
   `GET /partner/restaurants/{id}`:
@@ -107,3 +107,58 @@ The sign-in failure tests start a separate production partner app with a local
 backend stub. They cover dropped connections and server errors during login and
 staff lookup in both languages, plus expired and revoked sessions on direct
 sign-in visits. They use the production build made by `verify:applications`.
+
+## Menu reference workspace
+
+The Menu navigation opens `/menu`, a read-only numbered catalogue for Restaurant
+staff. It reads `/partner/food-catalogue` through the server-side SDK with no
+cached response. Revocation or expiry between layout and catalogue requests ends
+the session. Inactive and closed Restaurants can use the reference workspace.
+
+The two-column allergen legend becomes one column on narrow screens. Every row
+has an EU number, trusted local SVG symbol and wrapping database label; its native
+`details` disclosure works with Enter, Space and touch. Expanded rows show the
+reviewed description and specific cereal/nut names. Additional food labels have
+a separate section and no allergen numbers. The page explains that this catalogue
+does not declare a dish's contents and that missing information stays unknown.
+The language switch translates both interface text and database content without
+changing numbers or symbol associations. Loading is announced; a failed or empty
+read has a translated retry link and never implies an empty safe catalogue.
+
+The design follows Medusa UI containers, MTOGO tokens and Inter. Its deliberate
+visual anchor is the aligned number/symbol/name row, with quiet borders and
+immediate disclosures. There are no selection controls or dish summaries until
+menu declaration editing exists. The legacy compact stack's overflow count was
+reviewed, but is not useful in a complete reference legend: every group remains
+visible, with full details one keyboard/touch action away.
+
+The 17 pinned legacy SVGs and the IconMap, Icon, Pill, Stack and List components
+were inspected at revision `78ca2e418fff6f662923a91d9ad6edb2e1c920f6` of
+[Mortenjenne/miseOS-web](https://github.com/Mortenjenne/miseOS-web/tree/78ca2e418fff6f662923a91d9ad6edb2e1c920f6).
+The project owner authorized reuse of these assets. The reviewed coloured SVGs
+are bundled under `public/images/food-symbols/`, mapped by stable catalogue code.
+EU groups are based on assets 01–14; chili on 15, garlic on 16 and halal on 17, as
+separate food labels without EU numbers. The crab symbol identifies crustaceans.
+The original background colours are preserved. Soybeans, nuts, lupin and chili
+have adapted white artwork to improve recognition at the displayed 36px size:
+a bean pod, a walnut, a simpler lupin flower and a solid chili pepper. Fish,
+mustard and sulphites also use simpler artwork inspired by the owner's visual
+reference: a fish with a forked tail and gill, a mustard jar with seeds and a flask with liquid
+and bubbles. The other ten drawings retain their appearance. All 17 files have
+optimized SVG markup, with XML/editor metadata, unused identifiers and redundant
+grouping removed. Rendering comparisons at 36px, 64px and 128px verify that markup cleanup
+does not change the ten retained drawings. These are recognition aids,
+always accompanied by the translated name; colour is never the only meaning.
+The semantic mapping is static application code, never supplied SVG markup,
+uploads or remote URLs. Unknown codes keep their readable text.
+
+EU numbers have a two-character column and cannot wrap, including at enlarged
+text sizes. Names and descriptions still wrap independently.
+
+The `e2e/food-catalogue.spec.ts` production journey records Danish and English
+screenshots at 375px and 1280px, checks keyboard disclosure, specific types,
+sulphite thresholds, separate food labels, loaded symbols and horizontal overflow.
+
+The production backend-stub tests in `e2e/sign-in-failures.spec.ts` also cover
+catalogue connection failures, server failures and unseeded data in both
+languages, with keyboard access to the retry link.

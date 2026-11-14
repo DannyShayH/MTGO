@@ -29,6 +29,7 @@ export type Messages = {
     sign_in: string
     sign_out: string
     navigation: string
+    menu: string
     overview: string
     signed_in_as: string
     restaurant: string
@@ -86,6 +87,7 @@ export const MESSAGES: Record<Locale, Messages> = {
       sign_out: "Log ud",
       navigation: "Hovedmenu",
       overview: "Overblik",
+      menu: "Menu",
       signed_in_as: "Logget ind som",
       restaurant: "Restaurant",
       invitation_title: "Accepter din invitation",
@@ -149,6 +151,7 @@ export const MESSAGES: Record<Locale, Messages> = {
       sign_out: "Sign out",
       navigation: "Main menu",
       overview: "Overview",
+      menu: "Menu",
       signed_in_as: "Signed in as",
       restaurant: "Restaurant",
       invitation_title: "Accept your invitation",

@@ -64,5 +64,6 @@ module.exports = defineConfig({
       options: { partner_url: process.env.PARTNER_PUBLIC_URL },
     },
     { resolve: "./src/modules/postal-code" },
+    { resolve: "./src/modules/food-catalogue" },
   ],
 })

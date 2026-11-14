@@ -802,3 +802,45 @@ nothing.
 | `401`  | As for `GET /partner/me`                                                                   |
 | `403`  | `code: "staff_access_revoked"`: as for `GET /partner/me`                                   |
 | `404`  | `code: "restaurant_not_found"`: another Restaurant or an unknown one, answered identically |
+
+## Food reference catalogue
+
+### GET /store/food-catalogue
+
+Reads the fixed global database catalogue for Customer declarations. No Customer
+login is needed; Medusa requires `x-publishable-api-key`. No Restaurant identifier
+or locale parameter is needed. Both languages are returned together; clients
+choose `name.da`/`name.en` and `description.da`/`description.en` without replacing
+stable identities. Records are ordered by EU number; food labels are ordered
+halal, chili, garlic. Reads use `Cache-Control: no-store`.
+
+**Success:** `200`, with `allergens` and `food_labels` arrays. An allergen has
+`id`, `code`, `number`, `name: { da, en }`, `description: { da, en }` and `details`.
+Each detail has `id`, `code` and `name: { da, en }`; its containing group supplies
+the parent. A food label has `id`, `code`, bilingual `name` and `description`,
+with no number or details. Example group identity: `code: "cereals", number: 1`;
+example detail: `code: "wheat"`. Generated internal IDs are distinct from EU
+numbers. This is a reference response, not a dish's declaration.
+
+**Failure:** `400` for a missing or invalid publishable key, using Medusa's
+standard error response. There are no create/update/delete catalogue routes.
+
+The response contains no icon markup or URLs. Clients use a trusted static
+code-to-symbol mapping and retain readable labels even for an unrecognized code.
+Keep halal/chili/garlic separate from allergens. Declarations must retain
+Contains/May contain/Unknown and explicitly none declared; absent information
+must never become an allergen-free claim. Halal does not imply certification.
+
+### GET /partner/food-catalogue
+
+The same read contract for authorized `restaurant_staff` bearer tokens. The
+workflow checks the current staff record, including revocation, on every read.
+Inactive or closed Restaurants may read the catalogue. It is global reference
+data; no other Restaurant's private menu data is returned.
+
+**Success:** `200` with the same bilingual response and `no-store` header.
+
+| Status | When                                                     |
+| ------ | -------------------------------------------------------- |
+| `401`  | Missing, expired or wrong-actor bearer token             |
+| `403`  | Missing or revoked staff record (`staff_access_revoked`) |
