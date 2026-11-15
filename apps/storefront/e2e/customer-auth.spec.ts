@@ -136,6 +136,44 @@ for (const locale of ["da", "en"] as const) {
         })
       ).ok(),
     ).toBeTruthy()
+
+    await page.goto("/dk/account/profile")
+    const nameEditor = page.getByTestId("account-name-editor")
+    await nameEditor.getByTestId("edit-button").press("Enter")
+    await page.getByTestId("first-name-input").fill("   ")
+    await page.getByTestId("last-name-input").fill("Jensen")
+    await nameEditor.getByTestId("save-button").press("Enter")
+    await expect(nameEditor.getByRole("alert")).toContainText(
+      locale === "da" ? "Indtast" : "Enter",
+    )
+    await expect(page.getByTestId("first-name-input")).toHaveValue("   ")
+    await page.getByTestId("first-name-input").fill("Maja")
+    await page.getByTestId("last-name-input").fill("Jensen")
+    await nameEditor.getByTestId("save-button").press("Enter")
+    await expect(nameEditor.getByRole("status")).toContainText(
+      locale === "da" ? "opdateret" : "updated",
+    )
+
+    const phoneEditor = page.getByTestId("account-phone-editor")
+    await phoneEditor.getByTestId("edit-button").press("Enter")
+    await phoneEditor.getByTestId("phone-input").fill("12345678")
+    await phoneEditor.getByTestId("save-button").press("Enter")
+    await expect(phoneEditor.getByRole("alert")).toContainText(
+      locale === "da" ? "landekode" : "country code",
+    )
+    await expect(phoneEditor.getByTestId("phone-input")).toHaveValue("12345678")
+    await phoneEditor.getByTestId("phone-input").fill("+45 12 34 56 78")
+    await phoneEditor.getByTestId("save-button").press("Enter")
+    await expect(phoneEditor.getByRole("status")).toContainText(
+      locale === "da" ? "opdateret" : "updated",
+    )
+    await page.reload()
+    await expect(
+      page.getByTestId("account-name-editor").getByTestId("current-info"),
+    ).toHaveText("Maja Jensen")
+    await expect(
+      page.getByTestId("account-phone-editor").getByTestId("current-info"),
+    ).toHaveText("+45 12 34 56 78")
   })
 }
 

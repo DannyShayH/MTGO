@@ -39,4 +39,12 @@ export {
 export { CUSTOMER_HOME_TEXT } from "./customer-home.ts"
 export { CUSTOMER_NAVIGATION_TEXT } from "./customer-navigation.ts"
 export { CUSTOMER_CART } from "./customer-cart.ts"
+export {
+  ACCOUNT_INFO_TEXT,
+  CUSTOMER_PROFILE_TEXT,
+  validateCustomerName,
+  validateCustomerPhone,
+  isCustomerProfileError,
+  type CustomerProfileError,
+} from "./customer-profile.ts"
 export { DISH_TEXT, isDishErrorCode, type DishErrorCode } from "./dishes.ts"

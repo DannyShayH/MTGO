@@ -24,6 +24,45 @@ const CATEGORY_CONFLICT_CODES = new Set([
   "category_retry_conflict",
   "category_retry_removed",
 ])
+const CUSTOMER_PROFILE_ROUTE = "/store/customers/me"
+
+function customerProfileInputCode(error: unknown): string {
+  const message =
+    typeof error === "object" && error !== null && "message" in error
+      ? String((error as { message: unknown }).message)
+      : ""
+  if (message.includes("customer_phone_invalid"))
+    return "customer_phone_invalid"
+  if (message.includes("customer_name_required"))
+    return "customer_name_required"
+  if (typeof error === "object" && error !== null && "issues" in error) {
+    const issues = (error as { issues?: unknown }).issues
+    if (Array.isArray(issues)) {
+      const messages = issues.flatMap((issue) =>
+        typeof issue === "object" && issue !== null && "message" in issue
+          ? [String((issue as { message: unknown }).message)]
+          : [],
+      )
+      if (messages.includes("customer_phone_invalid"))
+        return "customer_phone_invalid"
+      if (messages.includes("customer_name_required"))
+        return "customer_name_required"
+    }
+  }
+  return "customer_profile_input_invalid"
+}
+
+function customerProfileRefusalBody(
+  error: unknown,
+  url: string,
+  statusCode: number,
+  body: { type?: string },
+) {
+  if (statusCode !== 400 || url.split("?")[0] !== CUSTOMER_PROFILE_ROUTE)
+    return undefined
+  const code = customerProfileInputCode(error)
+  return { type: body.type, code, message: code }
+}
 
 /**
  * The stable partner category refusal, or nothing for any other error.
@@ -115,6 +154,7 @@ export function mtogoErrorHandler(): MedusaErrorHandlerFunction {
       : undefined
     if (stableErrorCode) body.code = stableErrorCode
     const categoryBody =
+      customerProfileRefusalBody(error, req.originalUrl, statusCode, body) ??
       dishRefusalBody(error, req.originalUrl, statusCode, body, fields) ??
       categoryRefusalBody(error.code, req.originalUrl, statusCode, body, fields)
     if (categoryBody) {

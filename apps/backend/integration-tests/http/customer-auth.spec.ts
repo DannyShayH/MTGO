@@ -16,6 +16,39 @@ import {
 
 jest.setTimeout(120000)
 
+const invalidProfileUpdates = [
+  {
+    reason: "EP: whitespace-only first name",
+    body: { first_name: "   " },
+    code: "customer_name_required",
+  },
+  {
+    reason: "EP: partial name update",
+    body: { first_name: "Only" },
+    code: "customer_name_required",
+  },
+  {
+    reason: "EP: whitespace-only last name",
+    body: { last_name: "\t" },
+    code: "customer_name_required",
+  },
+  {
+    reason: "EP: phone without country code",
+    body: { phone: "12345678" },
+    code: "customer_phone_invalid",
+  },
+  {
+    reason: "BVA: phone country code without subscriber number",
+    body: { phone: "+45" },
+    code: "customer_phone_invalid",
+  },
+  {
+    reason: "EP: unassigned country code",
+    body: { phone: "+999 12 34 56 78" },
+    code: "customer_phone_invalid",
+  },
+] as const
+
 medusaIntegrationTestRunner({
   dbName: "medusa_ci_customer_auth_http",
   env: { JWT_SECRET: "ci-only-customer-secret", REDIS_URL: "" },
@@ -74,6 +107,27 @@ medusaIntegrationTestRunner({
       api.post("/auth/customer/customer-emailpass", body, {
         validateStatus: () => true,
       })
+    const createProfileCustomer = async (profileEmail: string) => {
+      const registration = await registerAndVerify(profileEmail, password)
+      const created = await api.post(
+        "/store/customers",
+        { email: profileEmail },
+        {
+          headers: {
+            ...headers,
+            authorization: `Bearer ${registration.data.token}`,
+          },
+        },
+      )
+      const login = await signIn({ email: profileEmail, password })
+      return {
+        customer: created.data.customer,
+        ownerHeaders: {
+          ...headers,
+          authorization: `Bearer ${login.data.token}`,
+        },
+      }
+    }
     it("requires email verification before a Customer can receive checkout access", async () => {
       const unverifiedEmail = "unverified@example.test"
       const registration = await api.post(
@@ -274,7 +328,7 @@ medusaIntegrationTestRunner({
         ).toBe("en")
       },
     )
-    it("refuses another Customer's target ID and preserves Order language", async () => {
+    it("refuses another Customer's target ID and preserves Order contact and language", async () => {
       const registration = await register()
       const created = await api.post(
         "/store/customers",
@@ -306,7 +360,16 @@ medusaIntegrationTestRunner({
           customer_id: created.data.customer.id,
           email,
           currency_code: "dkk",
-          metadata: { language: "en" },
+          metadata: expect.objectContaining({ language: "en" }),
+          shipping_address: {
+            first_name: "Historical",
+            last_name: "Contact",
+            phone: "+45 11 22 33 44",
+            address_1: "Old street 1",
+            city: "Copenhagen",
+            country_code: "dk",
+            postal_code: "2100",
+          },
           items: [{ title: "Historical dish", quantity: 1, unit_price: 50 }],
         },
       })
@@ -359,7 +422,12 @@ medusaIntegrationTestRunner({
       ).toBe("en")
       await api.post(
         "/store/customers/me",
-        { metadata: { preferred_language: "da" } },
+        {
+          first_name: "Current",
+          last_name: "Customer",
+          phone: "+45 55 66 77 88",
+          metadata: { preferred_language: "da" },
+        },
         { headers: ownerHeaders },
       )
       const me = await api.get("/store/customers/me", { headers: ownerHeaders })
@@ -372,17 +440,109 @@ medusaIntegrationTestRunner({
         expect.arrayContaining([
           expect.objectContaining({
             id: order.id,
-            metadata: { language: "en" },
+            metadata: expect.objectContaining({
+              sample: expect.objectContaining({ language: "en" }),
+            }),
           }),
         ]),
       )
+      const historyDetail = await api.get(`/store/orders/${order.id}`, {
+        headers: ownerHeaders,
+      })
+      expect(historyDetail.data.order.shipping_address).toMatchObject({
+        first_name: "Historical",
+        last_name: "Contact",
+        phone: "+45 11 22 33 44",
+      })
     })
+    it("lets a Customer update name and phone while rejecting invalid or foreign edits", async () => {
+      const { customer, ownerHeaders } = await createProfileCustomer(
+        "profile@example.test",
+      )
+
+      const saved = await api.post(
+        "/store/customers/me",
+        {
+          first_name: "Maja",
+          last_name: "Jensen",
+          phone: "+45 12 34 56 78",
+        },
+        { headers: ownerHeaders },
+      )
+      expect(saved.data.customer).toEqual(
+        expect.objectContaining({
+          id: customer.id,
+          first_name: "Maja",
+          last_name: "Jensen",
+          phone: "+45 12 34 56 78",
+        }),
+      )
+
+      const otherEmail = "profile-other@example.test"
+      const otherRegistration = await registerAndVerify(otherEmail, password)
+      await api.post(
+        "/store/customers",
+        { email: otherEmail },
+        {
+          headers: {
+            ...headers,
+            authorization: `Bearer ${otherRegistration.data.token}`,
+          },
+        },
+      )
+      const otherLogin = await signIn({ email: otherEmail, password })
+      const foreign = await api.post(
+        "/store/customers/me",
+        {
+          id: customer.id,
+          first_name: "Other",
+          last_name: "Owner",
+          phone: "+45 87 65 43 21",
+        },
+        {
+          headers: {
+            ...headers,
+            authorization: `Bearer ${otherLogin.data.token}`,
+          },
+          validateStatus: () => true,
+        },
+      )
+      expect(foreign.status).toBe(400)
+
+      expect(
+        (await api.get("/store/customers/me", { headers: ownerHeaders })).data
+          .customer,
+      ).toEqual(
+        expect.objectContaining({
+          id: customer.id,
+          first_name: "Maja",
+          last_name: "Jensen",
+          phone: "+45 12 34 56 78",
+        }),
+      )
+    })
+    it.each(invalidProfileUpdates)(
+      "rejects invalid profile input ($reason)",
+      async ({ body, code }) => {
+        const { ownerHeaders } = await createProfileCustomer(
+          `invalid-profile-${Date.now()}@example.test`,
+        )
+        const invalid = await api.post("/store/customers/me", body, {
+          headers: ownerHeaders,
+          validateStatus: () => true,
+        })
+        expect(invalid.status).toBe(400)
+        expect(invalid.data).toEqual(
+          expect.objectContaining({ code, message: code }),
+        )
+      },
+    )
     it.each([
       { reason: "DT: signed out", actor: null },
       { reason: "DT: Restaurant staff", actor: "restaurant_staff" },
       { reason: "DT: MTOGO operator", actor: "user" },
     ])(
-      "refuses preference updates for the wrong role ($reason)",
+      "refuses profile updates for the wrong role ($reason)",
       async ({ actor }) => {
         let authorization: string | undefined
         if (actor) {
@@ -394,7 +554,11 @@ medusaIntegrationTestRunner({
         }
         const response = await api.post(
           "/store/customers/me",
-          { metadata: { preferred_language: "en" } },
+          {
+            first_name: "Wrong",
+            last_name: "Role",
+            phone: "+45 99 88 77 66",
+          },
           {
             headers: {
               ...headers,

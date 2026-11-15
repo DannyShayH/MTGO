@@ -1,5 +1,21 @@
 # Custom API Routes
 
+## Customer profile edits (#88)
+
+### POST /store/customers/me
+
+An authenticated Customer may update `first_name`, `last_name`, `phone` and
+`metadata.preferred_language`. The endpoint updates only the Customer selected
+by the authenticated actor; an `id` in the request body is rejected. Name edits
+must include both nonblank names. A supplied phone must be an international,
+country-code-prefixed number in display format; omission is allowed for partial
+metadata updates. Existing Orders keep their confirmed contact details.
+
+Successful edits return `200` with the updated `customer`. Invalid input returns
+`400` with `code` and `message` set to one of
+`customer_name_required`, `customer_phone_invalid` or
+`customer_profile_input_invalid`.
+
 ## Customer cart ownership (#87)
 
 ### `/store/carts/:id*`

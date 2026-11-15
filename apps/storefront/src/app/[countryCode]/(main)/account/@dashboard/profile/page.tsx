@@ -7,6 +7,7 @@ import ProfileName from "@modules/account/components/profile-name"
 import { notFound } from "next/navigation"
 import { listRegions } from "@lib/data/regions"
 import { retrieveCustomer } from "@lib/data/customer"
+import { getCustomerLocale } from "@lib/data/customer-locale"
 
 export const metadata: Metadata = {
   title: "Profile",
@@ -16,6 +17,7 @@ export const metadata: Metadata = {
 export default async function Profile() {
   const customer = await retrieveCustomer()
   const regions = await listRegions()
+  const locale = await getCustomerLocale(customer)
 
   if (!customer || !regions) {
     notFound()
@@ -32,11 +34,11 @@ export default async function Profile() {
         </p>
       </div>
       <div className="flex flex-col gap-y-8 w-full">
-        <ProfileName customer={customer} />
+        <ProfileName customer={customer} locale={locale} />
         <Divider />
         <ProfileEmail customer={customer} />
         <Divider />
-        <ProfilePhone customer={customer} />
+        <ProfilePhone customer={customer} locale={locale} />
         <Divider />
         {/* <ProfilePassword customer={customer} />
         <Divider /> */}

@@ -1,4 +1,5 @@
 import { Disclosure } from "@headlessui/react"
+import { ACCOUNT_INFO_TEXT } from "@dtc/i18n"
 import { Badge, Button, clx } from "@modules/common/components/ui"
 import { useEffect } from "react"
 
@@ -11,7 +12,12 @@ type AccountInfoProps = {
   isSuccess?: boolean
   isError?: boolean
   errorMessage?: string
+  editLabel?: string
+  cancelLabel?: string
+  saveLabel?: string
+  successMessage?: string
   clearState: () => void
+  onCancel?: () => void
   children?: React.ReactNode
   "data-testid"?: string
 }
@@ -23,7 +29,12 @@ const AccountInfo = ({
   isError,
   clearState,
   errorMessage = "An error occurred, please try again",
+  editLabel = ACCOUNT_INFO_TEXT.en.edit,
+  cancelLabel = ACCOUNT_INFO_TEXT.en.cancel,
+  saveLabel = ACCOUNT_INFO_TEXT.en.save,
+  successMessage = ACCOUNT_INFO_TEXT.en.updated,
   children,
+  onCancel,
   "data-testid": dataTestid,
 }: AccountInfoProps) => {
   const { state, close, toggle } = useToggleState()
@@ -60,12 +71,17 @@ const AccountInfo = ({
           <Button
             variant="secondary"
             className="w-[100px] min-h-[25px] py-1"
-            onClick={handleToggle}
-            type={state ? "reset" : "button"}
+            onClick={() => {
+              if (state) {
+                onCancel?.()
+              }
+              handleToggle()
+            }}
+            type="button"
             data-testid="edit-button"
             data-active={state}
           >
-            {state ? "Cancel" : "Edit"}
+            {state ? cancelLabel : editLabel}
           </Button>
         </div>
       </div>
@@ -84,7 +100,7 @@ const AccountInfo = ({
           data-testid="success-message"
         >
           <Badge className="p-2 my-4" color="green">
-            <span>{label} updated succesfully</span>
+            <span role="status">{successMessage}</span>
           </Badge>
         </Disclosure.Panel>
       </Disclosure>
@@ -103,7 +119,7 @@ const AccountInfo = ({
           data-testid="error-message"
         >
           <Badge className="p-2 my-4" color="red">
-            <span>{errorMessage}</span>
+            <span role="alert">{errorMessage}</span>
           </Badge>
         </Disclosure.Panel>
       </Disclosure>
@@ -128,7 +144,7 @@ const AccountInfo = ({
                 type="submit"
                 data-testid="save-button"
               >
-                Save changes
+                {saveLabel}
               </Button>
             </div>
           </div>
