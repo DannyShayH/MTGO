@@ -598,6 +598,162 @@ medusaIntegrationTestRunner({
         expect(response.status).toBe(400)
       },
     )
+    it("manages owned addresses, transitions the optional default, and preserves order destinations", async () => {
+      const owner = await createProfileCustomer("address-owner@example.test")
+      const other = await createProfileCustomer("address-other@example.test")
+      const createAddress = (
+        ownerHeaders: Record<string, string>,
+        body: object,
+      ) =>
+        api.post("/store/customers/me/addresses", body, {
+          headers: ownerHeaders,
+        })
+
+      const first = await createAddress(owner.ownerHeaders, {
+        first_name: "Maja",
+        last_name: "Jensen",
+        address_1: "Testvej 12",
+        postal_code: "2100",
+        city: "København",
+        country_code: "dk",
+        phone: "+45 12 34 56 78",
+        is_default_shipping: true,
+      })
+      const second = await createAddress(owner.ownerHeaders, {
+        first_name: "Maja",
+        last_name: "Jensen",
+        address_1: "Havnegade 4",
+        postal_code: "8000",
+        city: "Aarhus",
+        country_code: "dk",
+        phone: "+45 22 33 44 55",
+      })
+      expect(first.status).toBe(200)
+      expect(second.status).toBe(200)
+
+      const invalidAddress = await api.post(
+        "/store/customers/me/addresses",
+        {
+          first_name: "Maja",
+          last_name: "Jensen",
+          address_1: "!1",
+          postal_code: "2100",
+          city: "København",
+          country_code: "dk",
+          phone: "12 34 56 78",
+        },
+        { headers: owner.ownerHeaders, validateStatus: () => true },
+      )
+      expect(invalidAddress.status).toBe(400)
+
+      const firstAddress = first.data.customer.addresses.find(
+        (address: { address_1: string }) => address.address_1 === "Testvej 12",
+      )
+      const secondAddress = second.data.customer.addresses.find(
+        (address: { address_1: string }) => address.address_1 === "Havnegade 4",
+      )
+      expect(firstAddress.is_default_shipping).toBe(true)
+      expect(secondAddress.is_default_shipping).toBe(false)
+
+      const makeSecondDefault = await api.post(
+        `/store/customers/me/addresses/${secondAddress.id}`,
+        { is_default_shipping: true },
+        { headers: owner.ownerHeaders },
+      )
+      expect(makeSecondDefault.status).toBe(200)
+      expect(
+        makeSecondDefault.data.customer.addresses.find(
+          (address: { id: string }) => address.id === firstAddress.id,
+        ).is_default_shipping,
+      ).toBe(false)
+
+      const removeDefault = await api.post(
+        `/store/customers/me/addresses/${secondAddress.id}`,
+        { is_default_shipping: false },
+        { headers: owner.ownerHeaders },
+      )
+      expect(removeDefault.status).toBe(200)
+      expect(
+        removeDefault.data.customer.addresses.some(
+          (address: { is_default_shipping: boolean }) =>
+            address.is_default_shipping,
+        ),
+      ).toBe(false)
+
+      const foreignRead = await api.get(
+        `/store/customers/me/addresses/${firstAddress.id}`,
+        { headers: other.ownerHeaders, validateStatus: () => true },
+      )
+      const foreignUpdate = await api.post(
+        `/store/customers/me/addresses/${firstAddress.id}`,
+        { city: "Odense" },
+        { headers: other.ownerHeaders, validateStatus: () => true },
+      )
+      const foreignDelete = await api.delete(
+        `/store/customers/me/addresses/${firstAddress.id}`,
+        { headers: other.ownerHeaders, validateStatus: () => true },
+      )
+      expect(foreignRead.status).toBe(404)
+      expect(foreignUpdate.status).toBe(404)
+      expect(foreignDelete.status).toBe(404)
+
+      const editAddress = await api.post(
+        `/store/customers/me/addresses/${firstAddress.id}`,
+        { city: "Odense" },
+        { headers: owner.ownerHeaders },
+      )
+      expect(editAddress.status).toBe(200)
+
+      const { result: regions } = await createRegionsWorkflow(
+        getContainer(),
+      ).run({
+        input: {
+          regions: [
+            { name: "Denmark", currency_code: "dkk", countries: ["dk"] },
+          ],
+        },
+      })
+      const historicalOrder = await createOrderWorkflow(getContainer()).run({
+        input: {
+          region_id: regions[0].id,
+          customer_id: owner.customer.id,
+          email: "address-owner@example.test",
+          currency_code: "dkk",
+          items: [{ title: "Historical dish", quantity: 1, unit_price: 50 }],
+          shipping_address: {
+            first_name: "Maja",
+            last_name: "Jensen",
+            address_1: "Testvej 12",
+            postal_code: "2100",
+            city: "København",
+            country_code: "dk",
+          },
+        },
+      })
+      const deleteAddress = await api.delete(
+        `/store/customers/me/addresses/${firstAddress.id}`,
+        { headers: owner.ownerHeaders },
+      )
+      expect(deleteAddress.status).toBe(200)
+      const addressesAfterDelete = await api.get(
+        "/store/customers/me/addresses",
+        { headers: owner.ownerHeaders },
+      )
+      expect(
+        addressesAfterDelete.data.addresses.some(
+          (address: { is_default_shipping: boolean }) =>
+            address.is_default_shipping,
+        ),
+      ).toBe(false)
+      const order = await api.get(
+        `/store/orders/${historicalOrder.result.id}`,
+        {
+          headers: owner.ownerHeaders,
+        },
+      )
+      expect(order.data.order.shipping_address.address_1).toBe("Testvej 12")
+    })
+
     it("migrates a shared identity without replacing Customer ownership or other-role credentials", async () => {
       const auth = getContainer().resolve(Modules.AUTH)
       const legacy = await auth.register("emailpass", { body: credentials })

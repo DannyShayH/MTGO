@@ -47,4 +47,11 @@ export {
   isCustomerProfileError,
   type CustomerProfileError,
 } from "./customer-profile.ts"
+export {
+  CUSTOMER_ADDRESS_TEXT,
+  customerAddressErrorMessage,
+  validateCustomerAddress,
+  type CustomerAddressError,
+  type CustomerAddressText,
+} from "./customer-address.ts"
 export { DISH_TEXT, isDishErrorCode, type DishErrorCode } from "./dishes.ts"

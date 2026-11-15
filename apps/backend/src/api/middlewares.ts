@@ -46,6 +46,8 @@ import {
 import { requireCustomerOwnedCart, requireOwnedCart } from "./cart-ownership"
 import {
   PostStoreCustomerSchema,
+  PostStoreCreateCustomerAddressSchema,
+  PostStoreUpdateCustomerAddressSchema,
   PostStoreUpdateCustomerSchema,
 } from "./store/customers/validators"
 import { PostCustomerVerificationRequestSchema } from "./auth/customer-verification/validators"
@@ -101,6 +103,20 @@ export default defineMiddlewares({
       matcher: "/store/customers/me",
       method: "POST",
       middlewares: [validateAndTransformBody(PostStoreUpdateCustomerSchema)],
+    },
+    {
+      matcher: "/store/customers/me/addresses",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(PostStoreCreateCustomerAddressSchema),
+      ],
+    },
+    {
+      matcher: "/store/customers/me/addresses/:address_id",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(PostStoreUpdateCustomerAddressSchema),
+      ],
     },
     {
       matcher: "/auth/:actor_type/:auth_provider*",

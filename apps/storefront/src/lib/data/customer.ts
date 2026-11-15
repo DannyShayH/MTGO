@@ -4,9 +4,15 @@ import { sdk } from "@lib/config"
 import medusaError from "@lib/util/medusa-error"
 import { HttpTypes } from "@medusajs/types"
 import { FetchError } from "@medusajs/js-sdk"
+import { httpStatus } from "@dtc/logging"
+import { log } from "@lib/logger"
 import { getLocale, setLocaleCookie } from "./locale-actions"
 import { resolveLocale, resolveCustomerLocale, isLocale } from "@dtc/i18n"
-import { CustomerAuthCode } from "@dtc/i18n"
+import {
+  CustomerAuthCode,
+  validateCustomerAddress,
+  type CustomerAddressError,
+} from "@dtc/i18n"
 import { revalidateTag } from "next/cache"
 import { redirect } from "next/navigation"
 import {
@@ -17,6 +23,51 @@ import {
   removeCartId,
   setAuthToken,
 } from "./cookies"
+
+type CustomerAddressForm = {
+  first_name: string
+  last_name: string
+  company: string
+  address_1: string
+  address_2: string
+  city: string
+  postal_code: string
+  province: string
+  country_code: string
+  phone: string
+  is_default_shipping: boolean
+}
+
+type CustomerAddressMutationError =
+  | "customer_address_save_failed"
+  | "customer_address_delete_failed"
+  | "customer_address_default_failed"
+
+const readCustomerAddressForm = (formData: FormData): CustomerAddressForm => ({
+  first_name: String(formData.get("first_name") ?? "").trim(),
+  last_name: String(formData.get("last_name") ?? "").trim(),
+  company: String(formData.get("company") ?? "").trim(),
+  address_1: String(formData.get("address_1") ?? "").trim(),
+  address_2: String(formData.get("address_2") ?? "").trim(),
+  city: String(formData.get("city") ?? "").trim(),
+  postal_code: String(formData.get("postal_code") ?? "").trim(),
+  province: String(formData.get("province") ?? "").trim(),
+  country_code: String(formData.get("country_code") ?? "").trim(),
+  phone: String(formData.get("phone") ?? "").trim(),
+  is_default_shipping: formData.get("is_default_shipping") === "on",
+})
+
+const addressMutationFailure = <T extends CustomerAddressMutationError>(
+  error: unknown,
+  fallback: T,
+): { success: false; error: T } => {
+  const status = httpStatus(error)
+  log("upstream.request.failed", { status })
+  if (status !== undefined && status >= 400 && status < 500) {
+    return { success: false as const, error: fallback }
+  }
+  throw error
+}
 
 export type CustomerAuthState =
   | { state: "error"; error: CustomerAuthCode }
@@ -338,26 +389,16 @@ export async function transferCart() {
 }
 
 export const addCustomerAddress = async (
-  currentState: Record<string, unknown>,
+  _currentState: Record<string, unknown>,
   formData: FormData,
-): Promise<{ success: boolean; error: string | null }> => {
-  const isDefaultBilling = (currentState.isDefaultBilling as boolean) || false
-  const isDefaultShipping = (currentState.isDefaultShipping as boolean) || false
+): Promise<{
+  success: boolean
+  error: CustomerAddressError | "customer_address_save_failed" | null
+}> => {
+  const address = readCustomerAddressForm(formData)
 
-  const address = {
-    first_name: formData.get("first_name") as string,
-    last_name: formData.get("last_name") as string,
-    company: formData.get("company") as string,
-    address_1: formData.get("address_1") as string,
-    address_2: formData.get("address_2") as string,
-    city: formData.get("city") as string,
-    postal_code: formData.get("postal_code") as string,
-    province: formData.get("province") as string,
-    country_code: formData.get("country_code") as string,
-    phone: formData.get("phone") as string,
-    is_default_billing: isDefaultBilling,
-    is_default_shipping: isDefaultShipping,
-  }
+  const validationError = validateCustomerAddress(address)
+  if (validationError) return { success: false, error: validationError }
 
   const headers = {
     ...(await getAuthHeaders()),
@@ -371,18 +412,18 @@ export const addCustomerAddress = async (
       return { success: true, error: null }
     })
     .catch((err) => {
-      return { success: false, error: err.toString() }
+      return addressMutationFailure(err, "customer_address_save_failed")
     })
 }
 
 export const deleteCustomerAddress = async (
   addressId: string,
-): Promise<void> => {
+): Promise<{ success: boolean; error: string | null }> => {
   const headers = {
     ...(await getAuthHeaders()),
   }
 
-  await sdk.store.customer
+  return sdk.store.customer
     .deleteAddress(addressId, headers)
     .then(async () => {
       const customerCacheTag = await getCacheTag("customers")
@@ -390,38 +431,58 @@ export const deleteCustomerAddress = async (
       return { success: true, error: null }
     })
     .catch((err) => {
-      return { success: false, error: err.toString() }
+      return addressMutationFailure(err, "customer_address_delete_failed")
+    })
+}
+
+export const updateCustomerAddressDefault = async (
+  addressId: string,
+  isDefaultShipping: boolean,
+): Promise<{ success: boolean; error: string | null }> => {
+  const headers = {
+    ...(await getAuthHeaders()),
+  }
+
+  return sdk.store.customer
+    .updateAddress(
+      addressId,
+      { is_default_shipping: isDefaultShipping },
+      {},
+      headers,
+    )
+    .then(async () => {
+      revalidateTag(await getCacheTag("customers"), { expire: 0 })
+      return { success: true, error: null }
+    })
+    .catch((err) => {
+      return addressMutationFailure(err, "customer_address_default_failed")
     })
 }
 
 export const updateCustomerAddress = async (
   currentState: Record<string, unknown>,
   formData: FormData,
-): Promise<{ success: boolean; error: string | null }> => {
+): Promise<{
+  success: boolean
+  error: CustomerAddressError | "customer_address_save_failed" | null
+}> => {
   const addressId =
     (currentState.addressId as string) || (formData.get("addressId") as string)
 
   if (!addressId) {
-    return { success: false, error: "Address ID is required" }
+    return { success: false, error: "customer_address_save_failed" }
   }
 
-  const address = {
-    first_name: formData.get("first_name") as string,
-    last_name: formData.get("last_name") as string,
-    company: formData.get("company") as string,
-    address_1: formData.get("address_1") as string,
-    address_2: formData.get("address_2") as string,
-    city: formData.get("city") as string,
-    postal_code: formData.get("postal_code") as string,
-    province: formData.get("province") as string,
-    country_code: formData.get("country_code") as string,
-  } as HttpTypes.StoreUpdateCustomerAddress
+  const addressFields = readCustomerAddressForm(formData)
 
-  const phone = formData.get("phone") as string
+  const validationError = validateCustomerAddress(addressFields)
+  if (validationError) return { success: false, error: validationError }
 
-  if (phone) {
-    address.phone = phone
-  }
+  const address = addressFields as HttpTypes.StoreUpdateCustomerAddress
+
+  const phone = String(formData.get("phone") ?? "").trim()
+
+  address.phone = phone
 
   const headers = {
     ...(await getAuthHeaders()),
@@ -435,6 +496,6 @@ export const updateCustomerAddress = async (
       return { success: true, error: null }
     })
     .catch((err) => {
-      return { success: false, error: err.toString() }
+      return addressMutationFailure(err, "customer_address_save_failed")
     })
 }

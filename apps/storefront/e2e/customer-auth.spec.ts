@@ -174,6 +174,72 @@ for (const locale of ["da", "en"] as const) {
     await expect(
       page.getByTestId("account-phone-editor").getByTestId("current-info"),
     ).toHaveText("+45 12 34 56 78")
+
+    await page.goto("/dk/account/addresses")
+    const addresses = page.getByTestId("addresses-page-wrapper")
+    await addresses.getByTestId("add-address-button").press("Enter")
+    const addModal = page.getByTestId("add-address-modal")
+    await addModal.getByTestId("first-name-input").fill("Maja")
+    await addModal.getByTestId("last-name-input").fill("Jensen")
+    await addModal.getByTestId("address-1-input").fill("!1")
+    await addModal.getByTestId("postal-code-input").fill("2100")
+    await addModal.getByTestId("city-input").fill("København")
+    await addModal.getByTestId("country-select").selectOption("dk")
+    await addModal.getByTestId("phone-input").fill("12345678")
+    await addModal.getByTestId("save-button").press("Enter")
+    await expect(addModal.getByTestId("address-error")).toContainText(
+      locale === "da" ? "gade" : "street",
+    )
+
+    await addModal.getByTestId("first-name-input").fill("Maja")
+    await addModal.getByTestId("last-name-input").fill("Jensen")
+    await addModal.getByTestId("address-1-input").fill("Testvej 12")
+    await addModal.getByTestId("postal-code-input").fill("2100")
+    await addModal.getByTestId("city-input").fill("København")
+    await addModal.getByTestId("country-select").selectOption("dk")
+    await addModal.getByTestId("phone-input").fill("+45 12 34 56 78")
+    await addModal.getByTestId("default-address-input").check()
+    await addModal.getByTestId("save-button").press("Enter")
+    await expect(addresses.getByTestId("address-container")).toHaveCount(1)
+
+    await addresses.getByTestId("add-address-button").press("Enter")
+    const secondAddModal = page.getByTestId("add-address-modal")
+    await secondAddModal.getByTestId("first-name-input").fill("Maja")
+    await secondAddModal.getByTestId("last-name-input").fill("Jensen")
+    await secondAddModal.getByTestId("address-1-input").fill("Havnegade 4")
+    await secondAddModal.getByTestId("postal-code-input").fill("8000")
+    await secondAddModal.getByTestId("city-input").fill("Aarhus")
+    await secondAddModal.getByTestId("country-select").selectOption("dk")
+    await secondAddModal.getByTestId("phone-input").fill("+45 22 33 44 55")
+    await secondAddModal.getByTestId("save-button").press("Enter")
+    await expect(addresses.getByTestId("address-container")).toHaveCount(2)
+
+    const firstAddress = addresses
+      .getByTestId("address-container")
+      .filter({ hasText: "Testvej 12" })
+    await firstAddress.getByTestId("address-edit-button").click()
+    const editModal = page.locator('[data-testid="edit-address-modal"]:visible')
+    await editModal.getByTestId("city-input").fill("Odense")
+    await editModal.getByTestId("save-button").press("Enter")
+    await expect(firstAddress).toContainText("Odense")
+
+    const secondAddress = addresses
+      .getByTestId("address-container")
+      .filter({ hasText: "Havnegade 4" })
+    await secondAddress.getByTestId("address-default-button").press("Enter")
+    await expect(secondAddress).toContainText(
+      locale === "da" ? "Standardadresse" : "Default address",
+    )
+    await expect(firstAddress).not.toContainText(
+      locale === "da" ? "Standardadresse" : "Default address",
+    )
+    await secondAddress.getByTestId("address-delete-button").press("Enter")
+    await expect(addresses.getByTestId("address-container")).toHaveCount(1)
+    await expect(firstAddress).not.toContainText(
+      locale === "da" ? "Standardadresse" : "Default address",
+    )
+    await firstAddress.getByTestId("address-delete-button").press("Enter")
+    await expect(addresses.getByTestId("address-container")).toHaveCount(0)
   })
 }
 
