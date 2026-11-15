@@ -70,6 +70,7 @@ type Bilingual = { da: string; en: string }
 export type PublishedDish = {
   /** Stable dish identity: the product id. */
   id: string
+  photo?: { url: string } | null
   /** The dish's one sellable variant, which an Order line refers to. */
   variant_id: string
   revision: number

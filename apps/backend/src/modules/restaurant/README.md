@@ -708,3 +708,35 @@ resource in the same atomic write that removes the dish from the menu. The dish
 leaves its category and current menu; image assets are retained. A missing
 identity on the next fresh menu read requires ordering consumers to request
 Customer review before payment.
+
+### Photo attachments (#113)
+
+`PhotoAttachment` is the Restaurant-owned registry for the first photo of a
+dish product or Restaurant cover. It stores the kind, resource ID, Restaurant
+ID, File Module key and provider URL, processed byte count, request ID, actor and
+time. Unique indexes prevent two attachments to one resource and two successful
+histories for one request. The File Module is a storage facade and cannot
+enumerate this registry. The workflow checks current staff authorization,
+Restaurant ownership and target revision under the Restaurant lock before it
+decodes and stores. It deletes a successfully uploaded output if the later
+attachment write fails. No original bytes are published.
+
+The local File Module provider stores development files in
+`apps/backend/static` (relative to the repository root), outside `.medusa`
+build output. They survive backend restarts and rebuilds and are ignored by
+Git through `apps/backend/.gitignore`. Local development needs no Tigris
+account or credentials. Medusa's local provider serves these files from
+`/static`; its private-file mode does not create signed URLs, so use it only
+for local development. Staging uses the private Tigris `mtogo` bucket via
+Medusa's S3 provider. Set
+`PHOTO_S3_FILE_URL=https://mtogo.t3.storage.dev`: Medusa uses this as an
+unsigned upload-result URL, not as a public image URL. The photo registry
+stores only validated, transformed WebP outputs. Customer and Partner reads
+look up registered file IDs; staging issues one-hour presigned download URLs
+and never exposes the stored unsigned URL. The guest Restaurant menu includes
+the cover alongside dish photos. Missing or failed images use the name
+placeholder. The staff menu arrangement also reads registered dish photos
+without changing its ordering revision. The legacy `backend-static` volume remains mounted for existing
+local-provider uploads, but new staging photos are in Tigris and need separate
+backup and retention planning. Photos do not alter participation, opening,
+price or historical Orders.

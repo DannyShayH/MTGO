@@ -1,4 +1,5 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
+import sharp from "sharp"
 import {
   ContainerRegistrationKeys,
   generateJwtToken,
@@ -230,6 +231,7 @@ medusaIntegrationTestRunner({
         { headers: { "x-publishable-api-key": key.token } },
       )
       expect(customerMenu.status).toBe(200)
+      expect(customerMenu.data.restaurant.cover).toBeNull()
       expect(
         customerMenu.data.categories.map(({ id }: { id: string }) => id),
       ).toEqual([target])
@@ -627,6 +629,288 @@ medusaIntegrationTestRunner({
           config,
         )
       ).data.category.id
+    })
+    it("attaches both owned photo kinds and publishes transformed images", async () => {
+      const dish = (await post()).data.categories[0].dishes[0]
+      const jpeg = await sharp({
+        create: {
+          width: 2400,
+          height: 1200,
+          channels: 3,
+          background: "#aa4422",
+        },
+      })
+        .jpeg()
+        .toBuffer()
+      const content = jpeg.toString("base64")
+      const dishPath = `/partner/restaurants/${restaurantId}/dishes/${dish.id}/photo`
+      const coverPath = `/partner/restaurants/${restaurantId}/cover`
+      const attachedDish = await api.post(
+        dishPath,
+        {
+          request_id: "c86805e7-8e71-414b-9389-cc1c12064944",
+          revision: dish.revision,
+          content,
+        },
+        config,
+      )
+      expect(attachedDish.status).toBe(200)
+      expect(attachedDish.data.photo.url).toContain(".webp")
+      expect(
+        (await api.get(`/partner/restaurants/${restaurantId}/dishes`, config))
+          .data.categories[0].dishes[0].photo.url,
+      ).toBe(attachedDish.data.photo.url)
+      const output = await getContainer()
+        .resolve(Modules.FILE)
+        .getAsBuffer(
+          (
+            await service().listPhotoAttachments({
+              restaurant_id: restaurantId,
+              kind: "dish",
+            })
+          )[0].file_id,
+        )
+      expect((await sharp(output).metadata()).width).toBe(2048)
+      const attachedCover = await api.post(
+        coverPath,
+        {
+          request_id: "ae45f1cc-ec72-442d-8b59-950d7d050f83",
+          revision: 1,
+          content,
+        },
+        config,
+      )
+      expect(attachedCover.status).toBe(200)
+      expect(attachedCover.data.cover.url).toContain(".webp")
+      const details = await api.get(
+        `/partner/restaurants/${restaurantId}`,
+        config,
+      )
+      expect(details.data.restaurant.cover.url).toBe(
+        attachedCover.data.cover.url,
+      )
+      const {
+        result: [key],
+      } = await createApiKeysWorkflow(getContainer()).run({
+        input: {
+          api_keys: [
+            { title: "Photo browsing", type: "publishable", created_by: "" },
+          ],
+        },
+      })
+      await service().updateRestaurants({ id: restaurantId, is_active: true })
+      const store = { headers: { "x-publishable-api-key": key.token } }
+      const file = getContainer().resolve(Modules.FILE)
+      const retrieveFile = file.retrieveFile.bind(file)
+      const signed = jest
+        .spyOn(file, "retrieveFile")
+        .mockImplementation(async (id) => ({
+          ...(await retrieveFile(id)),
+          url: `https://mtogo.t3.storage.dev/${id}?X-Amz-Signature=test`,
+        }))
+      const customerMenu = await api.get(
+        `/store/restaurants/${restaurantId}/menu`,
+        store,
+      )
+      const staffArrangement = await api.get(
+        `/partner/restaurants/${restaurantId}/menu-arrangement`,
+        config,
+      )
+      expect(staffArrangement.data.categories[0].dishes[0].photo.url).toContain(
+        "X-Amz-Signature=test",
+      )
+      expect(customerMenu.data.restaurant.cover.url).toContain(
+        "X-Amz-Signature=test",
+      )
+      expect(customerMenu.data.categories[0].dishes[0].photo.url).toContain(
+        "X-Amz-Signature=test",
+      )
+      const customerHome = await api.get("/store/restaurants", store)
+      expect(
+        customerHome.data.restaurants.find(
+          ({ id }: { id: string }) => id === restaurantId,
+        ).cover.url,
+      ).toContain("X-Amz-Signature=test")
+      const stored = await service().listPhotoAttachments({
+        restaurant_id: restaurantId,
+      })
+      expect(stored.every(({ url }) => !url.includes("X-Amz-Signature"))).toBe(
+        true,
+      )
+      signed.mockRestore()
+      const retry = await api.post(
+        coverPath,
+        {
+          request_id: "ae45f1cc-ec72-442d-8b59-950d7d050f83",
+          revision: 1,
+          content,
+        },
+        config,
+      )
+      expect(retry.status).toBe(200)
+      expect(
+        await service().listPhotoAttachments({ restaurant_id: restaurantId }),
+      ).toHaveLength(2)
+    })
+
+    it("refuses invalid content, foreign targets and revoked staff for both photo kinds", async () => {
+      const dish = (await post()).data.categories[0].dishes[0]
+      const coverPath = `/partner/restaurants/${restaurantId}/cover`
+      const dishPath = `/partner/restaurants/${restaurantId}/dishes/${dish.id}/photo`
+      const body = {
+        request_id: "c86805e7-8e71-414b-9389-cc1c12064944",
+        revision: 1,
+        content: Buffer.from("<svg/>").toString("base64"),
+      }
+      expect((await api.post(coverPath, body, config)).data.code).toBe(
+        "photo_invalid",
+      )
+      expect((await api.post(dishPath, body, config)).data.code).toBe(
+        "photo_invalid",
+      )
+      expect(
+        (
+          await api.post(
+            `/partner/restaurants/${restaurantId}/dishes/not-owned/photo`,
+            body,
+            config,
+          )
+        ).status,
+      ).toBe(404)
+      await service().updateRestaurantStaffs({ id: staffId, status: "revoked" })
+      expect((await api.post(coverPath, body, config)).status).toBe(403)
+      expect((await api.post(dishPath, body, config)).status).toBe(403)
+      expect(
+        await service().listPhotoAttachments({ restaurant_id: restaurantId }),
+      ).toHaveLength(0)
+    })
+
+    it("rejects input over 5 MiB before publishing an attachment", async () => {
+      const response = await api.post(
+        `/partner/restaurants/${restaurantId}/cover`,
+        {
+          request_id: "6f8c8793-91e5-4f95-b13d-bbb9784f2ee5",
+          revision: 1,
+          content: Buffer.alloc(5 * 1024 * 1024 + 1).toString("base64"),
+        },
+        config,
+      )
+      expect(response.status).toBe(400)
+      expect(response.data.code).toBe("photo_invalid")
+      expect(
+        await service().listPhotoAttachments({ restaurant_id: restaurantId }),
+      ).toHaveLength(0)
+    })
+
+    it("keeps both targets unchanged after a storage failure", async () => {
+      const dish = (await post()).data.categories[0].dishes[0]
+      const content = (
+        await sharp({
+          create: { width: 20, height: 20, channels: 3, background: "red" },
+        })
+          .jpeg()
+          .toBuffer()
+      ).toString("base64")
+      const file = getContainer().resolve(Modules.FILE)
+      const create = jest
+        .spyOn(file, "createFiles")
+        .mockRejectedValue(new Error("provider unavailable"))
+      try {
+        for (const path of [
+          `/partner/restaurants/${restaurantId}/cover`,
+          `/partner/restaurants/${restaurantId}/dishes/${dish.id}/photo`,
+        ]) {
+          const response = await api.post(
+            path,
+            {
+              request_id: "2ec25af3-0837-49bb-bc86-df150d0a66be",
+              revision: 1,
+              content,
+            },
+            config,
+          )
+          expect(response.status).toBe(503)
+          expect(response.data.code).toBe("photo_storage_failed")
+        }
+        expect(
+          await service().listPhotoAttachments({ restaurant_id: restaurantId }),
+        ).toHaveLength(0)
+        expect(
+          (await api.get(`/partner/restaurants/${restaurantId}/dishes`, config))
+            .data.categories[0].dishes[0].photo,
+        ).toBeNull()
+      } finally {
+        create.mockRestore()
+      }
+    })
+
+    it("deletes transformed output when the later attachment write fails", async () => {
+      const content = (
+        await sharp({
+          create: { width: 20, height: 20, channels: 3, background: "red" },
+        })
+          .jpeg()
+          .toBuffer()
+      ).toString("base64")
+      const file = getContainer().resolve(Modules.FILE)
+      const deleted = jest.spyOn(file, "deleteFiles")
+      const write = jest
+        .spyOn(service(), "createPhotoAttachments")
+        .mockRejectedValue(new Error("database unavailable"))
+      try {
+        const response = await api.post(
+          `/partner/restaurants/${restaurantId}/cover`,
+          {
+            request_id: "2ec25af3-0837-49bb-bc86-df150d0a66be",
+            revision: 1,
+            content,
+          },
+          config,
+        )
+        expect(response.status).toBe(503)
+        expect(deleted).toHaveBeenCalledTimes(1)
+        expect(
+          await service().listPhotoAttachments({ restaurant_id: restaurantId }),
+        ).toHaveLength(0)
+      } finally {
+        write.mockRestore()
+        deleted.mockRestore()
+      }
+    })
+
+    it("reconciles a committed attachment after a lost acknowledgement", async () => {
+      const content = (
+        await sharp({
+          create: { width: 20, height: 20, channels: 3, background: "red" },
+        })
+          .jpeg()
+          .toBuffer()
+      ).toString("base64")
+      const module = service()
+      const original = module.createPhotoAttachments.bind(module)
+      const write = jest
+        .spyOn(module, "createPhotoAttachments")
+        .mockImplementationOnce(async (data) => {
+          await original(data)
+          throw new Error("acknowledgement lost")
+        })
+      try {
+        const response = await api.post(
+          `/partner/restaurants/${restaurantId}/cover`,
+          {
+            request_id: "2ec25af3-0837-49bb-bc86-df150d0a66be",
+            revision: 1,
+            content,
+          },
+          config,
+        )
+        expect(response.status).toBe(200)
+        expect(
+          await service().listPhotoAttachments({ restaurant_id: restaurantId }),
+        ).toHaveLength(1)
+      } finally {
+        write.mockRestore()
+      }
     })
     it("refuses to remove the last sold-out dish of an active Restaurant", async () => {
       const created = await post()

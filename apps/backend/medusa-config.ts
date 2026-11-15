@@ -1,5 +1,6 @@
 import { loadEnv, defineConfig, Modules } from "@medusajs/framework/utils"
 import * as linkModules from "@medusajs/medusa/link-modules"
+import path from "node:path"
 import { redisModules } from "./src/config/redis-modules"
 
 loadEnv(process.env.NODE_ENV || "development", process.cwd())
@@ -11,8 +12,35 @@ const redisUrl =
     ? undefined
     : process.env.REDIS_URL || undefined
 
-// Uploads are served by the backend itself; staging sets its public origin.
+// Development uses local files. Staging keeps objects private in Tigris and
+// signs only registered photo attachments when a Customer or staff reads them.
 const backendUrl = process.env.MEDUSA_BACKEND_URL || "http://localhost:9000"
+const localFileDirectory = path.join(process.cwd(), "static")
+const photoFileProvider = process.env.PHOTO_S3_BUCKET
+  ? {
+      resolve: "@medusajs/medusa/file-s3",
+      id: "s3",
+      options: {
+        bucket: process.env.PHOTO_S3_BUCKET,
+        endpoint: process.env.PHOTO_S3_ENDPOINT,
+        region: process.env.PHOTO_S3_REGION,
+        file_url: process.env.PHOTO_S3_FILE_URL,
+        access_key_id: process.env.PHOTO_S3_ACCESS_KEY_ID,
+        secret_access_key: process.env.PHOTO_S3_SECRET_ACCESS_KEY,
+        acl: false,
+        download_file_duration: 3600,
+      },
+    }
+  : {
+      resolve: "@medusajs/medusa/file-local",
+      id: "local",
+      options: {
+        // Outside .medusa build output, so local images survive dev restarts.
+        upload_dir: localFileDirectory,
+        private_upload_dir: localFileDirectory,
+        backend_url: `${backendUrl}/static`,
+      },
+    }
 
 module.exports = defineConfig({
   admin: {
@@ -74,16 +102,7 @@ module.exports = defineConfig({
     {
       resolve: "@medusajs/medusa/file",
       options: {
-        providers: [
-          {
-            resolve: "@medusajs/medusa/file-local",
-            id: "local",
-            options: {
-              upload_dir: "static",
-              backend_url: `${backendUrl}/static`,
-            },
-          },
-        ],
+        providers: [photoFileProvider],
       },
     },
     {

@@ -977,6 +977,7 @@ client chooses `da` or `en`. The response is never cached
   "restaurant": {
     "id": "res_01…",
     "name": "Pizzeria Nørrebro",
+    "cover": null,
     "is_open": false,
     "receiving_new_orders": false,
     "reason": "restaurant_closed"
@@ -1020,6 +1021,7 @@ client chooses `da` or `en`. The response is never cached
 
 | Field                             | Meaning                                                                                                                                                                                                                                                                                                                                                                               |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `restaurant.cover`                | `null` before a cover is attached, otherwise a read URL for the validated Restaurant cover. Staging issues a fresh signed URL on each menu read                                                                                                                                                                                                                                       |
 | `restaurant.is_open`              | Whether staff have opened the Restaurant. A Closed Restaurant's menu stays readable                                                                                                                                                                                                                                                                                                   |
 | `restaurant.receiving_new_orders` | Whether a new Order could be placed now. `reason` is `restaurant_closed` or `delivery_area_missing` when it is `false`, otherwise `null`                                                                                                                                                                                                                                              |
 | `categories`                      | The Restaurant's own categories in its order. A category without a valid dish is left out                                                                                                                                                                                                                                                                                             |
@@ -1106,7 +1108,7 @@ At most one of the two. A code and a town together answer `location_ambiguous`.
 | Field                               | Meaning                                                                                                                                                                                |
 | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `restaurants[]`                     | An explicit public allowlist: identity, name, pickup city, opening and eligibility. Staff, contacts, terms, history and internal keys are never included                               |
-| `restaurants[].cover`               | `null` until Restaurant covers are stored (#113); clients show the name placeholder                                                                                                    |
+| `restaurants[].cover`               | `null` before a cover is attached; otherwise the registered cover's read URL. Clients show the name placeholder when missing                                                           |
 | `restaurants[].delivery_area_match` | Only with a location: how many of the location's codes the delivery area contains. Below `location_postal_codes` means part of the town; exact eligibility needs the destination code  |
 | `location`                          | `null` without a filter. For a code: `kind` `postal_code`, `postal_code`, the town `name` and `postal_codes` `1`. For a town: `kind` `town`, `name` and the number of registered codes |
 
@@ -1174,7 +1176,8 @@ updated, and no custom persistence model or migration is needed.
 `GET /partner/restaurants/{id}/menu-arrangement` requires current Restaurant staff
 access and ownership. Returns `{ revision, categories }`, including empty
 categories, bilingual names, category revisions and published dishes in saved
-order. Responses use `Cache-Control: no-store`.
+order. Attached dish photos carry a current read URL; dishes without photos
+omit the `photo` field. Responses use `Cache-Control: no-store`.
 
 `POST` at the same path accepts one strict body:
 
@@ -1213,3 +1216,31 @@ revisions return `409 dish_stale` with the current dish. Removing the last
 valid published dish of an active Restaurant returns
 `409 last_published_dish_while_active`, including when it is sold out.
 Deactivate the Restaurant before removing that dish.
+
+## First Restaurant and dish photos (#113)
+
+Current staff may `POST /partner/restaurants/:id/cover` or
+`POST /partner/restaurants/:id/dishes/:dish_id/photo` for their own Restaurant.
+Both accept JSON `{ "request_id": "<UUID>", "revision": 1, "content": "<base64>" }`.
+The revision comes from the partner Restaurant or dish read. `content` is the
+actual JPEG, PNG or WebP bytes encoded as base64, not a URL or file ID. Success
+returns `200` with `{ "cover": { "url": "…", "revision": 1 } }` or the same
+shape under `photo`. The client never chooses a published URL or filename.
+On staging, response and Customer read URLs are presigned for one hour from
+registered, processed files in the private Tigris bucket. A new read issues a
+fresh URL. The unsigned `PHOTO_S3_FILE_URL` base is never returned to guests.
+
+The request body is limited to 7 MB and decoded input to 5 MiB and 20 million
+pixels. Processing times out after 10 seconds and permits two active decodes
+per backend process. Output is metadata-free WebP, at most 2048 pixels on its
+longest side and 1 MiB. Each Restaurant may have 100 attachments or 50 MiB of
+processed output and add 20 attachments per UTC day. The first attachment is
+the only operation in this issue; replacement and removal belong to #114.
+
+Invalid images return `400 photo_invalid`; quotas return `400 photo_quota` or
+`400 photo_rate_limit`; stale revisions and existing images return `409
+photo_stale` and `409 photo_exists`. Foreign targets return `404
+photo_target_not_found`, revoked staff `403 staff_access_revoked`, and storage
+failure `503 photo_storage_failed`. A retry with the same request ID and target
+returns the original attachment, while reuse for another target returns `409
+photo_retry_conflict`. Failed processing leaves published state untouched.

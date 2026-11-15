@@ -1,5 +1,6 @@
 import { CUSTOMER_MENU_TEXT, type Locale } from "@dtc/i18n"
 import type { RestaurantMenu } from "@lib/data/restaurant-menu"
+import { PhotoWithPlaceholder } from "@modules/common/components/photo-with-placeholder"
 import Dish from "@modules/menu/components/dish"
 
 const page =
@@ -58,25 +59,42 @@ export default function MenuTemplate({
     <div className="bg-mtogo-surface-page" lang={locale}>
       <div className={page} data-testid="restaurant-menu">
         {backHref && <BackLink href={backHref} locale={locale} />}
-        <header className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            <h1 className="text-balance text-3xl font-semibold leading-tight text-mtogo-text-primary">
-              {restaurant.name}
-            </h1>
-            <StatusBadge restaurant={restaurant} locale={locale} />
-          </div>
-          {!restaurant.receiving_new_orders && (
-            <p
-              className="max-w-[60ch] rounded-card bg-mtogo-status-warning-surface px-4 py-3 text-base leading-6 text-mtogo-status-warning-text"
-              role="status"
-              data-testid="restaurant-not-receiving"
-            >
-              {restaurant.is_open ? text.not_receiving_note : text.closed_note}
+        <header className="grid gap-4 small:grid-cols-[minmax(0,1fr)_14rem] small:items-start">
+          <div className="flex min-w-0 flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <h1 className="text-balance text-3xl font-semibold leading-tight text-mtogo-text-primary">
+                {restaurant.name}
+              </h1>
+              <StatusBadge restaurant={restaurant} locale={locale} />
+            </div>
+            {!restaurant.receiving_new_orders && (
+              <p
+                className="max-w-[60ch] rounded-card bg-mtogo-status-warning-surface px-4 py-3 text-base leading-6 text-mtogo-status-warning-text"
+                role="status"
+                data-testid="restaurant-not-receiving"
+              >
+                {restaurant.is_open
+                  ? text.not_receiving_note
+                  : text.closed_note}
+              </p>
+            )}
+            <p className="text-base leading-6 text-mtogo-text-secondary">
+              {text.price_note}
             </p>
+          </div>
+          {restaurant.cover && (
+            <div
+              className="w-full overflow-hidden rounded-card border border-mtogo-border-subtle"
+              data-testid="restaurant-menu-cover"
+            >
+              <PhotoWithPlaceholder
+                kind="cover"
+                url={restaurant.cover.url}
+                name={restaurant.name}
+                missingText={text.no_photo}
+              />
+            </div>
           )}
-          <p className="text-base leading-6 text-mtogo-text-secondary">
-            {text.price_note}
-          </p>
         </header>
 
         {categories.length === 0 && (

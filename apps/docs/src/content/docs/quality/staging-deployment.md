@@ -30,13 +30,13 @@ or payment details.
 | Item               | Decision                                                                                                                                                                     |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Host               | One DigitalOcean Droplet, Ubuntu 22.04, 2 GB RAM, 2 GB swap, Docker 29 and Docker Compose 5, owned by the repository admin                                                   |
-| Recurring cost     | The Droplet's monthly price (about 12 USD for 2 GB at the time of writing) plus the domain. Nothing else is purchased                                                        |
+| Recurring cost     | The Droplet and domain, plus Tigris storage and request charges under the selected account plan                                                                              |
 | Domain and DNS     | Three `A` (or `AAAA`) records for the storefront, API and partner hostnames pointing at the Droplet; Caddy obtains the certificates                                          |
 | Reverse proxy      | The existing Caddy. The repository ships no proxy; `deploy/staging/Caddyfile.example` has the three site blocks                                                              |
 | Database           | The existing PostgreSQL 16 container `db`: a separate `mtogo_staging` database owned by the restricted role `mtogo_staging_app`                                              |
 | Runtime            | `deploy/staging/compose.yaml`: pinned `redis:7.4.12`, client-only `postgres:16.16`, and release images built from `node:24.22.3-bookworm-slim`                               |
 | Images             | GitHub Container Registry: `ghcr.io/<owner>/mtgo-staging-backend`, `-partner` and `-storefront`, tagged with the commit SHA                                                  |
-| Persistence        | Staging data lives in the existing PostgreSQL container's storage. Medusa uploads live in the named volume `backend-static`                                                  |
+| Persistence        | Staging data lives in PostgreSQL. New photos live in the private Tigris `mtogo` bucket; the legacy `backend-static` volume remains mounted                                   |
 | Private networking | Redis sits on an internal network without published ports. The backend reaches `db` over its existing Docker network. Only the three app ports are published, on `127.0.0.1` |
 | Credentials        | GitHub repository secrets for SSH; `/srv/mtogo-staging/.env` on the Droplet for runtime secrets. Nothing in Git, images or docs                                              |
 
@@ -407,8 +407,8 @@ sudo mtogo-deploy.sh status
 
 Orders, Restaurants and uploaded images are still there afterwards. The
 staging data lives in the `mtogo_staging` database of the existing PostgreSQL
-container, and uploads in the volume `mtogo-staging_backend-static`; neither
-is inside an application container. Redis holds only events, workflow state
+container. New photos live in the private Tigris `mtogo` bucket, while legacy
+local uploads remain in `mtogo-staging_backend-static`. Redis holds events, workflow state
 and sessions: restarting it signs users out but loses no business data.
 
 ### Database backup and restore
@@ -437,7 +437,9 @@ Limitations:
 - The `pg_trgm` and `unaccent` extensions are skipped on restore; they belong
   to the superuser and stay installed. On a new server, run the `CREATE
 EXTENSION` lines from step 2 before restoring.
-- Uploaded files in `backend-static` are not part of the dump. Copy the
+- Tigris objects are not part of the database dump. Back up the private
+  `mtogo` bucket separately and retain it across database restore or rollback.
+- Legacy files in `backend-static` are not part of the dump. Copy the
   volume separately if they matter:
   `docker run --rm -v mtogo-staging_backend-static:/s -v "$PWD":/b alpine tar czf /b/static.tgz -C /s .`
 - The dumps stay on the Droplet. Copy important ones off with `scp`; losing

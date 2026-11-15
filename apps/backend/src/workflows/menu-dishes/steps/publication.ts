@@ -10,6 +10,7 @@ import { RESTAURANT_MODULE } from "../../../modules/restaurant"
 import RestaurantModuleService from "../../../modules/restaurant/service"
 import { PublishedCategory } from "../../menu/published-menu"
 import { readPublishedMenu } from "../../menu"
+import { withDishPhotos } from "../../menu/steps/read-menu"
 import { dishCreateSchema, DishCreateInput } from "../validation"
 import { validateAllergens, validateFoodLabels } from "../validate-allergens"
 
@@ -235,6 +236,10 @@ export const readStaffMenuStep = createStep(
   "read-staff-menu",
   async (input: { restaurant_id: string }, { container }) =>
     new StepResponse({
-      categories: await readPublishedMenu(container, input.restaurant_id),
+      categories: await withDishPhotos(
+        container,
+        input.restaurant_id,
+        await readPublishedMenu(container, input.restaurant_id),
+      ),
     }),
 )

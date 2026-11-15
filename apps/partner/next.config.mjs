@@ -7,6 +7,7 @@ pinOwnReact(import.meta.dirname)
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  experimental: { serverActions: { bodySizeLimit: "6mb" } },
   serverExternalPackages: ["winston", "@dtc/logging"],
   // Next dev logs can include action arguments, URLs and browser errors.
   logging: false,

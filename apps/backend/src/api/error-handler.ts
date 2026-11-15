@@ -142,6 +142,37 @@ function dishRefusalBody(
   return { ...fields, type: body.type, code, message: code }
 }
 
+function photoRefusalBody(
+  error: { code?: string },
+  url: string,
+  statusCode: number,
+  body: { type?: string },
+) {
+  if (
+    !/^\/partner\/restaurants\/[^/]+\/(?:cover|dishes\/[^/]+\/photo)\/?$/.test(
+      url.split("?")[0],
+    )
+  )
+    return undefined
+  const code = statusCode === 400 && !error.code ? "photo_invalid" : error.code
+  if (
+    !code ||
+    ![
+      "photo_invalid",
+      "photo_quota",
+      "photo_rate_limit",
+      "photo_stale",
+      "photo_exists",
+      "photo_retry_conflict",
+      "photo_target_not_found",
+      "photo_storage_failed",
+      "staff_access_revoked",
+    ].includes(code)
+  )
+    return undefined
+  return { type: body.type, code, message: code }
+}
+
 /**
  * Preserve Medusa responses and additional refusal fields. The correlated
  * sign-in path handles failures safely and logs once when the response ends.
@@ -180,12 +211,16 @@ export function mtogoErrorHandler(): MedusaErrorHandlerFunction {
     const fields = responseFieldsOf(error)
     const { statusCode: originalStatus, body } = getHttpResponseFromError(error)
     const statusCode =
-      error.code === "dish_publication_uncertain" ? 503 : originalStatus
+      error.code === "dish_publication_uncertain" ||
+      error.code === "photo_storage_failed"
+        ? 503
+        : originalStatus
     const stableErrorCode = stableErrorCodes.has(error.message)
       ? error.message
       : undefined
     if (stableErrorCode) body.code = stableErrorCode
     const categoryBody =
+      photoRefusalBody(error, req.originalUrl, statusCode, body) ??
       arrangementRefusalBody(
         error,
         req.originalUrl,

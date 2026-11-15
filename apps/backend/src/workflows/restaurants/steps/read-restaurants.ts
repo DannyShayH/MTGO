@@ -5,6 +5,7 @@ import PostalCodeModuleService from "../../../modules/postal-code/service"
 import { POSTAL_CODE_MODULE } from "../../../modules/postal-code"
 import RestaurantModuleService from "../../../modules/restaurant/service"
 import { RESTAURANT_MODULE } from "../../../modules/restaurant"
+import { signedPhotoUrl } from "../../photos/signed-url"
 import {
   ACTIVATION_REQUIREMENT_CODES,
   evaluateActivationRequirements,
@@ -230,6 +231,9 @@ export const retrievePartnerRestaurantStep = createStep(
         { relations: ["delivery_area_postal_codes"] },
       )
     if (!record) throw restaurantNotFound()
+    const [cover] = await container
+      .resolve<RestaurantModuleService>(RESTAURANT_MODULE)
+      .listPhotoAttachments({ restaurant_id: input.id, kind: "cover" })
     const restaurant = presentRestaurant(record)
     return new StepResponse({
       id: restaurant.id,
@@ -245,6 +249,10 @@ export const retrievePartnerRestaurantStep = createStep(
       ),
       is_active: restaurant.is_active,
       is_open: restaurant.is_open,
+      cover_revision: record.cover_revision,
+      cover: cover
+        ? { url: await signedPhotoUrl(container, cover.file_id) }
+        : null,
       receiving_new_orders: restaurant.receiving_new_orders,
       reason: restaurant.reason,
     })

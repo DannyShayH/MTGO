@@ -40,6 +40,7 @@ export type FoodLabelDeclaration = {
 }[]
 export type StaffDish = {
   id: string
+  photo?: { url: string } | null
   revision: number
   is_sold_out: boolean
   name: { da: string; en: string }

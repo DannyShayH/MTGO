@@ -9,6 +9,7 @@ import {
 import { RESTAURANT_MODULE } from "../../../modules/restaurant"
 import RestaurantModuleService from "../../../modules/restaurant/service"
 import { readPublishedMenu } from "../../menu"
+import { withDishPhotos } from "../../menu/steps/read-menu"
 import { PublishedCategory } from "../../menu/published-menu"
 import { withResponseFields } from "../../common/response-fields"
 import { MenuArrangementInput, menuArrangementSchema } from "../validation"
@@ -29,7 +30,9 @@ export async function readArrangement(
     name: { da: category.name_da, en: category.name_en },
     dishes: menu.find(({ id }) => id === category.id)?.dishes ?? [],
   }))
-  return arrangementOf(rows)
+  return arrangementOf(
+    await withDishPhotos(container, restaurant_id, rows, false),
+  )
 }
 
 type ArrangementCategory = PublishedCategory

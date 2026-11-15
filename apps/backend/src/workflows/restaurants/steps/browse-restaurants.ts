@@ -4,6 +4,7 @@ import PostalCodeModuleService from "../../../modules/postal-code/service"
 import { POSTAL_CODE_MODULE } from "../../../modules/postal-code"
 import RestaurantModuleService from "../../../modules/restaurant/service"
 import { RESTAURANT_MODULE } from "../../../modules/restaurant"
+import { signedPhotoUrl } from "../../photos/signed-url"
 import { matchDeliveryArea } from "../delivery-area-match"
 import { evaluateNewOrderEligibility } from "../eligibility"
 
@@ -89,6 +90,22 @@ export const readPublicRestaurantsStep = createStep(
           relations: ["delivery_area_postal_codes"],
         },
       )
+    const attachments = await container
+      .resolve<RestaurantModuleService>(RESTAURANT_MODULE)
+      .listPhotoAttachments({ kind: "cover" }, { take: null })
+    const covers = new Map(
+      await Promise.all(
+        attachments.map(
+          async ({ restaurant_id, file_id }) =>
+            [
+              restaurant_id,
+              await signedPhotoUrl(container, file_id)
+                .then((url) => ({ url }))
+                .catch(() => null),
+            ] as const,
+        ),
+      ),
+    )
     const active = records.map((restaurant) => ({
       id: restaurant.id,
       name: restaurant.name,
@@ -118,8 +135,7 @@ export const readPublicRestaurantsStep = createStep(
           is_open: restaurant.is_open,
           delivery_postal_codes: delivery_area_postal_codes,
         }),
-        // Covers arrive with dish photos; clients show the name placeholder until then.
-        cover: null,
+        cover: covers.get(restaurant.id) ?? null,
         ...(delivery_area_match ? { delivery_area_match } : {}),
       }),
     )

@@ -7,6 +7,7 @@ import {
 } from "@dtc/i18n"
 import type { MenuDish } from "@lib/data/restaurant-menu"
 import { LabelInfo } from "./label-info"
+import { PhotoWithPlaceholder } from "@modules/common/components/photo-with-placeholder"
 
 type Declared = Extract<
   MenuDish["food_information"]["allergens"],
@@ -323,27 +324,12 @@ export default function Dish({
           )}
         </details>
       </div>
-      {dish.photo ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={dish.photo.url}
-          alt={name}
-          className="aspect-[4/3] w-24 shrink-0 self-start rounded-card object-cover small:w-36"
-        />
-      ) : (
-        <div
-          className="flex aspect-[4/3] w-24 shrink-0 items-center justify-center self-start rounded-card border border-mtogo-border-subtle bg-mtogo-surface-card p-2 small:w-36"
-          data-testid="menu-dish-placeholder"
-        >
-          <span className="sr-only">{text.no_photo}</span>
-          <span
-            aria-hidden="true"
-            className="line-clamp-3 text-center text-xs leading-4 text-mtogo-text-secondary"
-          >
-            {name}
-          </span>
-        </div>
-      )}
+      <PhotoWithPlaceholder
+        kind="dish"
+        url={dish.photo?.url}
+        name={name}
+        missingText={text.no_photo}
+      />
     </li>
   )
 }

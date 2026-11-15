@@ -31,6 +31,12 @@ English text comes from `@dtc/i18n`.
 - **Language.** The first visit follows the browser's `Accept-Language` and falls
   back to Danish. The Dansk/English switch is remembered for a year in the
   `mtogo_partner_locale` cookie.
+- **Photos.** Staff select one dish photo on its edit page and one Restaurant
+  cover on the Overview. The form previews the selected file locally, then
+  uploads it through the authenticated Partner action. The backend validates
+  and transforms the image before storing it; the preview itself is never
+  published. Local development stores outputs in the Git-ignored
+  `apps/backend/static` directory and requires no Tigris account.
 - **Accepting an invitation.** The operator's invite link opens `/invite?token=…`,
   which shows the Restaurant's name and the invited name and email. The person
   chooses a password (at least 8 characters). On the server the app registers
@@ -266,3 +272,9 @@ icons at the end of each row. Removal uses Medusa UI’s accessible confirmation
 dialog, with the dish name and translated actions. Medusa UI’s Sonner-backed
 toasts announce successful changes and errors; actionable errors remain visible
 on the page.
+
+Each dish row puts a square photo to the left of its name and price. A missing
+or broken photo shows a rounded tile with an X and translated “No image” text.
+The menu route uses Medusa UI Skeleton shapes matching these rows while data
+loads; the Customer Restaurant route reserves its cover and dish layout with
+its existing storefront skeleton style. Both stop pulsing with reduced motion.

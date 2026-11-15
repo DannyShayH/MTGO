@@ -9,6 +9,7 @@ export const DISH_TEXT = {
     add: "Opret ret",
     edit: "Rediger ret",
     edit_action: "Rediger",
+    no_image: "Intet foto",
     remove: "Fjern ret",
     confirm_remove: "Fjern retten?",
     remove_description:
@@ -60,7 +61,7 @@ export const DISH_TEXT = {
     specific_types_hint: "Valgfrit. Vælg de typer, du kender.",
     none_declared:
       "Jeg bekræfter, at ingen af de angivne allergener er deklareret for denne ret.",
-    photo: "Foto er valgfrit. Retten vises med en pladsholder.",
+    photo: "Foto er valgfrit. Du kan tilføje det, når retten er gemt.",
     no_categories: "Opret en kategori først, og vælg derefter Opret ret.",
     cancel: "Annuller",
     discard: "Du har ugemte ændringer. Vil du forlade siden?",
@@ -102,6 +103,7 @@ export const DISH_TEXT = {
     add: "Create dish",
     edit: "Edit dish",
     edit_action: "Edit",
+    no_image: "No image",
     remove: "Remove dish",
     confirm_remove: "Remove dish?",
     remove_description:
@@ -154,7 +156,7 @@ export const DISH_TEXT = {
     specific_types_hint: "Optional. Choose the types you know.",
     none_declared:
       "I confirm that none of the listed allergens are declared for this dish.",
-    photo: "A photo is optional. The dish uses a placeholder.",
+    photo: "A photo is optional. You can add it after saving the dish.",
     no_categories: "Create a category first, then choose Create dish.",
     cancel: "Cancel",
     discard: "You have unsaved changes. Leave this page?",

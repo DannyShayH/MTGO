@@ -60,6 +60,7 @@ export {
   type CustomerAddressText,
 } from "./customer-address.ts"
 export { DISH_TEXT, isDishErrorCode, type DishErrorCode } from "./dishes.ts"
+export { PHOTO_TEXT, isPhotoErrorCode, type PhotoErrorCode } from "./photos.ts"
 export {
   CHECKOUT_REVIEW_METADATA_KEY,
   CHECKOUT_REVIEW_VERSION,

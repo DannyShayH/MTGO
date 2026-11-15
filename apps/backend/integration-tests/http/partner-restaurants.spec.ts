@@ -110,6 +110,8 @@ medusaIntegrationTestRunner({
           ],
           is_active: false,
           is_open: false,
+          cover_revision: 1,
+          cover: null,
           receiving_new_orders: false,
           reason: "restaurant_inactive",
         },

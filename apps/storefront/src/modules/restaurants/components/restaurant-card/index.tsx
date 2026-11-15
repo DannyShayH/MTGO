@@ -1,6 +1,7 @@
 import { CUSTOMER_HOME_TEXT, formatText, type Locale } from "@dtc/i18n"
 import type { PublicRestaurant, SelectedLocation } from "@lib/data/restaurants"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
+import { PhotoWithPlaceholder } from "@modules/common/components/photo-with-placeholder"
 
 /** How much of the selected location this Restaurant's delivery area covers, said honestly. */
 function coverageText(
@@ -58,27 +59,12 @@ export default function RestaurantCard({
       data-open={restaurant.is_open}
     >
       <article className="flex w-full flex-col overflow-hidden rounded-card border border-mtogo-border-subtle bg-mtogo-surface-card transition-[box-shadow,transform] duration-150 ease-out focus-within:ring-2 focus-within:ring-mtogo-focus-ring focus-within:ring-offset-2 focus-within:ring-offset-mtogo-surface-page motion-reduce:transition-none [@media(hover:hover)]:hover:shadow-md">
-        {restaurant.cover ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={restaurant.cover.url}
-            alt=""
-            className="aspect-video w-full object-cover"
-          />
-        ) : (
-          <div
-            className="flex aspect-video w-full items-center justify-center bg-mtogo-surface-selected px-6"
-            data-testid="restaurant-cover-placeholder"
-          >
-            <span className="sr-only">{text.no_cover}</span>
-            <span
-              aria-hidden="true"
-              className="line-clamp-3 text-balance text-center text-2xl font-semibold leading-tight text-mtogo-text-link"
-            >
-              {restaurant.name}
-            </span>
-          </div>
-        )}
+        <PhotoWithPlaceholder
+          kind="cover"
+          url={restaurant.cover?.url}
+          name={restaurant.name}
+          missingText={text.no_cover}
+        />
         <div className="flex flex-1 flex-col gap-2 p-4">
           <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
             <h3 className="min-w-0 text-balance text-lg font-semibold leading-6 text-mtogo-text-primary">

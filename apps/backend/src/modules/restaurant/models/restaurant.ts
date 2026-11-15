@@ -14,6 +14,7 @@ const Restaurant = model
     contact_email: model.text(),
     is_active: model.boolean().default(false),
     is_open: model.boolean().default(false),
+    cover_revision: model.number().default(1),
     pickup_address_key: model.text(),
     delivery_area_postal_codes: model.hasMany(() => DeliveryAreaPostalCode, {
       mappedBy: "restaurant",
@@ -159,6 +160,26 @@ export const MenuDish = model.define("menu_dish", {
   successful_change: model.json().nullable(),
   availability_history: model.json().nullable(),
 })
+
+/** One published, processed image per owned resource. File Module has no registry. */
+export const PhotoAttachment = model
+  .define("photo_attachment", {
+    id: model.id({ prefix: "phat" }).primaryKey(),
+    restaurant_id: model.text(),
+    kind: model.enum(["dish", "cover"]),
+    resource_id: model.text(),
+    file_id: model.text(),
+    url: model.text(),
+    size_bytes: model.number(),
+    request_id: model.text(),
+    actor_id: model.text(),
+    occurred_at: model.dateTime(),
+  })
+  .indexes([
+    { on: ["kind", "resource_id"], unique: true },
+    { on: ["restaurant_id", "request_id"], unique: true },
+    { on: ["restaurant_id"] },
+  ])
 
 /** Durable creation intent survives compensation and process interruption. */
 export const MenuDishCreation = model

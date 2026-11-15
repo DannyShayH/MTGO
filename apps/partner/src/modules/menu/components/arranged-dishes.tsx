@@ -28,6 +28,7 @@ import {
 } from "@lib/data/menu-arrangement"
 import { removeDish } from "@lib/data/menu-dishes"
 import { AvailabilitySwitch } from "./availability-switch"
+import { DishThumbnail } from "./dish-thumbnail"
 import { ReorderControls, reordered } from "./reorder-controls"
 
 const focusRing =
@@ -286,21 +287,28 @@ export function ArrangedDishes({
                           )
                         }
                       />
-                      {/* Phone: name and edit on top, status and move below.
-                          Wider: one line, actions pushed to the end. */}
-                      <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center sm:gap-x-3">
-                        <div className="col-start-1 row-start-1 min-w-0 pt-1 sm:pt-0">
-                          <Text
-                            className="break-words font-medium leading-snug"
-                            lang={locale}
-                          >
-                            {name}
-                          </Text>
-                          <Text className="mt-0.5 whitespace-nowrap tabular-nums text-ui-fg-subtle">
-                            {formatDkk(dish.price.amount, locale)}
-                          </Text>
+                      {/* Phone: thumbnail and name, then status and actions.
+                          Wider: one line, with actions at the end. */}
+                      <div className="grid min-w-0 flex-1 grid-cols-1 items-start gap-x-2 gap-y-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center sm:gap-x-3">
+                        <div className="col-start-1 row-start-1 flex min-w-0 items-center gap-3">
+                          <DishThumbnail
+                            key={dish.photo?.url ?? "missing"}
+                            url={dish.photo?.url}
+                            noImage={dishesText.no_image}
+                          />
+                          <div className="min-w-0">
+                            <Text
+                              className="break-words font-medium leading-snug"
+                              lang={locale}
+                            >
+                              {name}
+                            </Text>
+                            <Text className="mt-0.5 whitespace-nowrap tabular-nums text-ui-fg-subtle">
+                              {formatDkk(dish.price.amount, locale)}
+                            </Text>
+                          </div>
                         </div>
-                        <div className="col-start-2 row-start-1 flex items-center gap-1 sm:col-start-3">
+                        <div className="col-start-1 row-start-3 flex items-center justify-end gap-1 sm:col-start-3 sm:row-start-1">
                           <Link
                             href={`/menu/${encodeURIComponent(dish.id)}`}
                             aria-label={`${dishesText.edit_action}: ${name}`}
@@ -334,7 +342,7 @@ export function ArrangedDishes({
                             <Trash aria-hidden />
                           </button>
                         </div>
-                        <div className="col-span-2 row-start-2 flex flex-wrap items-start gap-2 sm:col-span-1 sm:col-start-2 sm:row-start-1 sm:items-center">
+                        <div className="col-start-1 row-start-2 flex flex-wrap items-start gap-2 sm:col-start-2 sm:row-start-1 sm:items-center">
                           <AvailabilitySwitch
                             key={`${dish.id}:${dish.revision}`}
                             dish={dish}

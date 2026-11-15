@@ -28,6 +28,14 @@ x-backend-environment: &backend-environment
   ADMIN_CORS: ${STAGING_BACKEND_URL:?}
   AUTH_CORS: ${STAGING_STOREFRONT_URL:?},${STAGING_PARTNER_URL:?},${STAGING_BACKEND_URL:?}
   MEDUSA_BACKEND_URL: ${STAGING_BACKEND_URL:?}
+  PHOTO_S3_BUCKET: mtogo
+  PHOTO_S3_ENDPOINT: https://t3.storage.dev
+  PHOTO_S3_REGION: auto
+  # Required by Medusa's S3 provider for upload results. Private objects are
+  # exposed only through per-object signed URLs from the photo registry.
+  PHOTO_S3_FILE_URL: https://mtogo.t3.storage.dev
+  PHOTO_S3_ACCESS_KEY_ID: ${PHOTO_S3_ACCESS_KEY_ID:?Set a bucket-scoped Tigris key in the Droplet .env}
+  PHOTO_S3_SECRET_ACCESS_KEY: ${PHOTO_S3_SECRET_ACCESS_KEY:?Set the Tigris secret in the Droplet .env}
   STOREFRONT_PUBLIC_URL: ${STAGING_STOREFRONT_URL:?}
   PARTNER_PUBLIC_URL: ${STAGING_PARTNER_URL:?}
   MEDUSA_TELEMETRY_DISABLED: "1"

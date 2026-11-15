@@ -15,6 +15,8 @@ export type PartnerRestaurant = {
   delivery_area: { postal_code: string; name: string | null }[]
   is_active: boolean
   is_open: boolean
+  cover_revision: number
+  cover: { url: string } | null
   receiving_new_orders: boolean
   reason: string | null
 }

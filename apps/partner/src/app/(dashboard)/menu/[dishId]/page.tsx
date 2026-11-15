@@ -6,6 +6,7 @@ import { getMessages } from "@lib/i18n"
 import { dishRequest } from "@lib/data/menu-dishes"
 import { retrieveFoodCatalogue } from "@lib/data/food-catalogue"
 import { EditDishForm } from "@modules/menu/components/edit-dish"
+import { PhotoUpload } from "@modules/menu/components/photo-upload"
 
 export default async function EditDishPage({
   params,
@@ -43,6 +44,13 @@ export default async function EditDishPage({
       </Link>
       <Heading level="h1">{text.edit}</Heading>
       <EditDishForm dish={dish} locale={locale} catalogue={catalogue} />
+      <PhotoUpload
+        kind="dish"
+        resourceId={dish.id}
+        revision={dish.revision}
+        locale={locale}
+        initialUrl={dish.photo?.url}
+      />
     </div>
   )
 }

@@ -53,6 +53,7 @@ export type RestaurantMenu = {
   restaurant: {
     id: string
     name: string
+    cover: { url: string } | null
     is_open: boolean
     receiving_new_orders: boolean
     reason: string | null

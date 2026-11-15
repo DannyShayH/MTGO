@@ -300,6 +300,7 @@ medusaIntegrationTestRunner({
       expect(response.data.restaurant).toEqual({
         id: restaurantId,
         name: "Pizzeria Nørrebro",
+        cover: null,
         is_open: true,
         receiving_new_orders: true,
         reason: null,

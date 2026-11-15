@@ -57,6 +57,7 @@ import { PostCustomerVerificationRequestSchema } from "./auth/customer-verificat
 import { GetStoreRestaurantsSchema } from "./store/restaurants/validators"
 import { GetStorePostalCodesSchema } from "./store/postal-codes/validators"
 import { mtogoErrorHandler } from "./error-handler"
+import { photoInputSchema } from "../workflows/photos/validation"
 import { correlateRequest } from "./request-logging"
 
 /** Medusa has no path-parameter validator, so the postal code in the path is checked here. */
@@ -280,6 +281,18 @@ export default defineMiddlewares({
     {
       matcher: "/partner/restaurants*",
       middlewares: [authenticate(RESTAURANT_STAFF_ACTOR, "bearer")],
+    },
+    {
+      matcher: "/partner/restaurants/:id/cover",
+      method: "POST",
+      bodyParser: { sizeLimit: "7mb" },
+      middlewares: [validateAndTransformBody(photoInputSchema)],
+    },
+    {
+      matcher: "/partner/restaurants/:id/dishes/:dish_id/photo",
+      method: "POST",
+      bodyParser: { sizeLimit: "7mb" },
+      middlewares: [validateAndTransformBody(photoInputSchema)],
     },
     {
       matcher: "/partner/restaurants/:id/categories",
