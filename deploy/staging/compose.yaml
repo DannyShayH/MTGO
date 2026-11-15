@@ -1,0 +1,240 @@
+# MTOGO staging stack on the DigitalOcean Droplet. Run only through
+# /usr/local/sbin/mtogo-deploy.sh (deploy/staging/mtogo-deploy.sh), which
+# supplies /srv/mtogo-staging/.env (see .env.template) and the release env
+# file with MTOGO_RELEASE.
+#
+# Reused from the Droplet, never changed by this file: the Caddy reverse proxy
+# (it forwards to the three published loopback ports) and the PostgreSQL 16
+# container "db" of the existing Compose stack, reached on its existing Docker
+# network (STAGING_DB_NETWORK) with the restricted mtogo_staging user.
+name: mtogo-staging
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+x-backend-environment: &backend-environment
+  NODE_ENV: production
+  MTOGO_RELEASE: ${MTOGO_RELEASE:?MTOGO_RELEASE is set by mtogo-deploy.sh}
+  # sslmode=disable: the database is on a private Docker network, and Medusa
+  # otherwise requires TLS for any host other than localhost.
+  DATABASE_URL: postgres://${STAGING_DB_USER:?}:${STAGING_DB_PASSWORD:?STAGING_DB_PASSWORD is missing in .env}@${STAGING_DB_HOST:-db}:${STAGING_DB_PORT:-5432}/${STAGING_DB_NAME:?}?sslmode=disable
+  REDIS_URL: redis://redis:6379
+  JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is missing in .env}
+  COOKIE_SECRET: ${COOKIE_SECRET:?COOKIE_SECRET is missing in .env}
+  STORE_CORS: ${STAGING_STOREFRONT_URL:?}
+  ADMIN_CORS: ${STAGING_BACKEND_URL:?}
+  AUTH_CORS: ${STAGING_STOREFRONT_URL:?},${STAGING_PARTNER_URL:?},${STAGING_BACKEND_URL:?}
+  MEDUSA_BACKEND_URL: ${STAGING_BACKEND_URL:?}
+  STOREFRONT_PUBLIC_URL: ${STAGING_STOREFRONT_URL:?}
+  PARTNER_PUBLIC_URL: ${STAGING_PARTNER_URL:?}
+  MEDUSA_TELEMETRY_DISABLED: "1"
+  NODE_OPTIONS: --max-old-space-size=${BACKEND_HEAP_MB:-512}
+
+services:
+  redis:
+    image: redis:7.4.12-alpine
+    restart: unless-stopped
+    logging: *logging
+    command:
+      [
+        "redis-server",
+        "--save",
+        "",
+        "--appendonly",
+        "no",
+        "--maxmemory",
+        "64mb",
+        "--maxmemory-policy",
+        "noeviction",
+      ]
+    networks:
+      - private
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 96m
+
+  # PostgreSQL client tools only, for pg_isready, pg_dump, pg_restore and psql
+  # with the restricted user. Only mtogo-deploy.sh runs it (profile "tools").
+  dbtools:
+    image: postgres:16.16-bookworm
+    profiles: ["tools"]
+    logging: *logging
+    entrypoint: []
+    command: ["pg_isready"]
+    environment:
+      PGHOST: ${STAGING_DB_HOST:-db}
+      PGPORT: ${STAGING_DB_PORT:-5432}
+      PGUSER: ${STAGING_DB_USER:?}
+      PGPASSWORD: ${STAGING_DB_PASSWORD:?}
+      PGDATABASE: ${STAGING_DB_NAME:?}
+      PGSSLMODE: disable
+    volumes:
+      - /srv/mtogo-staging/backups:/backups
+    networks:
+      - database
+
+  # Controlled pre-start step: migrations and migration scripts, including the
+  # initial data seed. Only mtogo-deploy.sh runs it (profile "tools").
+  migrate:
+    image: ${STAGING_IMAGE_PREFIX:?}-backend:${MTOGO_RELEASE:?}
+    profiles: ["tools"]
+    logging: *logging
+    command: ["npm", "exec", "--no", "--", "medusa", "db:migrate"]
+    environment:
+      <<: *backend-environment
+      MEDUSA_WORKER_MODE: shared
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - private
+      - database
+
+  # Shared worker mode by default: one process serves HTTP and runs
+  # subscribers, jobs and workflows, which fits a 2 GB Droplet. With
+  # STAGING_SPLIT_WORKER=true the deploy script runs it as "server" and starts
+  # the separate worker below.
+  backend:
+    image: ${STAGING_IMAGE_PREFIX:?}-backend:${MTOGO_RELEASE:?}
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      <<: *backend-environment
+      MEDUSA_WORKER_MODE: ${STAGING_BACKEND_MODE:-shared}
+    volumes:
+      - backend-static:/app/apps/backend/.medusa/server/static
+    ports:
+      - "${STAGING_BIND_ADDRESS:-127.0.0.1}:${STAGING_BACKEND_PORT:-9000}:9000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - private
+      - database
+      - web
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:9000/health').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 90s
+    deploy:
+      resources:
+        limits:
+          memory: 768m
+
+  worker:
+    image: ${STAGING_IMAGE_PREFIX:?}-backend:${MTOGO_RELEASE:?}
+    profiles: ["worker"]
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      <<: *backend-environment
+      MEDUSA_WORKER_MODE: worker
+      DISABLE_MEDUSA_ADMIN: "true"
+    volumes:
+      - backend-static:/app/apps/backend/.medusa/server/static
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - private
+      - database
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+  storefront:
+    image: ${STAGING_IMAGE_PREFIX:?}-storefront:${MTOGO_RELEASE:?}
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      NODE_ENV: production
+      MTOGO_RELEASE: ${MTOGO_RELEASE:?}
+      NEXT_TELEMETRY_DISABLED: "1"
+      NODE_OPTIONS: --max-old-space-size=256
+    ports:
+      - "${STAGING_BIND_ADDRESS:-127.0.0.1}:${STAGING_STOREFRONT_PORT:-8000}:8000"
+    networks:
+      - web
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8000/${STAGING_DEFAULT_REGION:-dk}/store').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+
+  partner:
+    image: ${STAGING_IMAGE_PREFIX:?}-partner:${MTOGO_RELEASE:?}
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      NODE_ENV: production
+      MTOGO_RELEASE: ${MTOGO_RELEASE:?}
+      # Server-side calls stay on the private network (ADR-0017).
+      MEDUSA_BACKEND_URL: http://backend:9000
+      NEXT_TELEMETRY_DISABLED: "1"
+      NODE_OPTIONS: --max-old-space-size=192
+    ports:
+      - "${STAGING_BIND_ADDRESS:-127.0.0.1}:${STAGING_PARTNER_PORT:-8100}:8100"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - web
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8100/sign-in').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 288m
+
+networks:
+  # Redis lives only here: no published ports, no internet.
+  private:
+    internal: true
+  # The existing network of the "db" container. Compose attaches to it and
+  # never creates, changes or removes it.
+  database:
+    external: true
+    name: ${STAGING_DB_NETWORK:?STAGING_DB_NETWORK is missing in .env}
+  web:
+
+volumes:
+  backend-static:

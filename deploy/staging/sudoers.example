@@ -1,0 +1,21 @@
+# /etc/sudoers.d/mtogo-deploy (owner root, mode 440). Validate with:
+#   visudo -cf /etc/sudoers.d/mtogo-deploy
+#
+# The deploy user, whose only key is forced to /usr/local/sbin/mtogo-deploy-ssh,
+# may run exactly the four CI commands of the release script as root. No shell,
+# no docker, no other subcommand (restore, compose, psql, seed stay with
+# administrators).
+#
+# Ubuntu 22.04 ships sudo 1.9.9, which has no argument regular expressions, so
+# the rule uses shell wildcards. "*" matches any characters, spaces included,
+# so it also matches arguments the SSH gate never sends. The release script
+# closes that gap: for a sudo caller outside the sudo group it accepts only
+# "<sha> [--ghcr-user <name>]" after prepare, release and deploy, and nothing
+# after status (classify_caller in mtogo-deploy.sh). An entry with arguments
+# matches only those arguments; "status" therefore allows no extra arguments.
+Cmnd_Alias MTOGO_CI = /usr/local/sbin/mtogo-deploy.sh prepare *, \
+                      /usr/local/sbin/mtogo-deploy.sh release *, \
+                      /usr/local/sbin/mtogo-deploy.sh deploy *, \
+                      /usr/local/sbin/mtogo-deploy.sh status
+Defaults!MTOGO_CI !requiretty, env_reset
+deploy ALL=(root) NOPASSWD: MTOGO_CI

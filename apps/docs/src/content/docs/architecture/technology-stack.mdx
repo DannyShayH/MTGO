@@ -136,22 +136,23 @@ GitHub Actions runs on `ubuntu-latest`. TakT shares its quality commands through
 1. Issue-branch pushes run the `trunk-worthy` checks: spelling, Markdown, formatting, backend unit tests and architecture rules. The pre-commit hook runs the same checks.
 2. Delivery to a ready branch runs lint, backend coverage and integration tests with PostgreSQL 16, then docs tests, type checking, build and link checks. Only a successful ready flow merges to `main`.
 3. The `main` workflow publishes the tested docs artifact to GitHub Pages. A scheduled workflow also collects fresh board data and rebuilds the docs daily.
-4. The release workflow verifies that a version tag belongs to `main`, but its production deployment step is still a placeholder.
+4. The `main` workflow also builds release images for the delivered commit and deploys them to the staging Droplet when the repository admin has activated staging deployment. See [staging deployment](/MTGO/quality/staging-deployment/).
+5. The release workflow verifies that a version tag belongs to `main`, but its production deployment step is still a placeholder.
 
 These checks automate the team's trunk-based workflow and keep the deployed documentation tied to a validated build. See the [way of working](/MTGO/way-of-working/) for team policies.
 
 ### Decided and planned
 
-| Technology or decision               | Status                                                                                                                                                                                                      |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| DigitalOcean Droplet                 | Decided application host. The repository has no working application deployment automation yet. The [architecture overview](/MTGO/architecture/#planned-application-hosting) contains the proposed topology. |
-| Caddy and production Docker services | Proposed in the architecture overview. No production proxy or Compose configuration is implemented here.                                                                                                    |
+| Technology or decision    | Status                                                                                                                                                                                                      |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DigitalOcean Droplet      | Application host for staging. `deploy/staging/` holds the release images, the Compose stack and the deploy script; the [architecture overview](/MTGO/architecture/#application-hosting) shows the topology. |
+| Caddy and Docker services | The Caddy already running on the Droplet terminates HTTPS for the staging stack. There is no production environment.                                                                                        |
 
 ## Unresolved decisions
 
 - **Search:** evaluate the current PostgreSQL-backed Medusa search implementation and decide whether to keep it or use another engine. InstantSearch is the UI integration already in code, not evidence of a final engine decision.
 - **Selection rationale:** record the team's reasons and considered alternatives for TypeScript, Medusa, Next.js, PostgreSQL, Redis, npm/Turborepo, Astro/Starlight, ECharts and the DigitalOcean Droplet. Their responsibilities and practical benefits are described above; those are not substitutes for a confirmed historical rationale. The old docs site brief is superseded draft input, not an approved decision record.
-- **Application operations:** decide persistent storage, backups, production Redis hosting and deployment automation for the Droplet. The architecture page remains the source for the hosting proposal.
+- **Application operations:** staging uses its own database in the Droplet's existing PostgreSQL container, keeps uploads in a Docker volume and takes a dump before every migration ([staging deployment](/MTGO/quality/staging-deployment/)). Off-Droplet backups, monitoring and a production environment are undecided.
 
 ## Sources and maintenance
 

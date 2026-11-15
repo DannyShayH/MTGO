@@ -149,5 +149,6 @@ compilation inside its snapshot; ordinary builds continue to use caching.
 
 CI build verification is not a staging deployment. Public Next.js variables and
 generated static data are embedded during the build. These artifacts contain localhost
-URLs and disposable seed data; staging must build with its own public values and
-valid key. Only the docs artifact is published by this flow.
+URLs and disposable seed data; [staging](/MTGO/quality/staging-deployment/) builds
+its own images with its public values and its own key. Only the docs artifact is
+published by this flow.

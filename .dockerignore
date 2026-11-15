@@ -1,0 +1,28 @@
+# Release images for staging (deploy/staging/Dockerfile) build from a clean
+# source snapshot: no dependencies, build output, secrets or test evidence.
+.git
+node_modules
+**/node_modules
+tmp
+temp
+coverage
+**/.turbo
+**/.next
+**/dist
+**/out
+apps/backend/.medusa
+**/.env
+**/.env.*
+!**/.env.template
+**/playwright-report
+**/test-results
+**/playwright/.auth
+**/*.tsbuildinfo
+.devcontainer
+.vscode
+.agents
+.claude
+.github
+docs
+apps/docs/*
+!apps/docs/package.json

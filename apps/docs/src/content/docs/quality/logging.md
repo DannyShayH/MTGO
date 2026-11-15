@@ -187,16 +187,16 @@ while preserving its actual write, so correlation and secret-exclusion checks
 work with both Jest's single-suite console and its buffered multi-suite console.
 A stdout-only spy misses Winston's buffered-console output during combined runs.
 
-## Planned DigitalOcean Droplet operations
+## Read logs on the staging Droplet
 
-There is no deployed Compose/Caddy logging setup in this issue. Once deployment
-supplies a Compose project with these service names, run on the Droplet, from
-its Compose directory:
+Containers write to stdout; Docker keeps the last five 10 MB files per
+service. The deploy script wraps `docker compose logs` for the current release
+(see [staging deployment](/MTGO/quality/staging-deployment/#logs)):
 
 ```bash
-docker compose logs --since=10m --timestamps backend partner storefront
-docker compose logs --follow --tail=100 backend partner storefront
-docker compose logs --since=10m backend partner | rg 'PASTE-REQUEST-ID'
+sudo mtogo-deploy.sh logs                                   # last 10 minutes, all services
+sudo mtogo-deploy.sh logs --follow --tail=100 backend partner storefront
+sudo mtogo-deploy.sh logs --since=10m backend partner | grep 'PASTE-REQUEST-ID'
 ```
 
 Use the actual service names if they differ. JSON on stdout allows a later

@@ -21,6 +21,24 @@ describe("synthetic Restaurant seed safety", () => {
       reason: "EP: IPv6 loopback",
     },
     {
+      url: "postgres://mtogo_staging_app:secret@db:5432/mtogo_staging?sslmode=disable",
+      env: "production",
+      allowed: true,
+      reason: "DT: staging database named mtogo_staging on the shared server",
+    },
+    {
+      url: "postgres://db:5432/medusa_staging",
+      env: "production",
+      allowed: false,
+      reason: "DT: other remote database name",
+    },
+    {
+      url: "postgres://db:5432/medusa_ci_build",
+      env: "production",
+      allowed: false,
+      reason: "DT: CI name on a remote host",
+    },
+    {
       url: "postgres://localhost/live_store",
       env: "production",
       allowed: false,

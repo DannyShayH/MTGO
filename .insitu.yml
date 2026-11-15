@@ -64,7 +64,7 @@ inventory:
 
   - id: shellcheck
     name: Check repository shell scripts
-    command: shellcheck --enable=require-double-brackets scripts/*.sh
+    command: shellcheck --enable=require-double-brackets scripts/*.sh deploy/staging/*.sh
 
   - id: install-shellcheck
     name: Install ShellCheck

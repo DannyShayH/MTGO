@@ -1,0 +1,25 @@
+# Site blocks for the Caddy that already runs on the Droplet. Replace the
+# hostnames with the values of STAGING_*_URL in /srv/mtogo-staging/.env and
+# the upstreams with STAGING_BIND_ADDRESS and the three ports.
+#
+# Caddy in its own container cannot reach 127.0.0.1 of the host: set
+# STAGING_BIND_ADDRESS to the docker0 gateway (usually 172.17.0.1) and use that
+# address as the upstream, or give the Caddy container
+# extra_hosts: ["host.docker.internal:host-gateway"] and proxy to
+# host.docker.internal.
+
+staging.example.org {
+	encode gzip
+	reverse_proxy 127.0.0.1:8000
+}
+
+api.staging.example.org {
+	encode gzip
+	# Admin dashboard: /app. Store API: /store. Uploads: /static.
+	reverse_proxy 127.0.0.1:9000
+}
+
+partner.staging.example.org {
+	encode gzip
+	reverse_proxy 127.0.0.1:8100
+}

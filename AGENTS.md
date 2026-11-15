@@ -70,6 +70,7 @@ Medusa DTC Starter — a Turborepo workspace monorepo containing a Medusa backen
 │   ├── i18n/                     # @dtc/i18n: Danish and English text keyed by API codes, locale rule
 │   ├── next-react/               # @dtc/next-react: keeps each Next.js app on its own React 19 copy
 │   └── ui/                       # @dtc/ui: MTOGO design tokens as a Tailwind preset on Medusa UI
+├── deploy/staging/               # Staging release: Dockerfile, Compose stack, Droplet deploy script (quality/staging-deployment.md)
 ├── eslint.config.ts              # Root ESLint: @medusajs/eslint-plugin recommended
 └── turbo.json                    # Task graph: build, dev, start, lint, test, seed
 ```

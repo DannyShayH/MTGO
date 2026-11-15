@@ -38,40 +38,46 @@ flowchart LR
 
 The architecture checks enforce these boundaries: no imports between the storefront and backend, no direct imports between custom backend modules, and no circular dependencies. Within the backend, API routes call workflows, and workflows coordinate modules.
 
-## Planned application hosting
+## Application hosting
 
-DigitalOcean is the intended application host. The deployment plan uses one Droplet for the application services and PostgreSQL, with Caddy in front of the Docker services. **This is a deployment proposal: the repository does not yet configure or deploy this setup.** The documentation already has its own GitHub Pages deployment.
+One DigitalOcean Droplet hosts the staging environment. The application services and Redis run as Docker containers from `deploy/staging/compose.yaml`, behind the Caddy that already runs on the Droplet, and use their own database in the PostgreSQL container that already runs there. The documentation has its own GitHub Pages deployment. The [staging deployment](/MTGO/quality/staging-deployment/) page holds the runbook; there is no production environment.
 
 <figure class="docs-diagram not-content">
-  <figcaption id="hosting-title">Proposed DigitalOcean deployment</figcaption>
+  <figcaption id="hosting-title">Staging deployment on DigitalOcean</figcaption>
   <div class="docs-diagram-scroll" role="region" aria-labelledby="hosting-title" tabindex="0">
 
 ```mermaid
 flowchart LR
-    accTitle: Proposed application hosting on DigitalOcean
-    accDescr: A visitor connects over HTTPS to Caddy on a planned DigitalOcean Droplet. Caddy forwards requests to Next.js and Medusa services running in Docker. PostgreSQL runs on the same Droplet and stores the backend commerce data.
+    accTitle: Application hosting on DigitalOcean
+    accDescr: A visitor connects over HTTPS to the existing Caddy on the DigitalOcean Droplet. Caddy forwards requests to the storefront, the partner app and the Medusa backend running in the staging Docker Compose project. The backend uses Redis on a private network and its own database in the existing PostgreSQL container.
     visitor["Visitor<br/>Browser"] -->|HTTPS| caddy
-    subgraph droplet["DigitalOcean Droplet · planned"]
-        caddy["Caddy<br/>Reverse proxy"]
-        subgraph docker["Docker services"]
+    subgraph droplet["DigitalOcean Droplet"]
+        caddy["Caddy<br/>Existing reverse proxy"]
+        subgraph docker["Docker Compose: mtogo-staging"]
             web["Storefront<br/>Next.js"]
-            api["Backend<br/>Medusa 2"]
+            partner["Partner app<br/>Next.js"]
+            api["Backend and admin<br/>Medusa 2, shared worker mode"]
+            redis["Redis<br/>Events, workflows, sessions"]
         end
+        database["PostgreSQL 16 'db'<br/>Existing container, mtogo_staging database"]
         caddy --> web
+        caddy --> partner
         caddy --> api
-        web -->|HTTP API| api
-        database["PostgreSQL<br/>Commerce data"]
-        api --> database
+        web -->|HTTPS API| caddy
+        partner -->|HTTP API| api
+        api --> redis
+        api -->|existing Docker network| database
     end
-    class visitor,web,api,database service
+    class visitor,web,partner,api,database service
+    class redis queue
     class caddy entry
 ```
 
   </div>
-  <p class="docs-workflow-hint">Proposed request routing, not a deployment inventory. PostgreSQL shares the application Droplet. Persistent storage, backups and deployment automation still need to be decided.</p>
+  <p class="docs-workflow-hint">Request routing of the staging stack. Only the three application ports are published, on the loopback address, for Caddy. Redis sits on an internal network without published ports; the database is reached only over its existing Docker network.</p>
 </figure>
 
-[Caddy's reverse proxy](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy) would route incoming requests to the application services. Docker would run the services on the Droplet. PostgreSQL runs on the same Droplet and is accessed by the backend.
+[Caddy's reverse proxy](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy) routes incoming requests to the application services and terminates HTTPS. The storefront's server side calls the backend through its public URL, which the browser also uses; the partner app calls the backend on the private network.
 
 ## Find the right reference
 

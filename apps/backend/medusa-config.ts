@@ -11,8 +11,13 @@ const redisUrl =
     ? undefined
     : process.env.REDIS_URL || undefined
 
+// Uploads are served by the backend itself; staging sets its public origin.
+const backendUrl = process.env.MEDUSA_BACKEND_URL || "http://localhost:9000"
+
 module.exports = defineConfig({
   admin: {
+    // The staging worker container serves no dashboard.
+    disable: process.env.DISABLE_MEDUSA_ADMIN === "true",
     // Dashboard and extensions must share one React Query context, even when npm
     // retains nested copies of the same version.
     // Medusa merges this override with its base config; returning base plugins
@@ -64,6 +69,21 @@ module.exports = defineConfig({
         verification: {
           providers: [{ id: "token", options: { ttl_seconds: 900 } }],
         },
+      },
+    },
+    {
+      resolve: "@medusajs/medusa/file",
+      options: {
+        providers: [
+          {
+            resolve: "@medusajs/medusa/file-local",
+            id: "local",
+            options: {
+              upload_dir: "static",
+              backend_url: `${backendUrl}/static`,
+            },
+          },
+        ],
       },
     },
     {

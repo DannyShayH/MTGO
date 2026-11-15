@@ -73,7 +73,7 @@ git sweep                     # after Done: back to main, delete the old branch
 
 The isolated regression demo is `cd apps/docs && npm test -- scripts/workon.test.ts`. It controls the instant, stubs GitHub and Git commands, and covers winter and summer midnight, daylight-saving transitions, different process timezones and existing dates. It verifies outgoing Start-date edits without changing a live board or starting a real branch; it does not verify GitHub authentication or live project configuration.
 
-The ready flow on GitHub runs the full checks, merges to `main` as one commit and closes the issue. A merge to `main` deploys the docs site and runs the SonarQube analysis. Deploying the applications to staging comes with [issue #35](https://github.com/DannyShayH/MTGO/issues/35), and the release practice for SemVer tags with [issue #68](https://github.com/DannyShayH/MTGO/issues/68).
+The ready flow on GitHub runs the full checks, merges to `main` as one commit and closes the issue. A merge to `main` deploys the docs site, runs the SonarQube analysis and, once the repository admin has activated it, deploys the delivered commit to [staging](/MTGO/quality/staging-deployment/). The release practice for SemVer tags comes with [issue #68](https://github.com/DannyShayH/MTGO/issues/68).
 
 Things that are easy to get wrong:
 

@@ -2,6 +2,11 @@ name: Deploy
 
 on:
   workflow_dispatch:
+    inputs:
+      release_sha:
+        description: "Redeploy an already built staging release: full commit SHA on main. Empty builds and deploys the current commit."
+        required: false
+        type: string
   push:
     branches:
       - "main"
@@ -81,3 +86,221 @@ jobs:
         with:
           artifact_name: github-pages-${{ github.sha }}
           artifact_path: apps/docs/dist
+
+  # Staging (#35). Both jobs are skipped until the repository variable
+  # STAGING_DEPLOY_ENABLED is "true". The docs deployment above never depends
+  # on them, and a failure here is a failed Deploy run, not a staging release.
+  # The SSH key is forced to /usr/local/sbin/mtogo-deploy-ssh on the Droplet,
+  # which accepts only "prepare|release|deploy <sha> [--ghcr-user <name>]" and
+  # "status" (deploy/staging/mtogo-deploy-ssh.sh).
+  release_images:
+    name: Build the staging backend and partner images for the delivered commit
+    if: ${{ vars.STAGING_DEPLOY_ENABLED == 'true' && !inputs.release_sha }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Image names (GHCR owners are lower case)
+        id: names
+        run: echo "image_prefix=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/mtgo-staging" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push the backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/staging/Dockerfile
+          target: backend
+          push: true
+          tags: ${{ steps.names.outputs.image_prefix }}-backend:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push the partner image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/staging/Dockerfile
+          target: partner
+          push: true
+          tags: ${{ steps.names.outputs.image_prefix }}-partner:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha
+
+  deploy_staging:
+    name: Deploy the delivered commit to the staging Droplet
+    needs: [release_images]
+    # Runs after a successful image build, or alone for a manual redeploy of
+    # an already built release (release_images is then skipped).
+    if: |
+      always() && vars.STAGING_DEPLOY_ENABLED == 'true' &&
+      (needs.release_images.result == 'success' ||
+       (inputs.release_sha && needs.release_images.result == 'skipped'))
+    runs-on: ubuntu-latest
+    concurrency:
+      group: staging-droplet
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: write
+    env:
+      RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
+    steps:
+      - name: Validate the release identity
+        run: |
+          [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::release_sha must be a full commit SHA"; exit 1; }
+          echo "IMAGE_PREFIX=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/mtgo-staging" >> "$GITHUB_ENV"
+          echo "Release: $RELEASE_SHA" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Checkout the release commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+          fetch-depth: 0
+
+      - name: Verify the release commit is on main
+        run: git merge-base --is-ancestor "$RELEASE_SHA" origin/main || { echo "::error::$RELEASE_SHA is not on main"; exit 1; }
+
+      - name: Configure SSH to the Droplet
+        env:
+          STAGING_SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+          STAGING_SSH_KNOWN_HOSTS: ${{ secrets.STAGING_SSH_KNOWN_HOSTS }}
+          STAGING_SSH_HOST: ${{ secrets.STAGING_SSH_HOST }}
+          STAGING_SSH_USER: ${{ secrets.STAGING_SSH_USER }}
+        run: |
+          for name in STAGING_SSH_KEY STAGING_SSH_KNOWN_HOSTS STAGING_SSH_HOST STAGING_SSH_USER; do
+            [ -n "${!name}" ] || { echo "::error::Repository secret $name is not configured"; exit 1; }
+          done
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$STAGING_SSH_KEY" > ~/.ssh/staging_key
+          printf '%s\n' "$STAGING_SSH_KNOWN_HOSTS" > ~/.ssh/staging_known_hosts
+          chmod 600 ~/.ssh/staging_key ~/.ssh/staging_known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host staging
+            HostName $STAGING_SSH_HOST
+            User $STAGING_SSH_USER
+            IdentityFile ~/.ssh/staging_key
+            IdentitiesOnly yes
+            UserKnownHostsFile ~/.ssh/staging_known_hosts
+            StrictHostKeyChecking yes
+            ServerAliveInterval 30
+            ConnectTimeout 20
+          EOF
+          chmod 600 ~/.ssh/config
+
+      # Manual redeploy: every image exists, so prepare and release run together.
+      - name: Redeploy the already built release
+        if: inputs.release_sha
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s\n' "$GHCR_TOKEN" | ssh staging deploy "$RELEASE_SHA" --ghcr-user "$GITHUB_ACTOR" | tee deploy.log
+          grep -v 'NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY' deploy.log >> "$GITHUB_STEP_SUMMARY" || true
+
+      # Normal delivery, phase 1: migrate and start the backend of this release.
+      # The Droplet answers with the public values the storefront build embeds.
+      - name: Prepare the release on the Droplet (backup, migrate, start backend, worker and partner)
+        if: ${{ !inputs.release_sha }}
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s\n' "$GHCR_TOKEN" | ssh staging prepare "$RELEASE_SHA" --ghcr-user "$GITHUB_ACTOR" > prepare.out
+          sed -n '/^-----BEGIN MTOGO STOREFRONT BUILD-----$/,/^-----END MTOGO STOREFRONT BUILD-----$/p' prepare.out | grep '=' > build.env
+          while IFS='=' read -r name value; do
+            case "$name" in
+              NEXT_PUBLIC_MEDUSA_BACKEND_URL|NEXT_PUBLIC_BASE_URL)
+                [[ "$value" =~ ^https://[a-z0-9.-]+$ ]] || { echo "::error::$name is not a plain https origin"; exit 1; } ;;
+              NEXT_PUBLIC_DEFAULT_REGION)
+                [[ "$value" =~ ^[a-z]{2}$ ]] || { echo "::error::$name is not a country code"; exit 1; } ;;
+              NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY)
+                [[ "$value" =~ ^pk_[A-Za-z0-9]+$ ]] || { echo "::error::$name is not a publishable key"; exit 1; }
+                echo "::add-mask::$value" ;;
+              *) echo "::error::unexpected value $name from the Droplet"; exit 1 ;;
+            esac
+            echo "$name=$value" >> "$GITHUB_ENV"
+          done < build.env
+          grep -q '^NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY=' build.env || { echo "::error::The Droplet returned no publishable key"; exit 1; }
+
+      - name: Check that the staging backend serves this publishable key over HTTPS
+        if: ${{ !inputs.release_sha }}
+        run: |
+          curl --fail --silent --show-error --retry 10 --retry-delay 6 --retry-all-errors --max-time 15 \
+            -H "x-publishable-api-key: $NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY" \
+            "$NEXT_PUBLIC_MEDUSA_BACKEND_URL/store/regions" > /dev/null
+
+      - name: Set up Docker Buildx
+        if: ${{ !inputs.release_sha }}
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: ${{ !inputs.release_sha }}
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Phase 2: the storefront embeds the staging values and prerenders
+      # against the backend that is already running the same commit.
+      - name: Build and push the storefront image
+        if: ${{ !inputs.release_sha }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/staging/Dockerfile
+          target: storefront
+          push: true
+          tags: ${{ env.IMAGE_PREFIX }}-storefront:${{ env.RELEASE_SHA }}
+          build-args: |
+            NEXT_PUBLIC_MEDUSA_BACKEND_URL=${{ env.NEXT_PUBLIC_MEDUSA_BACKEND_URL }}
+            NEXT_PUBLIC_BASE_URL=${{ env.NEXT_PUBLIC_BASE_URL }}
+            NEXT_PUBLIC_DEFAULT_REGION=${{ env.NEXT_PUBLIC_DEFAULT_REGION || 'dk' }}
+            NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY=${{ env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ env.RELEASE_SHA }}
+          cache-from: type=gha
+
+      - name: Release the storefront on the Droplet
+        if: ${{ !inputs.release_sha }}
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s\n' "$GHCR_TOKEN" | ssh staging release "$RELEASE_SHA" --ghcr-user "$GITHUB_ACTOR" | tee release.log
+          cat release.log >> "$GITHUB_STEP_SUMMARY"
+
+      # Smoke check: the storefront page renders with data from the backend.
+      - name: Smoke check the public staging URLs
+        run: |
+          ssh staging status | tee status.log
+          storefront=$(grep -m1 -oE 'NEXT_PUBLIC_BASE_URL=.*' build.env 2>/dev/null | cut -d= -f2- || true)
+          if [ -z "$storefront" ]; then
+            echo "Manual redeploy: public smoke check uses the recorded release only."
+            exit 0
+          fi
+          region=${NEXT_PUBLIC_DEFAULT_REGION:-dk}
+          curl --fail --silent --show-error --retry 10 --retry-delay 6 --retry-all-errors --max-time 30 \
+            "$storefront/$region/store" | grep -q 'MTOGO' || { echo "::error::The storefront did not render /$region/store"; exit 1; }
+          echo "Smoke check passed: $storefront/$region/store renders with data from $NEXT_PUBLIC_MEDUSA_BACKEND_URL" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove the SSH key
+        if: always()
+        run: rm -f ~/.ssh/staging_key
