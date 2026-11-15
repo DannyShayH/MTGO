@@ -40,6 +40,11 @@ export { CUSTOMER_HOME_TEXT } from "./customer-home.ts"
 export { CUSTOMER_NAVIGATION_TEXT } from "./customer-navigation.ts"
 export { CUSTOMER_CART } from "./customer-cart.ts"
 export {
+  CUSTOMER_CHECKOUT_TEXT,
+  customerCheckoutErrorMessage,
+  reviewedCheckoutLanguage,
+} from "./customer-checkout.ts"
+export {
   ACCOUNT_INFO_TEXT,
   CUSTOMER_PROFILE_TEXT,
   validateCustomerName,
@@ -55,3 +60,15 @@ export {
   type CustomerAddressText,
 } from "./customer-address.ts"
 export { DISH_TEXT, isDishErrorCode, type DishErrorCode } from "./dishes.ts"
+export {
+  CHECKOUT_REVIEW_METADATA_KEY,
+  CHECKOUT_REVIEW_VERSION,
+  createReviewedCheckout,
+  isReviewedCheckout,
+  reviewedCheckoutMatchesCart,
+  reviewedCheckoutIsComplete,
+  type ReviewedCheckout,
+  type ReviewedCheckoutAddress,
+  type ReviewedCheckoutCartFacts,
+  type ReviewedCheckoutInput,
+} from "./checkout.ts"

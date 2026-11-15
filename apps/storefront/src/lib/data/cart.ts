@@ -15,13 +15,26 @@ import {
 } from "./cookies"
 import { getRegion } from "./regions"
 import { getLocale } from "./locale-actions"
+import { retrieveCustomer } from "./customer"
+import {
+  CHECKOUT_REVIEW_METADATA_KEY,
+  createReviewedCheckout,
+  isLocale,
+  reviewedCheckoutIsComplete,
+  validateCustomerAddress,
+  type ReviewedCheckoutAddress,
+} from "@dtc/i18n"
 
 /**
  * Retrieves a cart by its ID. If no ID is provided, it will use the cart ID from the cookies.
  * @param cartId - optional - The ID of the cart to retrieve.
  * @returns The cart object if found, or null if not found.
  */
-export async function retrieveCart(cartId?: string, fields?: string) {
+export async function retrieveCart(
+  cartId?: string,
+  fields?: string,
+  options?: { fresh?: boolean },
+) {
   const id = cartId || (await getCartId())
   fields ??=
     "*items, *region, *items.product, *items.variant, *items.thumbnail, *items.metadata, +items.total, *promotions, +shipping_methods.name"
@@ -34,9 +47,7 @@ export async function retrieveCart(cartId?: string, fields?: string) {
     ...(await getAuthHeaders()),
   }
 
-  const next = {
-    ...(await getCacheOptions("carts")),
-  }
+  const next = options?.fresh ? undefined : await getCacheOptions("carts")
 
   return await sdk.client
     .fetch<HttpTypes.StoreCartResponse>(`/store/carts/${id}`, {
@@ -45,8 +56,7 @@ export async function retrieveCart(cartId?: string, fields?: string) {
         fields,
       },
       headers,
-      next,
-      cache: "force-cache",
+      ...(next ? { next } : { cache: "no-store" }),
     })
     .then(({ cart }: { cart: HttpTypes.StoreCart }) => cart)
     .catch(() => null)
@@ -302,14 +312,20 @@ export async function setAddresses(currentState: unknown, formData: FormData) {
     }
 
     // The form only holds text inputs, so every entry is a string
-    const field = (name: string) => formData.get(name) as string
+    const field = (name: string) => String(formData.get(name) ?? "").trim()
+
+    const customer = await retrieveCustomer()
+    if (!customer) throw new Error("checkout_customer_required")
+
+    const orderLanguage = field("order_language")
+    if (!isLocale(orderLanguage)) throw new Error("customer_language_invalid")
 
     const data: HttpTypes.StoreUpdateCart = {
       shipping_address: {
         first_name: field("shipping_address.first_name"),
         last_name: field("shipping_address.last_name"),
         address_1: field("shipping_address.address_1"),
-        address_2: "",
+        address_2: field("shipping_address.address_2"),
         company: field("shipping_address.company"),
         postal_code: field("shipping_address.postal_code"),
         city: field("shipping_address.city"),
@@ -318,6 +334,33 @@ export async function setAddresses(currentState: unknown, formData: FormData) {
         phone: field("shipping_address.phone"),
       },
       email: field("email"),
+    }
+
+    const address = data.shipping_address as ReviewedCheckoutAddress
+    const addressError = validateCustomerAddress(address)
+    if (addressError) throw new Error(addressError)
+
+    const cart = await retrieveCart(cartId)
+    if (!cart || cart.customer_id !== customer.id) {
+      throw new Error("checkout_cart_not_owned")
+    }
+
+    const review = createReviewedCheckout(
+      {
+        customer_id: customer.id,
+        destination: address,
+        contact: {
+          first_name: address.first_name,
+          last_name: address.last_name,
+          phone: address.phone,
+          email: field("email"),
+        },
+        order_language: orderLanguage,
+      },
+      new Date().toISOString(),
+    )
+    if (!reviewedCheckoutIsComplete(review)) {
+      throw new Error("checkout_review_incomplete")
     }
 
     const sameAsBilling = formData.get("same_as_billing")
@@ -336,7 +379,14 @@ export async function setAddresses(currentState: unknown, formData: FormData) {
         province: field("billing_address.province"),
         phone: field("billing_address.phone"),
       }
-    await updateCart(data)
+    await updateCart({
+      ...data,
+      locale: orderLanguage,
+      metadata: {
+        ...(cart.metadata ?? {}),
+        [CHECKOUT_REVIEW_METADATA_KEY]: review,
+      },
+    })
   } catch (e) {
     return e instanceof Error ? e.message : String(e)
   }

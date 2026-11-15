@@ -156,6 +156,7 @@ for (const locale of ["da", "en"] as const) {
 
     const phoneEditor = page.getByTestId("account-phone-editor")
     await phoneEditor.getByTestId("edit-button").press("Enter")
+    await expect(phoneEditor.getByRole("status")).toHaveCount(0)
     await phoneEditor.getByTestId("phone-input").fill("12345678")
     await phoneEditor.getByTestId("save-button").press("Enter")
     await expect(phoneEditor.getByRole("alert")).toContainText(

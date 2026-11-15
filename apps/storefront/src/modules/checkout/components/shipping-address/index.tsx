@@ -1,4 +1,10 @@
 import { HttpTypes } from "@medusajs/types"
+import {
+  CUSTOMER_CHECKOUT_TEXT,
+  LANGUAGE_NAMES,
+  reviewedCheckoutLanguage,
+  type Locale,
+} from "@dtc/i18n"
 import { Container } from "@modules/common/components/ui"
 import Checkbox from "@modules/common/components/checkbox"
 import Input from "@modules/common/components/input"
@@ -12,23 +18,33 @@ const ShippingAddress = ({
   cart,
   checked,
   onChange,
+  locale,
 }: {
   customer: HttpTypes.StoreCustomer | null
   cart: HttpTypes.StoreCart | null
   checked: boolean
   onChange: () => void
+  locale: Locale
 }) => {
+  const text = CUSTOMER_CHECKOUT_TEXT[locale]
+  const reviewedLanguage = reviewedCheckoutLanguage(cart?.metadata)
+
   const [formData, setFormData] = useState<Record<string, string>>({
-    "shipping_address.first_name": cart?.shipping_address?.first_name || "",
-    "shipping_address.last_name": cart?.shipping_address?.last_name || "",
+    "shipping_address.first_name":
+      cart?.shipping_address?.first_name || customer?.first_name || "",
+    "shipping_address.last_name":
+      cart?.shipping_address?.last_name || customer?.last_name || "",
     "shipping_address.address_1": cart?.shipping_address?.address_1 || "",
+    "shipping_address.address_2": cart?.shipping_address?.address_2 || "",
     "shipping_address.company": cart?.shipping_address?.company || "",
     "shipping_address.postal_code": cart?.shipping_address?.postal_code || "",
     "shipping_address.city": cart?.shipping_address?.city || "",
     "shipping_address.country_code": cart?.shipping_address?.country_code || "",
     "shipping_address.province": cart?.shipping_address?.province || "",
-    "shipping_address.phone": cart?.shipping_address?.phone || "",
+    "shipping_address.phone":
+      cart?.shipping_address?.phone || customer?.phone || "",
     email: cart?.email || "",
+    order_language: reviewedLanguage || locale,
   })
 
   const countriesInRegion = useMemo(
@@ -55,6 +71,7 @@ const ShippingAddress = ({
         "shipping_address.first_name": address?.first_name || "",
         "shipping_address.last_name": address?.last_name || "",
         "shipping_address.address_1": address?.address_1 || "",
+        "shipping_address.address_2": address?.address_2 || "",
         "shipping_address.company": address?.company || "",
         "shipping_address.postal_code": address?.postal_code || "",
         "shipping_address.city": address?.city || "",
@@ -81,7 +98,18 @@ const ShippingAddress = ({
     if (cart && !cart.email && customer?.email) {
       setFormAddress(undefined, customer.email)
     }
-  }, [cart]) // Add cart as a dependency
+
+    if (cart && !cart.shipping_address) {
+      const defaultAddress = addressesInRegion?.find(
+        (address) => address.is_default_shipping,
+      )
+      if (defaultAddress)
+        setFormAddress(
+          defaultAddress as HttpTypes.StoreCartAddress,
+          customer?.email,
+        )
+    }
+  }, [addressesInRegion, cart, customer?.email])
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -139,6 +167,14 @@ const ShippingAddress = ({
           onChange={handleChange}
           required
           data-testid="shipping-address-input"
+        />
+        <Input
+          label={text.apartment}
+          name="shipping_address.address_2"
+          autoComplete="address-line2"
+          value={formData["shipping_address.address_2"]}
+          onChange={handleChange}
+          data-testid="shipping-address-2-input"
         />
         <Input
           label="Company"
@@ -213,6 +249,22 @@ const ShippingAddress = ({
           onChange={handleChange}
           data-testid="shipping-phone-input"
         />
+      </div>
+      <div className="mb-4">
+        <label className="text-small-regular" htmlFor="order-language">
+          {text.orderLanguage}
+        </label>
+        <select
+          id="order-language"
+          name="order_language"
+          value={formData.order_language}
+          onChange={handleChange}
+          className="mt-1 w-full rounded-rounded border px-4 py-2"
+          data-testid="order-language-select"
+        >
+          <option value="da">{LANGUAGE_NAMES.da}</option>
+          <option value="en">{LANGUAGE_NAMES.en}</option>
+        </select>
       </div>
     </>
   )

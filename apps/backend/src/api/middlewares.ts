@@ -44,6 +44,7 @@ import {
   restrictCustomerProvider,
 } from "./customer-identity"
 import { requireCustomerOwnedCart, requireOwnedCart } from "./cart-ownership"
+import { requireReviewedCheckout } from "./reviewed-checkout"
 import {
   PostStoreCustomerSchema,
   PostStoreCreateCustomerAddressSchema,
@@ -84,6 +85,7 @@ export default defineMiddlewares({
         authenticate("customer", ["bearer", "session"]),
         requireVerifiedCustomer,
         requireCustomerOwnedCart,
+        requireReviewedCheckout,
       ],
     },
     {

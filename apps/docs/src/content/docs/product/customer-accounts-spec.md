@@ -150,6 +150,30 @@ are in `cart-ownership.unit.spec.ts`. The storefront browser journey in
 sign-in and refresh, followed by explicit sign-out cleanup. The application
 verification flow runs this journey in the disposable environment.
 
+## Issue #90 implementation evidence
+
+The checkout address step now requires a complete reviewed destination and
+Order contact details before continuing. It starts the form from the signed-in
+Customer's name, phone and account language, while still allowing a saved
+delivery address or a one-time destination; one-time values are never written
+to the address book. The Customer can explicitly confirm Danish or English as
+the Order language.
+
+On successful review, the storefront stores the validated
+`mtogo_checkout_review` contract in the Customer-owned cart metadata and sets
+the cart locale. The contract includes version, stable Customer ownership,
+destination, Order contact details, Order language and review time. Feature
+#46 must copy this value into the paid Order's historical facts before account
+or saved-address changes can affect later delivery or status communication.
+The value is a deep copy, so synthetic fixtures can mutate their source
+Customer/address/language data after review without changing the reviewed
+facts.
+
+The shared contract and its snapshot-preservation/incomplete-input tests live
+in `packages/i18n/src/checkout.ts` and its unit test. Browser and HTTP payment
+eligibility remain with Feature #46; this work only supplies the authenticated,
+verified checkout handoff.
+
 ## Out of Scope
 
 - Social sign-in, sign-in without a password, operator-created Customer accounts, telephone ordering, native apps and scheduled ordering.

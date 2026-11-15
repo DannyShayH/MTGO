@@ -54,3 +54,10 @@ location search, its choices and lookup states, the selected location, the
 Restaurant cards' status and delivery-coverage text, and the empty, refused
 and failed listing states. `CUSTOMER_NAVIGATION_TEXT[locale]` supplies the
 Customer header, side menu and footer.
+
+`createReviewedCheckout` creates the versioned, immutable checkout handoff used
+by Feature #46. `isReviewedCheckout` validates untrusted cart metadata, while
+`reviewedCheckoutMatchesCart` ensures the reviewed Customer, email and shipping
+facts still match the cart before completion. The contract includes the
+Customer-owned destination, Order contact details, Order language and review
+timestamp; it is intentionally separate from the later paid-Order model.

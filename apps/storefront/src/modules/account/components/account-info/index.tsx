@@ -99,9 +99,11 @@ const AccountInfo = ({
           )}
           data-testid="success-message"
         >
-          <Badge className="p-2 my-4" color="green">
-            <span role="status">{successMessage}</span>
-          </Badge>
+          {isSuccess && (
+            <Badge className="p-2 my-4" color="green">
+              <span role="status">{successMessage}</span>
+            </Badge>
+          )}
         </Disclosure.Panel>
       </Disclosure>
 
@@ -118,9 +120,11 @@ const AccountInfo = ({
           )}
           data-testid="error-message"
         >
-          <Badge className="p-2 my-4" color="red">
-            <span role="alert">{errorMessage}</span>
-          </Badge>
+          {isError && (
+            <Badge className="p-2 my-4" color="red">
+              <span role="alert">{errorMessage}</span>
+            </Badge>
+          )}
         </Disclosure.Panel>
       </Disclosure>
 

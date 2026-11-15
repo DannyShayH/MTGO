@@ -4,6 +4,13 @@ import useToggleState from "@lib/hooks/use-toggle-state"
 import compareAddresses from "@lib/util/compare-addresses"
 import { CheckCircleSolid } from "@medusajs/icons"
 import { HttpTypes } from "@medusajs/types"
+import {
+  CUSTOMER_CHECKOUT_TEXT,
+  LANGUAGE_NAMES,
+  customerCheckoutErrorMessage,
+  reviewedCheckoutLanguage,
+  type Locale,
+} from "@dtc/i18n"
 import Divider from "@modules/common/components/divider"
 import { Heading, Text } from "@modules/common/components/ui"
 import Spinner from "@modules/common/icons/spinner"
@@ -17,11 +24,15 @@ import { SubmitButton } from "../submit-button"
 const Addresses = ({
   cart,
   customer,
+  locale,
 }: {
   cart: HttpTypes.StoreCart | null
   customer: HttpTypes.StoreCustomer | null
+  locale: Locale
 }) => {
   const searchParams = useSearchParams()
+  const text = CUSTOMER_CHECKOUT_TEXT[locale]
+  const reviewedLanguage = reviewedCheckoutLanguage(cart?.metadata)
   const router = useRouter()
   const pathname = usePathname()
 
@@ -69,6 +80,7 @@ const Addresses = ({
               checked={sameAsBilling}
               onChange={toggleSameAsBilling}
               cart={cart}
+              locale={locale}
             />
 
             {!sameAsBilling && (
@@ -86,7 +98,10 @@ const Addresses = ({
             <SubmitButton className="mt-6" data-testid="submit-address-button">
               Continue to delivery
             </SubmitButton>
-            <ErrorMessage error={message} data-testid="address-error-message" />
+            <ErrorMessage
+              error={customerCheckoutErrorMessage(message, locale)}
+              data-testid="address-error-message"
+            />
           </div>
         </form>
       ) : (
@@ -124,14 +139,23 @@ const Addresses = ({
                     data-testid="shipping-contact-summary"
                   >
                     <Text className="txt-medium-plus text-ui-fg-base mb-1">
-                      Contact
+                      {text.contact}
                     </Text>
                     <Text className="txt-medium text-ui-fg-subtle">
                       {cart.shipping_address.phone}
                     </Text>
                     <Text className="txt-medium text-ui-fg-subtle">
+                      {cart.shipping_address.first_name}{" "}
+                      {cart.shipping_address.last_name}
+                    </Text>
+                    <Text className="txt-medium text-ui-fg-subtle">
                       {cart.email}
                     </Text>
+                    {reviewedLanguage && (
+                      <Text className="txt-medium text-ui-fg-subtle">
+                        {text.orderLanguage}: {LANGUAGE_NAMES[reviewedLanguage]}
+                      </Text>
+                    )}
                   </div>
 
                   <div

@@ -1,5 +1,6 @@
 import { listCartShippingMethods } from "@lib/data/fulfillment"
 import { listCartPaymentMethods } from "@lib/data/payment"
+import type { Locale } from "@dtc/i18n"
 import { HttpTypes } from "@medusajs/types"
 import Addresses from "@modules/checkout/components/addresses"
 import Payment from "@modules/checkout/components/payment"
@@ -9,9 +10,11 @@ import Shipping from "@modules/checkout/components/shipping"
 export default async function CheckoutForm({
   cart,
   customer,
+  locale,
 }: {
   cart: HttpTypes.StoreCart | null
   customer: HttpTypes.StoreCustomer | null
+  locale: Locale
 }) {
   if (!cart) {
     return null
@@ -26,7 +29,7 @@ export default async function CheckoutForm({
 
   return (
     <div className="w-full grid grid-cols-1 gap-y-8">
-      <Addresses cart={cart} customer={customer} />
+      <Addresses cart={cart} customer={customer} locale={locale} />
 
       <Shipping cart={cart} availableShippingMethods={shippingMethods} />
 

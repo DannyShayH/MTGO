@@ -1037,6 +1037,83 @@ medusaIntegrationTestRunner({
       const cart = await api.post("/store/carts", {}, { headers: ownerHeaders })
       expect(cart.data.cart.customer_id).toBeTruthy()
 
+      const incompleteReview = await api.post(
+        `/store/carts/${cart.data.cart.id}/complete`,
+        {},
+        {
+          headers: ownerHeaders,
+          validateStatus: () => true,
+        },
+      )
+      expect(incompleteReview.status).toBe(400)
+      expect(incompleteReview.data.code).toBe("checkout_review_incomplete")
+
+      const address = {
+        first_name: "Browser",
+        last_name: "Smoke",
+        address_1: "Testvej 1",
+        address_2: "",
+        company: "",
+        postal_code: "2100",
+        city: "Copenhagen",
+        country_code: "dk",
+        province: "",
+        phone: "+45 12 34 56 78",
+      }
+      await api.post(
+        `/store/carts/${cart.data.cart.id}`,
+        {
+          email: ownerCredentials.email,
+          shipping_address: address,
+          metadata: {
+            mtogo_checkout_review: {
+              version: 1,
+              customer_id: cart.data.cart.customer_id,
+              destination: address,
+              contact: {
+                first_name: address.first_name,
+                last_name: address.last_name,
+                phone: address.phone,
+                email: ownerCredentials.email,
+              },
+              order_language: "en",
+              reviewed_at: "2026-11-15T12:00:00.000Z",
+            },
+          },
+        },
+        { headers: ownerHeaders },
+      )
+      const persisted = await getContainer()
+        .resolve(Modules.CART)
+        .retrieveCart(cart.data.cart.id, {
+          select: ["customer_id", "email", "metadata"],
+          relations: ["shipping_address"],
+        })
+      const persistedReview = persisted.metadata?.mtogo_checkout_review as {
+        destination: Record<string, string>
+      }
+      expect({
+        customer_id: persisted.customer_id,
+        email: persisted.email,
+        review: persistedReview,
+        shipping_address: persisted.shipping_address,
+      }).toEqual(
+        expect.objectContaining({
+          customer_id: cart.data.cart.customer_id,
+          email: ownerCredentials.email,
+          review: expect.objectContaining({ destination: address }),
+          shipping_address: expect.objectContaining(address),
+        }),
+      )
+      const reviewedSubmission = await api.post(
+        `/store/carts/${cart.data.cart.id}/complete`,
+        {},
+        { headers: ownerHeaders, validateStatus: () => true },
+      )
+      expect(reviewedSubmission.data.code).not.toBe(
+        "checkout_review_incomplete",
+      )
+
       const anonymousCart = await api.post("/store/carts", {}, { headers })
       const anonymousSubmission = await api.post(
         `/store/carts/${anonymousCart.data.cart.id}/complete`,
