@@ -8,6 +8,7 @@ import { createProductsWorkflow } from "@medusajs/medusa/core-flows"
 import { RESTAURANT_MODULE } from "../../src/modules/restaurant"
 import RestaurantModuleService from "../../src/modules/restaurant/service"
 import { readPublishedMenu } from "../../src/workflows/menu"
+import seedFoodCatalogue from "../../src/migration-scripts/food-catalogue"
 
 jest.setTimeout(120000)
 medusaIntegrationTestRunner({
@@ -41,6 +42,7 @@ medusaIntegrationTestRunner({
           category_id: categoryId,
           name: { da: "  Dagens ret ", en: " Dish of the day " },
           price: "95,50",
+          allergens: { status: "unknown" },
           ...change,
         },
         config,
@@ -73,6 +75,7 @@ medusaIntegrationTestRunner({
           name: { da: "Ny ret", en: "New dish" },
           description: { da: "Tomat", en: "Tomato" },
           price: "105,50",
+          allergens: { status: "unknown" },
           ...change,
         },
         config,
@@ -151,6 +154,145 @@ medusaIntegrationTestRunner({
       expect(first.data).toEqual(second.data)
       expect(first.data.categories[0].dishes).toHaveLength(1)
     })
+    it("requires staff to supply an explicit unknown or supplied declaration", async () => {
+      const missing = await post({ allergens: undefined })
+      expect(missing.status).toBe(400)
+      expect(missing.data.code).toBe("dish_input_invalid")
+      expect(await menu()).toEqual([])
+    })
+    it("saves unknown, supplied, and explicitly empty declarations and refuses invalid references", async () => {
+      await seedFoodCatalogue({ container: getContainer() })
+      const catalogue = (await api.get("/partner/food-catalogue", config)).data
+      const cereals = catalogue.allergens[0]
+      const nuts = catalogue.allergens[7]
+      const wheat = cereals.details.find(
+        (detail: { code: string }) => detail.code === "wheat",
+      )
+      const hazelnut = nuts.details.find(
+        (detail: { code: string }) => detail.code === "hazelnut",
+      )
+      const supplied = {
+        status: "supplied",
+        contains: [{ allergen_id: cereals.id, detail_ids: [wheat.id] }],
+        may_contain: [{ allergen_id: nuts.id, detail_ids: [hazelnut.id] }],
+        none_declared: false,
+      }
+      const first = await post()
+      expect(first.data.categories[0].dishes[0].allergens).toEqual({
+        status: "unknown",
+      })
+      const dishId = first.data.categories[0].dishes[0].id
+      expect((await edit(dishId, { allergens: supplied })).status).toBe(200)
+      expect((await menu())[0].dishes[0].allergens).toEqual(supplied)
+      const createdSupplied = await post({
+        request_id: "supplied-dish",
+        allergens: supplied,
+      })
+      expect(createdSupplied.status).toBe(200)
+      expect(createdSupplied.data.categories[0].dishes[1].allergens).toEqual(
+        supplied,
+      )
+      const empty = {
+        status: "supplied",
+        contains: [],
+        may_contain: [],
+        none_declared: true,
+      }
+      expect(
+        (
+          await edit(dishId, {
+            request_id: "none",
+            revision: 2,
+            allergens: empty,
+          })
+        ).status,
+      ).toBe(200)
+      expect((await menu())[0].dishes[0].allergens).toEqual(empty)
+      const createdEmpty = await post({
+        request_id: "empty-dish",
+        allergens: empty,
+      })
+      expect(createdEmpty.status).toBe(200)
+      expect(createdEmpty.data.categories[0].dishes[2].allergens).toEqual(empty)
+      expect((await menu())[0].dishes[0]).toMatchObject({
+        revision: 3,
+        allergens: empty,
+      })
+      expect(
+        (await service().listMenuDishes({}))[0].successful_change,
+      ).toMatchObject({
+        actor_id: staffId,
+        kind: "edit",
+      })
+    })
+    it.each([
+      [
+        "empty supplied declaration without confirmation",
+        "unconfirmed",
+        "dish_allergens_invalid",
+      ],
+      [
+        "one allergen in both states",
+        "contradictory",
+        "dish_allergens_invalid",
+      ],
+      ["a nut detail under cereals", "wrong-parent", "dish_allergens_invalid"],
+      ["an unknown group ID", "unknown-id", "dish_allergens_invalid"],
+      ["lists under unknown state", "unknown-with-list", "dish_input_invalid"],
+    ])(
+      "refuses %s without changing the dish",
+      async (_reason, scenario, code) => {
+        await seedFoodCatalogue({ container: getContainer() })
+        const catalogue = (await api.get("/partner/food-catalogue", config))
+          .data
+        const cereals = catalogue.allergens[0]
+        const nuts = catalogue.allergens[7]
+        const wheat = cereals.details.find(
+          (detail: { code: string }) => detail.code === "wheat",
+        )
+        const hazelnut = nuts.details.find(
+          (detail: { code: string }) => detail.code === "hazelnut",
+        )
+        const contains = [{ allergen_id: cereals.id, detail_ids: [wheat.id] }]
+        const cases = {
+          unconfirmed: {
+            status: "supplied",
+            contains: [],
+            may_contain: [],
+            none_declared: false,
+          },
+          contradictory: {
+            status: "supplied",
+            contains,
+            may_contain: contains,
+            none_declared: false,
+          },
+          "wrong-parent": {
+            status: "supplied",
+            contains: [{ allergen_id: cereals.id, detail_ids: [hazelnut.id] }],
+            may_contain: [],
+            none_declared: false,
+          },
+          "unknown-id": {
+            status: "supplied",
+            contains: [{ allergen_id: "missing", detail_ids: [] }],
+            may_contain: [],
+            none_declared: false,
+          },
+          "unknown-with-list": { status: "unknown", contains },
+        }
+        const dishId = (await post()).data.categories[0].dishes[0].id
+        const response = await edit(dishId, {
+          allergens: cases[scenario as keyof typeof cases],
+        })
+        expect(response.status).toBe(400)
+        expect(response.data.code).toBe(code)
+        expect((await menu())[0].dishes[0]).toMatchObject({
+          revision: 1,
+          allergens: { status: "unknown" },
+        })
+      },
+    )
     it("publishes an edit together and refuses a colleague's stale version", async () => {
       const created = await post()
       const dishId = created.data.categories[0].dishes[0].id
@@ -442,6 +584,7 @@ medusaIntegrationTestRunner({
           category_id: categoryId,
           name: { da: "Dagens ret", en: "Dish of the day" },
           price: 95.5,
+          allergens: { status: "unknown" },
         },
       })
       await createProductsWorkflow(getContainer()).run({

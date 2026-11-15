@@ -108,7 +108,7 @@ const Shipping: React.FC<ShippingProps> = ({
         .map((sm) => calculatePriceForShippingOption(sm.id, cart.id))
 
       if (promises.length) {
-        Promise.allSettled(promises).then((res) => {
+        void Promise.allSettled(promises).then((res) => {
           const pricesMap: Record<string, number> = {}
           res
             .filter((r) => r.status === "fulfilled")
@@ -226,7 +226,7 @@ const Shipping: React.FC<ShippingProps> = ({
                       )?.id
 
                       if (id) {
-                        handleSetShippingMethod(id, "pickup")
+                        void handleSetShippingMethod(id, "pickup")
                       }
                     }}
                   >

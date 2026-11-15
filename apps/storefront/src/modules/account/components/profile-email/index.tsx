@@ -20,12 +20,8 @@ const ProfileEmail: React.FC<MyInformationProps> = ({ customer }) => {
     _currentState: Record<string, unknown>,
     _formData: FormData,
   ) => {
-    try {
-      // email: formData.get("email") as string
-      return { success: true, error: null }
-    } catch (error) {
-      return { success: false, error: String(error) }
-    }
+    // email: formData.get("email") as string
+    return { success: true, error: null as string | null }
   }
 
   const [state, formAction] = useActionState(updateCustomerEmail, {

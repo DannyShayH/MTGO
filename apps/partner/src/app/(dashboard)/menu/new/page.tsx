@@ -5,12 +5,14 @@ import { Heading, Container, Text } from "@medusajs/ui"
 import { getMessages } from "@lib/i18n"
 import { requireCurrentStaff } from "@lib/data/staff"
 import { retrieveMenuCategories } from "@lib/data/menu-categories"
+import { retrieveFoodCatalogue } from "@lib/data/food-catalogue"
 import { Dishes } from "@modules/menu/components/dishes"
 
 export default async function CreateDishPage() {
   const current = await requireCurrentStaff()
   const { locale } = await getMessages()
   const categories = await retrieveMenuCategories()
+  const catalogue = await retrieveFoodCatalogue()
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       <Link
@@ -20,7 +22,7 @@ export default async function CreateDishPage() {
         {DISH_TEXT[locale].back}
       </Link>
       <Heading level="h1">{DISH_TEXT[locale].add}</Heading>
-      {!categories.categories ? (
+      {!categories.categories || !catalogue ? (
         <Container role="alert">
           <Text>{DISH_TEXT[locale].category_load_error}</Text>
           <Link
@@ -35,11 +37,13 @@ export default async function CreateDishPage() {
           locale={locale}
           restaurantId={current.restaurant.id}
           initialCategories={categories.categories}
+          catalogue={catalogue}
           initialEditor={{
             request_id: randomUUID(),
             category_id: categories.categories?.[0]?.id ?? "",
             name: { da: "", en: "" },
             price: "",
+            allergens: null,
           }}
         />
       )}

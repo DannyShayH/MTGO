@@ -132,7 +132,7 @@ export default function ProductActions({
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    handleAddToCart()
+    void handleAddToCart()
   }
 
   return (

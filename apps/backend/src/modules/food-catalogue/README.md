@@ -39,11 +39,15 @@ renumbers, deletes or replaces existing records. Names are not identity keys.
 No catalogue mutation API or administration screen exists. A future correction
 requires a reviewed migration that preserves IDs and existing references.
 
-This slice introduces no dish declaration persistence. The future declaration
-contract must distinguish Contains, May contain, Unknown and explicitly none
-declared, plus separate Yes/No/Unknown food labels. An empty list is never an
-allergen-free assertion. Neither the catalogue nor its legend declares anything
-about a particular dish. Halal is the Restaurant's declaration, not certification.
+Dish declarations are stored with Restaurant-owned `MenuDish` content as catalogue
+record IDs. The guarded dish workflow verifies every group and subordinate cereal
+or nut ID against the seeded rows, rejects duplicate and contradictory choices,
+and publishes the declaration with the complete dish revision. Customer reads
+resolve current bilingual names from this module. Existing dishes without a
+declaration remain `unknown`; empty supplied lists require explicit confirmation
+and never become an allergen-free claim. Food labels remain separate and unknown
+until their own declaration journey is implemented. Halal is the Restaurant's
+declaration, not certification.
 
 ## Source review
 

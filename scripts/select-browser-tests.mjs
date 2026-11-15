@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process"
+import { resolveExecutable } from "./resolve-executable.mjs"
 import { fileURLToPath } from "node:url"
 
 /** Unknown runtime changes select everything; docs never trigger browser journeys. */
@@ -10,7 +11,9 @@ export function selectBrowserTests(files) {
       return
     }
     if (!selection[app].includes("*"))
-      selection[app] = [...new Set([...selection[app], ...tests])].sort()
+      selection[app] = [...new Set([...selection[app], ...tests])].sort(
+        (a, b) => a.localeCompare(b),
+      )
   }
   const all = () => {
     selection.partner = ["*"]
@@ -124,7 +127,9 @@ export function selectBrowserTests(files) {
 
 export function changedFiles(base = "origin/main") {
   const read = (...args) =>
-    execFileSync("git", args, { encoding: "utf8" }).split("\n").filter(Boolean)
+    execFileSync(resolveExecutable("git"), args, { encoding: "utf8" })
+      .split("\n")
+      .filter(Boolean)
   return [
     ...new Set([
       ...read("diff", "--name-only", `${base}...HEAD`),

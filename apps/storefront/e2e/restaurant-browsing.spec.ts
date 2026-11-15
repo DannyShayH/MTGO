@@ -150,6 +150,7 @@ async function setUpRestaurant(request: APIRequestContext, fixture: Fixture) {
       category_id: (await category.json()).category.id,
       name: { da: "Dagens ret", en: "Dish of the day" },
       price: "95",
+      allergens: { status: "unknown" },
     },
   })
   expect(dish.ok()).toBe(true)

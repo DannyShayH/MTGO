@@ -34,6 +34,23 @@ export const DISH_TEXT = {
     price: "Pris i DKK",
     hint: "Prisen inkluderer moms og levering. Skriv fx 95 eller 95,50.",
     unknown: "Allergenoplysninger, halal, chili og hvidløg: Ukendt.",
+    allergen_heading: "Allergenoplysninger",
+    information_unknown: "Oplysninger ukendte",
+    information_unknown_hint:
+      "Kunden ser retten som ukendt, aldrig som allergenfri.",
+    information_supplied: "Oplysninger angivet",
+    information_supplied_hint:
+      "Vælg allergener nedenfor, eller bekræft at ingen er deklareret.",
+    allergen_help:
+      "Vælg indeholder eller kan indeholde for hvert relevant allergen. Vælg eventuelt en bestemt kornsort eller nød.",
+    contains: "Indeholder",
+    may_contain: "Kan indeholde",
+    allergen_conflict:
+      "Dette allergen er valgt som både Indeholder og Kan indeholde. Fjern ét valg, før du gemmer.",
+    specific_types: "Bestemte typer",
+    specific_types_hint: "Valgfrit. Vælg de typer, du kender.",
+    none_declared:
+      "Jeg bekræfter, at ingen af de angivne allergener er deklareret for denne ret.",
     photo: "Foto er valgfrit. Retten vises med en pladsholder.",
     no_categories: "Opret en kategori først, og vælg derefter Opret ret.",
     cancel: "Annuller",
@@ -47,6 +64,8 @@ export const DISH_TEXT = {
         "Oprettelsen kunne ikke bekræftes. Kontrollér og prøv igen med de samme oplysninger.",
       dish_input_invalid:
         "Udfyld begge navne med højst 120 tegn. Beskrivelser skal enten være tomme eller udfyldt på begge sprog med højst 2.000 tegn. Brug almindelig tekst. Prisen skal være positiv med højst to decimaler.",
+      dish_allergens_invalid:
+        "Kontrollér allergenvalgene. Den samme type må kun stå ét sted, og tomme oplysninger kræver bekræftelse.",
       category_not_found:
         "Kategorien findes ikke længere. Vælg en anden kategori.",
       dish_retry_conflict:
@@ -96,6 +115,23 @@ export const DISH_TEXT = {
     price: "Price in DKK",
     hint: "Includes VAT and delivery. Enter e.g. 95 or 95.50.",
     unknown: "Allergen information, halal, chili and garlic: Unknown.",
+    allergen_heading: "Allergen information",
+    information_unknown: "Information unknown",
+    information_unknown_hint:
+      "Customers see the dish as unknown, never as allergen-free.",
+    information_supplied: "Information supplied",
+    information_supplied_hint:
+      "Choose allergens below, or confirm that none are declared.",
+    allergen_help:
+      "Choose contains or may contain for each relevant allergen. Select a specific cereal or nut where relevant.",
+    contains: "Contains",
+    may_contain: "May contain",
+    allergen_conflict:
+      "This allergen is selected as both Contains and May contain. Remove one selection before saving.",
+    specific_types: "Specific types",
+    specific_types_hint: "Optional. Choose the types you know.",
+    none_declared:
+      "I confirm that none of the listed allergens are declared for this dish.",
     photo: "A photo is optional. The dish uses a placeholder.",
     no_categories: "Create a category first, then choose Create dish.",
     cancel: "Cancel",
@@ -109,6 +145,8 @@ export const DISH_TEXT = {
         "Publication could not be confirmed. Check and retry with the same details.",
       dish_input_invalid:
         "Enter both names with at most 120 characters. Descriptions must be empty or filled in both languages with at most 2,000 characters. Use plain text. The price must be positive with at most two decimal places.",
+      dish_allergens_invalid:
+        "Review the allergen selections. Each allergen can appear only once, and an empty declaration needs confirmation.",
       category_not_found:
         "This category no longer exists. Choose another category.",
       dish_retry_conflict:

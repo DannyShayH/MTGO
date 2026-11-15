@@ -41,7 +41,7 @@ const OptionsPicker = ({
       }
     }
 
-    fetchOptions()
+    void fetchOptions()
   }, [])
 
   useEffect(() => {

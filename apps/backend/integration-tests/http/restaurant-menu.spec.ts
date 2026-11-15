@@ -183,6 +183,7 @@ medusaIntegrationTestRunner({
           category_id: category.data.category.id,
           name: { da: "Dagens ret", en: "Dish of the day" },
           price: "95.50",
+          allergens: { status: "unknown" },
         },
         { headers },
       )
@@ -200,7 +201,58 @@ medusaIntegrationTestRunner({
           photo: null,
         }),
       ])
-      const dish = customer.data.categories[0].dishes[0]
+      let dish = customer.data.categories[0].dishes[0]
+      await seedFoodCatalogue({ container: getContainer() })
+      const catalogue = (await api.get("/partner/food-catalogue", { headers }))
+        .data
+      const cereals = catalogue.allergens[0]
+      const nuts = catalogue.allergens[7]
+      const wheat = cereals.details.find(
+        (detail: { code: string }) => detail.code === "wheat",
+      )
+      const hazelnut = nuts.details.find(
+        (detail: { code: string }) => detail.code === "hazelnut",
+      )
+      const declaration = await api.post(
+        `/partner/restaurants/${restaurantId}/dishes/${dish.id}`,
+        {
+          request_id: "allergen-edit",
+          revision: dish.revision,
+          name: dish.name,
+          description: dish.description,
+          price: "95.50",
+          allergens: {
+            status: "supplied",
+            contains: [{ allergen_id: cereals.id, detail_ids: [wheat.id] }],
+            may_contain: [{ allergen_id: nuts.id, detail_ids: [hazelnut.id] }],
+            none_declared: false,
+          },
+        },
+        { headers },
+      )
+      expect(declaration.status).toBe(200)
+      dish = (await readMenu()).data.categories[0].dishes[0]
+      expect(dish.food_information.allergens).toEqual({
+        status: "supplied",
+        contains: [
+          {
+            number: 1,
+            code: "cereals",
+            name: cereals.name,
+            details: [{ code: "wheat", name: wheat.name }],
+          },
+        ],
+        may_contain: [
+          {
+            number: 8,
+            code: "nuts",
+            name: nuts.name,
+            details: [{ code: "hazelnut", name: hazelnut.name }],
+          },
+        ],
+        none_declared: false,
+      })
+      expect(dish).not.toHaveProperty("allergens")
       const sold = await api.post(
         `/partner/restaurants/${restaurantId}/dishes/${dish.id}/availability`,
         { request_id: "sold-out", revision: dish.revision, is_sold_out: true },

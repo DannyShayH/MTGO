@@ -17,7 +17,23 @@ export type MenuDish = {
   price: { amount: number; currency_code: "dkk"; includes_tax: true }
   is_sold_out: boolean
   photo: { url: string } | null
-  food_information: { allergens: { status: "unknown" } }
+  food_information: {
+    allergens:
+      | { status: "unknown" }
+      | {
+          status: "supplied"
+          contains: DeclaredAllergen[]
+          may_contain: DeclaredAllergen[]
+          none_declared: boolean
+        }
+  }
+}
+
+export type DeclaredAllergen = {
+  number: number
+  code: string
+  name: Bilingual
+  details: { code: string; name: Bilingual }[]
 }
 
 export type MenuCategory = {

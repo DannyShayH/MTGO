@@ -56,7 +56,7 @@ const CountrySelect = ({ toggleState, regions }: CountrySelectProps) => {
   }, [options, countryCode])
 
   const handleChange = (option: CountryOption) => {
-    updateRegion(option.country, currentPath)
+    void updateRegion(option.country, currentPath)
     close()
   }
 

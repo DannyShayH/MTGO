@@ -98,6 +98,7 @@ describe("published menu", () => {
             },
             price: { amount: 95, currency_code: "dkk", includes_tax: true },
             is_sold_out: false,
+            allergens: { status: "unknown" },
           },
         ],
       },

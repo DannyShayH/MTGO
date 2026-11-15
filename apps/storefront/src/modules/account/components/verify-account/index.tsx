@@ -34,7 +34,7 @@ const VerifyAccount = () => {
       return
     }
 
-    confirmEmailVerification(token).then(({ success }) =>
+    void confirmEmailVerification(token).then(({ success }) =>
       setState(success ? "success" : "error"),
     )
   }, [token])

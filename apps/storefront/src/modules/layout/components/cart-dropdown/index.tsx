@@ -64,7 +64,7 @@ const CartDropdown = ({
         })
         .catch(() => {})
 
-    load()
+    void load()
     window.addEventListener(CART_UPDATED_EVENT, load)
     return () => window.removeEventListener(CART_UPDATED_EVENT, load)
   }, [serverCart])

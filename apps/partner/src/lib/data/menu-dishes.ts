@@ -14,13 +14,23 @@ export type CreateDish = {
   category_id: string
   name: { da: string; en: string }
   price: string
+  allergens: AllergenDeclaration | null
 }
+export type AllergenDeclaration =
+  | { status: "unknown" }
+  | {
+      status: "supplied"
+      contains: { allergen_id: string; detail_ids: string[] }[]
+      may_contain: { allergen_id: string; detail_ids: string[] }[]
+      none_declared: boolean
+    }
 export type EditDish = {
   request_id: string
   revision: number
   name: { da: string; en: string }
   description: { da: string; en: string } | null
   price: string
+  allergens: AllergenDeclaration
 }
 export type StaffDish = {
   id: string
@@ -29,6 +39,7 @@ export type StaffDish = {
   name: { da: string; en: string }
   description: { da: string; en: string } | null
   price: { amount: number; currency_code: "dkk" }
+  allergens: AllergenDeclaration
 }
 export type DishAvailability = {
   request_id: string

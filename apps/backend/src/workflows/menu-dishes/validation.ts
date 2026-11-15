@@ -2,6 +2,27 @@ import { MathBN } from "@medusajs/framework/utils"
 import { z } from "@medusajs/framework/zod"
 import { categoryNameSchema } from "../menu-categories/validation"
 
+export const allergenDeclarationSchema = z.discriminatedUnion("status", [
+  z.strictObject({ status: z.literal("unknown") }),
+  z.strictObject({
+    status: z.literal("supplied"),
+    contains: z.array(
+      z.strictObject({
+        allergen_id: z.string().min(1),
+        detail_ids: z.array(z.string().min(1)),
+      }),
+    ),
+    may_contain: z.array(
+      z.strictObject({
+        allergen_id: z.string().min(1),
+        detail_ids: z.array(z.string().min(1)),
+      }),
+    ),
+    none_declared: z.boolean(),
+  }),
+])
+export type AllergenDeclaration = z.infer<typeof allergenDeclarationSchema>
+
 /** Staff enter display-unit DKK. Reject precision and separators before conversion. */
 export const dishCreateSchema = z.strictObject({
   request_id: z
@@ -29,6 +50,7 @@ export const dishCreateSchema = z.strictObject({
         amount > 0 &&
         amount <= Number.MAX_SAFE_INTEGER / 100,
     ),
+  allergens: allergenDeclarationSchema,
 })
 export type DishCreateInput = z.input<typeof dishCreateSchema>
 
@@ -53,6 +75,7 @@ export const dishEditSchema = z.strictObject({
     .strictObject({ da: plainDescription, en: plainDescription })
     .nullable(),
   price: dishCreateSchema.shape.price,
+  allergens: allergenDeclarationSchema,
 })
 export type DishEditInput = z.input<typeof dishEditSchema>
 

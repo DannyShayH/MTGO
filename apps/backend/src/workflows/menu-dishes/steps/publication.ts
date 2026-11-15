@@ -10,6 +10,7 @@ import RestaurantModuleService from "../../../modules/restaurant/service"
 import { PublishedCategory } from "../../menu/published-menu"
 import { readPublishedMenu } from "../../menu"
 import { dishCreateSchema, DishCreateInput } from "../validation"
+import { validateAllergens } from "../validate-allergens"
 
 export type CreateDishCommand = DishCreateInput & {
   restaurant_id: string
@@ -26,10 +27,12 @@ export const prepareDishPublicationStep = createStep(
       category_id: input.category_id,
       name: input.name,
       price: input.price,
+      allergens: input.allergens,
     })
     if (!parsed.success)
       throw refuse(MedusaError.Types.INVALID_DATA, "dish_input_invalid")
     const data = parsed.data
+    await validateAllergens(container, data.allergens)
     const service =
       container.resolve<RestaurantModuleService>(RESTAURANT_MODULE)
     const [category] = await service.listMenuCategories({
@@ -43,6 +46,7 @@ export const prepareDishPublicationStep = createStep(
       category_id: data.category_id,
       name: data.name,
       price: data.price,
+      allergens: data.allergens,
     }
     let [operation] = await service.listMenuDishCreations({
       restaurant_id: input.restaurant_id,
@@ -55,7 +59,9 @@ export const prepareDishPublicationStep = createStep(
         original.category_id !== payload.category_id ||
         original.price !== payload.price ||
         name.da !== payload.name.da ||
-        name.en !== payload.name.en
+        name.en !== payload.name.en ||
+        JSON.stringify(original.allergens ?? { status: "unknown" }) !==
+          JSON.stringify(payload.allergens)
       )
         throw refuse(MedusaError.Types.CONFLICT, "dish_retry_conflict")
     }
@@ -112,7 +118,11 @@ export const prepareDishPublicationStep = createStep(
 export const createDishContentStep = createStep(
   "create-dish-content",
   async (
-    input: { name: { da: string; en: string }; position: number },
+    input: {
+      name: { da: string; en: string }
+      position: number
+      allergens: DishCreateInput["allergens"]
+    },
     { container },
   ) => {
     const service =
@@ -121,6 +131,7 @@ export const createDishContentStep = createStep(
       name_da: input.name.da,
       name_en: input.name.en,
       position: input.position,
+      allergen_declaration: input.allergens,
       publication_committed: false,
     })
     return new StepResponse(content.id, content.id)

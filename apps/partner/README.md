@@ -127,10 +127,23 @@ read has a translated retry link and never implies an empty safe catalogue.
 
 The design follows Medusa UI containers, MTOGO tokens and Inter. Its deliberate
 visual anchor is the aligned number/symbol/name row, with quiet borders and
-immediate disclosures. There are no selection controls or dish summaries until
-menu declaration editing exists. The legacy compact stack's overflow count was
-reviewed, but is not useful in a complete reference legend: every group remains
-visible, with full details one keyboard/touch action away.
+immediate disclosures. Dish creation and editing first ask whether the
+information is unknown or supplied, as two radio cards with a one-line
+consequence each. Supplied declarations use the same numbered catalogue as one
+list: number, symbol and name on the left, and a Contains chip and a May contain
+chip on the right (below the name on phones). Each chip is a native checkbox
+drawn as a pill, filled teal when Contains is chosen and light teal when May
+contain is chosen, always with a check mark and its text, so keyboard and screen
+reader users get a plain checkbox and nobody depends on colour alone. Chips for
+specific cereals and nuts appear under a chosen group. Selecting the same group
+in both states immediately explains the conflict and keeps the selections for
+correction, and two empty lists require the explicit empty-declaration
+confirmation. The menu list shows each dish's availability as a switch in the
+status pair (success for available, warning for sold out, with a sliding track
+and the state as text) and edits through a pencil icon button named
+"Edit: dish name"; reorder controls from #111 take the row's leading column.
+The reference legend still shows every group, with full details one
+keyboard/touch action away.
 
 The 17 pinned legacy SVGs and the IconMap, Icon, Pill, Stack and List components
 were inspected at revision `78ca2e418fff6f662923a91d9ad6edb2e1c920f6` of

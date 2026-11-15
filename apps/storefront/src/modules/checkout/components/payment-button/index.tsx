@@ -126,7 +126,7 @@ const StripePaymentButton = ({
             (pi && pi.status === "requires_capture") ||
             (pi && pi.status === "succeeded")
           ) {
-            onPaymentCompleted()
+            void onPaymentCompleted()
             return
           }
 
@@ -139,7 +139,7 @@ const StripePaymentButton = ({
           paymentIntent.status === "requires_capture" ||
           paymentIntent.status === "succeeded"
         ) {
-          onPaymentCompleted()
+          void onPaymentCompleted()
           return
         }
 
@@ -187,7 +187,7 @@ const ManualTestPaymentButton = ({ notReady }: { notReady: boolean }) => {
   const handlePayment = () => {
     setSubmitting(true)
 
-    onPaymentCompleted()
+    void onPaymentCompleted()
   }
 
   return (

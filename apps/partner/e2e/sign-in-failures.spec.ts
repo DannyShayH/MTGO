@@ -375,7 +375,7 @@ test.describe("safe sign-in logging", () => {
       await page.getByLabel("Email").fill("secret-email@example.test")
       await page.getByLabel("Password").fill("secret-password")
       await page.getByRole("button", { name: "Sign in", exact: true }).click()
-      await expect(page.getByRole("alert")).toBeVisible()
+      await expect(page.locator("main").getByRole("alert")).toBeVisible()
       await expect
         .poll(() => logOutput)
         .toContain('"event":"auth.sign_in.failed"')
@@ -407,7 +407,7 @@ test.describe("safe sign-in logging", () => {
     await page.getByLabel("Email").fill("secret-email@example.test")
     await page.getByLabel("Password").fill("secret-password")
     await page.getByRole("button", { name: "Sign in", exact: true }).click()
-    await expect(page.getByRole("alert")).toBeVisible()
+    await expect(page.locator("main").getByRole("alert")).toBeVisible()
     await expect
       .poll(() => logOutput)
       .toContain('"event":"auth.sign_in.failed"')

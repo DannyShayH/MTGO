@@ -1,6 +1,11 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { CUSTOMER_MENU_TEXT, formatDkk } from "../customer-menu.ts"
+import {
+  ALLERGEN_SHORT_NAMES,
+  CUSTOMER_MENU_TEXT,
+  allergenShortName,
+  formatDkk,
+} from "../customer-menu.ts"
 
 // Intl separates the currency with a no-break space; compare on plain spaces.
 const plain = (text: string) => text.replace(/\s/g, " ")
@@ -27,4 +32,26 @@ test("Danish and English have the same texts, none of them blank", () => {
   for (const locale of ["da", "en"] as const)
     for (const text of Object.values(CUSTOMER_MENU_TEXT[locale]))
       assert.ok(text.trim().length > 0)
+})
+
+test("EP: a long catalogue name gets its short name, any other keeps its own", () => {
+  const cereals = {
+    code: "cereals",
+    name: {
+      da: "Korn, der indeholder gluten",
+      en: "Cereals containing gluten",
+    },
+  }
+  assert.equal(allergenShortName(cereals, "da"), "Gluten")
+  assert.equal(allergenShortName(cereals, "en"), "Gluten")
+  const fish = { code: "fish", name: { da: "Fisk", en: "Fish" } }
+  assert.equal(allergenShortName(fish, "da"), "Fisk")
+  assert.equal(allergenShortName(fish, "en"), "Fish")
+})
+
+test("Short names exist for the same codes in both languages", () => {
+  assert.deepEqual(
+    Object.keys(ALLERGEN_SHORT_NAMES.da).sort(),
+    Object.keys(ALLERGEN_SHORT_NAMES.en).sort(),
+  )
 })

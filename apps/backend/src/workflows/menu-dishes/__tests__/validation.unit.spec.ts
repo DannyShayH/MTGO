@@ -5,6 +5,7 @@ const input = (price: string) => ({
   category_id: "mcat_own",
   name: { da: "  Dagens ret  ", en: " Dish of the day " },
   price,
+  allergens: { status: "unknown" },
 })
 
 describe("dish edit input", () => {
@@ -14,6 +15,7 @@ describe("dish edit input", () => {
     name: { da: "Ny ret", en: "New dish" },
     description,
     price: "105,50",
+    allergens: { status: "unknown" },
   })
   it("accepts a complete bilingual description and a removed description", () => {
     expect(

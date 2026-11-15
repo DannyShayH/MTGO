@@ -13,6 +13,7 @@ import { readPublishedMenu } from "../../menu"
 import { PublishedCategory } from "../../menu/published-menu"
 import { withResponseFields } from "../../common/response-fields"
 import { dishEditSchema, DishEditInput } from "../validation"
+import { validateAllergens } from "../validate-allergens"
 
 export type EditDishCommand = DishEditInput & {
   restaurant_id: string
@@ -46,10 +47,12 @@ export const prepareDishEditStep = createStep(
       name: input.name,
       description: input.description,
       price: input.price,
+      allergens: input.allergens,
     })
     if (!parsed.success)
       throw refuse(MedusaError.Types.INVALID_DATA, "dish_input_invalid")
     const data = parsed.data
+    await validateAllergens(container, data.allergens)
     const menu = await readPublishedMenu(container, input.restaurant_id)
     const dish = menu
       .flatMap(({ dishes }) => dishes)
@@ -85,7 +88,8 @@ export const prepareDishEditStep = createStep(
           previous.name.en !== data.name.en ||
           previous.description?.da !== data.description?.da ||
           previous.description?.en !== data.description?.en ||
-          previous.price !== data.price
+          previous.price !== data.price ||
+          JSON.stringify(previous.allergens) !== JSON.stringify(data.allergens)
         )
           throw refuse(MedusaError.Types.CONFLICT, "dish_retry_conflict")
         return new StepResponse<Prepared, SnapshotUndo>(
@@ -156,6 +160,7 @@ export const commitDishEditStep = createStep(
             description_da: data.description?.da ?? null,
             description_en: data.description?.en ?? null,
             published_price: String(data.price),
+            allergen_declaration: data.allergens,
             revision: data.revision + 1,
             successful_change: {
               kind: "edit",
@@ -219,6 +224,7 @@ export const commitDishEditStep = createStep(
                 name: data.name,
                 description: data.description,
                 price: { ...dish.price, amount: data.price },
+                allergens: data.allergens,
               }
             : dish,
         ),

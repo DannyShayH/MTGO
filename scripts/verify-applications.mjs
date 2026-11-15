@@ -1,4 +1,6 @@
 import { spawn, execFileSync } from "node:child_process"
+import { existsSync } from "node:fs"
+import { resolveExecutable } from "./resolve-executable.mjs"
 import { cp, mkdir, mkdtemp, readdir, rm } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
 import { createServer } from "node:net"
@@ -49,9 +51,10 @@ for (const address of [
 await mkdir(join(root, "tmp"), { recursive: true })
 const snapshot = await mkdtemp(join(root, "tmp", "application-verification-"))
 let result = 1
+let copyError
 try {
   const files = execFileSync(
-    "git",
+    resolveExecutable("git"),
     [
       "ls-files",
       "--cached",
@@ -85,12 +88,8 @@ try {
   const apps = await readdir(join(root, "apps"))
   for (const directory of ["", ...apps.map((app) => join("apps", app))]) {
     const source = join(root, directory, "node_modules")
-    const probe = spawn("test", ["-d", source])
-    const exists = await new Promise((done) =>
-      probe.on("close", (code) => done(code === 0)),
-    )
-    if (exists)
-      execFileSync("cp", [
+    if (existsSync(source))
+      execFileSync(resolveExecutable("cp"), [
         "-al",
         source,
         join(snapshot, directory, "node_modules"),
@@ -131,7 +130,7 @@ try {
   ).trim()
   console.log(`Affected browser selection: ${selection}`)
   const child = spawn(
-    "bash",
+    resolveExecutable("bash"),
     ["scripts/verify-application-builds.sh", "--browser"],
     {
       cwd: snapshot,
@@ -163,10 +162,11 @@ try {
           recursive: true,
         })
       } catch (error) {
-        if (error.code !== "ENOENT") throw error
+        if (error.code !== "ENOENT") copyError ??= error
       }
     }
   }
   await rm(snapshot, { recursive: true, force: true })
 }
+if (copyError) throw copyError
 process.exitCode = result

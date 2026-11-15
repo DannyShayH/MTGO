@@ -64,8 +64,12 @@ function dishRefusalBody(
     )
   )
     return undefined
-  const code =
-    statusCode === 400 ? "dish_input_invalid" : error.code || error.message
+  let code = error.code || error.message
+  if (statusCode === 400)
+    code =
+      error.code === "dish_allergens_invalid"
+        ? "dish_allergens_invalid"
+        : "dish_input_invalid"
   return { ...fields, type: body.type, code, message: code }
 }
 

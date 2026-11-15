@@ -1,5 +1,14 @@
 import { MathBN } from "@medusajs/framework/utils"
 
+export type AllergenDeclaration =
+  | { status: "unknown" }
+  | {
+      status: "supplied"
+      contains: { allergen_id: string; detail_ids: string[] }[]
+      may_contain: { allergen_id: string; detail_ids: string[] }[]
+      none_declared: boolean
+    }
+
 /**
  * The one definition of a valid published dish (ADR-0012). Activation
  * readiness counts these dishes and the Customer menu shows exactly these
@@ -29,6 +38,7 @@ type DishContent = {
   position: number
   revision: number
   published_price?: string | null
+  allergen_declaration?: AllergenDeclaration | null
 }
 
 type VariantRecord = {
@@ -62,6 +72,7 @@ export type PublishedDish = {
   /** Display-unit DKK including VAT and delivery: 95.5 is DKK 95.50. */
   price: { amount: number; currency_code: "dkk"; includes_tax: true }
   is_sold_out: boolean
+  allergens: AllergenDeclaration
 }
 
 export type PublishedCategory = {
@@ -124,6 +135,7 @@ function publishedDishOf(product: MenuProductRecord): PublishedDish | null {
     description,
     price: { amount, currency_code: MENU_CURRENCY, includes_tax: true },
     is_sold_out: content.is_sold_out,
+    allergens: content.allergen_declaration ?? { status: "unknown" },
   }
 }
 

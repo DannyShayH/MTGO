@@ -15,22 +15,46 @@ import {
   type StaffDish,
 } from "@lib/data/menu-dishes"
 import { useUnsavedChanges } from "@modules/common/components/unsaved-changes"
+import { AllergenSelector } from "./allergen-selector"
+import type { FoodCatalogue } from "@lib/data/food-catalogue"
 
 const priceText = (amount: number) => String(amount)
+const declarationNames = (
+  entries: { allergen_id: string; detail_ids: string[] }[],
+  catalogue: FoodCatalogue,
+  locale: Locale,
+) =>
+  entries
+    .map((entry) => {
+      const group = catalogue.allergens.find(
+        (row) => row.id === entry.allergen_id,
+      )
+      if (!group) return ""
+      const details = entry.detail_ids.flatMap((id) => {
+        const detail = group.details.find((row) => row.id === id)
+        return detail ? [detail.name[locale]] : []
+      })
+      return `${group.number}. ${group.name[locale]}${details.length ? ` (${details.join(", ")})` : ""}`
+    })
+    .filter(Boolean)
+    .join(", ")
 const draftOf = (dish: StaffDish): EditDish => ({
   request_id: crypto.randomUUID(),
   revision: dish.revision,
   name: dish.name,
   description: dish.description,
   price: priceText(dish.price.amount),
+  allergens: dish.allergens,
 })
 
 export function EditDishForm({
   dish,
   locale,
+  catalogue,
 }: {
   dish: StaffDish
   locale: Locale
+  catalogue: FoodCatalogue
 }) {
   const text = DISH_TEXT[locale]
   const router = useRouter()
@@ -46,6 +70,7 @@ export function EditDishForm({
     draft.description?.da !== dish.description?.da ||
     draft.description?.en !== dish.description?.en ||
     draft.price !== priceText(dish.price.amount) ||
+    JSON.stringify(draft.allergens) !== JSON.stringify(dish.allergens) ||
     uncertain
   useUnsavedChanges(dirty, text.discard)
 
@@ -59,7 +84,9 @@ export function EditDishForm({
         typeof restored.revision === "number" &&
         typeof restored.price === "string" &&
         typeof restored.name?.da === "string" &&
-        typeof restored.name?.en === "string"
+        typeof restored.name?.en === "string" &&
+        (restored.allergens?.status === "unknown" ||
+          restored.allergens?.status === "supplied")
       ) {
         queueMicrotask(() => {
           setDraft(restored)
@@ -137,6 +164,21 @@ export function EditDishForm({
             </>
           )}
           <Text>{formatDkk(latest.price.amount, locale)}</Text>
+          <Text>
+            {text.allergen_heading}:{" "}
+            {latest.allergens.status === "unknown"
+              ? text.information_unknown
+              : latest.allergens.none_declared
+                ? text.none_declared
+                : [
+                    latest.allergens.contains.length &&
+                      `${text.contains}: ${declarationNames(latest.allergens.contains, catalogue, locale)}`,
+                    latest.allergens.may_contain.length &&
+                      `${text.may_contain}: ${declarationNames(latest.allergens.may_contain, catalogue, locale)}`,
+                  ]
+                    .filter(Boolean)
+                    .join("; ")}
+          </Text>
           <Button
             type="button"
             variant="secondary"
@@ -230,6 +272,13 @@ export function EditDishForm({
             <Text className="mt-2 text-ui-fg-subtle">{text.hint}</Text>
           </div>
         </fieldset>
+        <AllergenSelector
+          catalogue={catalogue}
+          locale={locale}
+          value={draft.allergens}
+          onChange={(allergens) => setDraft({ ...draft, allergens })}
+          disabled={pending || uncertain || !!latest}
+        />
         <div className="flex flex-wrap gap-3">
           <Button
             type="submit"

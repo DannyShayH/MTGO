@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useState, useTransition } from "react"
-import { Text } from "@medusajs/ui"
+import { Text, clx } from "@medusajs/ui"
 import { DISH_TEXT, type DishErrorCode, type Locale } from "@dtc/i18n"
 import {
   availabilityRequest,
@@ -72,18 +72,45 @@ export function AvailabilitySwitch({
       }
     })
 
+  const available = !current.is_sold_out
   return (
     <div className="flex flex-col items-start gap-1">
+      {/* The status pair carries the state (design brief: sold out is a
+          warning, never an error); the track and the label say it too. */}
       <button
         type="button"
         role="switch"
-        aria-checked={!current.is_sold_out}
+        aria-checked={available}
+        aria-busy={pending || undefined}
         aria-label={`${current.name[locale]}: ${text.availability_label}`}
         disabled={pending || needsRefresh}
         onClick={change}
-        className="min-h-11 rounded-md border border-ui-border-base px-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mtogo-focus-ring focus-visible:ring-offset-2 disabled:opacity-50"
+        className={clx(
+          "inline-flex min-h-11 items-center gap-2.5 rounded-full border py-1.5 pl-2 pr-3.5 text-sm font-medium transition-[background-color,border-color,color,transform] duration-150 ease-out active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mtogo-focus-ring focus-visible:ring-offset-2",
+          available
+            ? "border-mtogo-status-success-text/25 bg-mtogo-status-success-surface text-mtogo-status-success-text"
+            : "border-mtogo-status-warning-text/25 bg-mtogo-status-warning-surface text-mtogo-status-warning-text",
+        )}
       >
-        {current.is_sold_out ? text.sold_out : text.available}
+        <span
+          aria-hidden="true"
+          className={clx(
+            "relative h-5 w-9 shrink-0 rounded-full transition-colors duration-150 ease-out motion-reduce:transition-none",
+            available
+              ? "bg-mtogo-status-success-text"
+              : "bg-mtogo-status-warning-text",
+          )}
+        >
+          <span
+            className={clx(
+              "absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-150 ease-out motion-reduce:transition-none",
+              available && "translate-x-4",
+            )}
+          />
+        </span>
+        <span className="whitespace-nowrap">
+          {available ? text.available : text.sold_out}
+        </span>
       </button>
       {error && (
         <Text role="alert" className="max-w-xs text-mtogo-status-error-text">

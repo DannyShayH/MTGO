@@ -527,9 +527,9 @@ API README holds the contract. An active Restaurant's menu is readable whether
 it is Open or Closed, with the shared eligibility rule's
 `receiving_new_orders` and `reason`. An inactive Restaurant answers
 `restaurant_not_found`, exactly like an unknown one; Order reads do not go
-through this route and are unaffected. Until declarations and photos are
-stored, every dish reports allergens and food labels as `unknown` and
-`photo: null`.
+through this route and are unaffected. Dish allergen declarations resolve
+against the seeded catalogue on each read. Older dishes without declarations
+report `unknown`; food labels remain unknown and photos remain `null`.
 
 Evidence: `src/workflows/menu/__tests__/published-menu.unit.spec.ts` (the
 validity decision table), `integration-tests/http/restaurant-menu.spec.ts`
@@ -568,7 +568,8 @@ closed. `POST` creates a complete dish with this body:
   "request_id": "a-client-generated-uuid",
   "category_id": "mcat_own-category",
   "name": { "da": "Dagens ret", "en": "Dish of the day" },
-  "price": "95,50"
+  "price": "95,50",
+  "allergens": { "status": "unknown" }
 }
 ```
 
@@ -578,8 +579,11 @@ decimal places: `95`, `95,50` and `95.50` are accepted without rounding. It
 includes VAT and delivery. Exactly one own, nonremoved category is required;
 new dishes append. The response is `{ categories }`, with current bilingual
 dishes, variants and inclusive prices. No draft, inventory, options, separate
-publication or approval interface is exposed. Food declarations are explicitly
-Unknown and the optional photo is absent, using the Customer placeholder.
+publication or approval interface is exposed. The request must explicitly
+choose unknown or supplied allergen information, and the optional photo is
+absent, using the Customer placeholder. Supplied group and detail IDs are
+validated against the seeded catalogue. Empty supplied lists require
+`none_declared: true`.
 
 Every request rechecks current staff access and Restaurant ownership. The
 workflow takes the existing Restaurant lock, rechecks category ownership and
@@ -605,7 +609,8 @@ links. A category refusal is definitive and the form renews its operation
 identity before allowing a replacement category. The synthetic seed uses committed content and retains
 its existing fixtures.
 
-Validation returns `400 dish_input_invalid`; an unavailable/foreign category
+Validation returns `400 dish_input_invalid`, or `dish_allergens_invalid` for
+invalid catalogue references or contradictory declarations; an unavailable/foreign category
 returns `404 category_not_found`, and another Restaurant retains the existing
 `404 restaurant_not_found` boundary. Revoked access returns
 `403 staff_access_revoked`. An unexpectedly inconsistent committed product

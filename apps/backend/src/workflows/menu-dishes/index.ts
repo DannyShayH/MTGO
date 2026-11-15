@@ -100,6 +100,7 @@ export const createMenuDishWorkflow = createWorkflow(
         ({ prepared }) => ({
           name: prepared.data.name,
           position: prepared.position,
+          allergens: prepared.data.allergens,
         }),
       )
       const contentId = createDishContentStep(contentInput)
@@ -149,6 +150,7 @@ export const createMenuDishWorkflow = createWorkflow(
               currency_code: "dkk" as const,
               includes_tax: true as const,
             },
+            allergens: prepared.data.allergens,
           }
           const category = categories.find(
             ({ id }) => id === prepared.category.id,

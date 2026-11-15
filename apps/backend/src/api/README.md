@@ -28,7 +28,7 @@ this menu contract before payment.
 
 ### POST /partner/restaurants/:id/dishes/:dish_id
 
-Changes a published dish's bilingual content and inclusive DKK price. The
+Changes a published dish's bilingual content, inclusive DKK price and allergen declaration. The
 Restaurant menu uses the next revision on its next fetch. The product and
 variant identities remain stable; historical Order lines are untouched.
 
@@ -41,6 +41,7 @@ variant identities remain stable; historical Order lines are untouched.
 | `name.da`, `name.en` | string           | yes      | Both nonblank plain-text names, at most 120 characters each                                            |
 | `description`        | object or `null` | yes      | `null` removes it; otherwise both `da` and `en` are nonblank plain text, at most 2,000 characters each |
 | `price`              | string           | yes      | Positive DKK display amount with at most two decimals, dot or comma separator                          |
+| `allergens`          | object           | yes      | `unknown`, or `supplied` with `contains`, `may_contain` and `none_declared`                            |
 
 ```json
 {
@@ -48,7 +49,8 @@ variant identities remain stable; historical Order lines are untouched.
   "revision": 1,
   "name": { "da": "Dagens ret", "en": "Dish of the day" },
   "description": { "da": "Tomat", "en": "Tomato" },
-  "price": "105,50"
+  "price": "105,50",
+  "allergens": { "status": "unknown" }
 }
 ```
 
@@ -59,6 +61,7 @@ same identity and payload returns the saved version.
 | Status | Code                                       | When                                                                                      |
 | ------ | ------------------------------------------ | ----------------------------------------------------------------------------------------- |
 | `400`  | `dish_input_invalid`                       | A field fails validation                                                                  |
+| `400`  | `dish_allergens_invalid`                   | A catalogue ID, subordinate detail or declaration combination is invalid                  |
 | `401`  | authentication error                       | No valid staff token                                                                      |
 | `403`  | `staff_access_revoked`                     | Access was revoked before this request                                                    |
 | `404`  | `restaurant_not_found` or `dish_not_found` | Another Restaurant or no current published dish                                           |
@@ -67,7 +70,14 @@ same identity and payload returns the saved version.
 | `503`  | `dish_publication_uncertain`               | A commit acknowledgement or compensation could not be confirmed; retry with the same body |
 
 `GET /partner/restaurants/:id/dishes` remains the ownership-checked,
-`no-store` read used to refresh the menu after a save or conflict.
+`no-store` read used to refresh the menu after a save or conflict. Dish creation
+requires the same `allergens` field. For supplied data, each list entry is
+`{ "allergen_id": "alg_…", "detail_ids": ["ald_…"] }`, using IDs from
+`GET /partner/food-catalogue`. The same allergen cannot appear twice or in both
+lists; detail IDs must belong to their selected cereal or nut group. When both
+lists are empty, `none_declared` must be `true`; otherwise it must be `false`.
+Unknown accepts no lists. The complete declaration is saved with the guarded
+dish revision and successful-change record.
 
 An API Route is a REST API endpoint.
 
@@ -970,21 +980,21 @@ client chooses `da` or `en`. The response is never cached
 }
 ```
 
-| Field                             | Meaning                                                                                                                                                                         |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `restaurant.is_open`              | Whether staff have opened the Restaurant. A Closed Restaurant's menu stays readable                                                                                             |
-| `restaurant.receiving_new_orders` | Whether a new Order could be placed now. `reason` is `restaurant_closed` or `delivery_area_missing` when it is `false`, otherwise `null`                                        |
-| `categories`                      | The Restaurant's own categories in its order. A category without a valid dish is left out                                                                                       |
-| `categories[].id`, `revision`     | Stable category identity and the revision of its published names                                                                                                                |
-| `dishes`                          | The category's valid published dishes in the Restaurant's order, sold-out ones included                                                                                         |
-| `dishes[].id`                     | Stable dish identity (the product id). It does not change when the dish is edited                                                                                               |
-| `dishes[].variant_id`             | The dish's one sellable variant, which an Order line refers to                                                                                                                  |
-| `dishes[].revision`               | Revision of the dish's published version. Every later change to its content, price or availability must raise it                                                                |
-| `dishes[].description`            | Both languages, or `null` when the Restaurant gave none                                                                                                                         |
-| `dishes[].price`                  | Current price in kroner including VAT and delivery. `amount` is in display units with at most two decimals (`109.5` is DKK 109.50); nothing is added to it and it is not in øre |
-| `dishes[].is_sold_out`            | The manual availability switch. A sold-out dish is shown but cannot be ordered                                                                                                  |
-| `dishes[].photo`                  | `null` until dish photos are stored; clients show their placeholder                                                                                                             |
-| `dishes[].food_information`       | `unknown` until declarations are stored. Unknown is never an allergen-free claim                                                                                                |
+| Field                             | Meaning                                                                                                                                                                                                                                                                           |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `restaurant.is_open`              | Whether staff have opened the Restaurant. A Closed Restaurant's menu stays readable                                                                                                                                                                                               |
+| `restaurant.receiving_new_orders` | Whether a new Order could be placed now. `reason` is `restaurant_closed` or `delivery_area_missing` when it is `false`, otherwise `null`                                                                                                                                          |
+| `categories`                      | The Restaurant's own categories in its order. A category without a valid dish is left out                                                                                                                                                                                         |
+| `categories[].id`, `revision`     | Stable category identity and the revision of its published names                                                                                                                                                                                                                  |
+| `dishes`                          | The category's valid published dishes in the Restaurant's order, sold-out ones included                                                                                                                                                                                           |
+| `dishes[].id`                     | Stable dish identity (the product id). It does not change when the dish is edited                                                                                                                                                                                                 |
+| `dishes[].variant_id`             | The dish's one sellable variant, which an Order line refers to                                                                                                                                                                                                                    |
+| `dishes[].revision`               | Revision of the dish's published version. Every later change to its content, price or availability must raise it                                                                                                                                                                  |
+| `dishes[].description`            | Both languages, or `null` when the Restaurant gave none                                                                                                                                                                                                                           |
+| `dishes[].price`                  | Current price in kroner including VAT and delivery. `amount` is in display units with at most two decimals (`109.5` is DKK 109.50); nothing is added to it and it is not in øre                                                                                                   |
+| `dishes[].is_sold_out`            | The manual availability switch. A sold-out dish is shown but cannot be ordered                                                                                                                                                                                                    |
+| `dishes[].photo`                  | `null` until dish photos are stored; clients show their placeholder                                                                                                                                                                                                               |
+| `dishes[].food_information`       | Allergen status is `unknown` or `supplied` with distinct `contains`, `may_contain` and `none_declared`. Entries include stable EU number, code, bilingual name and specific cereal/nut details. Unknown is never an allergen-free claim. Food labels remain separate and unknown. |
 
 A dish can be ordered only when `restaurant.receiving_new_orders` is `true` and
 `is_sold_out` is `false`.

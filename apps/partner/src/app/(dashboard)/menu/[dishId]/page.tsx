@@ -4,6 +4,7 @@ import { DISH_TEXT } from "@dtc/i18n"
 import { Container, Heading, Text } from "@medusajs/ui"
 import { getMessages } from "@lib/i18n"
 import { dishRequest } from "@lib/data/menu-dishes"
+import { retrieveFoodCatalogue } from "@lib/data/food-catalogue"
 import { EditDishForm } from "@modules/menu/components/edit-dish"
 
 export default async function EditDishPage({
@@ -14,8 +15,9 @@ export default async function EditDishPage({
   const { dishId } = await params
   const { locale } = await getMessages()
   const result = await dishRequest()
+  const catalogue = await retrieveFoodCatalogue()
   const text = DISH_TEXT[locale]
-  if (result.error)
+  if (result.error || !catalogue)
     return (
       <Container role="alert" className="mx-auto max-w-3xl">
         <Text>{text.load_error}</Text>
@@ -40,7 +42,7 @@ export default async function EditDishPage({
         {text.back}
       </Link>
       <Heading level="h1">{text.edit}</Heading>
-      <EditDishForm dish={dish} locale={locale} />
+      <EditDishForm dish={dish} locale={locale} catalogue={catalogue} />
     </div>
   )
 }

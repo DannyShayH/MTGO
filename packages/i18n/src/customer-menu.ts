@@ -14,6 +14,10 @@ type CustomerMenuText = Record<
   | "no_photo"
   | "allergens_unknown"
   | "allergens_unknown_note"
+  | "allergens_contains"
+  | "allergens_may_contain"
+  | "allergens_none"
+  | "allergens_none_short"
   | "empty_title"
   | "empty_note"
   | "unavailable_title"
@@ -44,6 +48,11 @@ export const CUSTOMER_MENU_TEXT: Record<Locale, CustomerMenuText> = {
     allergens_unknown: "Allergener: ukendt",
     allergens_unknown_note:
       "Restauranten har ikke oplyst allergener for denne ret. Ukendt betyder aldrig allergenfri. Spørg restauranten, før du bestiller, hvis du har en allergi.",
+    allergens_contains: "Indeholder",
+    allergens_may_contain: "Kan indeholde",
+    allergens_none:
+      "Ingen af de angivne allergener er deklareret af restauranten.",
+    allergens_none_short: "Ingen allergener deklareret",
     empty_title: "Ingen retter på menuen lige nu",
     empty_note:
       "Restauranten har ikke udgivet nogen retter endnu. Kig forbi igen senere.",
@@ -72,6 +81,11 @@ export const CUSTOMER_MENU_TEXT: Record<Locale, CustomerMenuText> = {
     allergens_unknown: "Allergens: unknown",
     allergens_unknown_note:
       "The Restaurant has not declared allergens for this dish. Unknown never means allergen-free. Ask the Restaurant before you order if you have an allergy.",
+    allergens_contains: "Contains",
+    allergens_may_contain: "May contain",
+    allergens_none:
+      "The Restaurant has declared none of the listed allergens for this dish.",
+    allergens_none_short: "No allergens declared",
     empty_title: "No dishes on the menu right now",
     empty_note:
       "The Restaurant has not published any dishes yet. Check back later.",
@@ -84,6 +98,22 @@ export const CUSTOMER_MENU_TEXT: Record<Locale, CustomerMenuText> = {
     back_to_restaurants: "Back to the Restaurants",
   },
 }
+
+/**
+ * Short names for the compact allergen summary on a menu, keyed by catalogue
+ * code. Only codes whose catalogue name is long have one; the full catalogue
+ * name is used for the rest and in the complete declaration.
+ */
+export const ALLERGEN_SHORT_NAMES: Record<Locale, Record<string, string>> = {
+  da: { cereals: "Gluten", sesame: "Sesam", sulphites: "Sulfitter" },
+  en: { cereals: "Gluten", sesame: "Sesame", sulphites: "Sulphites" },
+}
+
+/** The short name of a declared allergen when it has one, else its catalogue name. */
+export const allergenShortName = (
+  allergen: { code: string; name: Record<Locale, string> },
+  locale: Locale,
+) => ALLERGEN_SHORT_NAMES[locale][allergen.code] ?? allergen.name[locale]
 
 const DKK_FORMATS: Record<Locale, Intl.NumberFormat> = {
   da: new Intl.NumberFormat("da-DK", { style: "currency", currency: "DKK" }),

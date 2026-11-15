@@ -158,7 +158,7 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
                             return
                           }
 
-                          removePromotionCode(promotion.code)
+                          void removePromotionCode(promotion.code)
                         }}
                         data-testid="remove-discount-button"
                       >

@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process"
+import { resolveExecutable } from "./resolve-executable.mjs"
 
 const app = process.argv[2]
 if (!["partner", "storefront"].includes(app))
@@ -15,7 +16,7 @@ if (
 console.log(`${app} browser journeys: ${files.join(", ") || "none affected"}`)
 if (files.length) {
   const result = spawnSync(
-    "npm",
+    resolveExecutable("npm"),
     ["run", "test:e2e", "--", ...(files.includes("*") ? [] : files)],
     { stdio: "inherit", env: process.env },
   )

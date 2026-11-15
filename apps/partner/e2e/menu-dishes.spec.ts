@@ -142,6 +142,13 @@ for (const locale of ["da", "en"] as const) {
     await page
       .getByLabel(locale === "da" ? "Pris i DKK" : "Price in DKK")
       .fill("95.555")
+    // The allergen state is required, so the price reaches the server only
+    // once a state is chosen; unknown keeps this dish honest for the Customer.
+    await page
+      .getByRole("radio", {
+        name: locale === "da" ? "Oplysninger ukendte" : "Information unknown",
+      })
+      .check()
     const save = page.getByRole("button", {
       name: locale === "da" ? "Gem ret" : "Save dish",
       exact: true,
@@ -300,6 +307,7 @@ for (const locale of ["da", "en"] as const) {
           name: { da: "Bos ret", en: "Bo's dish" },
           description: { da: "Tomat", en: "Tomato" },
           price: "115",
+          allergens: currentDish.allergens,
         },
       },
     )

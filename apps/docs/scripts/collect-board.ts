@@ -17,12 +17,15 @@ const escapeData = (text: string) =>
   text.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A")
 const escapeProperty = (text: string) =>
   escapeData(text).replaceAll(":", "%3A").replaceAll(",", "%2C")
+// A plain log line must stay one line, so a message from the API cannot forge
+// further log entries
+const oneLine = (text: string) => text.replaceAll(/[\r\n\u2028\u2029]+/g, " ")
 function report(level: "notice" | "error", title: string, message: string) {
   const log = level === "error" ? console.error : console.log
   log(
     inActions
       ? `::${level} title=${escapeProperty(title)}::${escapeData(message)}`
-      : message,
+      : oneLine(message),
   )
   if (process.env.GITHUB_STEP_SUMMARY)
     appendFileSync(

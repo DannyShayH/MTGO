@@ -86,7 +86,7 @@ function collectPages(
   const adrs = existsSync(adrDir)
     ? readdirSync(adrDir).filter((name) => /^\d{4}-.+\.md$/.test(name))
     : []
-  for (const name of adrs.sort()) {
+  for (const name of adrs.sort((a, b) => a.localeCompare(b))) {
     const source = `docs/adr/${name}`
     const { heading, body } = readSource(repoRoot, source)
     const number = name.slice(0, 4)
@@ -223,7 +223,7 @@ function findModuleReadmes(repoRoot: string) {
     }
   }
   walk("apps")
-  return readmes.sort()
+  return readmes.sort((a, b) => a.localeCompare(b))
 }
 
 /** The page's URL on the site, for example "/MTGO/architecture/glossary/" */
