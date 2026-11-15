@@ -233,3 +233,36 @@ and the fixed allergen/food-label reference each have their own page. The shared
 shell keeps navigation visible on desktop and centres content within a 1440px maximum width with more top space on large screens, with
 44px controls and visible keyboard focus. These patterns also apply to Overview
 and account/session screens through the shared layout and components.
+
+## Reorder categories and move dishes (#111)
+
+Categories has paired 44px up/down controls beside each bilingual name. Menu
+shows dishes grouped under the saved categories, including empty staff sections,
+with the same controls for ordering dishes inside a category. Controls have
+translated names that include the dish/category name, visible keyboard focus and
+boundary states that preserve focus after a move. Changes save immediately and
+are announced. No drag gesture is required. “Move to category” opens an inline,
+labelled picker, explains that the dish appends to the target, and requires an
+explicit move; Cancel or Escape returns focus to its trigger.
+
+The server action reads `/partner/restaurants/{id}/menu-arrangement` without
+caching and sends its revision with each change. Stale refusals replace the list
+with actual state and explain that staff should review before trying again.
+Uncertain responses disable ordering until the explicit reload succeeds. Menu
+and category routes are revalidated after a successful change. Empty categories
+remain here and disappear from Customer menus. Both languages use Medusa UI,
+Inter, shared tokens and wrapping layouts. Manual checks cover keyboard-only
+ordering, movement, stale tabs and long names at phone and desktop widths; no
+new end-to-end spec was added.
+
+Staff can remove a dish from the menu only after confirming its name. The
+request carries the displayed revision; stale changes refresh the menu for
+review. An active Restaurant's last published dish cannot be removed, even if
+sold out: an operator must deactivate the Restaurant first. Removal preserves
+existing Order facts and the retained dish and variant identities.
+
+Menu actions keep availability and movement separate from the edit and remove
+icons at the end of each row. Removal uses Medusa UI’s accessible confirmation
+dialog, with the dish name and translated actions. Medusa UI’s Sonner-backed
+toasts announce successful changes and errors; actionable errors remain visible
+on the page.

@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useState, useTransition } from "react"
-import { Text, clx } from "@medusajs/ui"
+import { Text, clx, toast } from "@medusajs/ui"
 import { DISH_TEXT, type DishErrorCode, type Locale } from "@dtc/i18n"
 import {
   availabilityRequest,
@@ -66,7 +66,10 @@ export function AvailabilitySwitch({
       )
         pendingCommand.current = null
       if (result.dish) setCurrent(result.dish)
+      if (!result.error)
+        toast.success(command.is_sold_out ? text.sold_out : text.available)
       if (result.error) {
+        toast.error(text.errors[result.error], { duration: 8000 })
         setError(result.error)
         if (!result.dish) await refresh()
       }

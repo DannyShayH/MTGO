@@ -3,20 +3,29 @@ import {
   ContainerRegistrationKeys,
   generateJwtToken,
   QueryContext,
+  Modules,
 } from "@medusajs/framework/utils"
-import { createProductsWorkflow } from "@medusajs/medusa/core-flows"
+import {
+  createProductsWorkflow,
+  createOrderWorkflow,
+  createRegionsWorkflow,
+  createApiKeysWorkflow,
+} from "@medusajs/medusa/core-flows"
 import { RESTAURANT_MODULE } from "../../src/modules/restaurant"
 import RestaurantModuleService from "../../src/modules/restaurant/service"
 import { FOOD_CATALOGUE_MODULE } from "../../src/modules/food-catalogue"
 import FoodCatalogueModuleService from "../../src/modules/food-catalogue/service"
+import { readActivationFacts } from "../../src/workflows/restaurants/steps/activation-facts"
+import { evaluateActivationRequirements } from "../../src/workflows/restaurants/activation-requirements"
 import { readPublishedMenu } from "../../src/workflows/menu"
+import { Migration20261115153517 } from "../../src/modules/restaurant/migrations/Migration20261115153517"
 import seedFoodCatalogue from "../../src/migration-scripts/food-catalogue"
 
 jest.setTimeout(120000)
 medusaIntegrationTestRunner({
   dbName: "medusa_ci_menu_dishes_http",
   env: { JWT_SECRET: "ci-only-dishes-secret", REDIS_URL: "" },
-  testSuite: ({ api, getContainer }) => {
+  testSuite: ({ api, getContainer, dbConnection }) => {
     const config = {
       headers: { authorization: "" },
       validateStatus: () => true,
@@ -96,6 +105,486 @@ medusaIntegrationTestRunner({
         },
         config,
       )
+    it("reorders categories with a revision precondition and refreshes a stale list", async () => {
+      const path = `/partner/restaurants/${restaurantId}/menu-arrangement`
+      const first = await api.get(path, config)
+      expect(first.status).toBe(200)
+      await api.post(
+        `/partner/restaurants/${restaurantId}/categories`,
+        {
+          request_id: "second-category",
+          revision: 0,
+          name: { da: "Drikke", en: "Drinks" },
+        },
+        config,
+      )
+      const current = (await api.get(path, config)).data
+      const ids = current.categories
+        .map(({ id }: { id: string }) => id)
+        .reverse()
+      const saved = await api.post(
+        path,
+        { kind: "categories", revision: current.revision, ids },
+        config,
+      )
+      expect(saved.status).toBe(200)
+      expect(saved.data.categories.map(({ id }: { id: string }) => id)).toEqual(
+        ids,
+      )
+      const stale = await api.post(
+        path,
+        {
+          kind: "categories",
+          revision: current.revision,
+          ids: [...ids].reverse(),
+        },
+        config,
+      )
+      expect(stale.status).toBe(409)
+      expect(stale.data.code).toBe("menu_order_stale")
+      expect((await api.get(path, config)).data).toEqual(saved.data)
+    })
+
+    it("moves a dish atomically, preserves its facts, hides the empty Customer category and appends new dishes", async () => {
+      // Non-default facts, so a move that reset any of them would fail.
+      const [milk] = (
+        await api.get("/partner/food-catalogue", config)
+      ).data.allergens.filter(({ number }: { number: number }) => number === 7)
+      const allergens = {
+        status: "supplied",
+        contains: [{ allergen_id: milk.id, detail_ids: [] }],
+        may_contain: [],
+        none_declared: false,
+      }
+      const labels = foodLabels.map((label) => ({ ...label, state: "yes" }))
+      const published = await post({ allergens, food_labels: labels })
+      expect(published.status).toBe(200)
+      const edited = await edit(published.data.categories[0].dishes[0].id, {
+        allergens,
+        food_labels: labels,
+      })
+      expect(edited.status).toBe(200)
+      const soldOut = await availability(
+        edited.data.categories[0].dishes[0].id,
+        {
+          revision: edited.data.categories[0].dishes[0].revision,
+        },
+      )
+      expect(soldOut.status).toBe(200)
+      const dish = soldOut.data.dish
+      expect(dish).toMatchObject({
+        is_sold_out: true,
+        description: { da: "Tomat", en: "Tomato" },
+        allergens,
+      })
+      const category = await api.post(
+        `/partner/restaurants/${restaurantId}/categories`,
+        {
+          request_id: "target",
+          revision: 0,
+          name: { da: "Drikke", en: "Drinks" },
+        },
+        config,
+      )
+      const target = category.data.category.id
+      const path = `/partner/restaurants/${restaurantId}/menu-arrangement`
+      const before = (await api.get(path, config)).data
+      const moved = await api.post(
+        path,
+        {
+          kind: "move",
+          revision: before.revision,
+          dish_id: dish.id,
+          source_id: categoryId,
+          target_id: target,
+        },
+        config,
+      )
+      expect(moved.status).toBe(200)
+      expect(
+        moved.data.categories.find(
+          ({ id }: { id: string }) => id === categoryId,
+        ).dishes,
+      ).toEqual([])
+      expect(
+        moved.data.categories.find(({ id }: { id: string }) => id === target)
+          .dishes,
+      ).toEqual([{ ...dish, revision: dish.revision + 1 }])
+      expect((await menu()).map(({ id }) => id)).toEqual([target])
+      const {
+        result: [key],
+      } = await createApiKeysWorkflow(getContainer()).run({
+        input: {
+          api_keys: [
+            {
+              title: "Customer menu fixture",
+              type: "publishable",
+              created_by: "",
+            },
+          ],
+        },
+      })
+      await service().updateRestaurants({ id: restaurantId, is_active: true })
+      const customerMenu = await api.get(
+        `/store/restaurants/${restaurantId}/menu`,
+        { headers: { "x-publishable-api-key": key.token } },
+      )
+      expect(customerMenu.status).toBe(200)
+      expect(
+        customerMenu.data.categories.map(({ id }: { id: string }) => id),
+      ).toEqual([target])
+      expect(customerMenu.data.categories[0].dishes[0]).toMatchObject({
+        id: dish.id,
+        variant_id: dish.variant_id,
+        name: dish.name,
+        price: dish.price,
+        is_sold_out: dish.is_sold_out,
+        photo: null,
+      })
+
+      const linked = await getContainer()
+        .resolve(ContainerRegistrationKeys.QUERY)
+        .graph({
+          entity: "product",
+          fields: ["id", "menu_dish.category_id"],
+          filters: { id: dish.id },
+        })
+      expect(linked.data[0].menu_dish).toMatchObject({ category_id: target })
+      const again = await api.post(
+        path,
+        {
+          kind: "move",
+          revision: before.revision,
+          dish_id: dish.id,
+          source_id: categoryId,
+          target_id: target,
+        },
+        config,
+      )
+      expect(again.status).toBe(409)
+      expect(again.data.menu).toEqual(moved.data)
+      const appended = await post({
+        request_id: "append",
+        category_id: target,
+        name: { da: "Ny", en: "New" },
+      })
+      expect(appended.status).toBe(200)
+      expect(
+        appended.data.categories[0].dishes.map(
+          ({ id }: { id: string }) => id,
+        )[0],
+      ).toBe(dish.id)
+    })
+
+    it("serializes competing reorder and move requests and rejects stale lists without losing dishes", async () => {
+      const first = await post()
+      const firstId = first.data.categories[0].dishes[0].id
+      const second = await post({
+        request_id: "second",
+        name: { da: "Anden", en: "Second" },
+      })
+      const ids = second.data.categories[0].dishes.map(
+        ({ id }: { id: string }) => id,
+      )
+      const target = (
+        await api.post(
+          `/partner/restaurants/${restaurantId}/categories`,
+          {
+            request_id: "target",
+            revision: 0,
+            name: { da: "Drikke", en: "Drinks" },
+          },
+          config,
+        )
+      ).data.category.id
+      const path = `/partner/restaurants/${restaurantId}/menu-arrangement`
+      const current = (await api.get(path, config)).data
+      const commands = [
+        {
+          kind: "dishes",
+          revision: current.revision,
+          category_id: categoryId,
+          ids: [...ids].reverse(),
+        },
+        {
+          kind: "move",
+          revision: current.revision,
+          source_id: categoryId,
+          target_id: target,
+          dish_id: firstId,
+        },
+      ]
+      const results = await Promise.all(
+        commands.map((command) => api.post(path, command, config)),
+      )
+      expect(results.map(({ status }) => status).sort()).toEqual([200, 409])
+      const latest = (await api.get(path, config)).data
+      expect(
+        latest.categories
+          .flatMap(({ dishes }: { dishes: { id: string }[] }) =>
+            dishes.map(({ id }) => id),
+          )
+          .sort(),
+      ).toEqual([...ids].sort())
+      expect(results.find(({ status }) => status === 409)?.data.menu).toEqual(
+        latest,
+      )
+      const refreshed = latest.categories.find(
+        ({ id }: { id: string }) => id === categoryId,
+      )
+      if (refreshed.dishes.length === 2) {
+        expect(refreshed.dishes.map(({ id }: { id: string }) => id)).toEqual(
+          [...ids].reverse(),
+        )
+      } else {
+        expect(refreshed.dishes).toHaveLength(1)
+      }
+    })
+
+    it("refuses foreign IDs, duplicate or missing lists, foreign Restaurants and revoked access without changes", async () => {
+      const published = await post()
+      const dish = published.data.categories[0].dishes[0]
+      const other = await restaurant("foreign")
+      const foreign = await service().createMenuCategories({
+        restaurant_id: other.id,
+        name_da: "Anden",
+        name_en: "Other",
+        request_id: "foreign",
+        creation_name: { da: "Anden", en: "Other" },
+        history: { entries: [] },
+      })
+      const path = `/partner/restaurants/${restaurantId}/menu-arrangement`
+      const current = (await api.get(path, config)).data
+      const invalid = [
+        { kind: "categories", ids: [foreign.id] },
+        { kind: "categories", ids: [] },
+        { kind: "dishes", category_id: categoryId, ids: [dish.id, dish.id] },
+        { kind: "dishes", category_id: foreign.id, ids: [dish.id] },
+        {
+          kind: "move",
+          dish_id: dish.id,
+          source_id: categoryId,
+          target_id: foreign.id,
+        },
+        {
+          kind: "move",
+          dish_id: "foreign-dish",
+          source_id: categoryId,
+          target_id: categoryId,
+        },
+        {
+          kind: "move",
+          dish_id: dish.id,
+          source_id: foreign.id,
+          target_id: categoryId,
+        },
+      ]
+      for (const command of invalid) {
+        expect(
+          (
+            await api.post(
+              path,
+              { ...command, revision: current.revision },
+              config,
+            )
+          ).status,
+        ).toBe(409)
+        expect((await api.get(path, config)).data).toEqual(current)
+      }
+      expect(
+        (
+          await api.post(
+            path,
+            { kind: "categories", ids: [categoryId] },
+            config,
+          )
+        ).status,
+      ).toBe(400)
+      expect(
+        (
+          await api.get(
+            `/partner/restaurants/${other.id}/menu-arrangement`,
+            config,
+          )
+        ).status,
+      ).toBe(404)
+      expect(
+        (
+          await api.post(
+            `/partner/restaurants/${other.id}/menu-arrangement`,
+            {
+              kind: "categories",
+              revision: current.revision,
+              ids: [foreign.id],
+            },
+            config,
+          )
+        ).status,
+      ).toBe(404)
+      await service().updateRestaurantStaffs({ id: staffId, status: "revoked" })
+      expect((await api.get(path, config)).status).toBe(403)
+      expect(
+        (
+          await api.post(
+            path,
+            {
+              kind: "categories",
+              revision: current.revision,
+              ids: [categoryId],
+            },
+            config,
+          )
+        ).status,
+      ).toBe(403)
+      expect((await menu())[0].dishes).toEqual([dish])
+    })
+
+    it("rolls back a move and its history when a later write fails", async () => {
+      const published = await post()
+      const dish = published.data.categories[0].dishes[0]
+      const target = (
+        await api.post(
+          `/partner/restaurants/${restaurantId}/categories`,
+          {
+            request_id: "target",
+            revision: 0,
+            name: { da: "Drikke", en: "Drinks" },
+          },
+          config,
+        )
+      ).data.category.id
+      const path = `/partner/restaurants/${restaurantId}/menu-arrangement`
+      const before = (await api.get(path, config)).data
+      const original = await service().retrieveMenuCategory(categoryId)
+      const failure = jest
+        .spyOn(service(), "updateMenuCategories")
+        .mockRejectedValueOnce(new Error("injected write failure"))
+      try {
+        expect(
+          (
+            await api.post(
+              path,
+              {
+                kind: "move",
+                revision: before.revision,
+                dish_id: dish.id,
+                source_id: categoryId,
+                target_id: target,
+              },
+              config,
+            )
+          ).status,
+        ).toBe(500)
+      } finally {
+        failure.mockRestore()
+      }
+      expect((await api.get(path, config)).data).toEqual(before)
+      expect(
+        (await service().retrieveMenuCategory(categoryId)).history,
+      ).toEqual(original.history)
+    })
+
+    it("compensates placement and attribution when releasing the workflow lock fails after persistence", async () => {
+      const path = `/partner/restaurants/${restaurantId}/menu-arrangement`
+      const before = (await api.get(path, config)).data
+      const original = await service().retrieveMenuCategory(categoryId)
+      const locking = getContainer().resolve(Modules.LOCKING)
+      const failure = jest
+        .spyOn(locking, "release")
+        .mockRejectedValueOnce(new Error("injected release failure"))
+      try {
+        expect(
+          (
+            await api.post(
+              path,
+              {
+                kind: "categories",
+                revision: before.revision,
+                ids: [categoryId],
+              },
+              config,
+            )
+          ).status,
+        ).toBe(500)
+      } finally {
+        failure.mockRestore()
+      }
+      expect((await api.get(path, config)).data).toEqual(before)
+      expect(
+        (await service().retrieveMenuCategory(categoryId)).history,
+      ).toEqual(original.history)
+    })
+
+    it("migrates existing membership without changing content and preserves interrupted unlinked rows", async () => {
+      await dbConnection.transaction(async (transaction) => {
+        await transaction.schema.createSchema("menu_arrangement_upgrade")
+        await transaction.raw(
+          "SET LOCAL search_path TO menu_arrangement_upgrade",
+        )
+        await transaction.schema.createTable("menu_category", (table) => {
+          table.text("id").primary()
+        })
+        await transaction.schema.createTable("menu_dish", (table) => {
+          table.text("id").primary()
+          table.text("name_da")
+          table.text("name_en")
+          table.text("published_price")
+          table.jsonb("allergen_declaration")
+          table.boolean("publication_committed")
+          table.timestamp("deleted_at").nullable()
+        })
+        await transaction.schema.createTable(
+          "product_product_restaurant_menu_dish",
+          (table) => {
+            table.text("product_id")
+            table.text("menu_dish_id")
+          },
+        )
+        await transaction.schema.createTable(
+          "restaurant_menu_category_product_product",
+          (table) => {
+            table.text("product_id")
+            table.text("menu_category_id")
+          },
+        )
+        const content = {
+          id: "legacy-dish",
+          name_da: "Dagens ret",
+          name_en: "Dish of the day",
+          published_price: "95.5",
+          allergen_declaration: { status: "unknown" },
+          publication_committed: true,
+          deleted_at: null,
+        }
+        const pending = {
+          ...content,
+          id: "interrupted-dish",
+          publication_committed: false,
+        }
+        await transaction("menu_category").insert({ id: "legacy-category" })
+        await transaction("menu_dish").insert([content, pending])
+        await transaction("product_product_restaurant_menu_dish").insert({
+          product_id: "legacy-product",
+          menu_dish_id: content.id,
+        })
+        await transaction("restaurant_menu_category_product_product").insert({
+          product_id: "legacy-product",
+          menu_category_id: "legacy-category",
+        })
+        // This migration only emits SQL; its driver/config are unused.
+        const migration = new Migration20261115153517(null!, null!)
+        await migration.up()
+        for (const query of migration.getQueries()) await transaction.raw(query)
+        expect(
+          await transaction("menu_dish").where({ id: content.id }).first(),
+        ).toEqual({ ...content, category_id: "legacy-category" })
+        expect(
+          await transaction("menu_dish").where({ id: pending.id }).first(),
+        ).toEqual({ ...pending, category_id: null })
+        await transaction.schema.dropSchema("menu_arrangement_upgrade", true)
+      })
+    })
+
     beforeEach(async () => {
       await seedFoodCatalogue({ container: getContainer() })
       const labels = await getContainer()
@@ -138,6 +627,355 @@ medusaIntegrationTestRunner({
           config,
         )
       ).data.category.id
+    })
+    it("refuses to remove the last sold-out dish of an active Restaurant", async () => {
+      const created = await post()
+      const dish = created.data.categories[0].dishes[0]
+      const soldOut = await availability(dish.id)
+      expect(soldOut.status).toBe(200)
+      await service().updateRestaurants({ id: restaurantId, is_active: true })
+
+      const removed = await api.delete(
+        `/partner/restaurants/${restaurantId}/dishes/${dish.id}`,
+        { ...config, data: { revision: soldOut.data.dish.revision } },
+      )
+
+      expect(removed.status).toBe(409)
+      expect(removed.data.code).toBe("last_published_dish_while_active")
+      expect((await menu())[0].dishes).toHaveLength(1)
+    })
+    it("removes a dish from the menu and permits deleting its emptied category", async () => {
+      const created = await post()
+      const dish = created.data.categories[0].dishes[0]
+      const path = `/partner/restaurants/${restaurantId}/dishes/${dish.id}`
+      const stale = await api.delete(path, { ...config, data: { revision: 2 } })
+      expect(stale.status).toBe(409)
+      expect(stale.data.code).toBe("dish_stale")
+      const removed = await api.delete(path, {
+        ...config,
+        data: { revision: 1 },
+      })
+      expect(removed.status).toBe(200)
+      expect(await menu()).toEqual([])
+      const categories = await api.get(
+        `/partner/restaurants/${restaurantId}/categories`,
+        config,
+      )
+      const category = categories.data.categories.find(
+        ({ id }: { id: string }) => id === categoryId,
+      )
+      const deletion = await api.delete(
+        `/partner/restaurants/${restaurantId}/categories/${categoryId}`,
+        { ...config, data: { revision: category.revision } },
+      )
+      expect(deletion.status).toBe(200)
+    })
+    it("refuses foreign and revoked staff without removing a dish", async () => {
+      const dish = (await post()).data.categories[0].dishes[0]
+      const other = await restaurant("other")
+      const foreign = await api.delete(
+        `/partner/restaurants/${other.id}/dishes/${dish.id}`,
+        { ...config, data: { revision: 1 } },
+      )
+      expect(foreign.status).toBe(404)
+      await service().updateRestaurantStaffs({ id: staffId, status: "revoked" })
+      const revoked = await api.delete(
+        `/partner/restaurants/${restaurantId}/dishes/${dish.id}`,
+        { ...config, data: { revision: 1 } },
+      )
+      expect(revoked.status).toBe(403)
+      expect((await menu())[0].dishes).toHaveLength(1)
+    })
+    it("refuses another Restaurant's dish identifier under the caller's Restaurant", async () => {
+      const other = await restaurant("other-owner")
+      const otherStaff = await service().createRestaurantStaffs({
+        restaurant_id: other.id,
+        name: "Other",
+        email: "other-owner@example.test",
+        status: "authorized",
+      })
+      const ownToken = config.headers.authorization
+      const ownCategory = categoryId
+      config.headers.authorization = `Bearer ${generateJwtToken({ actor_id: otherStaff.id, actor_type: "restaurant_staff", auth_identity_id: "auth" }, { secret: getContainer().resolve(ContainerRegistrationKeys.CONFIG_MODULE).projectConfig.http.jwtSecret, expiresIn: "1h" })}`
+      categoryId = (
+        await api.post(
+          `/partner/restaurants/${other.id}/categories`,
+          {
+            request_id: "other-category",
+            revision: 0,
+            name: { da: "Mad", en: "Food" },
+          },
+          config,
+        )
+      ).data.category.id
+      const foreignDish = (await post({ request_id: "foreign-dish" }, other.id))
+        .data.categories[0].dishes[0]
+      config.headers.authorization = ownToken
+      categoryId = ownCategory
+      const result = await api.delete(
+        `/partner/restaurants/${restaurantId}/dishes/${foreignDish.id}`,
+        { ...config, data: { revision: foreignDish.revision } },
+      )
+      expect(result.status).toBe(404)
+      expect(
+        (await readPublishedMenu(getContainer(), other.id))[0].dishes[0].id,
+      ).toBe(foreignDish.id)
+    })
+    it("keeps historical Order facts and removes the current dish identity", async () => {
+      const dish = (await post()).data.categories[0].dishes[0]
+      const { result: regions } = await createRegionsWorkflow(
+        getContainer(),
+      ).run({
+        input: {
+          regions: [
+            { name: "Denmark", currency_code: "dkk", countries: ["dk"] },
+          ],
+        },
+      })
+      const { result: order } = await createOrderWorkflow(getContainer()).run({
+        input: {
+          region_id: regions[0].id,
+          currency_code: "dkk",
+          email: "customer@example.test",
+          items: [
+            {
+              title: "Historical dish",
+              quantity: 2,
+              unit_price: 95.5,
+              variant_id: dish.variant_id,
+            },
+          ],
+        },
+      })
+      const user = await getContainer()
+        .resolve(Modules.USER)
+        .createUsers({ email: "operator@example.test" })
+      const token = generateJwtToken(
+        { actor_id: user.id, actor_type: "user", auth_identity_id: "auth" },
+        {
+          secret: getContainer().resolve(
+            ContainerRegistrationKeys.CONFIG_MODULE,
+          ).projectConfig.http.jwtSecret,
+          expiresIn: "1h",
+        },
+      )
+      const admin = {
+        headers: { authorization: `Bearer ${token}` },
+        validateStatus: () => true,
+      }
+      const before = await api.get(`/admin/orders/${order.id}`, admin)
+      expect(before.status).toBe(200)
+      const removed = await api.delete(
+        `/partner/restaurants/${restaurantId}/dishes/${dish.id}`,
+        { ...config, data: { revision: 1 } },
+      )
+      expect(removed.status).toBe(200)
+      const after = await api.get(`/admin/orders/${order.id}`, admin)
+      expect(after.status).toBe(200)
+      expect(
+        after.data.order.items.map(
+          ({
+            title,
+            quantity,
+            unit_price,
+          }: {
+            title: string
+            quantity: number
+            unit_price: number
+          }) => ({ title, quantity, unit_price }),
+        ),
+      ).toEqual(
+        before.data.order.items.map(
+          ({
+            title,
+            quantity,
+            unit_price,
+          }: {
+            title: string
+            quantity: number
+            unit_price: number
+          }) => ({ title, quantity, unit_price }),
+        ),
+      )
+      expect(await menu()).toEqual([])
+    })
+    it("removes the dish and variant from the next Customer menu while retaining other dishes", async () => {
+      const first = (await post()).data.categories[0].dishes[0]
+      const second = (await post({ request_id: "second" })).data.categories[0]
+        .dishes[1]
+      const {
+        result: [key],
+      } = await createApiKeysWorkflow(getContainer()).run({
+        input: {
+          api_keys: [
+            { title: "Customer menu", type: "publishable", created_by: "" },
+          ],
+        },
+      })
+      await service().updateRestaurants({ id: restaurantId, is_active: true })
+      const getMenu = () =>
+        api.get(`/store/restaurants/${restaurantId}/menu`, {
+          headers: { "x-publishable-api-key": key.token },
+        })
+      const before = await getMenu()
+      expect(
+        before.data.categories[0].dishes.map(({ id }: { id: string }) => id),
+      ).toEqual([first.id, second.id])
+      expect(
+        (
+          await api.delete(
+            `/partner/restaurants/${restaurantId}/dishes/${first.id}`,
+            { ...config, data: { revision: first.revision } },
+          )
+        ).status,
+      ).toBe(200)
+      const after = await getMenu()
+      expect(after.headers["cache-control"]).toContain("no-store")
+      expect(
+        after.data.categories[0].dishes.map(
+          ({ id, variant_id }: { id: string; variant_id: string }) => ({
+            id,
+            variant_id,
+          }),
+        ),
+      ).toEqual([{ id: second.id, variant_id: second.variant_id }])
+    })
+    it("reconciles a lost acknowledgement after recording a removal", async () => {
+      const dish = (await post()).data.categories[0].dishes[0]
+      const update = service().updateMenuDishes.bind(service())
+      const spy = jest
+        .spyOn(service(), "updateMenuDishes")
+        .mockImplementationOnce(async (...args) => {
+          await update(...args)
+          throw new Error("acknowledgement lost")
+        })
+      try {
+        const result = await api.delete(
+          `/partner/restaurants/${restaurantId}/dishes/${dish.id}`,
+          { ...config, data: { revision: 1 } },
+        )
+        expect(result.status).toBe(200)
+      } finally {
+        spy.mockRestore()
+      }
+      expect(await menu()).toEqual([])
+      const [content] = await service().listMenuDishes({})
+      expect(content.successful_change).toMatchObject({
+        kind: "remove",
+        actor_id: staffId,
+        resource_id: dish.id,
+        actor_name: "Sofie",
+        occurred_at: expect.any(String),
+      })
+      expect(
+        (
+          await api.delete(
+            `/partner/restaurants/${restaurantId}/dishes/${dish.id}`,
+            { ...config, data: { revision: 1 } },
+          )
+        ).status,
+      ).toBe(404)
+      expect(
+        (await service().retrieveMenuDish(content.id)).successful_change,
+      ).toEqual(content.successful_change)
+    })
+    it("rolls back removal and its history when the content write fails", async () => {
+      const dish = (await post()).data.categories[0].dishes[0]
+      const before = await menu()
+      const content = (await service().listMenuDishes({}))[0]
+      const failure = jest
+        .spyOn(service(), "updateMenuDishes")
+        .mockRejectedValueOnce(new Error("injected failure"))
+      try {
+        const result = await api.delete(
+          `/partner/restaurants/${restaurantId}/dishes/${dish.id}`,
+          { ...config, data: { revision: 1 } },
+        )
+        expect(result.status).toBeGreaterThanOrEqual(500)
+      } finally {
+        failure.mockRestore()
+      }
+      expect(await menu()).toEqual(before)
+      const after = await service().retrieveMenuDish(content.id)
+      expect(after.successful_change).toEqual(content.successful_change)
+      expect(after.revision).toBe(content.revision)
+    })
+    it("serializes activation against removal of the last dish", async () => {
+      const dish = (await post()).data.categories[0].dishes[0]
+      await service().createDeliveryAreaPostalCodes({
+        restaurant_id: restaurantId,
+        postal_code: "2200",
+      })
+      await service().createCommercialTermsAgreements({
+        restaurant_id: restaurantId,
+        terms_version: "common_mvp_v1",
+        agreed_at: new Date(),
+        recorded_by: "operator",
+      })
+      const user = await getContainer()
+        .resolve(Modules.USER)
+        .createUsers({ email: "operator-race@example.test" })
+      const token = generateJwtToken(
+        { actor_id: user.id, actor_type: "user", auth_identity_id: "auth" },
+        {
+          secret: getContainer().resolve(
+            ContainerRegistrationKeys.CONFIG_MODULE,
+          ).projectConfig.http.jwtSecret,
+          expiresIn: "1h",
+        },
+      )
+      expect(
+        evaluateActivationRequirements(
+          await readActivationFacts(getContainer(), restaurantId),
+        ),
+      ).toEqual([])
+      const [activation, removal] = await Promise.all([
+        api.post(
+          `/admin/restaurants/${restaurantId}/activate`,
+          {},
+          {
+            headers: { authorization: `Bearer ${token}` },
+            validateStatus: () => true,
+          },
+        ),
+        api.delete(`/partner/restaurants/${restaurantId}/dishes/${dish.id}`, {
+          ...config,
+          data: { revision: 1 },
+        }),
+      ])
+      if (activation.status === 200) {
+        expect(removal.status).toBe(409)
+        expect(removal.data.code).toBe("last_published_dish_while_active")
+      } else {
+        expect(removal.status).toBe(200)
+        expect(activation.status).toBe(400)
+        expect(activation.data.code).toBe("activation_requirements_missing")
+        expect(activation.data.missing).toContain("published_menu_missing")
+      }
+      const current = await service().retrieveRestaurant(restaurantId)
+      const currentMenu = await menu()
+      expect(
+        [activation.status, removal.status].filter((status) => status === 200),
+      ).toHaveLength(1)
+      expect(
+        current.is_active ? currentMenu[0]?.dishes.length : currentMenu.length,
+      ).toBe(current.is_active ? 1 : 0)
+    })
+    it("serializes removals so an active Restaurant retains one published dish", async () => {
+      const first = (await post()).data.categories[0].dishes[0]
+      const second = (await post({ request_id: "second" })).data.categories[0]
+        .dishes[1]
+      await service().updateRestaurants({ id: restaurantId, is_active: true })
+      const remove = (id: string) =>
+        api.delete(`/partner/restaurants/${restaurantId}/dishes/${id}`, {
+          ...config,
+          data: { revision: 1 },
+        })
+      const outcomes = await Promise.all([remove(first.id), remove(second.id)])
+      expect(
+        outcomes.map(({ status }: { status: number }) => status).sort(),
+      ).toEqual([200, 409])
+      expect((await menu())[0].dishes).toHaveLength(1)
     })
     it("publishes complete bilingual dishes at exact inclusive prices, appends, and reconciles retries", async () => {
       const first = await post()

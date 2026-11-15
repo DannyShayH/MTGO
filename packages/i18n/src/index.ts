@@ -72,3 +72,8 @@ export {
   type ReviewedCheckoutCartFacts,
   type ReviewedCheckoutInput,
 } from "./checkout.ts"
+export {
+  MENU_ARRANGEMENT_TEXT,
+  isMenuArrangementError,
+  type MenuArrangementError,
+} from "./menu-arrangement.ts"

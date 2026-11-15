@@ -128,6 +128,7 @@ export const MenuCategory = model
     creation_name: model.json(),
     is_removed: model.boolean().default(false),
     history: model.json(),
+    dishes: model.hasMany(() => MenuDish, { mappedBy: "category" }),
     restaurant: model.belongsTo(() => Restaurant, {
       mappedBy: "menu_categories",
     }),
@@ -147,6 +148,9 @@ export const MenuDish = model.define("menu_dish", {
   description_en: model.text().nullable(),
   is_sold_out: model.boolean().default(false),
   position: model.number().default(0),
+  category: model
+    .belongsTo(() => MenuCategory, { mappedBy: "dishes" })
+    .nullable(),
   revision: model.number().default(1),
   publication_committed: model.boolean().default(true),
   published_price: model.text().nullable(),

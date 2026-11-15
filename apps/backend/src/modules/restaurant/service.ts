@@ -1,4 +1,10 @@
-import { MedusaService } from "@medusajs/framework/utils"
+import { Context } from "@medusajs/framework/types"
+import {
+  InjectTransactionManager,
+  InjectManager,
+  MedusaContext,
+  MedusaService,
+} from "@medusajs/framework/utils"
 import Restaurant, {
   CommercialTermsAgreement,
   MenuCategory,
@@ -36,6 +42,32 @@ class RestaurantModuleService extends MedusaService({
   ) {
     super(container, options)
     this.partnerUrl = options.partner_url || DEFAULT_PARTNER_URL
+  }
+
+  /** Persist the complete placement batch and attribution atomically. */
+  @InjectManager()
+  @InjectTransactionManager()
+  async updateMenuArrangement(
+    input: {
+      dishes: {
+        id: string
+        category_id?: string | null
+        position: number
+        revision: number
+        successful_change: Record<string, unknown> | null
+      }[]
+      categories: {
+        id: string
+        position?: number
+        revision: number
+        history: Record<string, unknown>
+      }[]
+    },
+    @MedusaContext() context: Context = {},
+  ): Promise<void> {
+    if (input.dishes.length) await this.updateMenuDishes(input.dishes, context)
+    if (input.categories.length)
+      await this.updateMenuCategories(input.categories, context)
   }
 
   async getPartnerUrl(): Promise<string> {

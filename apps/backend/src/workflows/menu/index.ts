@@ -162,20 +162,17 @@ export const publishSyntheticMenuWorkflow = createWorkflow(
       ),
     }))
     const products = createProductsWorkflow.runAsStep({ input: productInput })
-    const dishIds = createSyntheticDishContentStep(input)
+    const contentInput = transform(
+      { input, categoryIds },
+      ({ input, categoryIds }) => ({ ...input, category_ids: categoryIds }),
+    )
+    const dishIds = createSyntheticDishContentStep(contentInput)
     const links = transform(
-      { input, categoryIds, products, dishIds },
-      ({ input, categoryIds, products, dishIds }) => {
-        const categoryOfDish = input.categories.flatMap(({ dishes }, index) =>
-          dishes.map(() => categoryIds[index]),
-        )
+      { input, products, dishIds },
+      ({ input, products, dishIds }) => {
         return products.flatMap((product, index) => [
           {
             [RESTAURANT_MODULE]: { restaurant_id: input.restaurant_id },
-            [Modules.PRODUCT]: { product_id: product.id },
-          },
-          {
-            [RESTAURANT_MODULE]: { menu_category_id: categoryOfDish[index] },
             [Modules.PRODUCT]: { product_id: product.id },
           },
           {

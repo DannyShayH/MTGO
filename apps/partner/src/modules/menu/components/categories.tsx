@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, useTransition } from "react"
 import { useUnsavedChanges } from "@modules/common/components/unsaved-changes"
 import {
   CATEGORY_TEXT,
+  MENU_ARRANGEMENT_TEXT,
+  type MenuArrangementError,
   remainingCategorySuggestions,
   type CategoryErrorCode,
   type CategorySuggestion,
@@ -17,6 +19,12 @@ import {
   type CategoryResult,
 } from "@lib/data/menu-categories"
 
+import {
+  menuArrangementRequest,
+  type MenuArrangement,
+} from "@lib/data/menu-arrangement"
+import { ReorderControls, reordered } from "./reorder-controls"
+
 type Editor = {
   category?: MenuCategory
   request_id: string
@@ -26,14 +34,20 @@ type Editor = {
 
 export function Categories({
   initial,
+  initialArrangement,
   locale,
   headingLevel = "h2",
 }: {
+  initialArrangement?: MenuArrangement
   initial: MenuCategory[] | undefined
   locale: Locale
   headingLevel?: "h1" | "h2"
 }) {
   const text = CATEGORY_TEXT[locale]
+  const orderText = MENU_ARRANGEMENT_TEXT[locale]
+  const [arrangement, setArrangement] = useState(initialArrangement)
+  const [orderError, setOrderError] = useState<MenuArrangementError>()
+  const [orderSaved, setOrderSaved] = useState(false)
   const [categories, setCategories] = useState(initial)
   const [editor, setEditor] = useState<Editor>()
   const [error, setError] = useState<CategoryErrorCode>()
@@ -55,6 +69,34 @@ export function Categories({
     if (editorKey) firstInput.current?.focus()
   }, [editorKey])
 
+  const refreshArrangement = async () => {
+    const result = await menuArrangementRequest().catch(() => ({
+      error: "unknown_error" as const,
+      menu: undefined,
+    }))
+    setArrangement(result.menu)
+    if (result.menu) setCategories(result.menu.categories)
+    setOrderError(result.error)
+  }
+  const reorder = (index: number, offset: -1 | 1) => {
+    if (!arrangement || !categories) return
+    startTransition(async () => {
+      setOrderSaved(false)
+      const result = await menuArrangementRequest({
+        kind: "categories",
+        revision: arrangement.revision,
+        ids: reordered(
+          categories.map(({ id }) => id),
+          index,
+          offset,
+        ),
+      }).catch(() => ({ error: "unknown_error" as const, menu: undefined }))
+      setArrangement(result.menu)
+      if (result.menu) setCategories(result.menu.categories)
+      setOrderError(result.error)
+      setOrderSaved(!result.error)
+    })
+  }
   const open = (category?: MenuCategory) => {
     if (dirty && !window.confirm(text.discard)) return
     setEditor({
@@ -69,6 +111,7 @@ export function Categories({
   }
   const reload = () =>
     startTransition(async () => {
+      await refreshArrangement()
       const result = await retrieveMenuCategories().catch(() => ({
         error: "unknown_error" as const,
         categories: undefined,
@@ -101,7 +144,7 @@ export function Categories({
               revision: 0,
               name: { da: editor.da, en: editor.en },
             },
-      ).catch(() => ({ error: "unknown_error" as const }))
+      ).catch(() => ({ error: "unknown_error" as const, menu: undefined }))
       if (result.error) {
         setError(result.error)
         if (result.error === "category_retry_conflict" && result.category)
@@ -109,6 +152,7 @@ export function Categories({
         return
       }
       if (result.category) append(result.category)
+      await refreshArrangement()
       setEditor(undefined)
       setError(undefined)
       setLatest(undefined)
@@ -134,7 +178,7 @@ export function Categories({
         request_id,
         revision: 0,
         name: { da: suggestion.da, en: suggestion.en },
-      }).catch(() => ({ error: "unknown_error" as const }))
+      }).catch(() => ({ error: "unknown_error" as const, menu: undefined }))
       if (result.error) {
         setNotice(undefined)
         setError(result.error)
@@ -142,6 +186,7 @@ export function Categories({
       }
       requests.delete(suggestion.id)
       if (result.category) append(result.category)
+      await refreshArrangement()
       if (!editor) setError(undefined)
       setNotice("saved")
       heading.current?.focus()
@@ -158,7 +203,7 @@ export function Categories({
         kind: "remove",
         category_id: category.id,
         revision: category.revision,
-      }).catch(() => ({ error: "unknown_error" as const }))
+      }).catch(() => ({ error: "unknown_error" as const, menu: undefined }))
       if (result.error) {
         setError(result.error)
         return
@@ -166,6 +211,7 @@ export function Categories({
       setCategories((current) =>
         current?.filter((row) => row.id !== category.id),
       )
+      await refreshArrangement()
       setEditor(undefined)
       setError(undefined)
       setNotice("removed")
@@ -173,7 +219,7 @@ export function Categories({
     })
   }
   return (
-    <Container className="rounded-card [&_button]:min-h-11 [&_input]:min-h-11 [&_input]:text-base">
+    <Container className="rounded-card px-4 sm:px-6 [&_button]:min-h-11 [&_input]:min-h-11 [&_input]:text-base">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div tabIndex={-1} ref={heading} className="outline-none">
@@ -215,6 +261,31 @@ export function Categories({
           )}
         </div>
       )}
+      <Text className="mt-3 max-w-prose text-ui-fg-subtle">
+        {orderText.hint}
+      </Text>
+      {orderSaved && (
+        <Text role="status" className="mt-4 text-mtogo-status-success-text">
+          {orderText.saved}
+        </Text>
+      )}
+      {orderError && (
+        <div className="mt-4">
+          <Text role="alert" className="text-mtogo-status-error-text">
+            {orderText[orderError]}
+          </Text>
+          {!arrangement && (
+            <Button
+              variant="secondary"
+              disabled={pending}
+              className="mt-3"
+              onClick={() => startTransition(refreshArrangement)}
+            >
+              {orderText.retry}
+            </Button>
+          )}
+        </div>
+      )}
       {!categories ? (
         <div role="alert" className="mt-4">
           <Text>{text.unavailable}</Text>
@@ -231,39 +302,51 @@ export function Categories({
         <Text className="text-ui-fg-subtle mt-6">{text.empty}</Text>
       ) : (
         <ul className="mt-6 divide-y divide-ui-border-base">
-          {categories.map((category) => (
-            <li
-              key={category.id}
-              className="flex flex-wrap items-center justify-between gap-4 py-4"
-            >
-              <div className="min-w-0 flex-1">
-                <Text className="font-medium" lang={locale}>
-                  {category.name[locale]}
-                </Text>
-                <Text
-                  className="text-ui-fg-subtle"
-                  lang={locale === "da" ? "en" : "da"}
-                >
-                  {category.name[locale === "da" ? "en" : "da"]}
-                </Text>
-              </div>
-              <div className="flex shrink-0 gap-2">
-                <Button
-                  variant="secondary"
-                  disabled={pending}
-                  onClick={() => open(category)}
-                  aria-label={`${text.edit}: ${category.name[locale]}`}
-                >
-                  {text.edit}
-                </Button>
-                <Button
-                  variant="danger"
-                  disabled={pending}
-                  onClick={() => remove(category)}
-                  aria-label={`${text.remove}: ${category.name[locale]}`}
-                >
-                  {text.remove}
-                </Button>
+          {categories.map((category, index) => (
+            <li key={category.id} className="flex gap-3 py-4 sm:gap-4">
+              <ReorderControls
+                name={category.name[locale]}
+                index={index}
+                count={categories.length}
+                disabled={pending || !!editor || !arrangement}
+                locale={locale}
+                onMove={(offset) => reorder(index, offset)}
+              />
+              {/* Phone: names get the full width, actions sit below them. */}
+              <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                <div className="min-w-0 pt-1 sm:pt-0">
+                  <Text
+                    className="break-words font-medium leading-snug"
+                    lang={locale}
+                  >
+                    {category.name[locale]}
+                  </Text>
+                  <Text
+                    className="break-words text-ui-fg-subtle"
+                    lang={locale === "da" ? "en" : "da"}
+                  >
+                    {category.name[locale === "da" ? "en" : "da"]}
+                  </Text>
+                </div>
+                <div className="flex shrink-0 gap-2">
+                  <Button
+                    variant="secondary"
+                    disabled={pending}
+                    onClick={() => open(category)}
+                    aria-label={`${text.edit}: ${category.name[locale]}`}
+                  >
+                    {text.edit}
+                  </Button>
+                  <Button
+                    variant="transparent"
+                    className="text-mtogo-status-error-text [@media(hover:hover)]:hover:bg-mtogo-status-error-surface"
+                    disabled={pending}
+                    onClick={() => remove(category)}
+                    aria-label={`${text.remove}: ${category.name[locale]}`}
+                  >
+                    {text.remove}
+                  </Button>
+                </div>
               </div>
             </li>
           ))}

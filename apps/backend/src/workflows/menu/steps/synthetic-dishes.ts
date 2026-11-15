@@ -79,11 +79,14 @@ export const createSyntheticCategoriesStep = createStep(
 /** One dish content record per dish, in input order, positioned within its category. */
 export const createSyntheticDishContentStep = createStep(
   "create-synthetic-dish-content",
-  async (input: { categories: SyntheticCategory[] }, { container }) => {
+  async (
+    input: { categories: SyntheticCategory[]; category_ids: string[] },
+    { container },
+  ) => {
     const created = await container
       .resolve<RestaurantModuleService>(RESTAURANT_MODULE)
       .createMenuDishes(
-        input.categories.flatMap(({ dishes }) =>
+        input.categories.flatMap(({ dishes }, categoryIndex) =>
           dishes.map((dish, position) => ({
             id: `mdsh_${nextId()}`,
             name_da: dish.name.da,
@@ -92,6 +95,7 @@ export const createSyntheticDishContentStep = createStep(
             description_en: dish.description?.en ?? null,
             is_sold_out: dish.is_sold_out ?? false,
             position,
+            category_id: input.category_ids[categoryIndex],
             revision: 1,
             published_price: String(dish.price),
           })),

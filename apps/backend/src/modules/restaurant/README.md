@@ -32,11 +32,9 @@ management lives in `src/workflows/menu-categories` and uses this lock too.
 
 The module link `src/links/restaurant-product.ts` connects a Restaurant to a list
 of products, its dishes, as in Medusa's Restaurant-Delivery Marketplace recipe.
-The `menu-category-product.ts` link connects each Product to one MenuCategory,
-with many Products allowed in a category. Category removal checks this link,
-including unpublished and sold-out Products. The `menu-dish-product.ts` link
-joins a Product to its `MenuDish`, the Restaurant-owned dish content. Dish
-editing by staff remains a later slice.
+Each `MenuDish` belongs to one `MenuCategory` within the Restaurant module.
+Category removal checks this relation, including unpublished and sold-out dishes.
+The `menu-dish-product.ts` link joins a Product to its Restaurant-owned dish content.
 
 ## Restaurant staff
 
@@ -673,3 +671,40 @@ without recording a successful change. Repeated requests with the same identity
 reconcile against `successful_change`. The Customer's next menu read shows the
 state; sold-out dishes still count for activation and do not change the
 Restaurant's active or open state. There are no quantities or daily resets.
+
+## Reordering and movement (#111)
+
+`GET /partner/restaurants/{id}/menu-arrangement` returns all categories, including
+empty ones, their published dishes and an opaque revision. Staff post one of
+`categories` (the complete ordered category IDs), `dishes` (a category ID and its
+complete ordered dish IDs), or `move` (dish, source and target IDs), with that
+revision. The workflow takes the same Restaurant lock as creation, editing,
+revocation and participation changes, rechecks staff access and ownership, then
+validates the complete precondition before writing. Duplicate, missing or foreign
+IDs are refused. A stale request returns `409 menu_order_stale` and the current
+staff menu for review; it never reapplies an old intent automatically.
+
+Category membership, positions, incremented revisions and attributed category
+history commit in one Restaurant-module database transaction. A later write
+failure rolls the entire move back. A move appends the same dish to its target
+category without modifying its Product, variant, bilingual publication, price,
+food declarations, photo or availability. Dish revisions change so old edit and
+availability commands cannot overwrite the new arrangement. New dishes append
+after the greatest saved position, including when a move left gaps. Customer
+reads and readiness use the same category relation and saved positions, omit
+empty categories and read without caching. Historical Orders are untouched.
+
+Migration `Migration20261115153517` copies existing product-category membership
+into the new local foreign key before link synchronization retires the former
+category-product pivot. Unmapped interrupted or historical content keeps a null category and remains
+invisible, as before. New publication and move workflows always assign a category. The product-to-dish and Restaurant-to-product links are preserved.
+The HTTP dish suite covers saved ordering, stale state, simultaneous reorder/move,
+foreign IDs, revoked staff, unchanged dish facts and transactional rollback.
+
+Dish removal keeps the product and variant identities and preserves existing
+Order snapshots. Under the Restaurant lock, the workflow checks the staff,
+revision and published-menu readiness, then records the actor, time and
+resource in the same atomic write that removes the dish from the menu. The dish
+leaves its category and current menu; image assets are retained. A missing
+identity on the next fresh menu read requires ordering consumers to request
+Customer review before payment.

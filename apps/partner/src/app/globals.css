@@ -11,3 +11,12 @@
     hyphens: auto;
   }
 }
+
+/* The move-to panel unfolds from the row that opened it (enter only; it
+   closes instantly). Used through motion-safe:, so reduced motion skips it. */
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.99);
+  }
+}

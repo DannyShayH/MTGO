@@ -89,6 +89,33 @@ function categoryRefusalBody(
   return undefined
 }
 
+function arrangementRefusalBody(
+  error: { code?: string },
+  url: string,
+  statusCode: number,
+  body: { type?: string },
+  fields: ErrorResponseFields | undefined,
+) {
+  if (
+    !/^\/partner\/restaurants\/[^/]+\/menu-arrangement\/?$/.test(
+      url.split("?")[0],
+    )
+  )
+    return undefined
+  if (statusCode === 400)
+    return {
+      type: body.type,
+      code: "menu_order_invalid",
+      message: "menu_order_invalid",
+    }
+  if (
+    statusCode === 409 &&
+    ["menu_order_stale", "menu_order_invalid"].includes(error.code ?? "")
+  )
+    return { ...fields, type: body.type, code: error.code, message: error.code }
+  return undefined
+}
+
 function dishRefusalBody(
   error: { code?: string; message: string },
   url: string,
@@ -159,6 +186,13 @@ export function mtogoErrorHandler(): MedusaErrorHandlerFunction {
       : undefined
     if (stableErrorCode) body.code = stableErrorCode
     const categoryBody =
+      arrangementRefusalBody(
+        error,
+        req.originalUrl,
+        statusCode,
+        body,
+        fields,
+      ) ??
       customerProfileRefusalBody(error, req.originalUrl, statusCode, body) ??
       dishRefusalBody(error, req.originalUrl, statusCode, body, fields) ??
       categoryRefusalBody(error.code, req.originalUrl, statusCode, body, fields)

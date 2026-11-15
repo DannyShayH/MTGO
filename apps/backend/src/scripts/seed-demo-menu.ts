@@ -174,10 +174,6 @@ async function linkSingleTitleProduct(
           [RESTAURANT_MODULE]: { restaurant_id: input.restaurantId },
           [Modules.PRODUCT]: { product_id: product.id },
         },
-        {
-          [RESTAURANT_MODULE]: { menu_category_id: input.categoryId },
-          [Modules.PRODUCT]: { product_id: product.id },
-        },
       ],
     })
   } catch (failure) {

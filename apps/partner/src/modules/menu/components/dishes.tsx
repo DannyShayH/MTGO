@@ -3,51 +3,35 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState, useTransition } from "react"
-import { Button, Container, Heading, Input, Label, Text } from "@medusajs/ui"
-import { PencilSquare } from "@medusajs/icons"
-import {
-  DISH_TEXT,
-  formatDkk,
-  type DishErrorCode,
-  type Locale,
-} from "@dtc/i18n"
-import {
-  dishRequest,
-  type CreateDish,
-  type StaffMenu,
-} from "@lib/data/menu-dishes"
+import { Button, Container, Input, Label, Text } from "@medusajs/ui"
+import { DISH_TEXT, type DishErrorCode, type Locale } from "@dtc/i18n"
+import { dishRequest, type CreateDish } from "@lib/data/menu-dishes"
 import {
   retrieveMenuCategories,
   type MenuCategory,
 } from "@lib/data/menu-categories"
 import { useUnsavedChanges } from "@modules/common/components/unsaved-changes"
-import { AvailabilitySwitch } from "./availability-switch"
 import { AllergenSelector } from "./allergen-selector"
 import type { FoodCatalogue } from "@lib/data/food-catalogue"
 import { FoodLabelSelector } from "./food-label-selector"
 
 export function Dishes({
-  initial,
   locale,
   restaurantId,
   initialEditor,
   initialCategories = [],
-  initialSaved = false,
   catalogue,
 }: {
-  initial?: StaffMenu
   locale: Locale
   restaurantId: string
   initialEditor?: CreateDish
   initialCategories?: MenuCategory[]
-  initialSaved?: boolean
   catalogue?: FoodCatalogue
 }) {
   const text = DISH_TEXT[locale]
   const router = useRouter()
   const creating = !!initialEditor
   const storageKey = `mtogo-dish-request:${restaurantId}`
-  const [menu, setMenu] = useState(initial)
   const [categories, setCategories] =
     useState<MenuCategory[]>(initialCategories)
   const [editor, setEditor] = useState<CreateDish | undefined>(() =>
@@ -66,7 +50,7 @@ export function Dishes({
   )
   const [uncertain, setUncertain] = useState(false)
   const [error, setError] = useState<DishErrorCode>()
-  const [saved, setSaved] = useState(initialSaved)
+  const [saved, setSaved] = useState(false)
   const [pending, startTransition] = useTransition()
   const [initialCategory] = useState(initialEditor?.category_id ?? "")
   const saveButton = useRef<HTMLButtonElement>(null)
@@ -142,7 +126,6 @@ export function Dishes({
         return
       }
       sessionStorage.removeItem(storageKey)
-      setMenu(result.menu)
       setEditor(undefined)
       setUncertain(false)
       setError(undefined)
@@ -152,17 +135,6 @@ export function Dishes({
   }
   return (
     <Container className="rounded-card">
-      {!creating && (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Heading level="h2">{text.title}</Heading>
-          <Link
-            href="/menu/new"
-            className="inline-flex min-h-11 items-center rounded-md bg-ui-button-inverted px-4 text-ui-fg-on-inverted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mtogo-focus-ring focus-visible:ring-offset-2"
-          >
-            {text.add}
-          </Link>
-        </div>
-      )}
       {saved && (
         <Text role="status" className="mt-4 text-mtogo-status-success-text">
           {text.saved}
@@ -173,55 +145,6 @@ export function Dishes({
           {text.errors[error]}
         </Text>
       )}
-      {!creating &&
-        (!menu ? (
-          <Text role="alert" className="mt-4">
-            {text.load_error}
-          </Text>
-        ) : !menu.categories.length ? (
-          <Text className="mt-4 text-ui-fg-subtle">{text.empty}</Text>
-        ) : (
-          <ul className="mt-4 divide-y divide-ui-border-base">
-            {/* One row per dish: name and category, price, availability, edit.
-                Reorder and move controls (#111) get the leading column of
-                this grid; the actions stay grouped at the trailing edge. */}
-            {menu.categories.flatMap((category) =>
-              category.dishes.map((dish) => (
-                <li
-                  key={dish.id}
-                  className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto] sm:gap-x-6"
-                >
-                  <div className="min-w-0">
-                    <Text className="font-medium" lang={locale}>
-                      {dish.name[locale]}
-                    </Text>
-                    <Text
-                      size="small"
-                      className="text-ui-fg-subtle"
-                      lang={locale}
-                    >
-                      {category.name[locale]}
-                    </Text>
-                  </div>
-                  <Text className="whitespace-nowrap font-semibold tabular-nums sm:text-right">
-                    {formatDkk(dish.price.amount, locale)}
-                  </Text>
-                  <div className="col-span-2 flex items-start justify-between gap-3 sm:col-span-1 sm:contents">
-                    <AvailabilitySwitch dish={dish} locale={locale} />
-                    <Link
-                      href={`/menu/${encodeURIComponent(dish.id)}`}
-                      aria-label={`${text.edit_action}: ${dish.name[locale]}`}
-                      title={text.edit_action}
-                      className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-ui-fg-subtle transition-[background-color,color,transform] duration-150 ease-out hover:bg-ui-bg-subtle-hover hover:text-ui-fg-base active:scale-[0.97] motion-reduce:transition-none motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mtogo-focus-ring focus-visible:ring-offset-2"
-                    >
-                      <PencilSquare />
-                    </Link>
-                  </div>
-                </li>
-              )),
-            )}
-          </ul>
-        ))}
       {editor && (
         <form
           data-dish-editor

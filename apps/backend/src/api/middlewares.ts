@@ -1,8 +1,10 @@
+import { menuArrangementSchema } from "../workflows/menu-arrangement/validation"
 import { z } from "@medusajs/framework/zod"
 import {
   dishCreateSchema,
   dishEditSchema,
   dishAvailabilitySchema,
+  dishRemovalSchema,
 } from "../workflows/menu-dishes/validation"
 import {
   authenticate,
@@ -313,9 +315,19 @@ export default defineMiddlewares({
       ],
     },
     {
+      matcher: "/partner/restaurants/:id/dishes/:dish_id",
+      method: "DELETE",
+      middlewares: [validateAndTransformBody(dishRemovalSchema)],
+    },
+    {
       matcher: "/partner/restaurants/:id/dishes/:dish_id/availability",
       method: "POST",
       middlewares: [validateAndTransformBody(dishAvailabilitySchema)],
+    },
+    {
+      matcher: "/partner/restaurants/:id/menu-arrangement",
+      method: "POST",
+      middlewares: [validateAndTransformBody(menuArrangementSchema)],
     },
     // Public: the invite link's token is the credential, as in Medusa's
     // admin invite. A bearer token, when sent, is read but not required.

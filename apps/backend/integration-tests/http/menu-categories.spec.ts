@@ -443,11 +443,16 @@ medusaIntegrationTestRunner({
           ],
         },
       })
+      const content = await service().createMenuDishes({
+        category_id: category.id,
+        name_da: "Ret",
+        name_en: "Dish",
+      })
       await getContainer()
         .resolve(ContainerRegistrationKeys.LINK)
         .create({
-          [RESTAURANT_MODULE]: { menu_category_id: category.id },
           [Modules.PRODUCT]: { product_id: product.id },
+          [RESTAURANT_MODULE]: { menu_dish_id: content.id },
         })
       const response = await api.delete(`${path}/${category.id}`, {
         ...config,

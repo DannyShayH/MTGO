@@ -97,3 +97,8 @@ export const dishAvailabilitySchema = z.strictObject({
   is_sold_out: z.boolean(),
 })
 export type DishAvailabilityInput = z.input<typeof dishAvailabilitySchema>
+
+export const dishRemovalSchema = z.strictObject({
+  revision: dishEditSchema.shape.revision,
+})
+export type DishRemovalInput = z.input<typeof dishRemovalSchema>

@@ -196,3 +196,44 @@ export async function availabilityRequest(
   revalidatePath("/menu")
   return { dish: data.dish as StaffDish }
 }
+
+export async function removeDish(
+  dishId: string,
+  revision: number,
+): Promise<{ error?: DishErrorCode }> {
+  const current = await requireCurrentStaff()
+  const token = (await cookies()).get(PARTNER_TOKEN_COOKIE)?.value
+  let response: Response
+  try {
+    response = await fetch(
+      new URL(
+        `/partner/restaurants/${encodeURIComponent(current.restaurant.id)}/dishes/${encodeURIComponent(dishId)}`,
+        BACKEND_URL,
+      ),
+      {
+        method: "DELETE",
+        cache: "no-store",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ revision }),
+      },
+    )
+  } catch {
+    return { error: "unknown_error" }
+  }
+  if (response.status === 401 || response.status === 403)
+    redirect(
+      `/session-ended?code=${response.status === 401 ? "session_expired" : "staff_access_revoked"}`,
+    )
+  if (!response.ok) {
+    const data: unknown = await response.json().catch(() => null)
+    const code =
+      data && typeof data === "object" && "code" in data ? data.code : undefined
+    return { error: isDishErrorCode(code) ? code : "unknown_error" }
+  }
+  revalidatePath("/menu")
+  revalidatePath("/categories")
+  return {}
+}

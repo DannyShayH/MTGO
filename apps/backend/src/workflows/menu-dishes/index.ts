@@ -1,3 +1,4 @@
+import { prepareDishRemovalStep, commitDishRemovalStep } from "./steps/removal"
 import { Modules, ProductStatus } from "@medusajs/framework/utils"
 import {
   createWorkflow,
@@ -100,6 +101,7 @@ export const createMenuDishWorkflow = createWorkflow(
         ({ prepared }) => ({
           name: prepared.data.name,
           position: prepared.position,
+          category_id: prepared.data.category_id,
           allergens: prepared.data.allergens,
           food_labels: prepared.data.food_labels,
         }),
@@ -110,12 +112,6 @@ export const createMenuDishWorkflow = createWorkflow(
         ({ input, prepared, products, contentId }) => [
           {
             [RESTAURANT_MODULE]: { restaurant_id: input.restaurant_id },
-            [Modules.PRODUCT]: { product_id: products[0].id },
-          },
-          {
-            [RESTAURANT_MODULE]: {
-              menu_category_id: prepared.data.category_id,
-            },
             [Modules.PRODUCT]: { product_id: products[0].id },
           },
           {
@@ -275,5 +271,38 @@ export const changeMenuDishAvailabilityWorkflow = createWorkflow(
       }),
     )
     return new WorkflowResponse(changeDishAvailabilityStep(command))
+  },
+)
+
+export const removeMenuDishWorkflow = createWorkflow(
+  "remove-menu-dish",
+  function (input: {
+    restaurant_id: string
+    dish_id: string
+    staff_id: string
+    revision: number
+  }) {
+    const lock = transform({ input }, ({ input }) =>
+      restaurantLock(input.restaurant_id),
+    )
+    acquireLockStep(lock)
+    const current = retrieveAuthorizedStaffStep({ staff_id: input.staff_id })
+    const scope = transform({ input, current }, ({ input, current }) => ({
+      id: input.restaurant_id,
+      staff_restaurant_id: current.restaurant.id,
+    }))
+    assertOwnRestaurantStep(scope)
+    const prepared = prepareDishRemovalStep(input)
+    const command = transform(
+      { input, current, prepared, lock },
+      ({ input, current, prepared, lock }) => ({
+        ...input,
+        content: prepared.content,
+        actor_name: current.staff.name,
+        lock_key: lock.key,
+      }),
+    )
+    const result = commitDishRemovalStep(command)
+    return new WorkflowResponse(result)
   },
 )

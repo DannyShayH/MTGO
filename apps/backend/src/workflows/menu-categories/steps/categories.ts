@@ -1,8 +1,5 @@
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
-import {
-  ContainerRegistrationKeys,
-  MedusaError,
-} from "@medusajs/framework/utils"
+import { MedusaError } from "@medusajs/framework/utils"
 import { monotonicFactory } from "ulid"
 import { withResponseFields } from "../../common/response-fields"
 import { RESTAURANT_MODULE } from "../../../modules/restaurant"
@@ -152,14 +149,11 @@ export const mutateMenuCategoryStep = createStep(
     if (!before || before.is_removed) throw missing()
     if (before.revision !== input.revision) throw refusal("category_stale")
     if (input.kind === "remove") {
-      const { data } = await container
-        .resolve(ContainerRegistrationKeys.QUERY)
-        .graph({
-          entity: "menu_category",
-          fields: ["id", "products.id"],
-          filters: { id: before.id },
-        })
-      if (data[0]?.products?.length) throw refusal("category_not_empty")
+      const dishes = await service.listMenuDishes(
+        { category_id: before.id },
+        { take: 1 },
+      )
+      if (dishes.length) throw refusal("category_not_empty")
     }
     const entries = Array.isArray(before.history.entries)
       ? before.history.entries

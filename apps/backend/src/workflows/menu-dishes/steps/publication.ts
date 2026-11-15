@@ -100,6 +100,21 @@ export const prepareDishPublicationStep = createStep(
     if (existing?.menu_dish?.publication_committed && !saved)
       throw refuse(MedusaError.Types.CONFLICT, "dish_recovery_required")
     const dishes = menu.find(({ id }) => id === category.id)?.dishes ?? []
+    const { data: positioned } = dishes.length
+      ? await query.graph({
+          entity: "product",
+          fields: ["id", "menu_dish.position"],
+          filters: { id: dishes.map(({ id }) => id) },
+        })
+      : { data: [] }
+    const lastPosition = Math.max(
+      -1,
+      ...positioned.map((row) =>
+        Number(
+          (row.menu_dish as { position?: number } | undefined)?.position ?? 0,
+        ),
+      ),
+    )
     const categoryOrder = await service.listMenuCategories(
       { restaurant_id: input.restaurant_id, is_removed: false },
       { order: { position: "ASC", id: "ASC" }, take: null },
@@ -111,7 +126,7 @@ export const prepareDishPublicationStep = createStep(
       data,
       saved,
       old_product_ids: existing && !saved ? [existing.id] : [],
-      position: dishes.length,
+      position: lastPosition + 1,
       menu,
       category: {
         id: category.id,
@@ -128,6 +143,7 @@ export const createDishContentStep = createStep(
     input: {
       name: { da: string; en: string }
       position: number
+      category_id: string
       allergens: DishCreateInput["allergens"]
       food_labels: DishCreateInput["food_labels"]
     },
@@ -139,6 +155,7 @@ export const createDishContentStep = createStep(
       name_da: input.name.da,
       name_en: input.name.en,
       position: input.position,
+      category_id: input.category_id,
       allergen_declaration: input.allergens,
       food_label_declaration: input.food_labels as unknown as Record<
         string,

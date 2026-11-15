@@ -1168,3 +1168,48 @@ using the registration value for initial verification. It must not derive a
 security-message language from an Order. This issue supplies the preference;
 message generation belongs to the account-security work items. No Order is
 updated, and no custom persistence model or migration is needed.
+
+## Partner menu arrangement (#111)
+
+`GET /partner/restaurants/{id}/menu-arrangement` requires current Restaurant staff
+access and ownership. Returns `{ revision, categories }`, including empty
+categories, bilingual names, category revisions and published dishes in saved
+order. Responses use `Cache-Control: no-store`.
+
+`POST` at the same path accepts one strict body:
+
+- `{ kind: "categories", revision, ids }`: complete category IDs in desired order.
+- `{ kind: "dishes", revision, category_id, ids }`: complete dish IDs for that category.
+- `{ kind: "move", revision, dish_id, source_id, target_id }`: append a dish to another owned category.
+
+`revision` is the opaque GET revision. Successful requests return the new GET
+shape. `409 menu_order_stale` includes `{ menu: { revision, categories } }` with
+the actual state; `409 menu_order_invalid` rejects incomplete, duplicated or
+foreign identifiers, including another Restaurant's source or target. Malformed
+bodies return `400 menu_order_invalid`. Access follows the existing `401`/`403`
+partner contract. Membership, positions, revisions and attribution are atomic;
+refusals leave data unchanged. See the Restaurant module README for migration,
+synchronization and HTTP evidence. No commerce identity or historical Order data
+changes.
+
+## Partner dish removal (#112)
+
+### DELETE /partner/restaurants/:id/dishes/:dish_id
+
+Authorized staff for the Restaurant send `{ "revision": 1 }` using the
+currently displayed dish revision after confirming removal. Success returns
+`200` with `{ "id": "prod_…" }`. The product and variant identities are
+retained, while the dish no longer appears in current menus. The menu is
+the source of availability for ordering; the underlying product remains stored. Ordering consumers must compare their saved
+identities and revisions with the current menu and require Customer review
+when a dish is missing or changed. Native Medusa product and cart endpoints
+do not perform this menu check, so they alone cannot enforce the handoff.
+Before-payment reconciliation belongs to the ordering feature. Existing Order
+lines remain snapshots.
+
+Invalid input returns `400 dish_input_invalid`; absent or foreign resources
+return `404`, revoked staff receive `403 staff_access_revoked`, and stale
+revisions return `409 dish_stale` with the current dish. Removing the last
+valid published dish of an active Restaurant returns
+`409 last_published_dish_while_active`, including when it is sold out.
+Deactivate the Restaurant before removing that dish.

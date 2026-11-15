@@ -9,6 +9,11 @@ export const DISH_TEXT = {
     add: "Opret ret",
     edit: "Rediger ret",
     edit_action: "Rediger",
+    remove: "Fjern ret",
+    confirm_remove: "Fjern retten?",
+    remove_description:
+      "Retten fjernes fra menuen. Tidligere ordrer bevares. Handlingen kan ikke fortrydes.",
+    removed: "Retten er fjernet.",
     availability_label: "Tilgængelighed",
     available: "Tilgængelig",
     sold_out: "Udsolgt",
@@ -81,6 +86,8 @@ export const DISH_TEXT = {
       dish_stale:
         "En kollega har ændret retten. Gennemgå den nyeste version nedenfor, før du gemmer dine indtastninger igen.",
       dish_not_found: "Retten findes ikke længere. Gå tilbage til menuen.",
+      last_published_dish_while_active:
+        "Den sidste ret kan ikke fjernes, mens restauranten er aktiv. En operatør skal først deaktivere restauranten.",
       unknown_error:
         "Retten kunne ikke bekræftes. Kontrollér og prøv igen med de samme oplysninger.",
     },
@@ -95,6 +102,11 @@ export const DISH_TEXT = {
     add: "Create dish",
     edit: "Edit dish",
     edit_action: "Edit",
+    remove: "Remove dish",
+    confirm_remove: "Remove dish?",
+    remove_description:
+      "This dish will be removed from the menu. Previous orders are preserved. This cannot be undone.",
+    removed: "Dish removed.",
     availability_label: "Availability",
     available: "Available",
     sold_out: "Sold out",
@@ -168,6 +180,8 @@ export const DISH_TEXT = {
       dish_stale:
         "A colleague changed this dish. Review the latest version below before saving your entries again.",
       dish_not_found: "This dish is no longer available. Return to the menu.",
+      last_published_dish_while_active:
+        "The last dish cannot be removed while the Restaurant is active. An operator must deactivate it first.",
       unknown_error:
         "The dish could not be confirmed. Check and retry with the same details.",
     },

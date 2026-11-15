@@ -1,3 +1,4 @@
+import { Toaster } from "@medusajs/ui"
 import { getMessages } from "@lib/i18n"
 import { requireCurrentStaff } from "@lib/data/staff"
 import { Sidebar } from "@modules/layout/components/sidebar"
@@ -11,6 +12,7 @@ export default async function DashboardLayout({
   const { locale, messages } = await getMessages()
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
+      <Toaster position="bottom-right" />
       <Sidebar
         locale={locale}
         text={messages.text}

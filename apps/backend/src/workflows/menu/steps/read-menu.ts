@@ -64,7 +64,6 @@ async function readRestaurantWithMenu(
     fields: [
       "id",
       "status",
-      "menu_category.id",
       "menu_dish.*",
       "variants.id",
       "variants.calculated_price.*",
@@ -80,7 +79,16 @@ async function readRestaurantWithMenu(
     restaurant,
     menu: publishedMenuOf(
       restaurant.menu_categories ?? [],
-      products as unknown as MenuProductRecord[],
+      (
+        products as unknown as (MenuProductRecord & {
+          menu_dish?: { category_id: string }
+        })[]
+      ).map((product) => ({
+        ...product,
+        menu_category: product.menu_dish
+          ? { id: product.menu_dish.category_id }
+          : null,
+      })),
     ),
   }
 }

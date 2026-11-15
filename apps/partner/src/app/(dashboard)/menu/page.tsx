@@ -1,18 +1,16 @@
 import { MENU_TEXT } from "@dtc/i18n"
 import { Heading, Text } from "@medusajs/ui"
 import { getMessages } from "@lib/i18n"
-import { requireCurrentStaff } from "@lib/data/staff"
-import { dishRequest } from "@lib/data/menu-dishes"
-import { Dishes } from "@modules/menu/components/dishes"
+import { menuArrangementRequest } from "@lib/data/menu-arrangement"
+import { ArrangedDishes } from "@modules/menu/components/arranged-dishes"
 
 export default async function MenuPage({
   searchParams,
 }: {
   searchParams: Promise<{ saved?: string }>
 }) {
-  const current = await requireCurrentStaff()
   const { locale } = await getMessages()
-  const result = await dishRequest()
+  const result = await menuArrangementRequest()
   const { saved } = await searchParams
   return (
     <div className="flex flex-col gap-6">
@@ -22,10 +20,9 @@ export default async function MenuPage({
           {MENU_TEXT[locale].intro}
         </Text>
       </header>
-      <Dishes
+      <ArrangedDishes
         initial={result.menu}
         locale={locale}
-        restaurantId={current.restaurant.id}
         initialSaved={saved === "1"}
       />
     </div>

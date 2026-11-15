@@ -3,8 +3,14 @@ import {
   MedusaResponse,
 } from "@medusajs/framework/http"
 import { MedusaError } from "@medusajs/framework/utils"
-import { editMenuDishWorkflow } from "../../../../../../workflows/menu-dishes"
-import { DishEditInput } from "../../../../../../workflows/menu-dishes/validation"
+import {
+  editMenuDishWorkflow,
+  removeMenuDishWorkflow,
+} from "../../../../../../workflows/menu-dishes"
+import {
+  DishEditInput,
+  DishRemovalInput,
+} from "../../../../../../workflows/menu-dishes/validation"
 
 export async function POST(
   req: AuthenticatedMedusaRequest<DishEditInput>,
@@ -26,4 +32,20 @@ export async function POST(
       "dish_publication_uncertain",
     )
   res.json({ categories: result.categories })
+}
+
+export async function DELETE(
+  req: AuthenticatedMedusaRequest<DishRemovalInput>,
+  res: MedusaResponse,
+) {
+  const { result } = await removeMenuDishWorkflow(req.scope).run({
+    input: {
+      ...req.validatedBody,
+      restaurant_id: req.params.id,
+      dish_id: req.params.dish_id,
+      staff_id: req.auth_context.actor_id,
+    },
+  })
+  res.setHeader("Cache-Control", "no-store")
+  res.json(result)
 }
