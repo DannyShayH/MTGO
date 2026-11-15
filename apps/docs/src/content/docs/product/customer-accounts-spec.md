@@ -134,6 +134,22 @@ Provide email/password Customer accounts with verified checkout access, preserve
 - Measure account-history/detail reads under twenty simultaneous journeys, with 95% completing within two seconds. Record environment, workload, data and results. Full reporting-scale data remains with reporting Features; the five-second mock-payment submission target remains with Feature #46.
 - Implementation work items run applicable lint, architecture, unit and HTTP/module tests and application/browser verification. Keep traceable evidence for each story and acceptance rule. The present specification does not claim those application tests or performance measurements have passed.
 
+## Issue #87 implementation evidence
+
+Issue #87 enforces the basket boundary at both seams: Store cart reads and
+mutations reject an expired or different Customer session for a Customer-owned
+cart with `cart_customer_access_denied`, while anonymous carts remain usable.
+The storefront preserves the cart cookie when transfer fails, offers a
+localized retry, refreshes after a successful retry, and does not render
+checkout controls until the signed-in Customer owns the cart. Explicit sign-out
+continues to remove the browser's auth and cart cookies.
+
+The HTTP evidence is in `customer-auth.spec.ts`; the focused ownership rules
+are in `cart-ownership.unit.spec.ts`. The storefront browser journey in
+`apps/storefront/e2e/customer-auth.spec.ts` covers basket preservation through
+sign-in and refresh, followed by explicit sign-out cleanup. The application
+verification flow runs this journey in the disposable environment.
+
 ## Out of Scope
 
 - Social sign-in, sign-in without a password, operator-created Customer accounts, telephone ordering, native apps and scheduled ordering.

@@ -683,5 +683,124 @@ medusaIntegrationTestRunner({
         ).status,
       ).toBe(401)
     })
+    it("keeps Customer-owned carts private across expiry and account switching", async () => {
+      const ownerCredentials = {
+        email: "cart-owner@example.test",
+        password,
+      }
+      const ownerRegistration = await registerAndVerify(
+        ownerCredentials.email,
+        ownerCredentials.password,
+      )
+      await api.post(
+        "/store/customers",
+        { email: ownerCredentials.email },
+        {
+          headers: {
+            ...headers,
+            authorization: `Bearer ${ownerRegistration.data.token}`,
+          },
+        },
+      )
+      const ownerLogin = await signIn(ownerCredentials)
+      const ownerHeaders = {
+        ...headers,
+        authorization: `Bearer ${ownerLogin.data.token}`,
+      }
+      await createRegionsWorkflow(getContainer()).run({
+        input: {
+          regions: [
+            { name: "Denmark", currency_code: "dkk", countries: ["dk"] },
+          ],
+        },
+      })
+      const cart = await api.post("/store/carts", {}, { headers: ownerHeaders })
+      expect(cart.data.cart.customer_id).toBeTruthy()
+
+      const anonymousCart = await api.post("/store/carts", {}, { headers })
+      const anonymousSubmission = await api.post(
+        `/store/carts/${anonymousCart.data.cart.id}/complete`,
+        {},
+        {
+          headers: ownerHeaders,
+          validateStatus: () => true,
+        },
+      )
+      expect(anonymousSubmission.status).toBe(401)
+      expect(anonymousSubmission.data.code).toBe("cart_customer_access_denied")
+
+      expect(
+        (
+          await api.get(`/store/carts/${cart.data.cart.id}`, {
+            headers: ownerHeaders,
+          })
+        ).status,
+      ).toBe(200)
+      expect(
+        (
+          await api.get(`/store/carts/${cart.data.cart.id}`, {
+            headers,
+            validateStatus: () => true,
+          })
+        ).status,
+      ).toBe(401)
+
+      const otherCredentials = {
+        email: "cart-other@example.test",
+        password,
+      }
+      const otherRegistration = await registerAndVerify(
+        otherCredentials.email,
+        otherCredentials.password,
+      )
+      await api.post(
+        "/store/customers",
+        { email: otherCredentials.email },
+        {
+          headers: {
+            ...headers,
+            authorization: `Bearer ${otherRegistration.data.token}`,
+          },
+        },
+      )
+      const otherLogin = await signIn(otherCredentials)
+      const wrongOwner = await api.get(`/store/carts/${cart.data.cart.id}`, {
+        headers: {
+          ...headers,
+          authorization: `Bearer ${otherLogin.data.token}`,
+        },
+        validateStatus: () => true,
+      })
+      expect(wrongOwner.status).toBe(401)
+      expect(wrongOwner.data.code).toBe("cart_customer_access_denied")
+
+      const wrongOwnerMutation = await api.post(
+        `/store/carts/${cart.data.cart.id}`,
+        { email: "other@example.test" },
+        {
+          headers: {
+            ...headers,
+            authorization: `Bearer ${otherLogin.data.token}`,
+          },
+          validateStatus: () => true,
+        },
+      )
+      expect(wrongOwnerMutation.status).toBe(401)
+      expect(wrongOwnerMutation.data.code).toBe("cart_customer_access_denied")
+
+      const wrongOwnerSubmission = await api.post(
+        `/store/carts/${cart.data.cart.id}/complete`,
+        {},
+        {
+          headers: {
+            ...headers,
+            authorization: `Bearer ${otherLogin.data.token}`,
+          },
+          validateStatus: () => true,
+        },
+      )
+      expect(wrongOwnerSubmission.status).toBe(401)
+      expect(wrongOwnerSubmission.data.code).toBe("cart_customer_access_denied")
+    })
   },
 })

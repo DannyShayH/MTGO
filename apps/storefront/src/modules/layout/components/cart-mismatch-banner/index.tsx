@@ -1,47 +1,53 @@
 "use client"
 
 import { transferCart } from "@lib/data/customer"
+import { CUSTOMER_CART, type Locale } from "@dtc/i18n"
 import { ExclamationCircleSolid } from "@medusajs/icons"
 import { StoreCart, StoreCustomer } from "@medusajs/types"
 import { Button } from "@modules/common/components/ui"
+import { useRouter } from "next/navigation"
 import { useState } from "react"
 function CartMismatchBanner(props: {
   customer: StoreCustomer
   cart: StoreCart
+  locale: Locale
 }) {
-  const { customer, cart } = props
+  const { customer, cart, locale } = props
+  const router = useRouter()
+  const text = CUSTOMER_CART[locale]
   const [isPending, setIsPending] = useState(false)
-  const [actionText, setActionText] = useState("Run transfer again")
+  const [actionText, setActionText] = useState<string>(text.retryTransfer)
 
-  if (!customer || !!cart.customer_id) {
+  if (!customer || cart.customer_id === customer.id) {
     return
   }
 
   const handleSubmit = async () => {
     try {
       setIsPending(true)
-      setActionText("Transferring..")
+      setActionText(text.transferring)
 
       await transferCart()
+      router.refresh()
     } catch {
-      setActionText("Run transfer again")
+      setActionText(text.retryTransfer)
       setIsPending(false)
     }
   }
 
   return (
-    <div className="flex items-center justify-center small:p-4 p-2 text-center bg-orange-300 small:gap-2 gap-1 text-sm mt-2 text-orange-800">
+    <div className="mt-2 flex items-center justify-center gap-1 bg-mtogo-status-error-surface p-2 text-center text-sm text-mtogo-status-error-text small:gap-2 small:p-4">
       <div className="flex flex-col small:flex-row small:gap-2 gap-1 items-center">
         <span className="flex items-center gap-1">
           <ExclamationCircleSolid className="inline" />
-          Something went wrong when we tried to transfer your cart
+          {text.transferFailed}
         </span>
 
         <span>·</span>
 
         <Button
           variant="transparent"
-          className="hover:bg-transparent active:bg-transparent focus:bg-transparent disabled:text-orange-500 text-orange-950 p-0 bg-transparent"
+          className="bg-transparent p-0 text-mtogo-status-error-text hover:bg-transparent active:bg-transparent focus:bg-transparent disabled:text-mtogo-status-error-text"
           size="medium"
           disabled={isPending}
           onClick={handleSubmit}

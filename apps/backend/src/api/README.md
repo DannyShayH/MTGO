@@ -1,5 +1,17 @@
 # Custom API Routes
 
+## Customer cart ownership (#87)
+
+### `/store/carts/:id*`
+
+Cart reads and mutations keep anonymous carts public but require the signed-in
+Customer to own a Customer-owned cart. Submission additionally requires a
+signed-in, verified Customer to own the cart; anonymous carts cannot be
+submitted. An expired session and a different Customer receive `401
+cart_customer_access_denied`; the cart ID is not disclosed. The ownership check
+runs before the built-in Medusa cart route, so it applies consistently to
+nested cart actions, including `complete`.
+
 ## Partner dish availability (#108)
 
 ### POST /partner/restaurants/:id/dishes/:dish_id/availability

@@ -38,4 +38,5 @@ export {
 } from "./customer-menu.ts"
 export { CUSTOMER_HOME_TEXT } from "./customer-home.ts"
 export { CUSTOMER_NAVIGATION_TEXT } from "./customer-navigation.ts"
+export { CUSTOMER_CART } from "./customer-cart.ts"
 export { DISH_TEXT, isDishErrorCode, type DishErrorCode } from "./dishes.ts"

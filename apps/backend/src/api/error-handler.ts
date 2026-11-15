@@ -86,6 +86,7 @@ export function mtogoErrorHandler(): MedusaErrorHandlerFunction {
     "customer_sign_in_required",
     "customer_provider_not_allowed",
     "customer_verification_delivery_failed",
+    "cart_customer_access_denied",
   ])
   return (error, req, res, next) => {
     if (error.message === "customer_identity_exists") {
@@ -100,6 +101,7 @@ export function mtogoErrorHandler(): MedusaErrorHandlerFunction {
         "customer_sign_in_required",
         "customer_provider_not_allowed",
         "customer_verification_delivery_failed",
+        "cart_customer_access_denied",
       ].includes(error.message)
     ) {
       error.code = error.message

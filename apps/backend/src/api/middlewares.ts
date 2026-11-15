@@ -43,6 +43,7 @@ import {
   requireIsolatedCustomerIdentity,
   restrictCustomerProvider,
 } from "./customer-identity"
+import { requireCustomerOwnedCart, requireOwnedCart } from "./cart-ownership"
 import {
   PostStoreCustomerSchema,
   PostStoreUpdateCustomerSchema,
@@ -80,6 +81,7 @@ export default defineMiddlewares({
       middlewares: [
         authenticate("customer", ["bearer", "session"]),
         requireVerifiedCustomer,
+        requireCustomerOwnedCart,
       ],
     },
     {
@@ -124,6 +126,10 @@ export default defineMiddlewares({
         }),
         discardLegacyCustomerIdentity,
       ],
+    },
+    {
+      matcher: "/store/carts/:id*",
+      middlewares: [requireOwnedCart],
     },
     // Public browsing (#119): the publishable key is the only requirement.
     {
