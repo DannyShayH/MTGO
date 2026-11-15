@@ -143,6 +143,13 @@ async function setUpRestaurant(request: APIRequestContext, fixture: Fixture) {
     },
   })
   expect(category.ok()).toBe(true)
+  const catalogue = await request.get(`${backend}/partner/food-catalogue`, {
+    headers: staff,
+  })
+  expect(catalogue.ok()).toBe(true)
+  const foodLabels = (await catalogue.json()).food_labels.map(
+    (label: { id: string }) => ({ food_label_id: label.id, state: "unknown" }),
+  )
   const dish = await request.post(`${partner}/dishes`, {
     headers: staff,
     data: {
@@ -151,6 +158,7 @@ async function setUpRestaurant(request: APIRequestContext, fixture: Fixture) {
       name: { da: "Dagens ret", en: "Dish of the day" },
       price: "95",
       allergens: { status: "unknown" },
+      food_labels: foodLabels,
     },
   })
   expect(dish.ok()).toBe(true)

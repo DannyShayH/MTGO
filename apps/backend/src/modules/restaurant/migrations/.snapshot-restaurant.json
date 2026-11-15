@@ -180,6 +180,22 @@
           "enumItems": [],
           "mappedType": "json"
         },
+        "food_label_declaration": {
+          "name": "food_label_declaration",
+          "type": "jsonb",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "json"
+        },
         "successful_change": {
           "name": "successful_change",
           "type": "jsonb",

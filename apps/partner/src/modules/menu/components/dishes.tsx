@@ -24,6 +24,7 @@ import { useUnsavedChanges } from "@modules/common/components/unsaved-changes"
 import { AvailabilitySwitch } from "./availability-switch"
 import { AllergenSelector } from "./allergen-selector"
 import type { FoodCatalogue } from "@lib/data/food-catalogue"
+import { FoodLabelSelector } from "./food-label-selector"
 
 export function Dishes({
   initial,
@@ -49,7 +50,20 @@ export function Dishes({
   const [menu, setMenu] = useState(initial)
   const [categories, setCategories] =
     useState<MenuCategory[]>(initialCategories)
-  const [editor, setEditor] = useState<CreateDish | undefined>(initialEditor)
+  const [editor, setEditor] = useState<CreateDish | undefined>(() =>
+    initialEditor
+      ? {
+          ...initialEditor,
+          food_labels:
+            initialEditor.food_labels.length > 0
+              ? initialEditor.food_labels
+              : (catalogue?.food_labels ?? []).map((label) => ({
+                  food_label_id: label.id,
+                  state: "unknown" as const,
+                })),
+        }
+      : initialEditor,
+  )
   const [uncertain, setUncertain] = useState(false)
   const [error, setError] = useState<DishErrorCode>()
   const [saved, setSaved] = useState(initialSaved)
@@ -316,6 +330,15 @@ export function Dishes({
               value={editor.allergens}
               disabled={pending || uncertain}
               onChange={(allergens) => setEditor({ ...editor, allergens })}
+            />
+          )}
+          {catalogue && (
+            <FoodLabelSelector
+              catalogue={catalogue}
+              locale={locale}
+              value={editor.food_labels}
+              disabled={pending || uncertain}
+              onChange={(food_labels) => setEditor({ ...editor, food_labels })}
             />
           )}
           <Text className="mt-2 text-ui-fg-subtle">{text.photo}</Text>

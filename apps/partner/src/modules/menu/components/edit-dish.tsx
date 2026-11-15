@@ -17,6 +17,7 @@ import {
 import { useUnsavedChanges } from "@modules/common/components/unsaved-changes"
 import { AllergenSelector } from "./allergen-selector"
 import type { FoodCatalogue } from "@lib/data/food-catalogue"
+import { FoodLabelSelector } from "./food-label-selector"
 
 const priceText = (amount: number) => String(amount)
 const declarationNames = (
@@ -38,13 +39,20 @@ const declarationNames = (
     })
     .filter(Boolean)
     .join(", ")
-const draftOf = (dish: StaffDish): EditDish => ({
+const draftOf = (dish: StaffDish, catalogue: FoodCatalogue): EditDish => ({
   request_id: crypto.randomUUID(),
   revision: dish.revision,
   name: dish.name,
   description: dish.description,
   price: priceText(dish.price.amount),
   allergens: dish.allergens,
+  food_labels:
+    dish.food_labels.length > 0
+      ? dish.food_labels
+      : catalogue.food_labels.map((label) => ({
+          food_label_id: label.id,
+          state: "unknown" as const,
+        })),
 })
 
 export function EditDishForm({
@@ -59,7 +67,7 @@ export function EditDishForm({
   const text = DISH_TEXT[locale]
   const router = useRouter()
   const storageKey = `mtogo-dish-edit:${dish.id}`
-  const [draft, setDraft] = useState(() => draftOf(dish))
+  const [draft, setDraft] = useState(() => draftOf(dish, catalogue))
   const [latest, setLatest] = useState<StaffDish>()
   const [error, setError] = useState<DishErrorCode>()
   const [uncertain, setUncertain] = useState(false)
@@ -71,6 +79,7 @@ export function EditDishForm({
     draft.description?.en !== dish.description?.en ||
     draft.price !== priceText(dish.price.amount) ||
     JSON.stringify(draft.allergens) !== JSON.stringify(dish.allergens) ||
+    JSON.stringify(draft.food_labels) !== JSON.stringify(dish.food_labels) ||
     uncertain
   useUnsavedChanges(dirty, text.discard)
 
@@ -179,6 +188,22 @@ export function EditDishForm({
                     .filter(Boolean)
                     .join("; ")}
           </Text>
+          <dl className="mt-2 text-sm">
+            {catalogue.food_labels.map((label) => (
+              <div key={label.id} className="flex gap-2">
+                <dt className="font-medium">{label.name[locale]}</dt>
+                <dd>
+                  {
+                    text.food_label_states[
+                      latest.food_labels.find(
+                        (entry) => entry.food_label_id === label.id,
+                      )?.state ?? "unknown"
+                    ]
+                  }
+                </dd>
+              </div>
+            ))}
+          </dl>
           <Button
             type="button"
             variant="secondary"
@@ -278,6 +303,13 @@ export function EditDishForm({
           value={draft.allergens}
           onChange={(allergens) => setDraft({ ...draft, allergens })}
           disabled={pending || uncertain || !!latest}
+        />
+        <FoodLabelSelector
+          catalogue={catalogue}
+          locale={locale}
+          value={draft.food_labels}
+          disabled={pending || uncertain || !!latest}
+          onChange={(food_labels) => setDraft({ ...draft, food_labels })}
         />
         <div className="flex flex-wrap gap-3">
           <Button

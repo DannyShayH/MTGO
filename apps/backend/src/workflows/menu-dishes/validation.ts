@@ -23,6 +23,16 @@ export const allergenDeclarationSchema = z.discriminatedUnion("status", [
 ])
 export type AllergenDeclaration = z.infer<typeof allergenDeclarationSchema>
 
+export const foodLabelDeclarationSchema = z
+  .array(
+    z.strictObject({
+      food_label_id: z.string().min(1),
+      state: z.enum(["yes", "no", "unknown"]),
+    }),
+  )
+  .length(3)
+export type FoodLabelDeclaration = z.infer<typeof foodLabelDeclarationSchema>
+
 /** Staff enter display-unit DKK. Reject precision and separators before conversion. */
 export const dishCreateSchema = z.strictObject({
   request_id: z
@@ -51,6 +61,7 @@ export const dishCreateSchema = z.strictObject({
         amount <= Number.MAX_SAFE_INTEGER / 100,
     ),
   allergens: allergenDeclarationSchema,
+  food_labels: foodLabelDeclarationSchema,
 })
 export type DishCreateInput = z.input<typeof dishCreateSchema>
 
@@ -76,6 +87,7 @@ export const dishEditSchema = z.strictObject({
     .nullable(),
   price: dishCreateSchema.shape.price,
   allergens: allergenDeclarationSchema,
+  food_labels: foodLabelDeclarationSchema,
 })
 export type DishEditInput = z.input<typeof dishEditSchema>
 

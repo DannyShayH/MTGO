@@ -45,9 +45,10 @@ or nut ID against the seeded rows, rejects duplicate and contradictory choices,
 and publishes the declaration with the complete dish revision. Customer reads
 resolve current bilingual names from this module. Existing dishes without a
 declaration remain `unknown`; empty supplied lists require explicit confirmation
-and never become an allergen-free claim. Food labels remain separate and unknown
-until their own declaration journey is implemented. Halal is the Restaurant's
-declaration, not certification.
+and never become an allergen-free claim. Food labels remain separate from EU
+allergens. Each dish stores the three fixed food-label record IDs with a Yes,
+No or Unknown state. Halal is the Restaurant's declaration, not certification;
+chili and garlic describe ingredient presence and do not have a heat scale.
 
 ## Source review
 

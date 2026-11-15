@@ -7,6 +7,8 @@ import {
 import { createProductsWorkflow } from "@medusajs/medusa/core-flows"
 import { RESTAURANT_MODULE } from "../../src/modules/restaurant"
 import RestaurantModuleService from "../../src/modules/restaurant/service"
+import { FOOD_CATALOGUE_MODULE } from "../../src/modules/food-catalogue"
+import FoodCatalogueModuleService from "../../src/modules/food-catalogue/service"
 import { readPublishedMenu } from "../../src/workflows/menu"
 import seedFoodCatalogue from "../../src/migration-scripts/food-catalogue"
 
@@ -22,6 +24,7 @@ medusaIntegrationTestRunner({
     let restaurantId: string
     let categoryId: string
     let staffId: string
+    let foodLabels: { food_label_id: string; state: "yes" | "no" | "unknown" }[]
     const service = () =>
       getContainer().resolve<RestaurantModuleService>(RESTAURANT_MODULE)
     const restaurant = (key: string) =>
@@ -43,6 +46,7 @@ medusaIntegrationTestRunner({
           name: { da: "  Dagens ret ", en: " Dish of the day " },
           price: "95,50",
           allergens: { status: "unknown" },
+          food_labels: foodLabels,
           ...change,
         },
         config,
@@ -76,6 +80,7 @@ medusaIntegrationTestRunner({
           description: { da: "Tomat", en: "Tomato" },
           price: "105,50",
           allergens: { status: "unknown" },
+          food_labels: foodLabels,
           ...change,
         },
         config,
@@ -92,6 +97,14 @@ medusaIntegrationTestRunner({
         config,
       )
     beforeEach(async () => {
+      await seedFoodCatalogue({ container: getContainer() })
+      const labels = await getContainer()
+        .resolve<FoodCatalogueModuleService>(FOOD_CATALOGUE_MODULE)
+        .listFoodLabels({}, { take: null })
+      foodLabels = labels.map((label) => ({
+        food_label_id: label.id,
+        state: "unknown" as const,
+      }))
       restaurantId = (await restaurant("own")).id
       staffId = (
         await service().createRestaurantStaffs({
@@ -225,6 +238,70 @@ medusaIntegrationTestRunner({
         kind: "edit",
       })
     })
+    it("saves fixed food-label references with independent yes, no and unknown states", async () => {
+      const labels = (await api.get("/partner/food-catalogue", config)).data
+        .food_labels
+      const declaration = labels.map((label: { id: string; code: string }) => ({
+        food_label_id: label.id,
+        state:
+          label.code === "halal"
+            ? "yes"
+            : label.code === "chili"
+              ? "no"
+              : "unknown",
+      }))
+      const created = await post({ food_labels: declaration })
+      expect(created.status).toBe(200)
+      const dishId = created.data.categories[0].dishes[0].id
+      expect(created.data.categories[0].dishes[0].food_labels).toEqual(
+        declaration,
+      )
+      const changed = declaration.map(
+        (entry: (typeof declaration)[number]) => ({
+          ...entry,
+          state: entry.state === "yes" ? "no" : "yes",
+        }),
+      )
+      expect((await edit(dishId, { food_labels: changed })).status).toBe(200)
+      expect((await menu())[0].dishes[0].food_labels).toEqual(changed)
+      expect((await menu())[0].dishes[0].revision).toBe(2)
+    })
+    it.each([
+      {
+        reason: "EP: unknown reference",
+        scenario: "reference",
+        code: "dish_food_labels_invalid",
+      },
+      {
+        reason: "DT: duplicate reference",
+        scenario: "duplicate",
+        code: "dish_food_labels_invalid",
+      },
+      {
+        reason: "EP: invalid state",
+        scenario: "state",
+        code: "dish_input_invalid",
+      },
+    ])("refuses food labels: $reason", async ({ scenario, code }) => {
+      const dishId = (await post()).data.categories[0].dishes[0].id
+      const invalid = foodLabels.map((entry) => ({ ...entry }))
+      if (scenario === "reference") invalid[0].food_label_id = "not-a-label"
+      if (scenario === "duplicate")
+        invalid[1].food_label_id = invalid[0].food_label_id
+      const payload =
+        scenario === "state"
+          ? invalid.map((entry, index) =>
+              index === 0 ? { ...entry, state: "maybe" } : entry,
+            )
+          : invalid
+      const response = await edit(dishId, { food_labels: payload })
+      expect(response.status).toBe(400)
+      expect(response.data.code).toBe(code)
+      expect((await menu())[0].dishes[0]).toMatchObject({
+        revision: 1,
+        food_labels: foodLabels,
+      })
+    })
     it.each([
       [
         "empty supplied declaration without confirmation",
@@ -290,6 +367,7 @@ medusaIntegrationTestRunner({
         expect((await menu())[0].dishes[0]).toMatchObject({
           revision: 1,
           allergens: { status: "unknown" },
+          food_labels: foodLabels,
         })
       },
     )
@@ -585,6 +663,7 @@ medusaIntegrationTestRunner({
           name: { da: "Dagens ret", en: "Dish of the day" },
           price: 95.5,
           allergens: { status: "unknown" },
+          food_labels: foodLabels,
         },
       })
       await createProductsWorkflow(getContainer()).run({

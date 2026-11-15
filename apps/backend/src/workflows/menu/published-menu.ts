@@ -9,6 +9,11 @@ export type AllergenDeclaration =
       none_declared: boolean
     }
 
+export type FoodLabelDeclaration = {
+  food_label_id: string
+  state: "yes" | "no" | "unknown"
+}[]
+
 /**
  * The one definition of a valid published dish (ADR-0012). Activation
  * readiness counts these dishes and the Customer menu shows exactly these
@@ -39,6 +44,7 @@ type DishContent = {
   revision: number
   published_price?: string | null
   allergen_declaration?: AllergenDeclaration | null
+  food_label_declaration?: FoodLabelDeclaration | null
 }
 
 type VariantRecord = {
@@ -73,6 +79,7 @@ export type PublishedDish = {
   price: { amount: number; currency_code: "dkk"; includes_tax: true }
   is_sold_out: boolean
   allergens: AllergenDeclaration
+  food_labels: FoodLabelDeclaration
 }
 
 export type PublishedCategory = {
@@ -136,6 +143,7 @@ function publishedDishOf(product: MenuProductRecord): PublishedDish | null {
     price: { amount, currency_code: MENU_CURRENCY, includes_tax: true },
     is_sold_out: content.is_sold_out,
     allergens: content.allergen_declaration ?? { status: "unknown" },
+    food_labels: content.food_label_declaration ?? [],
   }
 }
 

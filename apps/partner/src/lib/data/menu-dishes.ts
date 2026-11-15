@@ -15,6 +15,7 @@ export type CreateDish = {
   name: { da: string; en: string }
   price: string
   allergens: AllergenDeclaration | null
+  food_labels: FoodLabelDeclaration
 }
 export type AllergenDeclaration =
   | { status: "unknown" }
@@ -31,7 +32,12 @@ export type EditDish = {
   description: { da: string; en: string } | null
   price: string
   allergens: AllergenDeclaration
+  food_labels: FoodLabelDeclaration
 }
+export type FoodLabelDeclaration = {
+  food_label_id: string
+  state: "yes" | "no" | "unknown"
+}[]
 export type StaffDish = {
   id: string
   revision: number
@@ -40,6 +46,7 @@ export type StaffDish = {
   description: { da: string; en: string } | null
   price: { amount: number; currency_code: "dkk" }
   allergens: AllergenDeclaration
+  food_labels: FoodLabelDeclaration
 }
 export type DishAvailability = {
   request_id: string

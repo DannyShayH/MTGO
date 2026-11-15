@@ -26,6 +26,12 @@ export type MenuDish = {
           may_contain: DeclaredAllergen[]
           none_declared: boolean
         }
+    labels: {
+      code: string
+      name: Bilingual
+      description: Bilingual
+      state: "yes" | "no" | "unknown"
+    }[]
   }
 }
 

@@ -151,6 +151,7 @@ export const MenuDish = model.define("menu_dish", {
   publication_committed: model.boolean().default(true),
   published_price: model.text().nullable(),
   allergen_declaration: model.json().nullable(),
+  food_label_declaration: model.json().nullable(),
   successful_change: model.json().nullable(),
   availability_history: model.json().nullable(),
 })

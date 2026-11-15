@@ -40,7 +40,6 @@ const pizzeria = {
 
 const UNKNOWN_FOOD_INFORMATION = {
   allergens: { status: "unknown" },
-  labels: { halal: "unknown", chili: "unknown", garlic: "unknown" },
 }
 
 type Dish = {
@@ -157,6 +156,7 @@ medusaIntegrationTestRunner({
         { terms_version: "common_mvp_v1" },
         { headers: admin },
       )
+      await seedFoodCatalogue({ container })
       await api.post(
         `${adminPath()}/delivery-area-postal-codes`,
         { postal_code: "2200" },
@@ -166,6 +166,14 @@ medusaIntegrationTestRunner({
 
     it("counts a real staff-published dish for activation and returns it on the next Customer fetch", async () => {
       const headers = { authorization: staffToken }
+      const catalogue = (await api.get("/partner/food-catalogue", { headers }))
+        .data
+      const food_labels = catalogue.food_labels.map(
+        (label: { id: string }) => ({
+          food_label_id: label.id,
+          state: "unknown",
+        }),
+      )
       expect((await activate()).status).toBe(400)
       const category = await api.post(
         `/partner/restaurants/${restaurantId}/categories`,
@@ -184,6 +192,7 @@ medusaIntegrationTestRunner({
           name: { da: "Dagens ret", en: "Dish of the day" },
           price: "95.50",
           allergens: { status: "unknown" },
+          food_labels,
         },
         { headers },
       )
@@ -197,16 +206,24 @@ medusaIntegrationTestRunner({
         expect.objectContaining({
           name: { da: "Dagens ret", en: "Dish of the day" },
           price: { amount: 95.5, currency_code: "dkk", includes_tax: true },
-          food_information: UNKNOWN_FOOD_INFORMATION,
+          food_information: expect.objectContaining({
+            ...UNKNOWN_FOOD_INFORMATION,
+            labels: expect.arrayContaining([
+              expect.objectContaining({ code: "halal", state: "unknown" }),
+              expect.objectContaining({ code: "chili", state: "unknown" }),
+              expect.objectContaining({ code: "garlic", state: "unknown" }),
+            ]),
+          }),
           photo: null,
         }),
       ])
       let dish = customer.data.categories[0].dishes[0]
       await seedFoodCatalogue({ container: getContainer() })
-      const catalogue = (await api.get("/partner/food-catalogue", { headers }))
-        .data
-      const cereals = catalogue.allergens[0]
-      const nuts = catalogue.allergens[7]
+      const refreshedCatalogue = (
+        await api.get("/partner/food-catalogue", { headers })
+      ).data
+      const cereals = refreshedCatalogue.allergens[0]
+      const nuts = refreshedCatalogue.allergens[7]
       const wheat = cereals.details.find(
         (detail: { code: string }) => detail.code === "wheat",
       )
@@ -227,6 +244,7 @@ medusaIntegrationTestRunner({
             may_contain: [{ allergen_id: nuts.id, detail_ids: [hazelnut.id] }],
             none_declared: false,
           },
+          food_labels,
         },
         { headers },
       )
@@ -307,7 +325,9 @@ medusaIntegrationTestRunner({
               price: { amount: 95, currency_code: "dkk", includes_tax: true },
               is_sold_out: false,
               photo: null,
-              food_information: UNKNOWN_FOOD_INFORMATION,
+              food_information: expect.objectContaining(
+                UNKNOWN_FOOD_INFORMATION,
+              ),
             },
             {
               id: expect.stringMatching(/^prod_/),
@@ -329,7 +349,9 @@ medusaIntegrationTestRunner({
               },
               is_sold_out: true,
               photo: null,
-              food_information: UNKNOWN_FOOD_INFORMATION,
+              food_information: expect.objectContaining(
+                UNKNOWN_FOOD_INFORMATION,
+              ),
             },
           ],
         },

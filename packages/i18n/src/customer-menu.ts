@@ -25,7 +25,12 @@ type CustomerMenuText = Record<
   | "retry"
   | "not_found_title"
   | "not_found_note"
-  | "back_to_restaurants",
+  | "back_to_restaurants"
+  | "food_labels"
+  | "food_label_yes"
+  | "food_label_no"
+  | "food_label_unknown"
+  | string,
   string
 >
 
@@ -45,6 +50,7 @@ export const CUSTOMER_MENU_TEXT: Record<Locale, CustomerMenuText> = {
     sold_out: "Udsolgt",
     sold_out_note: "Kan ikke bestilles lige nu.",
     no_photo: "Intet billede",
+    allergen_info_missing: "Allergeninfo · ikke oplyst",
     allergens_unknown: "Allergener: ukendt",
     allergens_unknown_note:
       "Restauranten har ikke oplyst allergener for denne ret. Ukendt betyder aldrig allergenfri. Spørg restauranten, før du bestiller, hvis du har en allergi.",
@@ -63,6 +69,10 @@ export const CUSTOMER_MENU_TEXT: Record<Locale, CustomerMenuText> = {
     not_found_note:
       "Restauranten findes ikke, eller den er ikke med på MTOGO lige nu.",
     back_to_restaurants: "Tilbage til restauranterne",
+    food_labels: "Ingredienser og mærker",
+    food_label_yes: "Ja",
+    food_label_no: "Nej",
+    food_label_unknown: "Ukendt",
   },
   en: {
     page_title: "Menu",
@@ -78,6 +88,7 @@ export const CUSTOMER_MENU_TEXT: Record<Locale, CustomerMenuText> = {
     sold_out: "Sold out",
     sold_out_note: "Cannot be ordered right now.",
     no_photo: "No photo",
+    allergen_info_missing: "Allergen info · not provided",
     allergens_unknown: "Allergens: unknown",
     allergens_unknown_note:
       "The Restaurant has not declared allergens for this dish. Unknown never means allergen-free. Ask the Restaurant before you order if you have an allergy.",
@@ -96,6 +107,10 @@ export const CUSTOMER_MENU_TEXT: Record<Locale, CustomerMenuText> = {
     not_found_note:
       "The Restaurant does not exist, or it is not on MTOGO right now.",
     back_to_restaurants: "Back to the Restaurants",
+    food_labels: "Ingredients and labels",
+    food_label_yes: "Yes",
+    food_label_no: "No",
+    food_label_unknown: "Unknown",
   },
 }
 

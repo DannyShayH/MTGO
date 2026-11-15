@@ -1,4 +1,5 @@
 import { createLogRecord } from "@dtc/logging"
+import { isDeepStrictEqual } from "node:util"
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
 import {
   ContainerRegistrationKeys,
@@ -10,7 +11,7 @@ import RestaurantModuleService from "../../../modules/restaurant/service"
 import { PublishedCategory } from "../../menu/published-menu"
 import { readPublishedMenu } from "../../menu"
 import { dishCreateSchema, DishCreateInput } from "../validation"
-import { validateAllergens } from "../validate-allergens"
+import { validateAllergens, validateFoodLabels } from "../validate-allergens"
 
 export type CreateDishCommand = DishCreateInput & {
   restaurant_id: string
@@ -28,11 +29,13 @@ export const prepareDishPublicationStep = createStep(
       name: input.name,
       price: input.price,
       allergens: input.allergens,
+      food_labels: input.food_labels,
     })
     if (!parsed.success)
       throw refuse(MedusaError.Types.INVALID_DATA, "dish_input_invalid")
     const data = parsed.data
     await validateAllergens(container, data.allergens)
+    await validateFoodLabels(container, data.food_labels)
     const service =
       container.resolve<RestaurantModuleService>(RESTAURANT_MODULE)
     const [category] = await service.listMenuCategories({
@@ -47,6 +50,7 @@ export const prepareDishPublicationStep = createStep(
       name: data.name,
       price: data.price,
       allergens: data.allergens,
+      food_labels: data.food_labels,
     }
     let [operation] = await service.listMenuDishCreations({
       restaurant_id: input.restaurant_id,
@@ -60,8 +64,11 @@ export const prepareDishPublicationStep = createStep(
         original.price !== payload.price ||
         name.da !== payload.name.da ||
         name.en !== payload.name.en ||
-        JSON.stringify(original.allergens ?? { status: "unknown" }) !==
-          JSON.stringify(payload.allergens)
+        !isDeepStrictEqual(
+          original.allergens ?? { status: "unknown" },
+          payload.allergens,
+        ) ||
+        !isDeepStrictEqual(original.food_labels ?? [], payload.food_labels)
       )
         throw refuse(MedusaError.Types.CONFLICT, "dish_retry_conflict")
     }
@@ -122,6 +129,7 @@ export const createDishContentStep = createStep(
       name: { da: string; en: string }
       position: number
       allergens: DishCreateInput["allergens"]
+      food_labels: DishCreateInput["food_labels"]
     },
     { container },
   ) => {
@@ -132,6 +140,10 @@ export const createDishContentStep = createStep(
       name_en: input.name.en,
       position: input.position,
       allergen_declaration: input.allergens,
+      food_label_declaration: input.food_labels as unknown as Record<
+        string,
+        unknown
+      >,
       publication_committed: false,
     })
     return new StepResponse(content.id, content.id)

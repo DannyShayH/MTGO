@@ -217,6 +217,13 @@ harness, never against a live Restaurant.
 
 ## Menu navigation
 
+Food labels are optional positive declarations: staff select the labels that apply
+and can clear a selection. Clearing stores Unknown; existing No declarations remain
+compatible with the API but have no separate control. The Customer menu shows only
+Yes declarations, grouped with the allergen symbols. Expanded label details show
+the name with an information control for the catalogue explanation, available by
+hover, keyboard or tap.
+
 The sidebar separates **Menu**, **Categories** and **Allergens**, in Danish and
 English. Menu lists dishes and links to `/menu/new`. Creation uses a dedicated
 page so bilingual fields, validation and uncertain-request recovery stay visible

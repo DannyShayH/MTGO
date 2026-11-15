@@ -35,6 +35,10 @@ export const DISH_TEXT = {
     hint: "Prisen inkluderer moms og levering. Skriv fx 95 eller 95,50.",
     unknown: "Allergenoplysninger, halal, chili og hvidløg: Ukendt.",
     allergen_heading: "Allergenoplysninger",
+    food_labels_heading: "Ekstra madmærker",
+    food_labels_help:
+      "Markér de mærker, der gælder for retten. Kun valgte mærker vises på menuen. Numrene er kun rækkefølge, ikke EU-allergennumre.",
+    food_label_states: { yes: "Ja", no: "Nej", unknown: "Ukendt" },
     information_unknown: "Oplysninger ukendte",
     information_unknown_hint:
       "Kunden ser retten som ukendt, aldrig som allergenfri.",
@@ -66,6 +70,8 @@ export const DISH_TEXT = {
         "Udfyld begge navne med højst 120 tegn. Beskrivelser skal enten være tomme eller udfyldt på begge sprog med højst 2.000 tegn. Brug almindelig tekst. Prisen skal være positiv med højst to decimaler.",
       dish_allergens_invalid:
         "Kontrollér allergenvalgene. Den samme type må kun stå ét sted, og tomme oplysninger kræver bekræftelse.",
+      dish_food_labels_invalid:
+        "Kontrollér de ekstra madmærker. Vælg én gyldig status for halal, chili og hvidløg.",
       category_not_found:
         "Kategorien findes ikke længere. Vælg en anden kategori.",
       dish_retry_conflict:
@@ -116,6 +122,10 @@ export const DISH_TEXT = {
     hint: "Includes VAT and delivery. Enter e.g. 95 or 95.50.",
     unknown: "Allergen information, halal, chili and garlic: Unknown.",
     allergen_heading: "Allergen information",
+    food_labels_heading: "Additional food labels",
+    food_labels_help:
+      "Select the labels that apply to the dish. Only selected labels appear on the menu. These numbers indicate list order, not EU allergen numbers.",
+    food_label_states: { yes: "Yes", no: "No", unknown: "Unknown" },
     information_unknown: "Information unknown",
     information_unknown_hint:
       "Customers see the dish as unknown, never as allergen-free.",
@@ -147,6 +157,8 @@ export const DISH_TEXT = {
         "Enter both names with at most 120 characters. Descriptions must be empty or filled in both languages with at most 2,000 characters. Use plain text. The price must be positive with at most two decimal places.",
       dish_allergens_invalid:
         "Review the allergen selections. Each allergen can appear only once, and an empty declaration needs confirmation.",
+      dish_food_labels_invalid:
+        "Review the additional food labels. Choose one valid state for halal, chili and garlic.",
       category_not_found:
         "This category no longer exists. Choose another category.",
       dish_retry_conflict:

@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util"
 import { createLogRecord } from "@dtc/logging"
 import { updateProductsWorkflow } from "@medusajs/medusa/core-flows"
 import { z } from "@medusajs/framework/zod"
@@ -13,7 +14,7 @@ import { readPublishedMenu } from "../../menu"
 import { PublishedCategory } from "../../menu/published-menu"
 import { withResponseFields } from "../../common/response-fields"
 import { dishEditSchema, DishEditInput } from "../validation"
-import { validateAllergens } from "../validate-allergens"
+import { validateAllergens, validateFoodLabels } from "../validate-allergens"
 
 export type EditDishCommand = DishEditInput & {
   restaurant_id: string
@@ -48,11 +49,13 @@ export const prepareDishEditStep = createStep(
       description: input.description,
       price: input.price,
       allergens: input.allergens,
+      food_labels: input.food_labels,
     })
     if (!parsed.success)
       throw refuse(MedusaError.Types.INVALID_DATA, "dish_input_invalid")
     const data = parsed.data
     await validateAllergens(container, data.allergens)
+    await validateFoodLabels(container, data.food_labels)
     const menu = await readPublishedMenu(container, input.restaurant_id)
     const dish = menu
       .flatMap(({ dishes }) => dishes)
@@ -89,7 +92,8 @@ export const prepareDishEditStep = createStep(
           previous.description?.da !== data.description?.da ||
           previous.description?.en !== data.description?.en ||
           previous.price !== data.price ||
-          JSON.stringify(previous.allergens) !== JSON.stringify(data.allergens)
+          !isDeepStrictEqual(previous.allergens, data.allergens) ||
+          !isDeepStrictEqual(previous.food_labels, data.food_labels)
         )
           throw refuse(MedusaError.Types.CONFLICT, "dish_retry_conflict")
         return new StepResponse<Prepared, SnapshotUndo>(
@@ -161,6 +165,10 @@ export const commitDishEditStep = createStep(
             description_en: data.description?.en ?? null,
             published_price: String(data.price),
             allergen_declaration: data.allergens,
+            food_label_declaration: data.food_labels as unknown as Record<
+              string,
+              unknown
+            >,
             revision: data.revision + 1,
             successful_change: {
               kind: "edit",
@@ -225,6 +233,7 @@ export const commitDishEditStep = createStep(
                 description: data.description,
                 price: { ...dish.price, amount: data.price },
                 allergens: data.allergens,
+                food_labels: data.food_labels,
               }
             : dish,
         ),

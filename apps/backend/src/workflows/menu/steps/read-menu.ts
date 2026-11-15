@@ -106,9 +106,10 @@ export const readRestaurantMenuStep = createStep(
     const service = container.resolve<FoodCatalogueModuleService>(
       FOOD_CATALOGUE_MODULE,
     )
-    const [allergens, details] = await Promise.all([
+    const [allergens, details, labels] = await Promise.all([
       service.listAllergens({}, { take: null, order: { number: "ASC" } }),
       service.listAllergenDetails({}, { take: null }),
+      service.listFoodLabels({}, { take: null }),
     ])
     const byId = new Map(allergens.map((row) => [row.id, row]))
     const detailById = new Map(details.map((row) => [row.id, row]))
@@ -155,22 +156,37 @@ export const readRestaurantMenuStep = createStep(
       },
       categories: menu.map((category) => ({
         ...category,
-        dishes: category.dishes.map(({ allergens: declaration, ...dish }) => ({
-          ...dish,
-          photo: null,
-          food_information: {
-            allergens:
-              declaration.status === "unknown"
-                ? { status: "unknown" as const }
-                : {
-                    status: "supplied" as const,
-                    contains: translate(declaration.contains),
-                    may_contain: translate(declaration.may_contain),
-                    none_declared: declaration.none_declared,
+        dishes: category.dishes.map(
+          ({ allergens: declaration, food_labels, ...dish }) => ({
+            ...dish,
+            photo: null,
+            food_information: {
+              allergens:
+                declaration.status === "unknown"
+                  ? { status: "unknown" as const }
+                  : {
+                      status: "supplied" as const,
+                      contains: translate(declaration.contains),
+                      may_contain: translate(declaration.may_contain),
+                      none_declared: declaration.none_declared,
+                    },
+              labels: labels.map((label) => {
+                const declaration = (food_labels ?? []).find(
+                  ({ food_label_id }) => food_label_id === label.id,
+                )
+                return {
+                  code: label.code,
+                  name: { da: label.name_da, en: label.name_en },
+                  description: {
+                    da: label.description_da,
+                    en: label.description_en,
                   },
-            labels: { halal: "unknown", chili: "unknown", garlic: "unknown" },
-          },
-        })),
+                  state: declaration?.state ?? ("unknown" as const),
+                }
+              }),
+            },
+          }),
+        ),
       })),
     })
   },

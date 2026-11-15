@@ -1,11 +1,18 @@
 import { dishCreateSchema, dishEditSchema } from "../validation"
 
+const food_labels = [
+  { food_label_id: "flb_halal", state: "unknown" as const },
+  { food_label_id: "flb_chili", state: "unknown" as const },
+  { food_label_id: "flb_garlic", state: "unknown" as const },
+]
+
 const input = (price: string) => ({
   request_id: "first-dish",
   category_id: "mcat_own",
   name: { da: "  Dagens ret  ", en: " Dish of the day " },
   price,
   allergens: { status: "unknown" },
+  food_labels,
 })
 
 describe("dish edit input", () => {
@@ -16,6 +23,7 @@ describe("dish edit input", () => {
     description,
     price: "105,50",
     allergens: { status: "unknown" },
+    food_labels,
   })
   it("accepts a complete bilingual description and a removed description", () => {
     expect(

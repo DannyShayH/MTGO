@@ -529,7 +529,8 @@ it is Open or Closed, with the shared eligibility rule's
 `restaurant_not_found`, exactly like an unknown one; Order reads do not go
 through this route and are unaffected. Dish allergen declarations resolve
 against the seeded catalogue on each read. Older dishes without declarations
-report `unknown`; food labels remain unknown and photos remain `null`.
+report `unknown`; food labels report the seeded halal, chili and garlic labels and
+default each to `unknown` when an older dish has no declaration. Photos remain `null`.
 
 Evidence: `src/workflows/menu/__tests__/published-menu.unit.spec.ts` (the
 validity decision table), `integration-tests/http/restaurant-menu.spec.ts`
@@ -569,7 +570,12 @@ closed. `POST` creates a complete dish with this body:
   "category_id": "mcat_own-category",
   "name": { "da": "Dagens ret", "en": "Dish of the day" },
   "price": "95,50",
-  "allergens": { "status": "unknown" }
+  "allergens": { "status": "unknown" },
+  "food_labels": [
+    { "food_label_id": "fl_halal", "state": "unknown" },
+    { "food_label_id": "fl_chili", "state": "unknown" },
+    { "food_label_id": "fl_garlic", "state": "unknown" }
+  ]
 }
 ```
 
@@ -609,8 +615,9 @@ links. A category refusal is definitive and the form renews its operation
 identity before allowing a replacement category. The synthetic seed uses committed content and retains
 its existing fixtures.
 
-Validation returns `400 dish_input_invalid`, or `dish_allergens_invalid` for
+Validation returns `400 dish_input_invalid`, `dish_allergens_invalid` for
 invalid catalogue references or contradictory declarations; an unavailable/foreign category
+or `dish_food_labels_invalid` for an incomplete/non-fixed halal, chili or garlic declaration.
 returns `404 category_not_found`, and another Restaurant retains the existing
 `404 restaurant_not_found` boundary. Revoked access returns
 `403 staff_access_revoked`. An unexpectedly inconsistent committed product

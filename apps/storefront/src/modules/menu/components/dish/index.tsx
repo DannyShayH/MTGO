@@ -1,4 +1,4 @@
-import { ChevronRightMini } from "@medusajs/icons"
+import { ChevronRightMini, InformationCircle } from "@medusajs/icons"
 import {
   CUSTOMER_MENU_TEXT,
   allergenShortName,
@@ -6,6 +6,7 @@ import {
   type Locale,
 } from "@dtc/i18n"
 import type { MenuDish } from "@lib/data/restaurant-menu"
+import { LabelInfo } from "./label-info"
 
 type Declared = Extract<
   MenuDish["food_information"]["allergens"],
@@ -27,6 +28,9 @@ const FOOD_SYMBOL_CODES = new Set([
   "sulphites",
   "lupin",
   "molluscs",
+  "halal",
+  "chili",
+  "garlic",
 ])
 const symbolOf = (code: string) =>
   FOOD_SYMBOL_CODES.has(code) ? `/images/food-symbols/${code}.svg` : null
@@ -35,21 +39,24 @@ function IconStack({
   entries,
   limit,
   className,
+  locale,
 }: {
-  entries: Declared
+  entries: { code: string; name: { da: string; en: string }; hint?: string }[]
   limit: number
   className: string
+  locale: Locale
 }) {
   return (
-    <span aria-hidden="true" className={`ml-2 items-center gap-1 ${className}`}>
+    <span aria-hidden="true" className={`items-center gap-1 ${className}`}>
       {entries.slice(0, limit).map(
         (entry) =>
           symbolOf(entry.code) && (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              key={entry.number}
+              key={entry.code}
               src={symbolOf(entry.code)!}
               alt=""
+              title={entry.hint ?? entry.name[locale]}
               width={20}
               height={20}
               className="h-5 w-5"
@@ -120,6 +127,42 @@ function AllergenNames({
   )
 }
 
+function FoodLabelNames({
+  labels,
+  locale,
+}: {
+  labels: MenuDish["food_information"]["labels"]
+  locale: Locale
+}) {
+  return (
+    <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+      {labels.map((label) => (
+        <li
+          key={label.code}
+          className="inline-flex flex-wrap items-center gap-1.5"
+        >
+          {symbolOf(label.code) && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={symbolOf(label.code)!}
+              alt=""
+              aria-hidden="true"
+              width={24}
+              height={24}
+              className="h-6 w-6 shrink-0"
+            />
+          )}
+          <span className="font-medium">{label.name[locale]}</span>
+          <LabelInfo
+            name={label.name[locale]}
+            description={label.description[locale]}
+          />
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 /**
  * One dish on the Customer menu. Restaurant text is rendered as text and
  * wraps; nothing a Customer needs to choose food is cut off or hover-only.
@@ -134,11 +177,20 @@ export default function Dish({
   const text = CUSTOMER_MENU_TEXT[locale]
   const name = dish.name[locale]
   const allergens = dish.food_information.allergens
+  const labels = dish.food_information.labels
+  const declaredLabels = labels.filter((label) => label.state === "yes")
   const declared =
     allergens.status === "supplied"
-      ? [...allergens.contains, ...allergens.may_contain].sort(
-          (a, b) => a.number - b.number,
-        )
+      ? [
+          ...allergens.contains.map((entry) => ({
+            ...entry,
+            hint: `${text.allergens_contains}: ${allergenShortName(entry, locale)}`,
+          })),
+          ...allergens.may_contain.map((entry) => ({
+            ...entry,
+            hint: `${text.allergens_may_contain}: ${allergenShortName(entry, locale)}`,
+          })),
+        ].sort((a, b) => a.number - b.number)
       : []
   return (
     <li
@@ -175,52 +227,63 @@ export default function Dish({
           className="group text-base"
           data-testid="menu-dish-food-information"
         >
-          <summary className="flex min-h-11 w-full cursor-pointer list-none items-start gap-1.5 rounded-md py-2 text-mtogo-text-link underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mtogo-focus-ring [&::-webkit-details-marker]:hidden">
+          <summary className="inline-flex min-h-11 max-w-full cursor-pointer list-none items-center gap-2 rounded-md px-1 py-2 text-sm text-mtogo-text-secondary hover:bg-mtogo-surface-card hover:text-mtogo-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mtogo-focus-ring [&::-webkit-details-marker]:hidden">
             <ChevronRightMini
               aria-hidden="true"
-              className="mt-0.5 shrink-0 transition-transform duration-150 ease-out group-open:rotate-90 motion-reduce:transition-none"
+              className="shrink-0 transition-transform duration-150 ease-out group-open:rotate-90 motion-reduce:transition-none"
             />
-            <span className="min-w-0 flex-1 leading-6">
-              {allergens.status === "unknown" ? (
-                text.allergens_unknown
-              ) : allergens.none_declared ? (
-                text.allergens_none_short
-              ) : (
-                <>
-                  <Summary
-                    entries={allergens.contains}
-                    label={text.allergens_contains}
-                    locale={locale}
+            <span className="flex min-w-0 flex-wrap items-center gap-2 leading-6">
+              {allergens.status === "unknown" && (
+                <span className="inline-flex items-center gap-1.5">
+                  <InformationCircle
+                    aria-hidden="true"
+                    className="h-5 w-5 shrink-0"
                   />
-                  {allergens.contains.length > 0 &&
-                    allergens.may_contain.length > 0 && (
-                      <span
-                        aria-hidden="true"
-                        className="mx-1.5 text-mtogo-text-secondary"
-                      >
-                        ·
-                      </span>
-                    )}
-                  <Summary
-                    entries={allergens.may_contain}
-                    label={text.allergens_may_contain}
-                    locale={locale}
-                  />
-                </>
+                  {text.allergen_info_missing}
+                </span>
               )}
-              {declared.length > 0 && (
-                <>
-                  <IconStack
-                    entries={declared}
-                    limit={3}
-                    className="inline-flex align-text-bottom sm:hidden"
-                  />
-                  <IconStack
-                    entries={declared}
-                    limit={6}
-                    className="hidden align-text-bottom sm:inline-flex"
-                  />
-                </>
+              {allergens.status === "supplied" &&
+                allergens.none_declared &&
+                declaredLabels.length === 0 && (
+                  <span>{text.allergens_none_short}</span>
+                )}
+              <span className="sr-only">
+                {allergens.status === "unknown" ? (
+                  text.allergens_unknown
+                ) : allergens.none_declared ? (
+                  text.allergens_none_short
+                ) : (
+                  <>
+                    <Summary
+                      entries={allergens.contains}
+                      label={text.allergens_contains}
+                      locale={locale}
+                    />
+                    {allergens.contains.length > 0 &&
+                      allergens.may_contain.length > 0 && (
+                        <span
+                          aria-hidden="true"
+                          className="mx-1.5 text-mtogo-text-secondary"
+                        >
+                          ·
+                        </span>
+                      )}
+                    <Summary
+                      entries={allergens.may_contain}
+                      label={text.allergens_may_contain}
+                      locale={locale}
+                    />
+                  </>
+                )}
+                {declaredLabels.map((label) => label.name[locale]).join(", ")}
+              </span>
+              {declared.length + declaredLabels.length > 0 && (
+                <IconStack
+                  entries={[...declared, ...declaredLabels]}
+                  limit={17}
+                  locale={locale}
+                  className="inline-flex flex-wrap"
+                />
               )}
             </span>
           </summary>
@@ -247,6 +310,15 @@ export default function Dish({
                   />
                 </div>
               )}
+            </div>
+          )}
+          {declaredLabels.length > 0 && (
+            <div
+              className="mt-3 max-w-[60ch] border-t border-mtogo-border-subtle pt-3 leading-6"
+              data-testid="menu-dish-food-labels"
+            >
+              <strong>{text.food_labels}</strong>
+              <FoodLabelNames labels={declaredLabels} locale={locale} />
             </div>
           )}
         </details>

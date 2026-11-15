@@ -308,6 +308,7 @@ for (const locale of ["da", "en"] as const) {
           description: { da: "Tomat", en: "Tomato" },
           price: "115",
           allergens: currentDish.allergens,
+          food_labels: currentDish.food_labels,
         },
       },
     )

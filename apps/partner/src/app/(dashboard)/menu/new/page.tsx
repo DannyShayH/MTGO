@@ -44,6 +44,7 @@ export default async function CreateDishPage() {
             name: { da: "", en: "" },
             price: "",
             allergens: null,
+            food_labels: [],
           }}
         />
       )}

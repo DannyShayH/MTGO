@@ -34,7 +34,7 @@ function Chip({
   return (
     <label
       className={clx(
-        "inline-flex min-h-11 cursor-pointer select-none items-center gap-1.5 rounded-full border px-3 text-sm font-medium transition-[background-color,border-color,color,transform] duration-150 ease-out active:scale-[0.97] has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-mtogo-focus-ring has-[:focus-visible]:ring-offset-2 motion-reduce:transition-none motion-reduce:active:scale-100",
+        "inline-flex min-h-11 min-w-32 cursor-pointer select-none items-center justify-center gap-1.5 rounded-full border px-3 text-sm font-medium transition-[background-color,border-color,color,transform] duration-150 ease-out active:scale-[0.97] has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-mtogo-focus-ring has-[:focus-visible]:ring-offset-2 motion-reduce:transition-none motion-reduce:active:scale-100",
         checked
           ? tone === "solid"
             ? "border-mtogo-action-primary bg-mtogo-action-primary text-mtogo-text-on-primary"
@@ -49,7 +49,13 @@ function Chip({
         required={required}
         onChange={(event) => onChange(event.target.checked)}
       />
-      <span aria-hidden="true" className="inline-flex h-4 w-4 items-center">
+      <span
+        aria-hidden="true"
+        className={clx(
+          "inline-flex h-4 w-4 items-center",
+          !checked && "hidden",
+        )}
+      >
         <CheckMini
           className={clx(
             "transition-opacity duration-150 ease-out motion-reduce:transition-none",
