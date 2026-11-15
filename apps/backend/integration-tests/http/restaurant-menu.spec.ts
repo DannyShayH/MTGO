@@ -200,6 +200,23 @@ medusaIntegrationTestRunner({
           photo: null,
         }),
       ])
+      const dish = customer.data.categories[0].dishes[0]
+      const sold = await api.post(
+        `/partner/restaurants/${restaurantId}/dishes/${dish.id}/availability`,
+        { request_id: "sold-out", revision: dish.revision, is_sold_out: true },
+        { headers },
+      )
+      expect(sold.status).toBe(200)
+      const refreshed = await readMenu()
+      expect(refreshed.data.categories[0].dishes[0]).toMatchObject({
+        id: dish.id,
+        revision: dish.revision + 1,
+        is_sold_out: true,
+        price: dish.price,
+      })
+      expect(refreshed.data.restaurant.is_open).toBe(false)
+      expect((await adminView()).is_active).toBe(true)
+      expect((await adminView()).menu.published_dish_count).toBe(1)
     })
 
     it("shows an active, open Restaurant's bilingual menu in order, without empty categories or invalid products", async () => {

@@ -243,7 +243,7 @@ Every work item ships with tests. The Definition of Done sets the scope: the hap
 | Unit               | Jest, `src/**/__tests__/*.unit.spec.ts`, `npm run test:unit`              | The main place: business rules in pure functions and steps (commission, bonus, activation rules)  |
 | Module integration | Jest, `src/modules/*/__tests__/`, `npm run test:integration:modules`      | A module's service against a real PostgreSQL                                                      |
 | HTTP integration   | Jest, `integration-tests/http/*.spec.ts`, `npm run test:integration:http` | Routes through HTTP: access (401, 403, 404, 2xx), request shape and one invalid case per rule set |
-| Storefront smoke   | Playwright, `apps/storefront`                                             | The most important journeys in a real browser                                                     |
+| Browser journeys   | Playwright, `apps/storefront/e2e`, `apps/partner/e2e`                     | Existing key journeys, run by the ready flow. New UI is checked in the browser and by manual test |
 | Docs app           | Vitest, `apps/docs/scripts/*.test.ts`                                     | Flow metric calculations and generated pages                                                      |
 
 - Put business rules in small pure functions, so they can be unit tested without a database.

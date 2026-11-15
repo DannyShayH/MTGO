@@ -77,6 +77,17 @@ medusaIntegrationTestRunner({
         },
         config,
       )
+    const availability = (dishId: string, change = {}, id = restaurantId) =>
+      api.post(
+        `/partner/restaurants/${id}/dishes/${dishId}/availability`,
+        {
+          request_id: "first-availability",
+          revision: 1,
+          is_sold_out: true,
+          ...change,
+        },
+        config,
+      )
     beforeEach(async () => {
       restaurantId = (await restaurant("own")).id
       staffId = (
@@ -167,6 +178,100 @@ medusaIntegrationTestRunner({
           })
         ).status,
       ).toBe(200)
+    })
+    it("switches only availability, keeps history, and refuses stale or foreign changes", async () => {
+      const dishId = (await post()).data.categories[0].dishes[0].id
+      const before = (await menu())[0].dishes[0]
+      const sold = await availability(dishId)
+      expect(sold.status).toBe(200)
+      expect(sold.data.dish).toMatchObject({
+        id: dishId,
+        revision: 2,
+        is_sold_out: true,
+        name: before.name,
+        price: before.price,
+      })
+      expect((await menu())[0].dishes[0]).toEqual(sold.data.dish)
+      expect((await availability(dishId)).status).toBe(200)
+      const stale = await availability(dishId, {
+        request_id: "other-attempt",
+        is_sold_out: false,
+      })
+      expect(stale.status).toBe(409)
+      expect(stale.data).toMatchObject({
+        code: "dish_stale",
+        dish: { id: dishId, revision: 2, is_sold_out: true },
+      })
+      expect((await availability(dishId, { is_sold_out: false })).status).toBe(
+        409,
+      )
+      const other = await restaurant("foreign-availability")
+      expect((await availability(dishId, {}, other.id)).status).toBe(404)
+      const restored = await availability(dishId, {
+        request_id: "restore",
+        revision: 2,
+        is_sold_out: false,
+      })
+      expect(restored.status).toBe(200)
+      const content = (await service().listMenuDishes({}))[0]
+      expect(content.availability_history).toMatchObject({
+        entries: [
+          {
+            actor_id: staffId,
+            actor_name: "Sofie",
+            resource_id: dishId,
+            is_sold_out: true,
+            occurred_at: expect.any(String),
+          },
+          {
+            actor_id: staffId,
+            resource_id: dishId,
+            is_sold_out: false,
+            occurred_at: expect.any(String),
+          },
+        ],
+      })
+      expect(content.availability_history?.entries).toHaveLength(2)
+      expect(await service().retrieveRestaurant(restaurantId)).toMatchObject({
+        is_active: false,
+        is_open: false,
+      })
+    })
+    it("rejects extra dish fields and revoked staff without history", async () => {
+      const dishId = (await post()).data.categories[0].dishes[0].id
+      expect((await availability(dishId, { price: "1" })).status).toBe(400)
+      await service().updateRestaurantStaffs({ id: staffId, status: "revoked" })
+      expect((await availability(dishId)).status).toBe(403)
+      expect(
+        (await service().listMenuDishes({}))[0].availability_history,
+      ).toBeNull()
+    })
+    it("records no availability history for a failed write and reconciles a lost acknowledgement", async () => {
+      const dishId = (await post()).data.categories[0].dishes[0].id
+      const original = service().updateMenuDishes.bind(service())
+      const update = jest
+        .spyOn(service(), "updateMenuDishes")
+        .mockRejectedValueOnce(new Error("write failed"))
+      const failed = await availability(dishId)
+      expect(failed.status).toBe(503)
+      expect(failed.data.code).toBe("dish_publication_uncertain")
+      expect((await menu())[0].dishes[0]).toMatchObject({
+        revision: 1,
+        is_sold_out: false,
+      })
+      expect(
+        (await service().listMenuDishes({}))[0].availability_history,
+      ).toBeNull()
+      update.mockImplementationOnce(async (...args) => {
+        await original(...args)
+        throw new Error("acknowledgement lost")
+      })
+      expect((await availability(dishId)).status).toBe(200)
+      update.mockRestore()
+      expect((await availability(dishId)).status).toBe(200)
+      expect(
+        (await service().listMenuDishes({}))[0].availability_history?.entries,
+      ).toHaveLength(1)
     })
     it("keeps the previous menu and change record if the visibility write fails", async () => {
       const created = await post()

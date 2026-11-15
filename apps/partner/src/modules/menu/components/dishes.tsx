@@ -20,6 +20,7 @@ import {
   type MenuCategory,
 } from "@lib/data/menu-categories"
 import { useUnsavedChanges } from "@modules/common/components/unsaved-changes"
+import { AvailabilitySwitch } from "./availability-switch"
 
 export function Dishes({
   initial,
@@ -176,6 +177,7 @@ export function Dishes({
                   <Text className="font-semibold">
                     {formatDkk(dish.price.amount, locale)}
                   </Text>
+                  <AvailabilitySwitch dish={dish} locale={locale} />
                   <Link
                     href={`/menu/${encodeURIComponent(dish.id)}`}
                     className="inline-flex min-h-11 items-center text-mtogo-text-link underline"

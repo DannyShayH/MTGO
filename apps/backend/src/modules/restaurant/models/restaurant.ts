@@ -151,6 +151,7 @@ export const MenuDish = model.define("menu_dish", {
   publication_committed: model.boolean().default(true),
   published_price: model.text().nullable(),
   successful_change: model.json().nullable(),
+  availability_history: model.json().nullable(),
 })
 
 /** Durable creation intent survives compensation and process interruption. */

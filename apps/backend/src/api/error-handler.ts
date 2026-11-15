@@ -59,7 +59,7 @@ function dishRefusalBody(
 ) {
   if (
     (statusCode >= 500 && error.code !== "dish_publication_uncertain") ||
-    !/^\/partner\/restaurants\/[^/]+\/dishes(?:\/[^/]+)?\/?$/.test(
+    !/^\/partner\/restaurants\/[^/]+\/dishes(?:\/[^/]+(?:\/availability)?)?\/?$/.test(
       url.split("?")[0],
     )
   )

@@ -55,3 +55,10 @@ export const dishEditSchema = z.strictObject({
   price: dishCreateSchema.shape.price,
 })
 export type DishEditInput = z.input<typeof dishEditSchema>
+
+export const dishAvailabilitySchema = z.strictObject({
+  request_id: dishCreateSchema.shape.request_id,
+  revision: dishEditSchema.shape.revision,
+  is_sold_out: z.boolean(),
+})
+export type DishAvailabilityInput = z.input<typeof dishAvailabilitySchema>

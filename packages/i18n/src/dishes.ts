@@ -9,6 +9,16 @@ export const DISH_TEXT = {
     add: "Opret ret",
     edit: "Rediger ret",
     edit_action: "Rediger",
+    availability_label: "Tilgængelighed",
+    available: "Tilgængelig",
+    sold_out: "Udsolgt",
+    availability_stale:
+      "Retten blev ændret af en kollega. Den aktuelle status vises her. Gennemgå den, før du prøver igen.",
+    availability_failed:
+      "Ændringen kunne ikke bekræftes. Gennemgå den aktuelle status, før du prøver igen.",
+    availability_refresh: "Hent aktuel status",
+    availability_refresh_required:
+      "Den aktuelle status kunne ikke hentes. Hent den igen, før du ændrer retten.",
     save_changes: "Gem ændringer",
     description_da: "Beskrivelse på dansk (valgfri)",
     description_en: "Beskrivelse på engelsk (valgfri)",
@@ -60,6 +70,16 @@ export const DISH_TEXT = {
     add: "Create dish",
     edit: "Edit dish",
     edit_action: "Edit",
+    availability_label: "Availability",
+    available: "Available",
+    sold_out: "Sold out",
+    availability_stale:
+      "A colleague changed this dish. Its current status is shown here. Review it before trying again.",
+    availability_failed:
+      "The change could not be confirmed. Review the current status before trying again.",
+    availability_refresh: "Refresh current status",
+    availability_refresh_required:
+      "The current status could not be fetched. Refresh it before changing the dish.",
     save_changes: "Save changes",
     description_da: "Description in Danish (optional)",
     description_en: "Description in English (optional)",

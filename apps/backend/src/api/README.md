@@ -1,5 +1,29 @@
 # Custom API Routes
 
+## Partner dish availability (#108)
+
+### POST /partner/restaurants/:id/dishes/:dish_id/availability
+
+Authorized staff for `:id` send only `request_id`, the displayed positive
+`revision`, and boolean `is_sold_out`. The request changes the manual sold-out
+state alone; names, descriptions, prices, Restaurant participation and opening
+stay as saved. A successful change returns `200` with the updated `dish` and
+increments its revision. Repeating the same request identity and body returns
+the saved dish without another history entry. A no-op returns the current dish.
+
+`400 dish_input_invalid` rejects extra or invalid fields. `404 dish_not_found`
+or `restaurant_not_found` hides foreign dishes and Restaurants. `409 dish_stale`
+includes the current `dish`; `409 dish_retry_conflict` rejects a reused retry
+identity with different values. Authentication and revocation are checked on
+every request. `503 dish_publication_uncertain` means the write could not be
+confirmed; refresh and retry with the same request identity.
+
+The dish row keeps successful availability entries with actor, time, resource
+and state. The next Customer menu fetch includes the saved `is_sold_out` and
+revision. Sold-out dishes remain visible and count as a published menu, even
+when one is the last dish. They cannot be ordered; ordering must revalidate
+this menu contract before payment.
+
 ## Partner dish editing (#107)
 
 ### POST /partner/restaurants/:id/dishes/:dish_id

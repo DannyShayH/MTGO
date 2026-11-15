@@ -159,8 +159,16 @@ something changed since `origin/main`, plus changed spec files; a change under
 `gh deliver`, the ready flow runs the full backend suites and affected browser journeys on
 GitHub (shared or unknown runtime changes retain full browser coverage), so the full local runs are unnecessary.
 
-Run `<pm> run verify:applications` locally when you change a Playwright spec or
-the verification harness, or to debug a failed ready run. Run it from the root
+**Browser checks during development.** Prove behavior with HTTP integration and
+unit tests. Do not write new Playwright specs unless the issue explicitly asks
+for one. For UI changes, start the dev servers and check the pages with the
+browser tool yourself: both languages, narrow and wide widths, keyboard focus
+and long text. Fix what you see and report what you checked. If your change
+breaks an existing Playwright spec, update it, but leave running it to the
+ready flow. The developer runs the issue's manual test before `gh wrapup`.
+
+Run `<pm> run verify:applications` locally only when you change the
+verification harness, or to debug a failed ready run. Run it from the root
 with the disposable CI variables in
 [application build verification](apps/docs/src/content/docs/quality/application-builds.md).
 It runs production builds and Playwright against a source snapshot without

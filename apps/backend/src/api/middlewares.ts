@@ -2,6 +2,7 @@ import { z } from "@medusajs/framework/zod"
 import {
   dishCreateSchema,
   dishEditSchema,
+  dishAvailabilitySchema,
 } from "../workflows/menu-dishes/validation"
 import {
   authenticate,
@@ -286,6 +287,11 @@ export default defineMiddlewares({
           dishEditSchema.omit({ price: true }).extend({ price: z.string() }),
         ),
       ],
+    },
+    {
+      matcher: "/partner/restaurants/:id/dishes/:dish_id/availability",
+      method: "POST",
+      middlewares: [validateAndTransformBody(dishAvailabilitySchema)],
     },
     // Public: the invite link's token is the credential, as in Medusa's
     // admin invite. A bearer token, when sent, is read but not required.

@@ -649,3 +649,15 @@ confirmed, the API returns `503 dish_publication_uncertain` for retry.
 The native price is updated before the published snapshot, so ordering can
 detect a price change and require the Customer to review the basket before
 payment. Existing Order snapshots are not edited.
+
+### Marking a dish sold out or available (#108)
+
+Authorized staff use the focused availability route documented in
+`src/api/README.md`. The Restaurant lock, current staff authorization and
+published menu ownership checks run before the write. The dish row atomically
+changes `is_sold_out`, advances `revision`, and appends an actor/time/resource
+entry to `availability_history`. A stale revision returns the current dish
+without recording a successful change. Repeated requests with the same identity
+reconcile against `successful_change`. The Customer's next menu read shows the
+state; sold-out dishes still count for activation and do not change the
+Restaurant's active or open state. There are no quantities or daily resets.

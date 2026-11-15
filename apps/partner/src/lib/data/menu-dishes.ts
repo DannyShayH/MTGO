@@ -25,9 +25,15 @@ export type EditDish = {
 export type StaffDish = {
   id: string
   revision: number
+  is_sold_out: boolean
   name: { da: string; en: string }
   description: { da: string; en: string } | null
   price: { amount: number; currency_code: "dkk" }
+}
+export type DishAvailability = {
+  request_id: string
+  revision: number
+  is_sold_out: boolean
 }
 export type StaffMenu = {
   categories: {
@@ -106,4 +112,69 @@ export async function dishRequest(
   }
   if (body) revalidatePath("/menu")
   return { menu }
+}
+
+export async function availabilityRequest(
+  dishId: string,
+  body: DishAvailability,
+): Promise<{ dish?: StaffDish; error?: DishErrorCode }> {
+  const current = await requireCurrentStaff()
+  const token = (await cookies()).get(PARTNER_TOKEN_COOKIE)?.value
+  const id = requestId((await headers()).get("x-request-id"))
+  let response: Response
+  try {
+    response = await fetch(
+      new URL(
+        `/partner/restaurants/${encodeURIComponent(current.restaurant.id)}/dishes/${encodeURIComponent(dishId)}/availability`,
+        BACKEND_URL,
+      ),
+      {
+        method: "POST",
+        cache: "no-store",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+          "x-request-id": id,
+        },
+        body: JSON.stringify(body),
+      },
+    )
+  } catch {
+    log("upstream.request.failed", {
+      request_id: id,
+      route: "/partner/restaurants/:id/dishes/:dish_id/availability",
+      method: "POST",
+    })
+    return { error: "unknown_error" }
+  }
+  if (response.status === 401 || response.status === 403)
+    redirect(
+      `/session-ended?code=${response.status === 401 ? "session_expired" : "staff_access_revoked"}`,
+    )
+  const data: unknown = await response.json().catch(() => null)
+  if (!response.ok) {
+    log("upstream.request.failed", {
+      request_id: id,
+      route: "/partner/restaurants/:id/dishes/:dish_id/availability",
+      method: "POST",
+      status: response.status,
+    })
+    const code =
+      data && typeof data === "object" && "code" in data ? data.code : undefined
+    const dish =
+      data && typeof data === "object" && "dish" in data
+        ? (data.dish as StaffDish)
+        : undefined
+    return { error: isDishErrorCode(code) ? code : "unknown_error", dish }
+  }
+  if (!data || typeof data !== "object" || !("dish" in data)) {
+    log("upstream.request.failed", {
+      request_id: id,
+      route: "/partner/restaurants/:id/dishes/:dish_id/availability",
+      method: "POST",
+    })
+    return { error: "unknown_error" }
+  }
+  revalidatePath("/menu")
+  return { dish: data.dish as StaffDish }
 }

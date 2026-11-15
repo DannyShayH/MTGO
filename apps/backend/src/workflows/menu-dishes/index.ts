@@ -29,6 +29,10 @@ import {
   prepareDishEditStep,
   commitDishEditStep,
 } from "./steps/edit"
+import {
+  AvailabilityCommand,
+  changeDishAvailabilityStep,
+} from "./steps/availability"
 
 export const createMenuDishWorkflow = createWorkflow(
   "create-menu-dish",
@@ -242,5 +246,30 @@ export const editMenuDishWorkflow = createWorkflow(
       }),
     )
     return new WorkflowResponse(commitDishEditStep(commit))
+  },
+)
+
+export const changeMenuDishAvailabilityWorkflow = createWorkflow(
+  "change-menu-dish-availability",
+  function (input: Omit<AvailabilityCommand, "actor_name" | "lock_key">) {
+    const lock = transform({ input }, ({ input }) =>
+      restaurantLock(input.restaurant_id),
+    )
+    acquireLockStep(lock)
+    const current = retrieveAuthorizedStaffStep({ staff_id: input.staff_id })
+    const scope = transform({ input, current }, ({ input, current }) => ({
+      id: input.restaurant_id,
+      staff_restaurant_id: current.restaurant.id,
+    }))
+    assertOwnRestaurantStep(scope)
+    const command = transform(
+      { input, current, lock },
+      ({ input, current, lock }) => ({
+        ...input,
+        actor_name: current.staff.name,
+        lock_key: lock.key,
+      }),
+    )
+    return new WorkflowResponse(changeDishAvailabilityStep(command))
   },
 )
