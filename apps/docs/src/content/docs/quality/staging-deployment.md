@@ -97,8 +97,8 @@ run only while the repository variable `STAGING_DEPLOY_ENABLED` is `true`:
 1. **release_images** builds the `backend` and `partner` targets of
    `deploy/staging/Dockerfile` and pushes them to GHCR tagged with the commit
    SHA. The backend image also carries the Compose file of that commit.
-2. **deploy_staging** (serialized by the `staging-droplet` concurrency group,
-   never cancelled):
+2. **deploy_staging** (serialized by the `staging-droplet` concurrency group;
+   normal runs are not cancelled automatically):
    1. Checks the SHA is on `main` and configures SSH from the four secrets.
    2. `ssh staging prepare <sha>`: pulls the two images, extracts the Compose
       file into `/srv/mtogo-staging/releases/<sha>/`, starts Redis, waits
@@ -117,6 +117,10 @@ run only while the repository variable `STAGING_DEPLOY_ENABLED` is `true`:
 The job summary shows the release SHA, the container table and the smoke check
 result. A failed step fails the Deploy run: a red Deploy run on `main` means
 staging does **not** run that commit. The docs job's result is independent.
+The migration uses `--execute-safe-links`: Medusa applies safe link changes
+without prompting CI to delete or update old link tables. Removed tables remain
+until their data has been reviewed and an administrator deliberately removes
+them. In particular, the old category-to-product link table from #112 is kept.
 
 The short-lived `GITHUB_TOKEN` is passed on stdin for one `docker login` in a
 temporary Docker config, which the deploy script deletes on exit. If the three
@@ -129,6 +133,17 @@ serving against the new backend. Zero downtime is out of scope.
 ### Retry and redeploy
 
 - **Retry a failed run:** re-run the failed jobs from the Actions page.
+- **Recover a run waiting at a link deletion prompt:** inspect the migration
+  container log on the Droplet to confirm the cause. Cancel a newer pending
+  Deploy run first, then cancel the stuck run so the newer run cannot repeat
+  the same prompt. Check that the migration container has stopped; if it is
+  still running, stop that container before starting another deploy. Do not
+  select table deletion or rerun the old commit. Deliver the non-interactive
+  migration fix on a new issue branch, then let the new `main` commit deploy.
+  That commit includes all preceding changes on `main`. Confirm the Deploy
+  smoke check passes and `sudo mtogo-deploy.sh status` reports the new commit
+  as the current release. If cancellation does not finish, use GitHub's
+  force-cancel action for the stuck run before deploying again.
 - **Redeploy an already built release** (for example after a Droplet reboot
   or to move back to a known-good commit): run the Deploy workflow manually
   with `release_sha` set to the full commit SHA. The images must exist in GHCR

@@ -91,12 +91,23 @@ services:
       - database
 
   # Controlled pre-start step: migrations and migration scripts, including the
-  # initial data seed. Only mtogo-deploy.sh runs it (profile "tools").
+  # initial data seed. Safe link sync keeps removed link tables for reviewed
+  # cleanup instead of waiting for an interactive deletion prompt in CI.
+  # Only mtogo-deploy.sh runs it (profile "tools").
   migrate:
     image: ${STAGING_IMAGE_PREFIX:?}-backend:${MTOGO_RELEASE:?}
     profiles: ["tools"]
     logging: *logging
-    command: ["npm", "exec", "--no", "--", "medusa", "db:migrate"]
+    command:
+      [
+        "npm",
+        "exec",
+        "--no",
+        "--",
+        "medusa",
+        "db:migrate",
+        "--execute-safe-links",
+      ]
     environment:
       <<: *backend-environment
       MEDUSA_WORKER_MODE: shared
