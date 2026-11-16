@@ -23,6 +23,22 @@ const notification = (language: string) =>
 describe("ResendNotificationProviderService", () => {
   beforeEach(() => jest.clearAllMocks())
 
+  it("sends a localized password reset link without logging it", async () => {
+    send.mockResolvedValue({ data: { id: "re_reset" }, error: null })
+    const service = new ResendNotificationProviderService(
+      { logger },
+      { api_key: "key" },
+    )
+    await service.send({
+      ...notification("en"),
+      template: "customer-password-reset",
+      data: { reset_url: url, language: "en" },
+    })
+    expect(send.mock.calls[0][0].subject).toBe("Reset your MTogo password")
+    expect(send.mock.calls[0][0].text).toContain(url)
+    expect(logger.error).not.toHaveBeenCalled()
+  })
+
   it("sends a Danish verification email from the default sender", async () => {
     send.mockResolvedValue({ data: { id: "re_1" }, error: null })
     const service = new ResendNotificationProviderService(

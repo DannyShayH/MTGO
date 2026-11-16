@@ -4,7 +4,10 @@ import {
 } from "@medusajs/framework/utils"
 import type { Logger, NotificationTypes } from "@medusajs/framework/types"
 import { Resend } from "resend"
-import { renderCustomerVerification } from "./templates"
+import {
+  renderCustomerPasswordReset,
+  renderCustomerVerification,
+} from "./templates"
 
 export type ResendOptions = {
   api_key: string
@@ -45,7 +48,10 @@ export default class ResendNotificationProviderService extends AbstractNotificat
     // Never log the data: it holds the verification link and token.
     const recipientDomain = String(notification.to).split("@")[1] ?? "unknown"
 
-    if (notification.template !== "customer-verification") {
+    if (
+      notification.template !== "customer-verification" &&
+      notification.template !== "customer-password-reset"
+    ) {
       this.logger_.error(
         `Resend: unknown template "${notification.template}" (recipient domain ${recipientDomain})`,
       )
@@ -54,7 +60,10 @@ export default class ResendNotificationProviderService extends AbstractNotificat
         `Unknown email template: ${notification.template}`,
       )
     }
-    const content = renderCustomerVerification(notification.data)
+    const content =
+      notification.template === "customer-password-reset"
+        ? renderCustomerPasswordReset(notification.data)
+        : renderCustomerVerification(notification.data)
 
     const { data, error } = await this.client_.emails.send({
       from: this.from_,

@@ -79,6 +79,44 @@ export type CustomerAuthState =
   | { state: "success" }
   | null
 
+export async function requestPasswordReset(
+  _state: unknown,
+  formData: FormData,
+) {
+  const email = String(formData.get("email") ?? "")
+    .trim()
+    .toLowerCase()
+  try {
+    await sdk.client.fetch("/auth/customer/customer-emailpass/reset-password", {
+      method: "POST",
+      body: { identifier: email },
+    })
+  } catch {
+    // A neutral response is also returned when the email service is unavailable.
+  }
+  return { sent: true }
+}
+
+export async function resetCustomerPassword(
+  _state: unknown,
+  formData: FormData,
+) {
+  const token = String(formData.get("token") ?? "")
+  const password = String(formData.get("password") ?? "")
+  if (!token || !password) return { success: false }
+  try {
+    await sdk.client.fetch("/auth/customer/customer-emailpass/update", {
+      method: "POST",
+      body: { password },
+      headers: { authorization: `Bearer ${token}` },
+    })
+    await removeAuthToken()
+    return { success: true }
+  } catch {
+    return { success: false }
+  }
+}
+
 // Requests a verification email for the given customer. The request must be
 // authenticated with a token tied to the auth identity (the token returned by
 // register or by a login that requires verification).

@@ -76,6 +76,16 @@ const Login = ({ setCurrentView, locale, next }: Props) => {
           {text.signIn}
         </SubmitButton>
       </form>
+      <button
+        type="button"
+        onClick={() => setCurrentView(LOGIN_VIEW.RESET)}
+        className={clx(
+          "mt-4 min-h-11 text-mtogo-text-link underline underline-offset-4",
+          focusRing,
+        )}
+      >
+        {text.forgotPassword}
+      </button>
       <span className="mt-4 text-center text-base text-mtogo-text-secondary">
         {text.newCustomer}{" "}
         <button

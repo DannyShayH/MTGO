@@ -8,8 +8,8 @@ Resend's EU region.
 ## When it is used
 
 `medusa-config.ts` registers this provider for `email` only when `RESEND_API_KEY`
-is set. Without it, the backend keeps `notification-local`, which only logs. Local
-development and automated tests therefore never send real mail.
+is set. Without it, the backend uses the private mailbox provider. Local
+development and automated tests never send real mail or log message contents.
 
 | Variable            | Purpose                                                      |
 | ------------------- | ------------------------------------------------------------ |
@@ -18,9 +18,10 @@ development and automated tests therefore never send real mail.
 
 ## Templates
 
-| Template                | Data                                         |
-| ----------------------- | -------------------------------------------- |
-| `customer-verification` | `verification_url`, `expires_at`, `language` |
+| Template                  | Data                                         |
+| ------------------------- | -------------------------------------------- |
+| `customer-verification`   | `verification_url`, `expires_at`, `language` |
+| `customer-password-reset` | `reset_url`, `language`                      |
 
 The email is Danish unless `data.language` is `en`. It contains the verification
 link and the expiry time in Danish time. Any other template fails with an error.

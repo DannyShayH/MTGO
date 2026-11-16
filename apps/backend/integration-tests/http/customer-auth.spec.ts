@@ -2,6 +2,7 @@ import { createRestaurantWorkflow } from "../../src/workflows/restaurants"
 import { createAuthorizedStaffWorkflow } from "../../src/workflows/restaurant-staff"
 import { Modules, generateJwtToken } from "@medusajs/framework/utils"
 import { isolateCustomerIdentityWorkflow } from "../../src/workflows/customer-auth"
+import { sendCustomerPasswordResetEmailWorkflow } from "../../src/workflows/customer-auth/send-customer-password-reset-email"
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import {
   createCustomerAccountWorkflow,
@@ -128,6 +129,243 @@ medusaIntegrationTestRunner({
         },
       }
     }
+    it("resets a Customer password once and revokes old tokens and sessions", async () => {
+      const otherPassword = "staff-and-operator-password"
+      const otherRegistration = await api.post(
+        "/auth/restaurant_staff/emailpass/register",
+        { email, password: otherPassword },
+      )
+      const otherIdentity = JSON.parse(
+        Buffer.from(
+          otherRegistration.data.token.split(".")[1],
+          "base64url",
+        ).toString(),
+      ).auth_identity_id
+      const { result: users } = await createUsersWorkflow(getContainer()).run({
+        input: { users: [{ email }] },
+      })
+      await getContainer()
+        .resolve(Modules.AUTH)
+        .updateAuthIdentities({
+          id: otherIdentity,
+          app_metadata: { user_id: users[0].id },
+        })
+      const { result: restaurant } = await createRestaurantWorkflow(
+        getContainer(),
+      ).run({
+        input: {
+          name: "Reset test kitchen",
+          address_street: "Testvej 1",
+          address_postal_code: "2100",
+          address_city: "København",
+          contact_phone: "+4512345678",
+          contact_email: "kitchen@example.test",
+        },
+      })
+      await createAuthorizedStaffWorkflow(getContainer()).run({
+        input: {
+          restaurant_id: restaurant.restaurant.id,
+          name: "Staff",
+          email,
+          auth_identity_id: otherIdentity,
+        },
+      })
+      const staff = await api.post("/auth/restaurant_staff/emailpass", {
+        email,
+        password: otherPassword,
+      })
+      const operator = await api.post("/auth/user/emailpass", {
+        email,
+        password: otherPassword,
+      })
+      const { ownerHeaders } = await createProfileCustomer(email)
+      await createRegionsWorkflow(getContainer()).run({
+        input: {
+          regions: [
+            { name: "Denmark", currency_code: "dkk", countries: ["dk"] },
+          ],
+        },
+      })
+      const basket = await api.post(
+        "/store/carts",
+        {},
+        { headers: ownerHeaders },
+      )
+      const auth = getContainer().resolve(Modules.AUTH)
+      const expiredReset = await auth.createPasswordResetToken({
+        provider: "customer-emailpass",
+        entity_id: email,
+        ttl_seconds: 900,
+      })
+      const expiredToken = generateJwtToken(
+        {
+          actor_type: "customer",
+          entity_id: email,
+          provider: "customer-emailpass",
+          purpose: "reset",
+        },
+        {
+          secret: "ci-only-customer-secret",
+          expiresIn: "-1s",
+          jwtOptions: { jwtid: expiredReset.jti },
+        },
+      )
+      for (const invalidToken of ["invalid", expiredToken]) {
+        const invalid = await api.post(
+          "/auth/customer/customer-emailpass/update",
+          { password: "new-password" },
+          {
+            headers: { authorization: `Bearer ${invalidToken}` },
+            validateStatus: () => true,
+          },
+        )
+        expect(invalid.status).toBe(401)
+      }
+      expect((await signIn()).status).toBe(200)
+      process.env.TEST_MAILBOX_FAIL_RECIPIENT = email
+      try {
+        const delivery = await sendCustomerPasswordResetEmailWorkflow(
+          getContainer(),
+        ).run({
+          input: {
+            actor_type: "customer",
+            entity_id: email,
+            token: "synthetic",
+          },
+          throwOnError: false,
+        })
+        expect(delivery.errors).toHaveLength(1)
+        expect((await signIn()).status).toBe(200)
+      } finally {
+        delete process.env.TEST_MAILBOX_FAIL_RECIPIENT
+      }
+      const session = await api.post(
+        "/auth/session",
+        {},
+        { headers: ownerHeaders },
+      )
+      const cookie = session.headers["set-cookie"]
+      const request = await api.post(
+        "/auth/customer/customer-emailpass/reset-password",
+        { identifier: email },
+      )
+      const unknown = await api.post(
+        "/auth/customer/customer-emailpass/reset-password",
+        { identifier: "unknown@example.test" },
+      )
+      expect(request.status).toBe(unknown.status)
+      const notifications = getContainer().resolve(Modules.NOTIFICATION)
+      let messages = await notifications.listNotifications({
+        to: email,
+        template: "customer-password-reset",
+      })
+      for (let attempt = 0; !messages.length && attempt < 50; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 100))
+        messages = await notifications.listNotifications({
+          to: email,
+          template: "customer-password-reset",
+        })
+      }
+      expect(messages).toHaveLength(1)
+      const url = new URL(String(messages[0].data?.reset_url))
+      const token = new URLSearchParams(url.hash.slice(1)).get("token")
+      expect(token).toBeTruthy()
+      const update = () =>
+        api.post(
+          "/auth/customer/customer-emailpass/update",
+          { password: "new-password" },
+          {
+            headers: { authorization: `Bearer ${token}` },
+            validateStatus: () => true,
+          },
+        )
+      expect((await update()).status).toBe(200)
+      expect((await update()).status).toBe(401)
+      expect(
+        (
+          await api.get("/partner/me", {
+            headers: { authorization: `Bearer ${staff.data.token}` },
+            validateStatus: () => true,
+          })
+        ).status,
+      ).toBe(200)
+      expect(
+        (
+          await api.post("/auth/restaurant_staff/emailpass", {
+            email,
+            password: otherPassword,
+          })
+        ).status,
+      ).toBe(200)
+      expect((await signIn()).status).toBe(401)
+      const freshLogin = await signIn({ email, password: "new-password" })
+      expect(freshLogin.status).toBe(200)
+      const basketPath = `/store/carts/${basket.data.cart.id}`
+      const oldBasket = await api.get(basketPath, {
+        headers: ownerHeaders,
+        validateStatus: () => true,
+      })
+      expect(oldBasket.status).not.toBe(200)
+      const freshBasket = await api.get(basketPath, {
+        headers: {
+          ...headers,
+          authorization: `Bearer ${freshLogin.data.token}`,
+        },
+        validateStatus: () => true,
+      })
+      expect(freshBasket.status).toBe(200)
+      const otherCustomer = await createProfileCustomer("other@example.test")
+      const otherBasket = await api.get(basketPath, {
+        headers: otherCustomer.ownerHeaders,
+        validateStatus: () => true,
+      })
+      expect(otherBasket.status).not.toBe(200)
+      expect(
+        (
+          await api.post("/auth/user/emailpass", {
+            email,
+            password: otherPassword,
+          })
+        ).status,
+      ).toBe(200)
+      expect(
+        (
+          await api.post(
+            "/auth/token/refresh",
+            {},
+            {
+              headers: { authorization: `Bearer ${operator.data.token}` },
+              validateStatus: () => true,
+            },
+          )
+        ).status,
+      ).toBe(200)
+      expect(
+        (
+          await api.get("/store/customers/me", {
+            headers: ownerHeaders,
+            validateStatus: () => true,
+          })
+        ).status,
+      ).toBe(401)
+      expect(
+        (
+          await api.post(
+            "/auth/token/refresh",
+            {},
+            { headers: ownerHeaders, validateStatus: () => true },
+          )
+        ).status,
+      ).toBe(401)
+      expect(
+        (
+          await api.get("/store/customers/me", {
+            headers: { ...headers, cookie },
+            validateStatus: () => true,
+          })
+        ).status,
+      ).toBe(401)
+    })
     it("requires email verification before a Customer can receive checkout access", async () => {
       const unverifiedEmail = "unverified@example.test"
       const registration = await api.post(

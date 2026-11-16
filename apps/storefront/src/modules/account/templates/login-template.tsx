@@ -7,11 +7,13 @@ import { useState, useTransition } from "react"
 
 import Register from "@modules/account/components/register"
 import Login from "@modules/account/components/login"
+import RequestPasswordReset from "@modules/account/components/request-password-reset"
 import ChevronDown from "@modules/common/icons/chevron-down"
 
 export enum LOGIN_VIEW {
   SIGN_IN = "sign-in",
   REGISTER = "register",
+  RESET = "reset",
 }
 
 const LoginTemplate = ({
@@ -39,6 +41,11 @@ const LoginTemplate = ({
                 setCurrentView={setCurrentView}
                 locale={locale}
                 next={next}
+              />
+            ) : currentView === "reset" ? (
+              <RequestPasswordReset
+                locale={locale}
+                onBack={() => setCurrentView("sign-in")}
               />
             ) : (
               <Register

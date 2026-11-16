@@ -24,7 +24,10 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
 
   const notifications = req.scope.resolve(Modules.NOTIFICATION)
   const messages = await notifications.listNotifications(
-    { to: email, template: "customer-verification" },
+    {
+      to: email,
+      template: ["customer-verification", "customer-password-reset"],
+    },
     { take: 20, order: { created_at: "DESC" } },
   )
 

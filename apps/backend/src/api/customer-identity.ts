@@ -65,10 +65,13 @@ async function hasIsolatedCustomerIdentity(req: AuthenticatedMedusaRequest) {
         return null
       throw error
     })
+  const provider = identity?.provider_identities?.find(
+    (entry) => entry.provider === "customer-emailpass",
+  )
   return Boolean(
-    identity?.provider_identities?.some(
-      (provider) => provider.provider === "customer-emailpass",
-    ) &&
+    provider &&
+    provider.user_metadata?.security_version ===
+      context.user_metadata?.security_version &&
     (!context.actor_id ||
       identity?.app_metadata?.customer_id === context.actor_id),
   )

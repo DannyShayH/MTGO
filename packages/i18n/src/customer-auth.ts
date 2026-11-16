@@ -22,6 +22,17 @@ export const CUSTOMER_AUTH = {
     languageSaved: "Dit sprog er gemt.",
     languageError: "Dit sprog kunne ikke gemmes. Prøv igen.",
     showPassword: "Vis eller skjul adgangskode",
+    forgotPassword: "Glemt adgangskode?",
+    resetTitle: "Nulstil adgangskode",
+    resetRequest: "Send nulstillingslink",
+    resetSent:
+      "Hvis der findes en konto med denne e-mail, sender vi et link. Tjek din indbakke, og prøv igen, hvis det ikke kommer frem.",
+    resetPassword: "Ny adgangskode",
+    resetSubmit: "Gem ny adgangskode",
+    resetSuccess: "Din adgangskode er ændret. Log ind igen for at fortsætte.",
+    resetError:
+      "Linket er ugyldigt eller udløbet, eller adgangskoden kunne ikke gemmes. Anmod om et nyt link.",
+    backToLogin: "Tilbage til login",
     errors: {
       customer_identity_exists:
         "Der findes allerede en kundekonto med denne e-mail. Log ind på din konto.",
@@ -54,6 +65,17 @@ export const CUSTOMER_AUTH = {
     languageSaved: "Your language has been saved.",
     languageError: "Your language could not be saved. Please try again.",
     showPassword: "Show or hide password",
+    forgotPassword: "Forgot your password?",
+    resetTitle: "Reset password",
+    resetRequest: "Send reset link",
+    resetSent:
+      "If an account exists for this email, we will send a link. Check your inbox and try again if it does not arrive.",
+    resetPassword: "New password",
+    resetSubmit: "Save new password",
+    resetSuccess: "Your password has been changed. Sign in again to continue.",
+    resetError:
+      "The link is invalid or expired, or the password could not be saved. Request a new link.",
+    backToLogin: "Back to sign in",
     errors: {
       customer_identity_exists:
         "A Customer account with this email already exists. Sign in to your account.",

@@ -43,7 +43,7 @@ const photoFileProvider = process.env.PHOTO_S3_BUCKET
     }
 
 // Real email only when a Resend key is configured. Development and tests keep
-// the local provider, which only logs, so they never send mail.
+// the private mailbox provider, which captures messages without logging links.
 const emailNotificationProvider = process.env.RESEND_API_KEY
   ? {
       resolve: "./src/modules/resend",
@@ -55,8 +55,8 @@ const emailNotificationProvider = process.env.RESEND_API_KEY
       },
     }
   : {
-      resolve: "@medusajs/medusa/notification-local",
-      id: "local",
+      resolve: "./src/modules/private-mailbox",
+      id: "private-mailbox",
       options: { channels: ["email"] },
     }
 

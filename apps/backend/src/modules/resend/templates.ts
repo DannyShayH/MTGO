@@ -34,7 +34,36 @@ const copy = {
   },
 } as const
 
-export const supportedTemplates = ["customer-verification"] as const
+export const supportedTemplates = [
+  "customer-verification",
+  "customer-password-reset",
+] as const
+
+export function renderCustomerPasswordReset(
+  data: { reset_url?: unknown; language?: unknown } | null | undefined,
+): EmailContent {
+  const url = typeof data?.reset_url === "string" ? data.reset_url : ""
+  if (!url)
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "reset_url is required",
+    )
+  const en = data?.language === "en"
+  const subject = en
+    ? "Reset your MTogo password"
+    : "Nulstil din adgangskode hos MTogo"
+  const intro = en
+    ? "Use this link within 15 minutes to reset your password."
+    : "Brug dette link inden for 15 minutter til at nulstille din adgangskode."
+  const ignore = en
+    ? "If you did not request this, you can ignore this email."
+    : "Hvis du ikke har anmodet om dette, kan du ignorere denne e-mail."
+  return {
+    subject,
+    text: [intro, url, ignore].join("\n\n"),
+    html: `<p>${intro}</p><p><a href="${escapeHtml(url)}">${subject}</a></p><p>${ignore}</p>`,
+  }
+}
 
 export function renderCustomerVerification(
   data: VerificationData | null | undefined,

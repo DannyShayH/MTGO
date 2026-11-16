@@ -87,6 +87,23 @@ it("preserves an isolated Customer's authentication", async () => {
   expect(next).toHaveBeenCalledTimes(1)
 })
 
+it("rejects a Customer session issued before its password reset", async () => {
+  const { req, retrieveAuthIdentity } = customerRequest()
+  retrieveAuthIdentity.mockResolvedValue({
+    app_metadata: { customer_id: "cus_test" },
+    provider_identities: [
+      {
+        provider: "customer-emailpass",
+        user_metadata: { security_version: "new" },
+      },
+    ],
+  })
+
+  await discardLegacyCustomerIdentity(req, res, jest.fn())
+  expect(req.auth_context).toBeUndefined()
+  expect(req.session.auth_context).toBeUndefined()
+})
+
 it.each([
   { middleware: discardLegacyCustomerIdentity, reason: "EP: Store request" },
   {

@@ -4,6 +4,7 @@ import ProfilePhone from "@modules/account//components/profile-phone"
 import ProfileBillingAddress from "@modules/account/components/profile-billing-address"
 import ProfileEmail from "@modules/account/components/profile-email"
 import ProfileName from "@modules/account/components/profile-name"
+import RequestPasswordReset from "@modules/account/components/request-password-reset"
 import { notFound } from "next/navigation"
 import { listRegions } from "@lib/data/regions"
 import { retrieveCustomer } from "@lib/data/customer"
@@ -40,8 +41,8 @@ export default async function Profile() {
         <Divider />
         <ProfilePhone customer={customer} locale={locale} />
         <Divider />
-        {/* <ProfilePassword customer={customer} />
-        <Divider /> */}
+        <RequestPasswordReset locale={locale} email={customer.email} />
+        <Divider />
         <ProfileBillingAddress customer={customer} regions={regions} />
       </div>
     </div>

@@ -6,6 +6,7 @@ import {
 } from "@medusajs/framework/types"
 import { MedusaError } from "@medusajs/framework/utils"
 import { z } from "@medusajs/framework/zod"
+import { randomUUID } from "node:crypto"
 
 // Use the public ModuleProvider service export rather than its internal build path.
 interface EmailPasswordService {
@@ -17,6 +18,10 @@ interface EmailPasswordService {
     input: AuthenticationInput,
     identities: AuthIdentityProviderService,
   ): Promise<AuthenticationResponse>
+  update(
+    data: Record<string, unknown>,
+    identities: AuthIdentityProviderService,
+  ): Promise<AuthenticationResponse>
 }
 const EmailPassAuthService: new (...args: unknown[]) => EmailPasswordService =
   EmailPassProvider.services[0]
@@ -25,6 +30,35 @@ const EmailPassAuthService: new (...args: unknown[]) => EmailPasswordService =
 export default class CustomerEmailPassService extends EmailPassAuthService {
   static readonly identifier = "customer-emailpass"
   static readonly DISPLAY_NAME = "Customer Email/Password"
+
+  async update(
+    data: Record<string, unknown>,
+    identities: AuthIdentityProviderService,
+  ): Promise<AuthenticationResponse> {
+    if (
+      typeof data.password !== "string" ||
+      !data.password ||
+      typeof data.entity_id !== "string"
+    )
+      return { success: false, error: "customer_credentials_invalid" }
+    const identity = await identities.retrieve({ entity_id: data.entity_id })
+    const provider = identity.provider_identities?.find(
+      (entry) => entry.provider === "customer-emailpass",
+    )
+    if (!provider)
+      return { success: false, error: "customer_credentials_invalid" }
+    return super.update(data, {
+      ...identities,
+      update: (entityId, updates) =>
+        identities.update(entityId, {
+          ...updates,
+          user_metadata: {
+            ...provider.user_metadata,
+            security_version: randomUUID(),
+          },
+        }),
+    })
+  }
 
   async register(
     input: AuthenticationInput,

@@ -138,7 +138,40 @@ export default defineMiddlewares({
           allowUnregistered: true,
           requireMfa: false,
         }),
+        requireIsolatedCustomerIdentity,
         validateAndTransformBody(PostCustomerVerificationRequestSchema),
+      ],
+    },
+    {
+      matcher: "/auth/verification/request",
+      method: "POST",
+      middlewares: [
+        authenticate("*", ["session", "bearer"], {
+          allowUnregistered: true,
+          requireMfa: false,
+        }),
+        requireIsolatedCustomerIdentity,
+      ],
+    },
+    {
+      matcher: "/auth/verification/confirm",
+      method: "POST",
+      middlewares: [
+        authenticate("*", ["session", "bearer"], {
+          allowUnregistered: true,
+          allowUnauthenticated: true,
+        }),
+        requireIsolatedCustomerIdentity,
+      ],
+    },
+    {
+      matcher: "/auth/mfa/*",
+      middlewares: [
+        authenticate("*", ["session", "bearer"], {
+          allowUnregistered: true,
+          requireMfa: false,
+        }),
+        requireIsolatedCustomerIdentity,
       ],
     },
     {

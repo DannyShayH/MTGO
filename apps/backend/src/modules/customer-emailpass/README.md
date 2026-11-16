@@ -58,6 +58,32 @@ the verification request is delivered through the app's captured private
 mailbox subscriber. A failed delivery never creates a Customer session, so the
 Customer remains locked out of checkout and can retry by signing in again.
 
+## Password recovery and revocation
+
+Customers request the same recovery link from sign-in or their profile. Medusa
+issues a 15-minute, single-use token and invalidates earlier reset links when a
+new one is requested. Responses do not reveal whether an account exists. The
+notification uses the Customer's current saved language. Delivery failure leaves
+the password unchanged; requesting another link retries delivery.
+The reset token is in the URL fragment, which browsers do not send in page
+requests or referrer headers.
+
+On a successful password update the isolated provider saves a random security
+version with the new password hash in the same provider identity update. Medusa
+includes that version in new Customer authentication contexts. Store requests,
+session creation and refresh compare it to the current version, rejecting older
+tokens and supported sessions. Identities created before this change have no
+version and keep working until their first reset. No schema or data migration is
+required. Staff and operator identities are separate and remain unchanged. The
+storefront clears only its authentication cookie after reset, retaining the
+existing owner-protected basket for sign-in recovery.
+
+Without Resend the notification module stores messages in a private mailbox
+provider that does not log message data. The mailbox inspection endpoint is
+available only in disposable test environments with the configured secret key.
+The standard reset flow has no application-specific resend throttle; deployments
+must apply request rate limiting at the edge.
+
 ## Evidence
 
 `integration-tests/http/customer-auth.spec.ts` exercises real registration/login,
