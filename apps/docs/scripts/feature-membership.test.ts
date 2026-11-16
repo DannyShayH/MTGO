@@ -5,7 +5,6 @@ import {
   ACCEPTANCE_OBSERVED_AT,
   buildChildEvidenceNode,
   createFixtureFetch,
-  featureBoardResponse,
   membershipEvent,
   movedFeatureItems,
   movedOnFeatureItems,
@@ -337,13 +336,11 @@ describe("membership history collection", () => {
       hasNextPage: true,
       endCursor: "membership-history",
     }
+    const fixture = createFixtureFetch(items)
     const result = observe(items, {}, async (_url, init) => {
       const { variables } = JSON.parse(String(init?.body))
-      return new Response(
-        JSON.stringify(
-          variables.timelineAfter ? answer : featureBoardResponse(items),
-        ),
-      )
+      if (!variables.timelineAfter) return fixture(_url, init)
+      return new Response(JSON.stringify(answer))
     })
     await expect(result).rejects.toThrow(/Timeline|history/)
   })

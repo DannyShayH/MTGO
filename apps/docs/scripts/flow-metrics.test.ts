@@ -36,6 +36,43 @@ const board = (items: BoardDataset["items"]): BoardDataset => ({
 })
 
 describe("calculateFlowMetrics", () => {
+  it("counts daily deliveries in Copenhagen time, including missing starts and idle days", () => {
+    const completed = {
+      state: "CLOSED" as const,
+      closeReason: "COMPLETED" as const,
+    }
+    const metrics = calculateFlowMetrics(
+      board([
+        issue(1, { ...completed, closedAt: "2026-11-05T12:00:00Z" }),
+        issue(2, { ...completed, closedAt: "2026-11-06T23:30:00Z" }),
+        issue(3, {
+          ...completed,
+          closedAt: "2026-11-07T10:00:00Z",
+          title: "Feature: Excluded",
+        }),
+        issue(4, {
+          ...completed,
+          closeReason: "NOT_PLANNED",
+          closedAt: "2026-11-06T10:00:00Z",
+        }),
+        issue(5, {
+          status: "Done",
+          statusChanges: [{ to: "Done", at: "2026-11-06T10:00:00Z" }],
+        }),
+      ]),
+      "2026-11-08T12:00:00Z",
+    )
+    expect(metrics.dailyThroughput).toEqual([
+      { date: "2026-11-05", count: 1 },
+      { date: "2026-11-06", count: 0 },
+      { date: "2026-11-07", count: 1 },
+      { date: "2026-11-08", count: 0 },
+    ])
+    expect(
+      metrics.dailyThroughput.reduce((sum, day) => sum + day.count, 0),
+    ).toBe(metrics.throughput.reduce((sum, week) => sum + week.count, 0))
+  })
+
   it.each([
     {
       title: "Feature: Empty capability",

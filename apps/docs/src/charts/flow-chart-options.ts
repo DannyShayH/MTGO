@@ -285,3 +285,37 @@ export function cumulativeFlowChartOption(
     })),
   }
 }
+
+/** Delivered work accumulates; days without delivery keep the line flat. */
+export function completedWorkChartOption(
+  days: { date: string; count: number }[],
+  palette: ChartPalette,
+) {
+  const base = baseChartOption(
+    palette,
+    days.map(({ date }) => date),
+  )
+  let total = 0
+  return {
+    ...base,
+    tooltip: {
+      ...base.tooltip,
+      formatter: ([{ axisValue, value }]: TooltipPoint[]) => {
+        const count = days.find(({ date }) => date === axisValue)?.count ?? 0
+        return `<strong>${axisValue}</strong>${tooltipRow("Completed that day", String(count))}${tooltipRow("Total completed", String(value))}`
+      },
+    },
+    yAxis: valueAxis(palette, "Completed work items"),
+    series: [
+      {
+        name: "Total completed",
+        type: "line" as const,
+        symbol: "circle",
+        symbolSize: 6,
+        lineStyle: { width: 2, color: palette.series[0] },
+        itemStyle: { color: palette.series[0] },
+        data: days.map(({ count }) => (total += count)),
+      },
+    ],
+  }
+}

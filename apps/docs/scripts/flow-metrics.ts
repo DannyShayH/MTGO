@@ -216,6 +216,7 @@ export type FlowMetrics = {
   cumulativeFlow: FlowDay[]
   wipBreaches: WipBreach[]
   throughput: Week[]
+  dailyThroughput: { date: string; count: number }[]
   cycleTime: CycleTime[]
   cycleTimeWeeks: CycleTimeWeek[]
   agingLimit: { kind: "fixed" | "percentile"; days: number }
@@ -1097,8 +1098,16 @@ export function calculateFlowMetrics(
     STATUS.deliveryInitiated,
     LIMITS.deliveryInitiated,
   )
+  const history = flowHistory(items, observationTime)
+  const completedByDate = groupBy(completed, (item) =>
+    copenhagenDate(item.closedAt),
+  )
+  const dailyThroughput = history.cumulativeFlow.map(({ date }) => ({
+    date,
+    count: completedByDate.get(date)?.length ?? 0,
+  }))
   return {
-    ...flowHistory(items, observationTime),
+    ...history,
     features: observeFeatures(dataset, observationTime),
     source: dataset.source,
     observedAt: observationTime,
@@ -1110,6 +1119,7 @@ export function calculateFlowMetrics(
     deliveryInitiated,
     ready: openColumn(STATUS.ready, LIMITS.ready),
     throughput,
+    dailyThroughput,
     cycleTime,
     cycleTimeWeeks,
     agingLimit,

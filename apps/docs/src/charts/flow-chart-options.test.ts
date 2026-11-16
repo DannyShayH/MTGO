@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import {
+  completedWorkChartOption,
   cycleTimeChartOption,
   throughputChartOption,
 } from "./flow-chart-options.ts"
@@ -182,5 +183,26 @@ describe("cycle time chart", () => {
 
     const text = option.tooltip.formatter([point("Average cycle time", null)])
     expect(text).toContain("No completed work")
+  })
+})
+
+describe("cumulative completed work chart", () => {
+  it("rises with deliveries and stays flat through idle days", () => {
+    const option = completedWorkChartOption(
+      [
+        { date: "2026-11-05", count: 0 },
+        { date: "2026-11-06", count: 2 },
+        { date: "2026-11-07", count: 0 },
+        { date: "2026-11-08", count: 3 },
+      ],
+      palette,
+    )
+    expect(option.series[0].data).toEqual([0, 2, 2, 5])
+    expect(
+      option.tooltip.formatter([
+        { ...point("Total completed", 2), axisValue: "2026-11-07" },
+      ]),
+    ).toContain("Completed that day</span><strong>0")
+    expect(completedWorkChartOption([], palette).series[0].data).toEqual([])
   })
 })

@@ -8,7 +8,6 @@ import { calculateFlowMetrics } from "./flow-metrics.ts"
 import {
   acceptedFeatureItems,
   ACCEPTANCE_OBSERVED_AT,
-  featureBoardResponse,
   createFixtureFetch,
   buildChildEvidenceNode,
 } from "./fixtures/feature-board.ts"
@@ -20,8 +19,7 @@ async function observe(
   const dataset = await collectBoard({
     token: "fixture-token",
     now: () => observedAt,
-    fetch: async () =>
-      new Response(JSON.stringify(featureBoardResponse(items))),
+    fetch: createFixtureFetch(items),
   })
   return calculateFlowMetrics(dataset, observedAt).features[0]
 }
@@ -442,35 +440,33 @@ it("reads a reopened required child on a later timeline page before publishing c
     hasNextPage: true,
     endCursor: "child-history",
   }
+  const fixture = createFixtureFetch(items)
   const dataset = await collectBoard({
     token: "fixture-token",
     now: () => ACCEPTANCE_OBSERVED_AT,
     fetch: async (_url, request) => {
       const { variables } = JSON.parse(request!.body as string)
+      if (!variables.timelineAfter) return fixture(_url, request)
       return new Response(
-        JSON.stringify(
-          variables.timelineAfter
-            ? {
-                data: {
-                  node: {
-                    timelineItems: {
-                      nodes: [
-                        {
-                          __typename: "ReopenedEvent",
-                          createdAt: "2026-11-24T09:00:00Z",
-                        },
-                        {
-                          __typename: "ClosedEvent",
-                          createdAt: "2026-11-24T12:00:00Z",
-                        },
-                      ],
-                      pageInfo: { hasNextPage: false, endCursor: null },
-                    },
+        JSON.stringify({
+          data: {
+            node: {
+              timelineItems: {
+                nodes: [
+                  {
+                    __typename: "ReopenedEvent",
+                    createdAt: "2026-11-24T09:00:00Z",
                   },
-                },
-              }
-            : featureBoardResponse(items),
-        ),
+                  {
+                    __typename: "ClosedEvent",
+                    createdAt: "2026-11-24T12:00:00Z",
+                  },
+                ],
+                pageInfo: { hasNextPage: false, endCursor: null },
+              },
+            },
+          },
+        }),
       )
     },
   })

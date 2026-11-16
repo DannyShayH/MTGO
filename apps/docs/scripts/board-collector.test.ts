@@ -495,8 +495,10 @@ describe("collectBoard", () => {
   it("follows pagination and sends the token", async () => {
     const calls: { auth: string | null; variables: Record<string, unknown> }[] =
       []
+    const fixture = createFixtureFetch(recordedItems)
     const fetchPages: typeof fetch = (_url, init) => {
       const body = JSON.parse(String(init?.body))
+      if (body.variables.id) return fixture(_url, init)
       calls.push({
         auth: new Headers(init?.headers).get("authorization"),
         variables: body.variables,
@@ -534,6 +536,10 @@ describe("collectBoard", () => {
     const f: typeof fetch = (_url, init) => {
       const body = JSON.parse(String(init?.body))
       requests.push(body.variables)
+      if (body.variables.id && body.variables.timelineAfter === null)
+        return json({
+          data: { node: { timelineItems: first.content!.timelineItems } },
+        })
       if (body.variables.id)
         return json({
           data: {
@@ -571,7 +577,8 @@ describe("collectBoard", () => {
       fetch: f,
       now: () => NOW,
     })
-    expect(requests[1]).toMatchObject({ id: "ISSUE_1", timelineAfter: "T1" })
+    expect(requests[1]).toMatchObject({ id: "ISSUE_1", timelineAfter: null })
+    expect(requests[2]).toMatchObject({ id: "ISSUE_1", timelineAfter: "T1" })
     expect(dataset.items).toMatchObject([
       {
         number: 1,
@@ -606,7 +613,7 @@ describe("collectBoard", () => {
       collectBoard({
         token: "fixture-token",
         now: () => NOW,
-        fetch: () => json(featureBoardResponse([renamed])),
+        fetch: createFixtureFetch([renamed]),
       }),
     ).rejects.toThrow(/timeline pagination is incomplete/i)
   })
@@ -619,7 +626,7 @@ describe("collectBoard", () => {
       collectBoard({
         token: "fixture-token",
         now: () => NOW,
-        fetch: () => json(featureBoardResponse([renamed])),
+        fetch: createFixtureFetch([renamed]),
       }),
     ).rejects.toThrow(/timeline retrieval is incomplete/i)
   })
@@ -703,8 +710,7 @@ describe("ongoing Feature reporting", () => {
     const dataset = await collectBoard({
       token: "fixture-token",
       now: () => FEATURE_OBSERVED_AT,
-      fetch: async () =>
-        new Response(JSON.stringify(featureBoardResponse([...items, parent]))),
+      fetch: createFixtureFetch([...items, parent]),
     })
     const metrics = calculateFlowMetrics(dataset, dataset.observedAt)
     expect(metrics.features).toMatchObject([
@@ -846,29 +852,27 @@ describe("Feature evidence boundaries", () => {
         pageInfo: { hasNextPage: true, endCursor: "CHILD_1" },
       },
     })
+    const fixture = createFixtureFetch([...children, parent])
     const result = collectBoard({
       token: "fixture-token",
       now: () => FEATURE_OBSERVED_AT,
       fetch: async (_url, init) => {
         const { variables } = JSON.parse(String(init?.body))
+        if (!variables.childrenAfter) return fixture(_url, init)
         return new Response(
-          JSON.stringify(
-            variables.childrenAfter
-              ? {
-                  data: {
-                    node: broken
-                      ? null
-                      : {
-                          subIssues: {
-                            totalCount: 2,
-                            nodes: [children[2].content],
-                            pageInfo: { hasNextPage: false, endCursor: null },
-                          },
-                        },
+          JSON.stringify({
+            data: {
+              node: broken
+                ? null
+                : {
+                    subIssues: {
+                      totalCount: 2,
+                      nodes: [children[2].content],
+                      pageInfo: { hasNextPage: false, endCursor: null },
+                    },
                   },
-                }
-              : featureBoardResponse([...children, parent]),
-          ),
+            },
+          }),
         )
       },
     })
@@ -1057,17 +1061,12 @@ describe("incomplete direct-child retrieval", () => {
       collectBoard({
         token: "fixture-token",
         now: () => FEATURE_OBSERVED_AT,
-        fetch: async () =>
-          new Response(
-            JSON.stringify(
-              featureBoardResponse([
-                item(42, {
-                  title: "Feature: Incomplete",
-                  subIssues: connection,
-                }),
-              ]),
-            ),
-          ),
+        fetch: createFixtureFetch([
+          item(42, {
+            title: "Feature: Incomplete",
+            subIssues: connection,
+          }),
+        ]),
       }),
     ).rejects.toThrow(/child.*incomplete/)
   })

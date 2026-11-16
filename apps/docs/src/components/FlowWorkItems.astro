@@ -9,7 +9,7 @@ import type { IssueLink } from "../../scripts/flow-metrics.ts"
 <FlowMetricsHeader current="work-items" />
 <p class="flow-intro">The work behind the numbers. Start with blocked and old work items, then explore completed work and status history.</p>
 <nav class="flow-jump not-content" aria-label="Work item sections">
-  <a href="#blocked">Blocked</a><a href="#work-item-age">Work item age</a><a href="#data-problems">Data problems</a><a href="#current-columns">Current columns</a><a href="#throughput">Throughput</a><a href="#cycle-time">Cycle time</a><a href="#daily-status-counts">Daily counts</a><a href="#wip-limit-breaches">Breaches</a>
+  <a href="#blocked">Blocked</a><a href="#work-item-age">Work item age</a><a href="#data-problems">Data problems</a><a href="#current-columns">Current columns</a><a href="#throughput">Throughput</a><a href="#cycle-time">Cycle time</a><a href="#daily-status-counts">Completed work</a><a href="#wip-limit-breaches">Breaches</a>
 </nav>
 {metrics.features.some((feature) => feature.children.length) && <section aria-label="Work item Features">
 <h2>Related Features</h2>
@@ -118,12 +118,21 @@ import type { IssueLink } from "../../scripts/flow-metrics.ts"
 <p>Work items closed as not planned. They count in neither throughput nor cycle time.</p>
 {metrics.closedWithoutDelivery.length ? <div class="flow-table-wrap not-content" role="region" aria-label="Closed without delivery" tabindex="0"><table class="flow-table"><thead><tr><th scope="col">Work item</th><th scope="col">Closed</th></tr></thead><tbody>{metrics.closedWithoutDelivery.map((item) => <tr><th scope="row"><a href={item.url}>#{item.number} {item.title}</a></th><td><time datetime={item.closedAt}>{item.closedAt}</time></td></tr>)}</tbody></table></div> : <p>No work items were closed as not planned in {scope}.</p>}
 
-<h2 id="daily-status-counts">Daily status counts</h2>
-<p>End-of-day counts in Copenhagen time. The latest day ends at collection time.</p>
+<h2 id="daily-status-counts">Cumulative completed work</h2>
+<p>Total completed work items by Copenhagen date. The line rises when work is delivered and stays flat on days without completions. The latest day ends at collection time.</p>
 
-<FlowDailyCounts />
+{metrics.dailyThroughput.length ? <>
+  <div id="completed-work-chart" class="flow-chart not-content" role="img" aria-label="Cumulative completed work items by day. Hover or tap a point for daily completions and the running total." />
+  <details class="flow-disclosure not-content">
+    <summary>Daily status counts table</summary>
+    <p>End-of-day counts for every board status in Copenhagen time.</p>
+    <FlowDailyCounts />
+  </details>
+</> : <p>No status history is available. Counts will appear after board data is collected.</p>}
 
 <h2 id="wip-limit-breaches">WIP limit breaches</h2>
 <p>Periods above each column's current limit, including intraday breaches and the Ready queue. Peak excess is the largest number above the limit. Times are shown in Copenhagen time.</p>
 <FlowBreachTable />
 </div>
+
+<script src="../charts/completed-work-chart.ts"></script>

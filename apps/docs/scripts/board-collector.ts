@@ -54,10 +54,9 @@ const FIELD_VALUES = `fieldValues(first: ${PAGE_SIZE}) {
 const ISSUE_FIELDS = `id number title body url state stateReason closedAt
 parent { number title url }
 labels(first: ${PAGE_SIZE}) { totalCount nodes { name } }
-${CHILDREN}
-${TIMELINE}`
+${CHILDREN}`
 
-const ITEMS_QUERY = `query ($owner: String!, $number: Int!, $after: String, $timelineAfter: String, $childrenAfter: String) {
+const ITEMS_QUERY = `query ($owner: String!, $number: Int!, $after: String, $childrenAfter: String) {
   user(login: $owner) {
     projectV2(number: $number) {
       items(first: 50, after: $after, archivedStates: [ARCHIVED, NOT_ARCHIVED]) {
@@ -84,7 +83,7 @@ const PROJECT_ITEMS = `projectItems(first: ${PAGE_SIZE}, after: $projectItemsAft
 
 /** A Feature child outside the board, read by its issue identity as Feature evidence */
 const CHILD_EVIDENCE_QUERY = `query ($id: ID!, $timelineAfter: String, $childrenAfter: String, $projectItemsAfter: String) {
-  node(id: $id) { __typename ... on Issue { ${ISSUE_FIELDS} ${PROJECT_ITEMS} } }
+  node(id: $id) { __typename ... on Issue { ${ISSUE_FIELDS} ${TIMELINE} ${PROJECT_ITEMS} } }
 }`
 
 const PROJECT_ITEMS_QUERY = `query ($id: ID!, $projectItemsAfter: String) {
@@ -506,7 +505,6 @@ async function fetchAllItems(query: Query): Promise<RawItem[]> {
       owner: OWNER,
       number: PROJECT_NUMBER,
       after,
-      timelineAfter: null,
       childrenAfter: null,
     })
     const connection = data?.user?.projectV2?.items
@@ -528,25 +526,49 @@ async function fetchAllItems(query: Query): Promise<RawItem[]> {
   return items
 }
 
-/** Reads the timeline pages after the first one, so no status change is missed */
-async function completeTimeline(query: Query, item: RawItem): Promise<void> {
+/** Project-nested timelines can omit recent events even with hasNextPage false. */
+async function completeTimeline(
+  query: Query,
+  item: RawItem,
+  readFirstPage = false,
+): Promise<void> {
   const issue = item.content
   if (!issue || issue.__typename !== "Issue") return
+  if (!issue.id) throw new Error(`Issue #${issue.number}: missing id`)
+  if (readFirstPage) {
+    const data = await query(TIMELINE_QUERY, {
+      id: issue.id,
+      timelineAfter: null,
+    })
+    issue.timelineItems = data?.node?.timelineItems
+  }
   const timeline = issue.timelineItems
-  if (!timeline || !timeline.pageInfo || !Array.isArray(timeline.nodes))
+  if (
+    !timeline ||
+    !timeline.pageInfo ||
+    typeof timeline.pageInfo.hasNextPage !== "boolean" ||
+    !Array.isArray(timeline.nodes)
+  )
     throw new Error(`Issue #${issue.number}: timeline retrieval is incomplete`)
+  const seenCursors = new Set<string>()
   while (timeline.pageInfo.hasNextPage) {
-    if (!issue.id)
-      throw new Error(`Timeline of issue #${issue.number} is incomplete`)
     if (!timeline.pageInfo.endCursor)
       throw new Error("Timeline pagination is incomplete")
     const cursor = timeline.pageInfo.endCursor
+    if (seenCursors.has(cursor))
+      throw new Error("Timeline pagination did not advance")
+    seenCursors.add(cursor)
     const data = await query(TIMELINE_QUERY, {
       id: issue.id,
       timelineAfter: timeline.pageInfo.endCursor,
     })
     const next = data?.node?.timelineItems as Timeline | undefined
-    if (!next)
+    if (
+      !next ||
+      !next.pageInfo ||
+      typeof next.pageInfo.hasNextPage !== "boolean" ||
+      !Array.isArray(next.nodes)
+    )
       throw new Error(`Timeline of issue #${issue.number} could not be read`)
     if (next.pageInfo.hasNextPage && next.pageInfo.endCursor === cursor)
       throw new Error("Timeline pagination did not advance")
@@ -709,7 +731,7 @@ export async function collectBoard({
   const query = createQuery(token, fetchImpl)
   const items = await fetchAllItems(query)
   for (const item of items) {
-    await completeTimeline(query, item)
+    await completeTimeline(query, item, true)
     await completeChildren(query, item)
   }
   const issues = normaliseItems(items)

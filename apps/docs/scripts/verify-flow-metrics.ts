@@ -190,6 +190,12 @@ try {
         ? "#3 Discovery: Reporting rules"
         : "#3 Delivered child work",
     )
+    await expect(page.locator("#completed-work-chart canvas")).toBeVisible()
+    const dailyCounts = page.locator("details").filter({
+      has: page.getByText("Daily status counts table", { exact: true }),
+    })
+    await expect(dailyCounts).not.toHaveAttribute("open", "")
+    await dailyCounts.locator("summary").click()
     await expect(
       page
         .getByRole("region", { name: "Daily status counts", exact: true })

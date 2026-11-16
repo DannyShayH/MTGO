@@ -21,6 +21,14 @@ Starlight's theme tokens for surfaces, text and interactive states. Keep prose
 readable when widening data views, and keep chart grids responsive to their
 container rather than the screen width.
 
+The work-items page shows cumulative completed work as a line that rises on delivery
+and stays flat on days without completions. Hover or tap for the daily count and
+running total. It uses the same completed-work population as throughput, including
+items without Start dates and excluding Features and work closed as not planned.
+The daily status table stays collapsed below it. Board status counts remain in the
+overview's cumulative flow diagram; the completion line uses closure dates rather
+than movements into the Done column. Both use Copenhagen calendar dates.
+
 ## Visual system
 
 `src/styles/docs-content.css` owns the reading styles, sidebar states, section

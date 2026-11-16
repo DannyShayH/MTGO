@@ -111,6 +111,10 @@ Copenhagen calendar days from the project Start date to the latest close date fo
 
 Wall-clock time from the first move to In Progress on the Start date to the latest issue close, rounded to the nearest minute. It includes waiting time. GitHub records both moments; when a start event is missing, the value is shown as “Not available” rather than inferred from the date.
 
+The collector reads each issue's timeline directly by its issue ID, from the first page through every later page. Timelines nested under project items can omit recent events even when GitHub reports no next page, so they are not used. Missing or malformed pages and non-advancing cursors stop collection before publication.
+
+A missing start-time warning does not necessarily mean the Start date is missing: elapsed time also needs an actual move to In Progress on that Copenhagen date. Work that went straight from Backlog to Delivery Initiated can have a Start date but no precise start event. Assignment and commit timestamps do not replace that event, and moving completed work through the board now would record today's time rather than repair its history.
+
 ## Work item age
 
 Copenhagen calendar days from Start date to the observation date for an open work item. Items without a Start date cannot have an age calculated.

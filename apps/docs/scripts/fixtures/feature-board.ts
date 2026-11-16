@@ -281,8 +281,8 @@ export function buildChildEvidenceNode(raw: RawItem) {
  * A GitHub stub for collection: project item pages answer with the board items,
  * and an issue-node query for Feature child evidence answers with `evidence[id]`.
  * An id without evidence gets GitHub's answer for an unreadable node: `node: null`
- * with a NOT_FOUND error. Any other issue-node query (a later timeline or child
- * page) is not modelled and fails loudly.
+ * with a NOT_FOUND error. Direct timeline queries return the matching board
+ * issue's first page; later pages use timelinePages. Other queries fail loudly.
  */
 export function createFixtureFetch(
   items: RawItem[],
@@ -306,6 +306,18 @@ export function createFixtureFetch(
           },
         }),
       )
+    if (
+      String(query).includes("timelineItems") &&
+      !String(query).includes("projectItems") &&
+      variables.timelineAfter === null
+    ) {
+      const issue = items.find((item) => item.content?.id === variables.id)
+      return new Response(
+        JSON.stringify({
+          data: { node: { timelineItems: issue?.content?.timelineItems } },
+        }),
+      )
+    }
     if (!String(query).includes("projectItems"))
       throw new Error(
         `fixtureFetch does not answer this query for ${variables.id}`,
