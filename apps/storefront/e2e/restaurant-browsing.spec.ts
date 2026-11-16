@@ -259,7 +259,7 @@ for (const locale of ["da", "en"] as const) {
     await expect(page.getByTestId("footer-categories")).toHaveCount(0)
     await expect(page.getByTestId("nav-search-button")).toHaveCount(0)
     await expect(page.getByTestId("nav-account-link")).toHaveText(text.account)
-    await expect(page.getByTestId("nav-cart-link")).toHaveText(
+    await expect(page.getByTestId("nav-cart-link")).toHaveAccessibleName(
       `${text.basket} (0)`,
     )
     await page.getByTestId("nav-menu-button").click()

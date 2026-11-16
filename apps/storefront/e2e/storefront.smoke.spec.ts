@@ -91,7 +91,7 @@ test("shopper can discover a product, update and remove cart items, and complete
     .click()
   await expect(page.getByTestId("add-product-button")).toBeEnabled()
   await page.getByTestId("add-product-button").click()
-  await expect(page.getByTestId("nav-cart-link")).toHaveText(
+  await expect(page.getByTestId("nav-cart-link")).toHaveAccessibleName(
     /^(Basket|Kurv) \(1\)$/,
   )
   await page.getByTestId("nav-cart-link").click()
@@ -114,7 +114,7 @@ test("shopper can discover a product, update and remove cart items, and complete
     .getByText("Black", { exact: true })
     .click()
   await page.getByTestId("add-product-button").click()
-  await expect(page.getByTestId("nav-cart-link")).toHaveText(
+  await expect(page.getByTestId("nav-cart-link")).toHaveAccessibleName(
     /^(Basket|Kurv) \(1\)$/,
   )
   await page.getByTestId("nav-cart-link").click()

@@ -9,10 +9,13 @@ import LocalizedClientLink from "@modules/common/components/localized-client-lin
 import MtogoLogo from "@modules/common/components/mtogo-logo"
 import { clx, focusRing } from "@modules/common/components/ui"
 import CartButton from "@modules/layout/components/cart-button"
+import CartIcon, {
+  cartLinkClassName,
+} from "@modules/layout/components/cart-icon"
 import SideMenu from "@modules/layout/components/side-menu"
 
 const navLink = clx(
-  "inline-flex min-h-11 items-center rounded-md px-2 text-base font-medium text-mtogo-text-primary hover:text-mtogo-text-link",
+  "inline-flex min-h-11 items-center rounded-md px-2 text-base font-medium text-mtogo-text-primary transition-colors duration-150 hover:text-mtogo-text-link",
   focusRing,
 )
 
@@ -63,11 +66,11 @@ export default async function Nav() {
             <Suspense
               fallback={
                 <LocalizedClientLink
-                  className={navLink}
+                  className={cartLinkClassName}
                   href="/cart"
                   data-testid="nav-cart-link"
                 >
-                  {`${text.basket} (0)`}
+                  <CartIcon label={text.basket} count={0} />
                 </LocalizedClientLink>
               }
             >

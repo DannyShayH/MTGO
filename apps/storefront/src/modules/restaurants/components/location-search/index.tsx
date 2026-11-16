@@ -27,11 +27,17 @@ export default function LocationSearch({
   countryCode,
   locale,
   initialQuery = "",
+  tone = "primary",
+  autoFocus = false,
 }: {
   countryCode: string
   locale: Locale
   initialQuery?: string
+  /** The surface the field sits on: the teal band or a card. */
+  tone?: "primary" | "card"
+  autoFocus?: boolean
 }) {
+  const onPrimary = tone === "primary"
   const text = CUSTOMER_HOME_TEXT[locale]
   const router = useRouter()
   const listId = useId()
@@ -115,7 +121,10 @@ export default function LocationSearch({
     >
       <label
         htmlFor="location-search"
-        className="text-balance text-xl font-medium leading-7"
+        className={clx(
+          "text-balance font-medium",
+          onPrimary ? "text-xl leading-7" : "text-base leading-6",
+        )}
       >
         {text.search_label}
       </label>
@@ -127,6 +136,8 @@ export default function LocationSearch({
             type="search"
             role="combobox"
             autoComplete="off"
+            // Only set when the Customer has just asked to change location.
+            autoFocus={autoFocus}
             aria-autocomplete="list"
             aria-expanded={showList}
             aria-controls={listId}
@@ -158,7 +169,7 @@ export default function LocationSearch({
             onKeyDown={onKeyDown}
             className={clx(
               "h-12 w-full rounded-md border border-mtogo-border-control bg-mtogo-surface-card px-4 text-base text-mtogo-text-primary placeholder:text-mtogo-text-secondary",
-              "focus-visible:ring-offset-mtogo-action-primary",
+              onPrimary && "focus-visible:ring-offset-mtogo-action-primary",
               focusRing,
             )}
             data-testid="location-search-input"
@@ -203,8 +214,10 @@ export default function LocationSearch({
         <button
           type="submit"
           className={clx(
-            "inline-flex h-12 shrink-0 items-center justify-center rounded-md bg-mtogo-surface-card px-5 text-base font-medium text-mtogo-text-link transition-transform duration-150 ease-out hover:bg-mtogo-surface-selected active:scale-[0.97] motion-reduce:transition-none",
-            "focus-visible:ring-offset-mtogo-action-primary",
+            "inline-flex h-12 shrink-0 items-center justify-center rounded-md px-5 text-base font-medium transition-[background-color,transform] duration-150 ease-out-strong active:scale-[0.97] motion-reduce:transition-none",
+            onPrimary
+              ? "bg-mtogo-surface-card text-mtogo-text-link hover:bg-mtogo-surface-selected focus-visible:ring-offset-mtogo-action-primary"
+              : "bg-mtogo-action-primary text-mtogo-text-on-primary hover:bg-mtogo-action-primary-hover active:bg-mtogo-action-primary-pressed",
             focusRing,
           )}
         >

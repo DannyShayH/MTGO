@@ -10,6 +10,8 @@ import {
   ThHTMLAttributes,
 } from "react"
 
+import Spinner from "@modules/common/icons/spinner"
+
 // TODO: Add Toaster component back when needed for notifications
 
 // Re-export clsx as clx for compatibility
@@ -86,8 +88,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       <button
         ref={ref}
         disabled={disabled || isLoading}
+        aria-busy={isLoading || undefined}
         className={clsx(
-          "inline-flex gap-2 items-center justify-center rounded-md font-medium transition-colors disabled:pointer-events-none disabled:opacity-50",
+          "inline-flex gap-2 items-center justify-center rounded-md font-medium transition-[background-color,transform] duration-150 ease-out-strong disabled:pointer-events-none disabled:opacity-50 motion-safe:active:scale-[0.97]",
           focusRing,
           variant === "primary" &&
             "bg-mtogo-action-primary text-mtogo-text-on-primary hover:bg-mtogo-action-primary-hover active:bg-mtogo-action-primary-pressed",
@@ -95,13 +98,16 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
             "bg-mtogo-surface-card text-mtogo-text-primary border border-mtogo-border-control hover:bg-mtogo-surface-selected",
           variant === "transparent" && "bg-transparent hover:bg-gray-100",
           size === "small" && "h-8 px-3 text-sm",
-          size === "medium" && "h-10 px-4",
-          size === "large" && "h-12 px-6 text-lg",
+          size === "medium" && "min-h-11 px-4",
+          size === "large" && "min-h-12 px-6 text-lg",
           className,
         )}
         {...props}
       >
-        {isLoading ? "Loading..." : children}
+        {/* The label stays while busy, so the button keeps its width and its
+            name in both languages. */}
+        {isLoading && <Spinner aria-hidden="true" />}
+        {children}
       </button>
     )
   },
@@ -185,7 +191,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
       <button
         ref={ref}
         className={clsx(
-          "inline-flex items-center justify-center rounded-md p-2 hover:bg-gray-100 transition-colors",
+          "inline-flex items-center justify-center rounded-md p-2 hover:bg-mtogo-surface-selected transition-[background-color,transform] duration-150 ease-out-strong motion-safe:active:scale-[0.97]",
           focusRing,
           className,
         )}

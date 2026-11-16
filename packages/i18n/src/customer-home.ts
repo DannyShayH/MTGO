@@ -19,6 +19,11 @@ type CustomerHomeText = Record<
   | "selected_town"
   | "town_note"
   | "clear_location"
+  | "change_location"
+  | "open_now"
+  | "show_more"
+  | "none_open_title"
+  | "show_closed"
   | "list_heading"
   | "restaurant_count_one"
   | "restaurant_count_other"
@@ -68,6 +73,11 @@ export const CUSTOMER_HOME_TEXT: Record<Locale, CustomerHomeText> = {
     town_note:
       "{name} har {count} postnumre. Om en restaurant leverer til din adresse, afhænger af dit præcise postnummer.",
     clear_location: "Vis alle restauranter",
+    change_location: "Skift sted",
+    open_now: "Åben nu",
+    show_more: "Vis flere restauranter",
+    none_open_title: "Ingen af restauranterne har åbent lige nu",
+    show_closed: "Vis også lukkede restauranter",
     list_heading: "Restauranter",
     restaurant_count_one: "1 restaurant",
     restaurant_count_other: "{count} restauranter",
@@ -115,6 +125,11 @@ export const CUSTOMER_HOME_TEXT: Record<Locale, CustomerHomeText> = {
     town_note:
       "{name} has {count} postcodes. Whether a Restaurant delivers to your address depends on your exact postcode.",
     clear_location: "Show all Restaurants",
+    change_location: "Change location",
+    open_now: "Open now",
+    show_more: "Show more Restaurants",
+    none_open_title: "None of the Restaurants are open right now",
+    show_closed: "Show closed Restaurants too",
     list_heading: "Restaurants",
     restaurant_count_one: "1 Restaurant",
     restaurant_count_other: "{count} Restaurants",

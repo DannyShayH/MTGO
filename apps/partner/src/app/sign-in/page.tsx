@@ -31,7 +31,7 @@ export default async function SignInPage({
         : undefined
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-y-6 px-4 py-12">
-      <div className="bg-ui-bg-base shadow-elevation-card-rest rounded-card flex w-full max-w-sm flex-col gap-y-6 p-8">
+      <div className="bg-ui-bg-base shadow-elevation-card-rest rounded-card flex w-full max-w-sm flex-col gap-y-6 p-6 motion-safe:animate-fade-up sm:p-8">
         <BrandMark name={messages.text.app_name} />
         <SignInNotice
           title={messages.text.sign_in_title}

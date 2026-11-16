@@ -19,7 +19,12 @@ Colour tokens are named for their job and prefixed `mtogo-` in Tailwind, for
 example `bg-mtogo-action-primary` or `text-mtogo-text-secondary`. The
 [design brief](https://dannyshayh.github.io/MTGO/product/design-brief/) lists
 every token, where it is used and which pairs are allowed. `rounded-card`
-(`12px`) rounds cards in the partner app.
+(`12px`) rounds cards in both apps.
+
+The preset also holds the shared motion: the easings `ease-out-strong` (things
+that enter or are pressed) and `ease-drawer` (the side menu), and the
+animations `animate-fade-in`, `animate-fade-up` and `animate-pop-in`. Use the
+animations through `motion-safe:`, so reduced motion skips the movement.
 
 `contrast.cjs` (`@dtc/ui/contrast`) computes the WCAG contrast ratio of two
 colours. The tests check every pair the brief promises against the tokens, so a

@@ -41,18 +41,24 @@ const VerifyAccount = () => {
 
   return (
     <div
-      className="max-w-sm w-full flex flex-col items-center text-center gap-y-4"
+      className="flex w-full max-w-md flex-col items-start gap-y-4 rounded-card border border-mtogo-border-subtle bg-mtogo-surface-card p-6 shadow-sm motion-safe:animate-fade-up xsmall:p-8"
       data-testid="verify-account-page"
     >
-      <h1 className="text-large-semi uppercase">{copy.title}</h1>
+      <h1 className="text-2xl font-semibold leading-8 text-mtogo-text-primary">
+        {copy.title}
+      </h1>
 
       {state === "verifying" && (
-        <p className="text-base-regular text-ui-fg-base">{copy.verifying}</p>
+        <p className="text-base leading-6 text-mtogo-text-secondary">
+          {copy.verifying}
+        </p>
       )}
 
       {state === "success" && (
         <>
-          <p className="text-base-regular text-ui-fg-base">{copy.success}</p>
+          <p className="rounded-md bg-mtogo-status-success-surface px-4 py-3 text-base text-mtogo-status-success-text motion-safe:animate-fade-in">
+            {copy.success}
+          </p>
           <LocalizedClientLink href={signInHref}>
             <Button variant="primary">{copy.signIn}</Button>
           </LocalizedClientLink>
@@ -61,7 +67,9 @@ const VerifyAccount = () => {
 
       {state === "error" && (
         <>
-          <p className="text-base-regular text-ui-fg-base">{copy.error}</p>
+          <p className="rounded-md bg-mtogo-status-error-surface px-4 py-3 text-base text-mtogo-status-error-text motion-safe:animate-fade-in">
+            {copy.error}
+          </p>
           <LocalizedClientLink href={signInHref}>
             <Button variant="secondary">{copy.signIn}</Button>
           </LocalizedClientLink>

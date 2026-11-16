@@ -28,7 +28,7 @@ export function LanguageSwitch({
             lang={option}
             aria-pressed={option === locale}
             className={clx(
-              "txt-compact-xsmall-plus focus-visible:ring-mtogo-focus-ring min-h-11 rounded px-3 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
+              "txt-compact-xsmall-plus focus-visible:ring-mtogo-focus-ring ease-out-strong min-h-11 rounded px-3 py-1 transition-[background-color,color,box-shadow,transform] duration-150 motion-safe:active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
               option === locale
                 ? "bg-ui-bg-base text-ui-fg-base shadow-elevation-card-rest"
                 : "text-ui-fg-muted hover:text-ui-fg-subtle",

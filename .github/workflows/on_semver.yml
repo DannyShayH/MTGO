@@ -1,4 +1,4 @@
-name: Release to Production
+name: Release
 
 on:
   push:
@@ -13,7 +13,7 @@ on:
         type: string
 
 concurrency:
-  group: "production"
+  group: "release"
   cancel-in-progress: false
 
 jobs:
@@ -44,15 +44,20 @@ jobs:
 
           echo "✅ Tag $TAG_NAME verified on main branch" >> $GITHUB_STEP_SUMMARY
 
-  deploy-to-prod:
-    name: Deploy to Production
+  summarize-release:
+    name: Summarize release
     needs: verify-tag-on-main
     runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Placeholder deploy step
-        run: echo "Replace this step the appropriate build and deploy action for your production environment"
+      - name: Summarize
+        env:
+          TAG_NAME: ${{ github.ref_name || inputs.tag }}
+        run: |
+          # A tag labels a commit that the Deploy workflow already put on stage.
+          # Nothing is deployed here, so the summary must not claim otherwise.
+          {
+            echo "### Release $TAG_NAME"
+            echo "Labeled commit ${GITHUB_SHA}. This run deploys nothing: stage runs the latest commit on main."
+          } >> "$GITHUB_STEP_SUMMARY"

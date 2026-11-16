@@ -37,23 +37,32 @@ export function Sidebar({
           {restaurantName}
         </Text>
       </div>
-      <nav aria-label={text.navigation} className="flex-1 px-2 py-3">
-        <ul className="flex flex-col gap-y-0.5">
+      {/* On phones the tools sit in one row that scrolls sideways, so the
+          page content starts right below the header. */}
+      <nav
+        aria-label={text.navigation}
+        className="overflow-x-auto px-2 py-2 md:flex-1 md:overflow-visible md:py-3"
+      >
+        <ul className="flex flex-row gap-x-1 md:flex-col md:gap-x-0 md:gap-y-0.5">
           {NAVIGATION.map(({ href, label, Icon }) => {
             const current = pathname === href || pathname.startsWith(`${href}/`)
             return (
-              <li key={href}>
+              <li key={href} className="shrink-0">
                 <Link
                   href={href}
                   aria-current={current ? "page" : undefined}
                   className={clx(
-                    "txt-compact-small-plus focus-visible:ring-mtogo-focus-ring flex min-h-11 items-center gap-x-2 rounded-md px-2 py-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
+                    "txt-compact-small-plus focus-visible:ring-mtogo-focus-ring ease-out-strong flex min-h-11 items-center gap-x-2 whitespace-nowrap rounded-md px-3 py-1.5 transition-[background-color,color,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset motion-safe:active:scale-[0.97] md:px-2",
                     current
                       ? "bg-ui-bg-base-pressed text-ui-fg-base"
-                      : "text-ui-fg-subtle hover:bg-ui-bg-base-hover",
+                      : "text-ui-fg-subtle hover:bg-ui-bg-base-hover hover:text-ui-fg-base",
                   )}
                 >
-                  <Icon className="text-ui-fg-subtle" />
+                  <Icon
+                    className={
+                      current ? "text-ui-fg-base" : "text-ui-fg-subtle"
+                    }
+                  />
                   {text[label]}
                 </Link>
               </li>

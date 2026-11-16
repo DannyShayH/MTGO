@@ -50,6 +50,7 @@ export default function RestaurantCard({
           note: text.not_receiving_note,
         }
     : { label: text.closed, tone: "warning", note: text.closed_note }
+  const orderable = restaurant.is_open && restaurant.receiving_new_orders
   const coverage = coverageText(restaurant, location, text)
   return (
     <li
@@ -58,35 +59,39 @@ export default function RestaurantCard({
       data-restaurant-id={restaurant.id}
       data-open={restaurant.is_open}
     >
-      <article className="flex w-full flex-col overflow-hidden rounded-card border border-mtogo-border-subtle bg-mtogo-surface-card transition-[box-shadow,transform] duration-150 ease-out focus-within:ring-2 focus-within:ring-mtogo-focus-ring focus-within:ring-offset-2 focus-within:ring-offset-mtogo-surface-page motion-reduce:transition-none [@media(hover:hover)]:hover:shadow-md">
-        <PhotoWithPlaceholder
-          kind="cover"
-          url={restaurant.cover?.url}
-          name={restaurant.name}
-          missingText={text.no_cover}
-        />
-        <div className="flex flex-1 flex-col gap-2 p-4">
-          <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
-            <h3 className="min-w-0 text-balance text-lg font-semibold leading-6 text-mtogo-text-primary">
-              <LocalizedClientLink
-                href={`/restaurants/${encodeURIComponent(restaurant.id)}${menuSearch}`}
-                className="after:absolute after:inset-0 after:rounded-card focus-visible:outline-none"
-                data-testid="restaurant-card-link"
-              >
-                {restaurant.name}
-              </LocalizedClientLink>
-            </h3>
-            <span
-              className={`inline-flex shrink-0 rounded-full px-3 py-1 text-base font-medium leading-6 ${
-                status.tone === "success"
-                  ? "bg-mtogo-status-success-surface text-mtogo-status-success-text"
-                  : "bg-mtogo-status-warning-surface text-mtogo-status-warning-text"
-              }`}
-              data-testid="restaurant-card-status"
-            >
-              {status.label}
-            </span>
+      <article className="flex w-full flex-col overflow-hidden rounded-card border border-mtogo-border-subtle bg-mtogo-surface-card transition-[box-shadow,transform] duration-150 ease-out-strong focus-within:ring-2 focus-within:ring-mtogo-focus-ring focus-within:ring-offset-2 focus-within:ring-offset-mtogo-surface-page motion-reduce:transition-none motion-safe:[&:has(a:active)]:scale-[0.99] [@media(hover:hover)]:hover:shadow-md">
+        <div className="relative">
+          {/* A Restaurant that cannot take Orders is dimmed; the label on the
+              photo says why, so the state never rests on the dimming alone. */}
+          <div className={orderable ? undefined : "opacity-60 grayscale"}>
+            <PhotoWithPlaceholder
+              kind="cover"
+              url={restaurant.cover?.url}
+              name={restaurant.name}
+              missingText={text.no_cover}
+            />
           </div>
+          <span
+            className={`absolute left-3 top-3 inline-flex rounded-full px-3 py-1 text-base font-medium leading-6 shadow-sm ${
+              status.tone === "success"
+                ? "bg-mtogo-status-success-surface text-mtogo-status-success-text"
+                : "bg-mtogo-status-warning-surface text-mtogo-status-warning-text"
+            }`}
+            data-testid="restaurant-card-status"
+          >
+            {status.label}
+          </span>
+        </div>
+        <div className="flex flex-1 flex-col gap-1 p-4">
+          <h3 className="min-w-0 text-balance text-lg font-semibold leading-6 text-mtogo-text-primary">
+            <LocalizedClientLink
+              href={`/restaurants/${encodeURIComponent(restaurant.id)}${menuSearch}`}
+              className="after:absolute after:inset-0 after:rounded-card focus-visible:outline-none"
+              data-testid="restaurant-card-link"
+            >
+              {restaurant.name}
+            </LocalizedClientLink>
+          </h3>
           <p className="text-base leading-6 text-mtogo-text-secondary">
             {restaurant.address_city}
           </p>

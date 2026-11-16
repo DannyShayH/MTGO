@@ -17,13 +17,11 @@
     scrollbar-width: none; /* Firefox */
   }
 
+  /* The floating label moves with transform only, so it never triggers
+     layout: 16px scaled to 12px, the smallest size the design brief allows. */
   input:focus ~ label,
   input:not(:placeholder-shown) ~ label {
-    @apply -translate-y-2 text-xsmall-regular;
-  }
-
-  input:focus ~ label {
-    @apply left-0;
+    @apply -translate-y-2.5 scale-75;
   }
 
   input:-webkit-autofill,
@@ -35,8 +33,8 @@
   select:-webkit-autofill,
   select:-webkit-autofill:hover,
   select:-webkit-autofill:focus {
-    border: 1px solid #212121;
-    -webkit-text-fill-color: #212121;
+    border: 1px solid theme("colors.mtogo.border-control");
+    -webkit-text-fill-color: theme("colors.mtogo.text-primary");
     -webkit-box-shadow: 0 0 0px 1000px #fff inset;
     transition: background-color 5000s ease-in-out 0s;
   }

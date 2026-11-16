@@ -95,6 +95,7 @@ Restaurants supply their own photos, because MTOGO displays their menus and does
 
 - **Mobile first.** Design at 320px wide, then widen. One column on phones. On larger screens the menu and the basket sit side by side.
 - **Storefront navigation:** a top bar with the logo, search, account and basket. On phones, a basket summary stays reachable at the bottom while the Customer browses a menu.
+- **Storefront homepage:** a compact teal band with the heading and the location search, and no marketing hero. Once a location is chosen the band becomes one line under the header ("Delivering to 2200 København N", "Change location", "Show all Restaurants"), so the Restaurants start at the top of the screen. The list shows Restaurants that can take Orders first, in one to four columns, with an "Open now" filter when some cannot, and "Show more" after 24.
 - **Partner app navigation:** a dashboard with a sidebar and an overview, inspired by Medusa Admin and Mercur's vendor panel. The sidebar becomes a menu on phones. The partner app keeps Medusa UI's own component colours. It takes the logo, the status pairs and the focus ring from MTOGO's tokens.
 - **Order tracking:** show every step with a visible text label ("Preparing", "On the way", "Delivered"). Mark the current step in teal and the completed steps with a check, never by colour alone.
 
@@ -116,15 +117,16 @@ The target is WCAG 2.2 AA.
 - **Focus:** a visible 2px `focus-ring` with a 2px offset in the surface colour (`focus-visible:ring-2 focus-visible:ring-mtogo-focus-ring focus-visible:ring-offset-2`). Without the offset, the ring next to a teal button is only 1.64:1.
 - **Never colour alone:** states have a text label or an icon as well.
 - **Sizes:** body text and inputs at least 16px on phones. Touch targets at least 44 × 44px, which matters for staff and Delivery agents with busy hands.
-- **Motion:** respect `prefers-reduced-motion`. No motion is needed to understand a screen.
+- **Motion:** respect `prefers-reduced-motion`. No motion is needed to understand a screen. Motion is short and only on `transform` and `opacity`: a press scales a button to 0.97, panels enter in 200 to 300ms with the preset's `ease-out-strong` and leave faster, and the preset's animations are used through `motion-safe:`. Pages that staff or Customers open many times a day do not animate on load.
 
 ## Boundaries
 
 - Medusa Admin keeps its own design system and is not restyled (ADR-0018).
 - The brief is a direction, not a component library. Use Medusa UI components and the storefront's shared components in `src/modules/common/components/ui`.
 - The starter's existing screens still use Medusa's greys and a fixed `lang="en"`. They take on the brief when a Feature replaces them or the storefront gets its language switch.
-- The homepage, header, side menu and footer follow the brief since #119: Inter, the tokens, translated navigation and the four states. The cart dropdown's own content is still the starter's and belongs to the basket Feature.
-- Already mapped: the page background, the logo, and the colours and focus ring of the shared `Button`, `IconButton` and `Input` (whose text is 16px). Their heights (32 to 40px) are still below the 44px touch target. The first Feature that reworks a screen with them raises the heights.
+- The homepage, header, side menu and footer follow the brief since #119: Inter, the tokens, translated navigation and the four states. The header shows the basket as a cart icon with a count badge; the link's accessible name is still "Basket (2)". The cart dropdown's surface uses the tokens, but its text is still the starter's English and belongs to the basket Feature.
+- The Customer sign-in, account creation and email verification screens follow the brief: one card on the page background, the status pairs for messages, and the language choice below the card.
+- Already mapped: the page background, the logo, and the colours and focus ring of the shared `Button`, `IconButton` and `Input` (whose text is 16px). The default and large `Button` and the floating-label `Input` are at least 44px high. The small `Button` (32px) and `IconButton` are still below the touch target.
 
 ## How agents use it
 

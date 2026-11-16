@@ -23,7 +23,10 @@ export function InvitationForm({
   return (
     <form
       action={action}
-      className="flex flex-col gap-y-4 [&_button]:min-h-11 [&_input]:min-h-11 [&_input]:text-base"
+      // Medusa UI outlines an empty required field in red before anyone has
+      // typed; the last two rules keep the red for fields the person has left
+      // invalid.
+      className="flex flex-col gap-y-4 [&_button]:min-h-11 [&_input:invalid:not(:user-invalid):focus-visible]:!shadow-borders-interactive-with-active [&_input:invalid:not(:user-invalid):not(:focus-visible)]:!shadow-borders-base [&_input]:min-h-11 [&_input]:text-base"
     >
       {state.error && (
         <Alert variant="error" role="alert">
@@ -64,7 +67,11 @@ export function InvitationForm({
           {formatText(text.password_hint, { min: MIN_PASSWORD_LENGTH })}
         </Text>
       </div>
-      <Button type="submit" isLoading={pending} className="w-full">
+      <Button
+        type="submit"
+        isLoading={pending}
+        className="w-full transition-[background-color,box-shadow,transform] duration-150 ease-out-strong motion-safe:active:scale-[0.97]"
+      >
         {text.accept_invitation}
       </Button>
     </form>

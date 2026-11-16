@@ -2,10 +2,10 @@
 
 import { Popover, PopoverPanel, Transition } from "@headlessui/react"
 import useToggleState from "@lib/hooks/use-toggle-state"
-import { ArrowRightMini, XMark } from "@medusajs/icons"
+import { ArrowRightMini, BarsThree, XMark } from "@medusajs/icons"
 import { HttpTypes } from "@medusajs/types"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
-import { Text, clx } from "@modules/common/components/ui"
+import { Text, clx, focusRing } from "@modules/common/components/ui"
 import { Fragment } from "react"
 import CountrySelect from "../country-select"
 import LanguageSelect from "../language-select"
@@ -40,17 +40,18 @@ const SideMenu = ({ regions, locales, locale }: SideMenuProps) => {
                 <Popover.Button
                   data-testid="nav-menu-button"
                   className={clx(
-                    "relative flex h-full min-w-11 items-center rounded-md px-2 text-base font-medium text-mtogo-text-primary hover:text-mtogo-text-link",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mtogo-focus-ring focus-visible:ring-offset-2",
+                    "relative flex h-full min-w-11 items-center gap-x-2 rounded-md px-2 text-base font-medium text-mtogo-text-primary transition-colors duration-150 hover:text-mtogo-text-link",
+                    focusRing,
                   )}
                 >
+                  <BarsThree aria-hidden="true" className="h-5 w-5" />
                   {text.menu_button}
                 </Popover.Button>
               </div>
 
               {open && (
                 <div
-                  className="fixed inset-0 z-[50] bg-black/0 pointer-events-auto"
+                  className="pointer-events-auto fixed inset-0 z-[50] bg-mtogo-text-primary/30 motion-safe:animate-fade-in"
                   onClick={close}
                   data-testid="side-menu-backdrop"
                 />
@@ -59,33 +60,42 @@ const SideMenu = ({ regions, locales, locale }: SideMenuProps) => {
               <Transition
                 show={open}
                 as={Fragment}
-                enter="transition ease-out duration-150"
-                enterFrom="opacity-0"
-                enterTo="opacity-100 backdrop-blur-2xl"
-                leave="transition ease-in duration-150"
-                leaveFrom="opacity-100 backdrop-blur-2xl"
-                leaveTo="opacity-0"
+                // The menu slides in from the edge the button sits on and leaves
+                // faster than it arrives. With reduced motion it only fades.
+                enter="transition-[opacity,transform] ease-drawer duration-300"
+                enterFrom="motion-safe:-translate-x-[105%] motion-reduce:opacity-0"
+                enterTo="translate-x-0 opacity-100"
+                leave="transition-[opacity,transform] ease-drawer duration-200"
+                leaveFrom="translate-x-0 opacity-100"
+                leaveTo="motion-safe:-translate-x-[105%] motion-reduce:opacity-0"
               >
-                <PopoverPanel className="flex flex-col absolute w-full pr-4 sm:pr-0 sm:w-1/3 2xl:w-1/4 sm:min-w-min h-[calc(100vh-1rem)] z-[51] inset-x-0 text-sm text-ui-fg-on-color m-2 backdrop-blur-2xl">
+                <PopoverPanel className="absolute left-0 top-0 z-[51] m-2 flex h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] flex-col text-base text-mtogo-text-primary sm:w-96">
                   <div
                     data-testid="nav-menu-popup"
-                    className="flex flex-col h-full bg-[rgba(3,7,18,0.5)] rounded-rounded justify-between p-6"
+                    className="flex h-full flex-col justify-between rounded-card border border-mtogo-border-subtle bg-mtogo-surface-card p-6 shadow-xl"
                   >
                     <div className="flex justify-end" id="xmark">
                       <button
                         data-testid="close-menu-button"
                         onClick={close}
                         aria-label={text.close_menu}
+                        className={clx(
+                          "flex h-11 w-11 items-center justify-center rounded-md text-mtogo-text-secondary transition-[background-color,color,transform] duration-150 ease-out-strong hover:bg-mtogo-surface-selected hover:text-mtogo-text-primary motion-safe:active:scale-[0.97]",
+                          focusRing,
+                        )}
                       >
                         <XMark />
                       </button>
                     </div>
-                    <ul className="flex flex-col gap-6 items-start justify-start">
+                    <ul className="flex flex-col items-start justify-start gap-2">
                       {items.map(({ key, name, href }) => (
                         <li key={key}>
                           <LocalizedClientLink
                             href={href}
-                            className="text-3xl leading-10 hover:text-ui-fg-disabled"
+                            className={clx(
+                              "inline-flex min-h-12 items-center rounded-md text-2xl font-semibold leading-8 text-mtogo-text-primary transition-colors duration-150 hover:text-mtogo-text-link",
+                              focusRing,
+                            )}
                             onClick={close}
                             data-testid={`${key}-link`}
                           >
@@ -132,7 +142,7 @@ const SideMenu = ({ regions, locales, locale }: SideMenuProps) => {
                           )}
                         />
                       </div>
-                      <Text className="flex justify-between txt-compact-small">
+                      <Text className="flex justify-between text-sm text-mtogo-text-secondary">
                         © {new Date().getFullYear()} MTOGO. {text.rights}
                       </Text>
                     </div>
