@@ -73,7 +73,7 @@ flowchart TB
 
 <div class="review-decision-note">
 
-**Agreed:** One Restaurant, one Customer, one destination and one intended delivery per Order, placed after payment success and before Restaurant acceptance. **Meaning of the Payment relationship:** One successful full charge funds the Order. This must not hide pending/failed attempts before success, retries or later full-refund obligations; the Feature grill chooses how these records are represented. Release and reassignment are outside the MVP.
+**Agreed:** One Restaurant, one Customer, one destination and one intended delivery per Order, placed after payment success and before Restaurant acceptance. **Meaning of the Payment relationship:** One successful full charge funds the Order. Payment attempts before success, retries and later full-refund obligations retain their own history. If completion fails after capture, compensate with a full refund; an unsuccessful refund remains owed and visible for operator attention. Feature #46 discovery #130 chose these outcomes; its later specification chooses how the records are represented. Release and reassignment are outside the MVP.
 
 </div>
 

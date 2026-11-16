@@ -80,6 +80,10 @@ _Avoid_: Admin, user (when the operator role matters)
 A Customer's paid purchase of food from exactly one Restaurant for one delivery destination and one intended delivery. It awaits Restaurant acceptance when first placed.
 _Avoid_: Basket, payment, delivery (when referring to the purchase)
 
+**Payment attempt**:
+A submitted request to pay for one reviewed purchase. It can be declined, uncertain or successful; only successful payment places an Order. A retry after a definite decline is a new attempt for the same intended purchase.
+_Avoid_: Order, charge (when the outcome is still uncertain)
+
 **Delivery**:
 The collection and transport of an Order's food from its Restaurant to its Customer's destination.
 _Avoid_: Order, payment

@@ -12,12 +12,11 @@ import "../../../styles/review-documents.css"
 <div class="review-document">
 
 <aside class="review-intro not-content" aria-label="Document status">
-  <strong>Business rules agreed; interactions to refine</strong>
+  <strong>Feature #46 discovery confirmed; specification follows</strong>
   <p>
-    Based on the supplied MTOGO case and the agreed domain model. The case
-    requirements below are separated from proposed interaction details. The core
-    access, payment, acceptance and Feedback rules are agreed; remaining
-    exceptions still need review. Functionality is not yet implemented.
+    Based on the supplied MTOGO case and agreed domain model. Discovery #130
+    records the paid-ordering interactions and acceptance examples. The later
+    specification and implementation remain.
   </p>
 </aside>
 
@@ -28,6 +27,7 @@ A customer chooses food, pays with the order, follows its progress and rates the
   <a href="#proposed-journey">Ordering journey</a>
   <a href="#exceptions-to-discuss">Exceptions</a>
   <a href="#open-decisions">Open decisions</a>
+  <a href="#discovery-130-paid-ordering">Feature #46 discovery</a>
 </nav>
 
 ## Case requirements
@@ -102,15 +102,43 @@ Use these scenarios to test the journey before splitting it into implementation 
 
 <ul class="review-criteria">
   <li>
-    **A dish changes during checkout.** Its price or availability changes after
-    it enters the basket. Recheck before payment and require review of the
-    updated basket; do not silently substitute food or increase a charge.
+    **The Customer selects another Restaurant.** Explain the one-Restaurant
+    basket limit and offer an explicit choice to clear the current basket and
+    start with the other Restaurant. Browsing or selecting a dish must not
+    silently discard the current basket.
   </li>
   <li>
-    **Payment fails or times out.** Keep the customer informed and allow
-    recovery without duplicate charges or Orders. An uncertain provider result
-    stays pending while checked; an unresolved result after five minutes
-    requires operator attention.
+    **A dish or Restaurant changes during checkout.** If a dish is sold out, its
+    price changes in either direction, or the Restaurant stops accepting new
+    Orders, stop submission, show what changed and require another review before
+    payment. Keep selections visible for correction; do not silently remove or
+    substitute food or charge for an unavailable dish.
+  </li>
+  <li>
+    **Payment is declined or uncertain.** A definite decline places no Order;
+    keep the basket and reviewed details for another attempt and retain the
+    failed-attempt history. Recheck eligibility, availability and price before
+    that attempt, requesting another review only if something changed. An
+    uncertain result freezes the submitted basket and price, shows a persistent
+    checking state and prevents edits or another charge attempt for that
+    purchase. The signed-in Customer can return to its status from checkout or
+    their account using a reference that is not an Order number. They may
+    explicitly start a separate basket with its own identity while the first
+    purchase remains frozen. After five minutes unresolved, alert an operator
+    while the Customer still sees the pending result.
+  </li>
+  <li>
+    **Payment succeeds after a delay.** Place the Order using the details the
+    Customer reviewed at submission, even if the dish or Restaurant changed
+    while the payment result was uncertain. The Restaurant then accepts or
+    rejects it under the existing rules; do not change its food or price.
+  </li>
+  <li>
+    **A charge succeeds but Order confirmation fails.** Check whether Medusa
+    completed the cart and recover the same Order reference without another
+    charge. If completion failed after capture, use Medusa's compensation to
+    refund it. Show a checking state until the outcome is confirmed; keep an
+    unsuccessful refund visible as a full refund owed for operator attention.
   </li>
   <li>
     **The Restaurant rejects the Order.** Rejection or five minutes without
@@ -144,6 +172,87 @@ Use these scenarios to test the journey before splitting it into implementation 
 
 Danish and English category and dish names are required; descriptions need both languages when supplied. Status messages use the language recorded with the Order. Complaint management is a future extension, outside the current project scope.
 
+## Discovery #130: paid ordering
+
+### Refined Customer stories
+
+- As a Customer, I can review one Restaurant's food, delivery and contact details, Order language and final DKK price before paying, so I know what I will buy.
+- As a Customer, I can see whether my payment failed, is being checked or placed one paid Order, so a retry or lost response does not charge me twice.
+
+### Acceptance examples
+
+| Scenario                                                                                                         | Expected behavior                                                                                                                                                                                                              |
+| ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Select food from another Restaurant                                                                              | Explain the one-Restaurant limit; change Restaurants only after an explicit choice to clear the current basket.                                                                                                                |
+| A selected dish's revision, content, price or availability changes, or the Restaurant stops receiving new Orders | Stop payment, show the change, keep selections visible and require Customer review. Never silently substitute food or increase the charge.                                                                                     |
+| Mock supplier definitively declines                                                                              | Place no Order; retain the basket and reviewed details, record the attempt and recheck eligibility, availability and price before a new attempt.                                                                               |
+| Supplier result is uncertain                                                                                     | Freeze that submitted purchase and price; show a checking reference from checkout and the Customer account. Do not start another charge for it. After five minutes, flag operator attention without calling the result failed. |
+| Customer starts another purchase while one is uncertain                                                          | Require an explicit separate basket with its own identity; the earlier purchase remains frozen and reachable.                                                                                                                  |
+| Delayed payment succeeds after menu or Restaurant changes                                                        | Place one Order using the reviewed submission. Later Restaurant acceptance or rejection follows the existing rules.                                                                                                            |
+| Charge succeeds but confirmation fails                                                                           | Return the Order if completion succeeded; otherwise compensate the captured payment. Keep an unsuccessful refund visible as a full refund owed. Never charge again.                                                            |
+| Concurrent submissions or restart near payment success                                                           | Produce one successful charge and one Order, preserving its names, quantities, prices, destination, contact details and Order language.                                                                                        |
+| Operator inspects a Restaurant dish                                                                              | The built-in Admin Products list remains available; a read-only detail panel shows its Restaurant, own menu category, bilingual names, sold-out state and registered photo.                                                    |
+| Fresh or existing environment contains starter clothing                                                          | New setup creates no Shirts or other starter apparel; cleanup removes only identified demo merchandise, preserving Restaurant dishes and other real Product data.                                                              |
+
+### Medusa fit and Feature boundaries
+
+Reuse the existing Medusa storefront cart and checkout components, JS SDK,
+commerce modules and `completeCartWorkflow` as the default completion path. Use
+one mock payment option; deterministic test or demo setup selects success,
+decline, timeout or late resolution without Customer-facing test controls. Gift
+cards, promotions and a separate delivery charge are outside the MVP. Hide
+their storefront controls and prevent direct API calls from changing the
+reviewed amount through those unsupported paths.
+
+The current menu route supplies each dish's variant, revision, price and
+availability for the pre-payment comparison. Existing completion middleware
+protects Customer ownership and reviewed address/contact details. Add checks
+for Restaurant eligibility, menu changes and payment amount in the built-in
+workflow's `validate` hook, which runs under its cart lock before Order
+creation. Reject changed carts for Customer review; do not mutate them inside
+that hook. Refresh the payment collection before completion when the cart
+changes, and verify the session amount still matches the reviewed total.
+
+Installed Medusa 2.22.4 creates a provisional Order row before payment
+authorization, then compensates on failure and returns `type: "order"` only
+when completion succeeds. This internal sequence is acceptable only if an
+unpaid row is never presented as a placed Order to any actor. The mock payment
+option must not use `pending_authorization` for an uncertain result: Medusa
+would otherwise complete the cart with an unpaid Order. The later specification
+chooses a supported pending/reconciliation path and verifies rollback, late
+success, amount matching and idempotency without replacing the built-in
+commerce workflow unless evidence requires it.
+See Medusa's [cart-completion guide](https://docs.medusajs.com/resources/storefront-development/checkout/complete-cart)
+and [deferred-payment behavior](https://docs.medusajs.com/resources/commerce-modules/payment/payment-flow).
+
+Feature #46 creates the paid Order linked to its Restaurant and shows it to the
+Customer. Feature #47 adds the Restaurant staff Orders list and acceptance and
+preparation actions in the partner app. Feature #49 owns the operator interface
+for investigating unresolved payment and refund exceptions; #46 stores and
+exposes the facts it needs.
+
+Keep Medusa's built-in Products list visible for MTOGO operators. Add one
+read-only Product-detail panel using the Admin extension system to show a
+dish's Restaurant, Restaurant-owned category, Danish and English names,
+sold-out state and registered photo. Reuse Medusa's layout and components;
+do not build another product list or Admin menu editor. Restaurant staff
+continue to change menu content and photos in the partner app. A Restaurant
+is linked to its dish Products; it is not a Medusa Product category. The
+starter's Shirts category and clothing Products are sample merchandise, not
+Restaurants. Retire those known starter products and categories from normal
+new-environment setup and safely clean up only identifiable demo merchandise
+in existing environments. Update the existing browser verification fixtures
+that currently depend on starter clothing.
+
+Dish variants have inventory tracking disabled because staff mark dishes sold
+out manually. Hide Inventory with Medusa's [team-default sidebar layout](https://docs.medusajs.com/user-guide/tips/layout-configurations),
+without disabling the underlying commerce modules. Sidebar visibility alone
+does not restrict direct URL or API access.
+
+The later `/to-spec` chooses the exact recovery workflow, payment-attempt
+storage, integration seams and verification setup. The team calls
+`/to-tickets` separately after that spec.
+
 ## Related workflows
 
 <SectionLinks
@@ -170,6 +279,6 @@ Danish and English category and dish names are required; descriptions need both 
   ]}
 />
 
-Record agreed answers and follow-up requirements in [issue #10](https://github.com/DannyShayH/MTGO/issues/10). These discussion questions do not create backlog issues or complete the issue's approval criteria.
+Discovery work item: [#130](https://github.com/DannyShayH/MTGO/issues/130). Parent Feature: [#46](https://github.com/DannyShayH/MTGO/issues/46). These decisions do not implement the Feature or create its later work items.
 
 </div>
