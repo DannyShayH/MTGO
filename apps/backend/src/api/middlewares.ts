@@ -46,6 +46,7 @@ import {
   restrictCustomerProvider,
 } from "./customer-identity"
 import { requireCustomerOwnedCart, requireOwnedCart } from "./cart-ownership"
+import { requireOwnedOrder, disableOrderTransfer } from "./order-ownership"
 import { requireReviewedCheckout } from "./reviewed-checkout"
 import {
   PostStoreCustomerSchema,
@@ -84,6 +85,25 @@ export default defineMiddlewares({
   errorHandler: mtogoErrorHandler(),
   routes: [
     { matcher: "/*", middlewares: [correlateRequest] },
+    {
+      matcher: "/store/orders/:id",
+      method: "GET",
+      middlewares: [
+        authenticate("customer", ["bearer", "session"]),
+        requireIsolatedCustomerIdentity,
+        requireOwnedOrder,
+      ],
+    },
+    {
+      matcher: "/admin/orders/:id/transfer*",
+      method: "POST",
+      middlewares: [disableOrderTransfer],
+    },
+    {
+      matcher: "/store/orders/:id/transfer/*",
+      method: "POST",
+      middlewares: [disableOrderTransfer],
+    },
     {
       matcher: "/store/carts/:id/complete",
       method: "POST",

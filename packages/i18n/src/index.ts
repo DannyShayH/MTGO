@@ -78,3 +78,5 @@ export {
   isMenuArrangementError,
   type MenuArrangementError,
 } from "./menu-arrangement.ts"
+
+export { CUSTOMER_ORDER_DETAIL_TEXT } from "./customer-order-detail.ts"

@@ -1,3 +1,4 @@
+import { getCustomerLocale } from "@lib/data/customer-locale"
 import { retrieveOrder } from "@lib/data/orders"
 import OrderDetailsTemplate from "@modules/order/templates/order-details-template"
 import { Metadata } from "next"
@@ -29,5 +30,7 @@ export default async function OrderDetailPage(props: Props) {
     notFound()
   }
 
-  return <OrderDetailsTemplate order={order} />
+  return (
+    <OrderDetailsTemplate order={order} locale={await getCustomerLocale()} />
+  )
 }

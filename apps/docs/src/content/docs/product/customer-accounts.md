@@ -164,3 +164,9 @@ by a preference change. HTTP coverage verifies supported values, invalid input,
 wrong-owner and wrong-role refusals, persistence and preserved Order language;
 Playwright covers browser fallbacks, remembered choices, registration, account
 settings and another-device sign-in.
+
+## Order detail access
+
+A signed-in Customer can open only Orders owned by their Customer account. An Order ID or link does not authorize access; signed-out, other-Customer and other-role Store API requests are refused. The detail page displays the purchased items and the Order's recorded delivery address and contact in Danish or English. Order reads are not shared through a storefront cache.
+
+The starter Order transfer pages and Store transfer operations are disabled, as are the Admin transfer operations. Admin Order views retain their existing authorization. To demonstrate the owner journey before paid ordering is available, create a synthetic Customer and region in a disposable environment, then run `DEMO_ORDER_CUSTOMER_ID=<customer-id> DEMO_ORDER_REGION_ID=<region-id> npm exec medusa exec ./src/scripts/seed-demo-order.ts` from `apps/backend`. Sign in as that Customer to open the synthetic Order. Re-running the script does not create a duplicate for that Customer.

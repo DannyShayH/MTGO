@@ -129,6 +129,121 @@ medusaIntegrationTestRunner({
         },
       }
     }
+    it("protects Order details and disables Customer transfers", async () => {
+      const owner = await createProfileCustomer("order-owner@example.test")
+      const other = await createProfileCustomer("order-other@example.test")
+      const { result: regions } = await createRegionsWorkflow(
+        getContainer(),
+      ).run({
+        input: {
+          regions: [
+            { name: "Denmark", currency_code: "dkk", countries: ["dk"] },
+          ],
+        },
+      })
+      const { result: order } = await createOrderWorkflow(getContainer()).run({
+        input: {
+          customer_id: owner.customer.id,
+          email: "order-owner@example.test",
+          currency_code: "dkk",
+          region_id: regions[0].id,
+          items: [{ title: "Synthetic meal", quantity: 1, unit_price: 50 }],
+          shipping_address: {
+            first_name: "Test",
+            last_name: "Owner",
+            address_1: "Testvej 12",
+            postal_code: "2100",
+            city: "København",
+            country_code: "dk",
+          },
+        },
+      })
+      const path = `/store/orders/${order.id}`
+      const own = await api.get(path, { headers: owner.ownerHeaders })
+      expect(own.data.order.shipping_address.address_1).toBe("Testvej 12")
+      expect(own.data.order.items).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ title: "Synthetic meal" }),
+        ]),
+      )
+      const wrongRole = generateJwtToken(
+        {
+          actor_type: "restaurant_staff",
+          actor_id: "staff_test",
+          auth_identity_id: "auth_test",
+        },
+        { secret: "ci-only-customer-secret", expiresIn: "1h" },
+      )
+      for (const caller of [
+        headers,
+        other.ownerHeaders,
+        { ...headers, authorization: `Bearer ${wrongRole}` },
+      ]) {
+        const response = await api.get(path, {
+          headers: caller,
+          validateStatus: () => true,
+        })
+        expect([401, 403, 404]).toContain(response.status)
+      }
+      for (const action of ["request", "accept", "decline", "cancel"]) {
+        const response = await api.post(
+          `${path}/transfer/${action}`,
+          { token: "invalid" },
+          { headers: other.ownerHeaders, validateStatus: () => true },
+        )
+        expect(response.status).toBe(400)
+        expect(response.data.message).toBe("order_transfer_disabled")
+      }
+      const operatorEmail = "order-operator@example.test"
+      const operatorPassword = "ci-only-operator-password"
+      const registration = await api.post("/auth/user/emailpass/register", {
+        email: operatorEmail,
+        password: operatorPassword,
+      })
+      const identityId = JSON.parse(
+        Buffer.from(
+          registration.data.token.split(".")[1],
+          "base64url",
+        ).toString(),
+      ).auth_identity_id
+      const { result: operators } = await createUsersWorkflow(
+        getContainer(),
+      ).run({
+        input: { users: [{ email: operatorEmail }] },
+      })
+      await getContainer()
+        .resolve(Modules.AUTH)
+        .updateAuthIdentities({
+          id: identityId,
+          app_metadata: { user_id: operators[0].id },
+        })
+      const operator = await api.post("/auth/user/emailpass", {
+        email: operatorEmail,
+        password: operatorPassword,
+      })
+      const operatorHeaders = { authorization: `Bearer ${operator.data.token}` }
+      const operationalView = await api.get(`/admin/orders/${order.id}`, {
+        headers: operatorHeaders,
+        validateStatus: () => true,
+      })
+      expect(operationalView.status).toBe(200)
+      for (const action of ["", "/guest", "/cancel"]) {
+        const response = await api.post(
+          `/admin/orders/${order.id}/transfer${action}`,
+          {},
+          { headers: operatorHeaders, validateStatus: () => true },
+        )
+        expect(response.status).toBe(400)
+        expect(response.data.message).toBe("order_transfer_disabled")
+      }
+      const after = await api.get(path, { headers: owner.ownerHeaders })
+      expect(after.data.order.id).toBe(order.id)
+      const otherAfter = await api.get(path, {
+        headers: other.ownerHeaders,
+        validateStatus: () => true,
+      })
+      expect([401, 403, 404]).toContain(otherAfter.status)
+    })
     it("resets a Customer password once and revokes old tokens and sessions", async () => {
       const otherPassword = "staff-and-operator-password"
       const otherRegistration = await api.post(
