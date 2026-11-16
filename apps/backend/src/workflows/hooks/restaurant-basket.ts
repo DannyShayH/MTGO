@@ -60,8 +60,13 @@ addToCartWorkflow.hooks.validate(async ({ input }, { container }) => {
 export async function validateReviewedBasket(
   container: MedusaContainer,
   cart: unknown,
+  requirePayment = false,
 ) {
-  const review = await reviewCartBasket(container, cart as ReviewedCart)
+  const review = await reviewCartBasket(
+    container,
+    cart as ReviewedCart,
+    requirePayment,
+  )
   if (review?.issues.length)
     throw basketRefusal(
       "basket_review_required",
@@ -74,5 +79,5 @@ export async function validateReviewedBasket(
 }
 
 completeCartWorkflow.hooks.validate(({ cart }, { container }) =>
-  validateReviewedBasket(container, cart),
+  validateReviewedBasket(container, cart, true),
 )

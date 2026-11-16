@@ -19,6 +19,7 @@ import { getLocale } from "./locale-actions"
 import { retrieveCustomer } from "./customer"
 import {
   CHECKOUT_REVIEW_METADATA_KEY,
+  CUSTOMER_CHECKOUT_TEXT,
   createReviewedCheckout,
   isLocale,
   reviewedCheckoutIsComplete,
@@ -439,7 +440,10 @@ export async function placeOrder(cartId?: string) {
     redirect(`/${countryCode}/order/${cartRes?.order.id}/confirmed`)
   }
 
-  return cartRes.cart
+  const locale = await getLocale()
+  throw new Error(
+    CUSTOMER_CHECKOUT_TEXT[isLocale(locale) ? locale : "en"].orderNotPlaced,
+  )
 }
 
 /**

@@ -22,11 +22,17 @@ export type CurrentDish = {
 }
 
 /** Why a basket's amount is not the one DKK menu total the Customer reviewed. */
+/** The one ordinary payment option this release offers. */
+export const MOCK_PAYMENT_PROVIDER_ID = "pp_system_default"
+
 export type AmountRefusalReason =
   | "currency_not_dkk"
   | "adjustment_not_allowed"
   | "delivery_charge_not_allowed"
   | "payment_amount_mismatch"
+  | "payment_session_missing"
+  | "payment_session_unusable"
+  | "payment_provider_not_allowed"
 
 export type BasketIssue =
   | { code: "dish_unavailable"; variant_id: string }
@@ -45,7 +51,17 @@ export type BasketAmount = {
   promotion_count: number
   credit_line_count: number
   /** Absent until the Customer starts payment. */
-  payment?: { amount: BigNumberInput; currency_code: string } | null
+  payment?: {
+    amount: BigNumberInput
+    currency_code: string
+    sessions?: {
+      amount: BigNumberInput
+      currency_code: string
+      provider_id: string
+      status: string
+    }[]
+  } | null
+  require_payment?: boolean
 }
 
 /**
@@ -141,10 +157,30 @@ export function reviewBasketAmount(amount: BasketAmount): BasketIssue[] {
   if (!isZero(amount.shipping_total))
     return refuse("delivery_charge_not_allowed")
   if (
+    amount.require_payment &&
+    (!amount.payment || amount.payment.sessions?.length !== 1)
+  )
+    return refuse("payment_session_missing")
+  if (
     amount.payment &&
     (amount.payment.currency_code.toLowerCase() !== "dkk" ||
       !MathBN.eq(amount.payment.amount, amount.total))
   )
     return refuse("payment_amount_mismatch")
+  for (const session of amount.payment?.sessions ?? []) {
+    if (session.provider_id !== MOCK_PAYMENT_PROVIDER_ID)
+      return refuse("payment_provider_not_allowed")
+    if (
+      session.status !== "pending" &&
+      session.status !== "authorized" &&
+      session.status !== "captured"
+    )
+      return refuse("payment_session_unusable")
+    if (
+      session.currency_code.toLowerCase() !== "dkk" ||
+      !MathBN.eq(session.amount, amount.total)
+    )
+      return refuse("payment_amount_mismatch")
+  }
   return []
 }

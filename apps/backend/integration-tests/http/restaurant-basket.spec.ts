@@ -10,6 +10,7 @@ import {
   createProductsWorkflow,
   createRegionsWorkflow,
   createSalesChannelsWorkflow,
+  createStockLocationsWorkflow,
   linkSalesChannelsToApiKeyWorkflow,
 } from "@medusajs/medusa/core-flows"
 import { RESTAURANT_MODULE } from "../../src/modules/restaurant"
@@ -24,6 +25,7 @@ import { ensureDenmarkRegionWorkflow } from "../../src/workflows/regions/ensure-
 import { validateReviewedBasket } from "../../src/workflows/hooks/restaurant-basket"
 import { REVIEWED_CART_FIELDS } from "../../src/workflows/carts/review-basket"
 import seedDemoMenu from "../../src/scripts/seed-demo-menu"
+import menuDelivery from "../../src/migration-scripts/menu-delivery"
 
 jest.setTimeout(120000)
 
@@ -331,6 +333,332 @@ medusaIntegrationTestRunner({
         })
       })
 
+      it("captures one DKK payment and returns a protected Restaurant Order with reviewed facts", async () => {
+        await activateAndOpen(pizzeriaId)
+        const container = getContainer()
+        const {
+          result: [location],
+        } = await createStockLocationsWorkflow(container).run({
+          input: {
+            locations: [
+              {
+                name: "Restaurant delivery test",
+                address: {
+                  city: "København",
+                  country_code: "DK",
+                  address_1: "",
+                },
+              },
+            ],
+          },
+        })
+        const fulfillment = container.resolve(Modules.FULFILLMENT)
+        const set = await fulfillment.createFulfillmentSets({
+          name: "Restaurant delivery test",
+          type: "shipping",
+          service_zones: [
+            {
+              name: "Denmark",
+              geo_zones: [{ country_code: "dk", type: "country" }],
+            },
+          ],
+        })
+        await container.resolve(ContainerRegistrationKeys.LINK).create({
+          [Modules.STOCK_LOCATION]: { stock_location_id: location.id },
+          [Modules.FULFILLMENT]: { fulfillment_set_id: set.id },
+        })
+        await container.resolve(ContainerRegistrationKeys.LINK).create({
+          [Modules.STOCK_LOCATION]: { stock_location_id: location.id },
+          [Modules.FULFILLMENT]: { fulfillment_provider_id: "manual_manual" },
+        })
+        await menuDelivery({ container })
+        await menuDelivery({ container })
+
+        const email = "purchase-owner@example.test"
+        const password = "purchase-test-password"
+        const registration = await api.post(
+          "/auth/customer/customer-emailpass/register",
+          { email, password },
+        )
+        const identityId = JSON.parse(
+          Buffer.from(
+            registration.data.token.split(".")[1],
+            "base64url",
+          ).toString(),
+        ).auth_identity_id
+        const auth = container.resolve(Modules.AUTH)
+        const verification = await auth.requestAuthVerification({
+          auth_identity_id: identityId,
+          entity_id: email,
+          entity_type: "email",
+          code_provider: "token",
+        })
+        await auth.confirmAuthVerification({
+          code: verification.code!,
+          code_provider: "token",
+        })
+        const created = await api.post(
+          "/store/customers",
+          { email },
+          {
+            headers: {
+              ...store,
+              authorization: `Bearer ${registration.data.token}`,
+            },
+          },
+        )
+        const login = await api.post("/auth/customer/customer-emailpass", {
+          email,
+          password,
+        })
+        const owner = {
+          ...store,
+          authorization: `Bearer ${login.data.token}`,
+        }
+        const cartId = (
+          await api.post(
+            "/store/carts",
+            { region_id: regionId },
+            { headers: owner },
+          )
+        ).data.cart.id
+        const dish = await dishOf(pizzeriaId)
+        await api.post(
+          `/store/carts/${cartId}/line-items`,
+          {
+            variant_id: pizzaVariant,
+            quantity: 2,
+            metadata: {
+              mtogo_dish: { revision: dish.revision, price: dish.price.amount },
+            },
+          },
+          { headers: owner },
+        )
+        const address = {
+          first_name: "Ada",
+          last_name: "Lovelace",
+          address_1: "Testvej 1",
+          address_2: "",
+          company: "",
+          postal_code: "2200",
+          city: "København N",
+          province: "",
+          country_code: "dk",
+          phone: "+45 12 34 56 78",
+        }
+        await api.post(
+          `/store/carts/${cartId}`,
+          {
+            email,
+            shipping_address: address,
+            billing_address: address,
+            locale: "da",
+            metadata: {
+              mtogo_checkout_review: {
+                version: 1,
+                customer_id: created.data.customer.id,
+                destination: address,
+                contact: {
+                  first_name: address.first_name,
+                  last_name: address.last_name,
+                  phone: address.phone,
+                  email,
+                },
+                order_language: "da",
+                reviewed_at: new Date().toISOString(),
+              },
+            },
+          },
+          { headers: owner },
+        )
+        const { data: options } = await api.get(
+          `/store/shipping-options?cart_id=${cartId}`,
+          { headers: owner },
+        )
+        const delivery = options.shipping_options.find(
+          ({ name }: { name: string }) => name === "MTOGO delivery included",
+        )
+        expect(delivery?.amount).toBe(0)
+        await api.post(
+          `/store/carts/${cartId}/shipping-methods`,
+          { option_id: delivery.id },
+          { headers: owner },
+        )
+        const collection = await api.post(
+          "/store/payment-collections",
+          { cart_id: cartId },
+          { headers: owner },
+        )
+        const sessionResponse = await api.post(
+          `/store/payment-collections/${collection.data.payment_collection.id}/payment-sessions`,
+          { provider_id: "pp_system_default" },
+          { headers: owner },
+        )
+        const collectionId = collection.data.payment_collection.id
+        const [session] =
+          sessionResponse.data.payment_collection.payment_sessions
+        const payments = container.resolve(Modules.PAYMENT)
+        // A session that disagrees with the cart total is refused before any charge.
+        await payments.updatePaymentSession({
+          id: session.id,
+          data: {},
+          amount: dish.price.amount,
+          currency_code: "dkk",
+        })
+        const mismatch = await api.post(
+          `/store/carts/${cartId}/complete`,
+          {},
+          { headers: owner, validateStatus: () => true },
+        )
+        expect(mismatch.status).toBe(400)
+        expect(mismatch.data).toMatchObject({
+          code: "basket_review_required",
+          issues: [
+            { code: "amount_not_allowed", reason: "payment_amount_mismatch" },
+          ],
+        })
+        expect(
+          (await api.get("/store/orders", { headers: owner })).data.orders,
+        ).toHaveLength(0)
+        // A stale collection is refreshed and re-offered, then verified again.
+        await payments.updatePaymentCollections(
+          { id: collectionId },
+          { amount: dish.price.amount },
+        )
+        const completed = await api.post(
+          `/store/carts/${cartId}/complete`,
+          {},
+          { headers: owner },
+        )
+        expect(completed.data.type).toBe("order")
+        const order = completed.data.order
+        expect(order.customer_id).toBe(created.data.customer.id)
+        expect(order.restaurant.id).toBe(pizzeriaId)
+        expect(order.currency_code).toBe("dkk")
+        expect(Number(order.total)).toBe(dish.price.amount * 2)
+        expect(Number(order.shipping_total)).toBe(0)
+        expect(order.metadata.mtogo_order_state).toBe(
+          "awaiting_restaurant_acceptance",
+        )
+        expect(order.metadata.mtogo_checkout_review).toMatchObject({
+          destination: address,
+          order_language: "da",
+        })
+        expect(order.items).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              quantity: 2,
+              unit_price: dish.price.amount,
+            }),
+          ]),
+        )
+        expect(
+          order.payment_collections[0].payments[0].captured_at,
+        ).toBeTruthy()
+        expect(Number(order.payment_collections[0].payments[0].amount)).toBe(
+          dish.price.amount * 2,
+        )
+        const history = await api.get("/store/orders", { headers: owner })
+        expect(history.data.count).toBe(1)
+        expect(history.data.orders.map((o: { id: string }) => o.id)).toEqual([
+          order.id,
+        ])
+        const exportAttempt = await api.post(
+          "/admin/orders/export",
+          {},
+          { headers: admin, validateStatus: () => true },
+        )
+        expect(exportAttempt.data.code).toBe("order_export_unavailable")
+
+        const ownRead = await api.get(`/store/orders/${order.id}`, {
+          headers: owner,
+        })
+        expect(ownRead.data.order.id).toBe(order.id)
+        const originalTitle = ownRead.data.order.items[0].title
+        await container.resolve(Modules.PRODUCT).updateProducts(pizzaProduct, {
+          title: "Changed after purchase",
+        })
+        await container
+          .resolve(Modules.CUSTOMER)
+          .updateCustomers(created.data.customer.id, {
+            first_name: "Changed",
+            last_name: "Later",
+          })
+        const historical = await api.get(`/store/orders/${order.id}`, {
+          headers: owner,
+          params: { fields: "+metadata,*shipping_address,*items" },
+        })
+        expect(historical.data.order.items[0].title).toBe(originalTitle)
+        expect(
+          historical.data.order.metadata.mtogo_checkout_review.contact,
+        ).toMatchObject({
+          first_name: "Ada",
+          last_name: "Lovelace",
+          email,
+        })
+        expect(historical.data.order.shipping_address).toMatchObject(address)
+        const outsider = await api.get(`/store/orders/${order.id}`, {
+          headers: store,
+          validateStatus: () => true,
+        })
+        expect(outsider.status).toBe(401)
+        const otherEmail = "purchase-other@example.test"
+        const otherRegistration = await api.post(
+          "/auth/customer/customer-emailpass/register",
+          { email: otherEmail, password },
+        )
+        const otherIdentityId = JSON.parse(
+          Buffer.from(
+            otherRegistration.data.token.split(".")[1],
+            "base64url",
+          ).toString(),
+        ).auth_identity_id
+        const otherVerification = await auth.requestAuthVerification({
+          auth_identity_id: otherIdentityId,
+          entity_id: otherEmail,
+          entity_type: "email",
+          code_provider: "token",
+        })
+        await auth.confirmAuthVerification({
+          code: otherVerification.code!,
+          code_provider: "token",
+        })
+        await api.post(
+          "/store/customers",
+          { email: otherEmail },
+          {
+            headers: {
+              ...store,
+              authorization: `Bearer ${otherRegistration.data.token}`,
+            },
+          },
+        )
+        const otherLogin = await api.post("/auth/customer/customer-emailpass", {
+          email: otherEmail,
+          password,
+        })
+        const foreign = await api.get(`/store/orders/${order.id}`, {
+          headers: {
+            ...store,
+            authorization: `Bearer ${otherLogin.data.token}`,
+          },
+          validateStatus: () => true,
+        })
+        expect(foreign.status).toBe(404)
+        await container
+          .resolve<RestaurantModuleService>(RESTAURANT_MODULE)
+          .updateRestaurants({ id: pizzeriaId, is_open: false })
+        const retried = await api.post(
+          `/store/carts/${cartId}/complete`,
+          {},
+          { headers: owner },
+        )
+        expect(retried.data.order.id).toBe(order.id)
+        expect(
+          retried.data.order.metadata.mtogo_checkout_review.destination,
+        ).toEqual(address)
+      })
+
       describe("GET /store/carts/:id/basket-review", () => {
         const customerHeaders = async (email: string) => {
           const container = getContainer()
@@ -374,6 +702,23 @@ medusaIntegrationTestRunner({
             .updateCarts([{ id: cartId, customer_id: customerId }])
           return cartId
         }
+
+        it("refuses completion for a Customer whose email is not verified", async () => {
+          await activateAndOpen(pizzeriaId)
+          const owner = await customerHeaders("unverified@example.test")
+          const cartId = await ownedStaleCart(owner.id)
+          const refused = await api.post(
+            `/store/carts/${cartId}/complete`,
+            {},
+            { headers: owner.headers, validateStatus: () => true },
+          )
+          expect(refused.status).toBe(403)
+          expect(refused.data.code).toBe("customer_email_verification_required")
+          expect(
+            (await api.get("/store/orders", { headers: owner.headers })).data
+              .orders,
+          ).toHaveLength(0)
+        })
 
         it("names a changed dish with its current facts and keeps the basket", async () => {
           await activateAndOpen(pizzeriaId)

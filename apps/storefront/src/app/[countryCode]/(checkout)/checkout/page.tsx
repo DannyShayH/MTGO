@@ -36,7 +36,7 @@ export default async function Checkout({
       <PaymentWrapper cart={cart}>
         <CheckoutForm cart={cart} customer={customer} locale={locale} />
       </PaymentWrapper>
-      <CheckoutSummary cart={cart} />
+      <CheckoutSummary cart={cart} locale={locale} />
     </div>
   )
 }

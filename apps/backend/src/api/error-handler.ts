@@ -191,6 +191,10 @@ export function mtogoErrorHandler(): MedusaErrorHandlerFunction {
     "basket_other_restaurant",
     "basket_not_a_dish",
     "basket_review_required",
+    "order_export_unavailable",
+    "order_not_found",
+    "order_placement_incomplete",
+    "order_restaurant_mismatch",
   ])
   return (error, req, res, next) => {
     if (error.message === "customer_identity_exists") {

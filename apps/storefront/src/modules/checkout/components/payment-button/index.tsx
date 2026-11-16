@@ -10,14 +10,17 @@ import React, { useState } from "react"
 import ErrorMessage from "../error-message"
 import { getPaymentErrorMessage } from "@lib/util/payment-error"
 import AdyenPaymentButton from "./adyen-payment-button"
+import { CUSTOMER_CHECKOUT_TEXT, type Locale } from "@dtc/i18n"
 
 type PaymentButtonProps = {
   cart: HttpTypes.StoreCart
   "data-testid": string
+  locale: Locale
 }
 
 const PaymentButton: React.FC<PaymentButtonProps> = ({
   cart,
+  locale,
   "data-testid": dataTestId,
 }) => {
   const notReady =
@@ -48,10 +51,16 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
       )
     case isManual(paymentSession?.provider_id):
       return (
-        <ManualTestPaymentButton notReady={notReady} data-testid={dataTestId} />
+        <ManualTestPaymentButton
+          notReady={notReady}
+          locale={locale}
+          data-testid={dataTestId}
+        />
       )
     default:
-      return <Button disabled>Select a payment method</Button>
+      return (
+        <Button disabled>{CUSTOMER_CHECKOUT_TEXT[locale].selectPayment}</Button>
+      )
   }
 }
 
@@ -170,14 +179,25 @@ const StripePaymentButton = ({
   )
 }
 
-const ManualTestPaymentButton = ({ notReady }: { notReady: boolean }) => {
+const ManualTestPaymentButton = ({
+  notReady,
+  locale,
+}: {
+  notReady: boolean
+  locale: Locale
+}) => {
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const onPaymentCompleted = async () => {
     await placeOrder()
       .catch((err) => {
-        setErrorMessage(err.message)
+        // The data layer already worded the refusal in the Customer's language.
+        setErrorMessage(
+          err instanceof Error && err.message
+            ? err.message
+            : CUSTOMER_CHECKOUT_TEXT[locale].orderNotPlaced,
+        )
       })
       .finally(() => {
         setSubmitting(false)
@@ -199,7 +219,7 @@ const ManualTestPaymentButton = ({ notReady }: { notReady: boolean }) => {
         size="large"
         data-testid="submit-order-button"
       >
-        Place order
+        {CUSTOMER_CHECKOUT_TEXT[locale].placeOrder}
       </Button>
       <ErrorMessage
         error={errorMessage}

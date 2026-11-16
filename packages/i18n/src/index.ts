@@ -80,3 +80,4 @@ export {
 } from "./menu-arrangement.ts"
 
 export { CUSTOMER_ORDER_DETAIL_TEXT } from "./customer-order-detail.ts"
+export { CUSTOMER_ORDER_CONFIRMATION_TEXT } from "./customer-order-confirmation.ts"

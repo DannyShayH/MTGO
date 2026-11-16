@@ -31,11 +31,23 @@ export default async function CheckoutForm({
     <div className="w-full grid grid-cols-1 gap-y-8">
       <Addresses cart={cart} customer={customer} locale={locale} />
 
-      <Shipping cart={cart} availableShippingMethods={shippingMethods} />
+      <Shipping
+        cart={cart}
+        availableShippingMethods={shippingMethods.filter(
+          ({ name }) => name === "MTOGO delivery included",
+        )}
+        locale={locale}
+      />
 
-      <Payment cart={cart} availablePaymentMethods={paymentMethods} />
+      <Payment
+        cart={cart}
+        availablePaymentMethods={paymentMethods.filter(
+          ({ id }) => id === "pp_system_default",
+        )}
+        locale={locale}
+      />
 
-      <Review cart={cart} />
+      <Review cart={cart} locale={locale} />
     </div>
   )
 }

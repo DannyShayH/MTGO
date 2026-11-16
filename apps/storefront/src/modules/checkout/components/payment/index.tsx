@@ -18,14 +18,18 @@ import {
 import { HttpTypes } from "@medusajs/types"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useCallback, useEffect, useState } from "react"
+import { CUSTOMER_CHECKOUT_TEXT, type Locale } from "@dtc/i18n"
 
 const Payment = ({
   cart,
   availablePaymentMethods,
+  locale,
 }: {
   cart: HttpTypes.StoreCart
   availablePaymentMethods: { id: string }[]
+  locale: Locale
 }) => {
+  const text = CUSTOMER_CHECKOUT_TEXT[locale]
   const activeSession = cart.payment_collection?.payment_sessions?.find(
     (paymentSession) => paymentSession.status === "pending",
   )
@@ -104,7 +108,9 @@ const Payment = ({
         )
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setError(
+        err instanceof Error && err.message ? err.message : text.orderNotPlaced,
+      )
     } finally {
       setIsLoading(false)
     }
@@ -127,7 +133,7 @@ const Payment = ({
             },
           )}
         >
-          Payment
+          {text.payment}
           {!isOpen && paymentReady && <CheckCircleSolid />}
         </Heading>
         {!isOpen && paymentReady && (
@@ -137,7 +143,7 @@ const Payment = ({
               className="text-ui-fg-interactive hover:text-ui-fg-interactive-hover"
               data-testid="edit-payment-button"
             >
-              Edit
+              {text.edit}
             </button>
           </Text>
         )}
@@ -163,6 +169,7 @@ const Payment = ({
                       <PaymentContainer
                         paymentProviderId={paymentMethod.id}
                         selectedPaymentOptionId={selectedPaymentMethod}
+                        label={text.paymentMethod}
                       />
                     )}
                   </div>
@@ -174,7 +181,7 @@ const Payment = ({
           {paidByGiftcard && (
             <div className="flex flex-col w-1/3">
               <Text className="txt-medium-plus text-ui-fg-base mb-1">
-                Payment method
+                {text.paymentMethod}
               </Text>
               <Text
                 className="txt-medium text-ui-fg-subtle"
@@ -202,8 +209,8 @@ const Payment = ({
             data-testid="submit-payment-button"
           >
             {!activeSession && isStripeLike(selectedPaymentMethod)
-              ? "Enter payment details"
-              : "Continue to review"}
+              ? text.enterPaymentDetails
+              : text.continueToReview}
           </Button>
         </div>
 
@@ -212,7 +219,7 @@ const Payment = ({
             <div className="flex items-start gap-x-1 w-full">
               <div className="flex flex-col w-1/3">
                 <Text className="txt-medium-plus text-ui-fg-base mb-1">
-                  Payment method
+                  {text.paymentMethod}
                 </Text>
                 <Text
                   className="txt-medium text-ui-fg-subtle"
@@ -224,7 +231,7 @@ const Payment = ({
               </div>
               <div className="flex flex-col w-1/3">
                 <Text className="txt-medium-plus text-ui-fg-base mb-1">
-                  Payment details
+                  {text.paymentDetails}
                 </Text>
                 <div
                   className="flex gap-2 txt-medium text-ui-fg-subtle items-center"
@@ -235,7 +242,7 @@ const Payment = ({
                       <CreditCard />
                     )}
                   </Container>
-                  <Text>Another step will appear</Text>
+                  <Text>{text.anotherStepFollows}</Text>
                 </div>
               </div>
             </div>

@@ -1,31 +1,58 @@
-import { Heading } from "@modules/common/components/ui"
-
-import ItemsPreviewTemplate from "@modules/cart/templates/preview"
-import DiscountCode from "@modules/checkout/components/discount-code"
-import CartTotals from "@modules/common/components/cart-totals"
-import Divider from "@modules/common/components/divider"
+import { CUSTOMER_CHECKOUT_TEXT, type Locale } from "@dtc/i18n"
+import { convertToLocale } from "@lib/util/money"
 import { HttpTypes } from "@medusajs/types"
 
-const CheckoutSummary = ({ cart }: { cart: HttpTypes.StoreCart }) => {
+export default function CheckoutSummary({
+  cart,
+  locale,
+}: {
+  cart: HttpTypes.StoreCart
+  locale: Locale
+}) {
+  const text = CUSTOMER_CHECKOUT_TEXT[locale]
+  const money = (amount: number) =>
+    convertToLocale({
+      amount,
+      currency_code: cart.currency_code,
+      locale: locale === "da" ? "da-DK" : "en-GB",
+    })
+
   return (
-    <div className="sticky top-0 flex flex-col-reverse small:flex-col gap-y-8 py-8 small:py-0 ">
-      <div className="w-full bg-white flex flex-col">
-        <Divider className="my-6 small:hidden" />
-        <Heading
-          level="h2"
-          className="flex flex-row text-3xl-regular items-baseline"
+    <aside
+      aria-labelledby="checkout-basket-heading"
+      className="h-fit rounded-card border border-mtogo-border-subtle bg-mtogo-surface-card p-5 sm:sticky sm:top-6 sm:p-6"
+    >
+      <h2
+        id="checkout-basket-heading"
+        className="text-xl font-semibold text-mtogo-text-primary"
+      >
+        {text.basketSummary}
+      </h2>
+      <ul className="mt-4 divide-y divide-mtogo-border-subtle border-y border-mtogo-border-subtle">
+        {cart.items?.map((item) => (
+          <li key={item.id} className="flex justify-between gap-4 py-4">
+            <span className="min-w-0 break-words text-mtogo-text-primary">
+              {item.quantity} × {item.title}
+            </span>
+            <span className="shrink-0 font-medium tabular-nums text-mtogo-text-primary">
+              {money(item.total ?? 0)}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <div className="mt-4 flex items-baseline justify-between gap-4 font-semibold text-mtogo-text-primary">
+        <span>{text.total}</span>
+        <span
+          className="text-xl tabular-nums"
+          data-testid="cart-total"
+          data-value={cart.total ?? 0}
         >
-          In your Cart
-        </Heading>
-        <Divider className="my-6" />
-        <CartTotals totals={cart} />
-        <ItemsPreviewTemplate cart={cart} />
-        <div className="my-6">
-          <DiscountCode cart={cart} />
-        </div>
+          {money(cart.total ?? 0)}
+        </span>
       </div>
-    </div>
+      <p className="mt-2 text-sm text-mtogo-text-secondary">
+        {text.deliveryIncluded}
+      </p>
+    </aside>
   )
 }
-
-export default CheckoutSummary

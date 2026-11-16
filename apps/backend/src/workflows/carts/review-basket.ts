@@ -41,6 +41,14 @@ export type ReviewedCart = {
   payment_collection?: {
     amount?: BigNumberInput | null
     currency_code?: string | null
+    payment_sessions?:
+      | {
+          amount: BigNumberInput
+          currency_code: string
+          provider_id: string
+          status: string
+        }[]
+      | null
   } | null
 }
 
@@ -59,6 +67,10 @@ export const REVIEWED_CART_FIELDS = [
   "credit_lines.id",
   "payment_collection.amount",
   "payment_collection.currency_code",
+  "payment_collection.payment_sessions.amount",
+  "payment_collection.payment_sessions.currency_code",
+  "payment_collection.payment_sessions.provider_id",
+  "payment_collection.payment_sessions.status",
 ]
 
 export type BasketReview = { restaurant_id: string; issues: BasketIssue[] }
@@ -124,6 +136,7 @@ const currentDishesOf = (
 export async function reviewCartBasket(
   container: MedusaContainer,
   cart: ReviewedCart,
+  requirePayment = false,
 ): Promise<BasketReview | null> {
   // A completed cart returns its Order; the menu may have changed since.
   if (cart.completed_at || !cart.items?.length) return null
@@ -174,8 +187,10 @@ export async function reviewCartBasket(
           ? {
               amount: payment.amount,
               currency_code: payment.currency_code ?? "",
+              sessions: payment.payment_sessions ?? [],
             }
           : null,
+      require_payment: requirePayment,
     }),
   ]
   return { restaurant_id: restaurantId, issues }

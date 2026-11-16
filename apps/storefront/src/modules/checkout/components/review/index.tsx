@@ -5,8 +5,16 @@ import { Heading, Text, clx } from "@modules/common/components/ui"
 import PaymentButton from "../payment-button"
 import { useSearchParams } from "next/navigation"
 import { HttpTypes } from "@medusajs/types"
+import { CUSTOMER_CHECKOUT_TEXT, type Locale } from "@dtc/i18n"
 
-const Review = ({ cart }: { cart: HttpTypes.StoreCart }) => {
+const Review = ({
+  cart,
+  locale,
+}: {
+  cart: HttpTypes.StoreCart
+  locale: Locale
+}) => {
+  const text = CUSTOMER_CHECKOUT_TEXT[locale]
   const searchParams = useSearchParams()
 
   const isOpen = searchParams.get("step") === "review"
@@ -35,7 +43,7 @@ const Review = ({ cart }: { cart: HttpTypes.StoreCart }) => {
             },
           )}
         >
-          Review
+          {text.review}
         </Heading>
       </div>
       {isOpen && previousStepsCompleted && (
@@ -43,14 +51,15 @@ const Review = ({ cart }: { cart: HttpTypes.StoreCart }) => {
           <div className="flex items-start gap-x-1 w-full mb-6">
             <div className="w-full">
               <Text className="txt-medium-plus text-ui-fg-base mb-1">
-                By clicking the Place Order button, you confirm that you have
-                read, understand and accept our Terms of Use, Terms of Sale and
-                Returns Policy and acknowledge that you have read Medusa
-                Store&apos;s Privacy Policy.
+                {text.reviewNote}
               </Text>
             </div>
           </div>
-          <PaymentButton cart={cart} data-testid="submit-order-button" />
+          <PaymentButton
+            cart={cart}
+            locale={locale}
+            data-testid="submit-order-button"
+          />
         </>
       )}
     </div>

@@ -154,6 +154,46 @@ describe("reviewBasketAmount", () => {
     ).toEqual([])
   })
 
+  it("requires one exact mock payment session before completion", () => {
+    const session = {
+      amount: 191,
+      currency_code: "dkk",
+      provider_id: "pp_system_default",
+      status: "pending",
+    }
+    expect(
+      reviewBasketAmount({
+        ...plain,
+        require_payment: true,
+        payment: { ...plain.payment!, sessions: [session] },
+      }),
+    ).toEqual([])
+    expect(reviewBasketAmount({ ...plain, require_payment: true })).toEqual([
+      { code: "amount_not_allowed", reason: "payment_session_missing" },
+    ])
+    expect(
+      reviewBasketAmount({
+        ...plain,
+        require_payment: true,
+        payment: { ...plain.payment!, sessions: [{ ...session, amount: 190 }] },
+      }),
+    ).toEqual([
+      { code: "amount_not_allowed", reason: "payment_amount_mismatch" },
+    ])
+    expect(
+      reviewBasketAmount({
+        ...plain,
+        require_payment: true,
+        payment: {
+          ...plain.payment!,
+          sessions: [{ ...session, status: "canceled" }],
+        },
+      }),
+    ).toEqual([
+      { code: "amount_not_allowed", reason: "payment_session_unusable" },
+    ])
+  })
+
   it.each([
     {
       why: "a EUR cart",

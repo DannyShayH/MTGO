@@ -47,13 +47,57 @@ Runs the same review read-only for the signed-in Customer who owns the cart
 completed cart returns `{ restaurant_id: null, issues: [] }`. Each issue is
 one of:
 
-| Code                              | Fields                                                                                                             |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `dish_changed`                    | `variant_id` and the current `revision` and `price`                                                                |
-| `dish_unavailable`                | `variant_id`                                                                                                       |
-| `dish_sold_out`                   | `variant_id`                                                                                                       |
-| `restaurant_not_receiving_orders` | `reason`, such as `restaurant_closed`                                                                              |
-| `amount_not_allowed`              | `reason`: `currency_not_dkk`, `adjustment_not_allowed`, `delivery_charge_not_allowed` or `payment_amount_mismatch` |
+| Code                              | Fields                                                                                                                                                                                                    |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dish_changed`                    | `variant_id` and the current `revision` and `price`                                                                                                                                                       |
+| `dish_unavailable`                | `variant_id`                                                                                                                                                                                              |
+| `dish_sold_out`                   | `variant_id`                                                                                                                                                                                              |
+| `restaurant_not_receiving_orders` | `reason`, such as `restaurant_closed`                                                                                                                                                                     |
+| `amount_not_allowed`              | `reason`: `currency_not_dkk`, `adjustment_not_allowed`, `delivery_charge_not_allowed`, `payment_amount_mismatch`, `payment_session_missing`, `payment_session_unusable` or `payment_provider_not_allowed` |
+
+## Paid Restaurant Orders (#132)
+
+`POST /store/carts/:id/complete` requires an authenticated, verified Customer,
+their own cart, and the checkout review. The core Medusa completion workflow
+checks the current Restaurant basket under the cart lock. The payment collection
+and its single `pp_system_default` session must both equal the current DKK cart
+total; a stale or missing session returns `400 basket_review_required` with an
+`amount_not_allowed` issue and no charge. Before completion, a payment
+collection whose amount or currency no longer matches the cart is refreshed
+through Medusa's workflow and given a new `pp_system_default` session; the
+amount is then verified again under the cart lock. Without any payment
+collection the Customer must start payment first.
+
+On successful core authorization, the Store completion route captures the mock
+payment, links exactly one Restaurant to the Order, and records
+`metadata.mtogo_order_state = awaiting_restaurant_acceptance`. Its response is
+`{ type: "order", order }` only after those steps finish. The Order retains the
+cart's `mtogo_checkout_review` metadata, including destination, contact and
+Order language. A repeated completion returns the same Order ID without
+capturing again, even if the Restaurant later closes. If post-completion work
+fails, the unmarked Order remains hidden from Customer and operator list and
+direct reads; retrying the same cart resumes capture or linking. Placement
+failures use `order_not_found`, `order_placement_incomplete` (no single
+Restaurant or payment) and `order_restaurant_mismatch` (a different Restaurant
+is already linked), all returned as the error `code`.
+
+The Order-to-Restaurant link table is created by `db:migrate` (it runs
+`db:sync-links`); no separate step is needed.
+
+`GET /store/orders` and `GET /store/orders/:id` keep the existing Customer
+ownership protection and suppress provisional Restaurant Orders before the
+placed marker. Admin list and detail reads apply the same visibility rule.
+The built-in Admin Orders export returns `400 order_export_unavailable`
+because it cannot apply the provisional-row filter; a filtered export can
+restore that capability.
+
+`GET /store/orders/:id` returns the Order's `metadata` (the checkout review) only
+when the request asks for it with `fields=+metadata`.
+
+The zero-cost `MTOGO delivery included` shipping option is created by the
+`menu-delivery` migration script and linked to the menu sales channel. It can be
+run again without adding another option. The option is internal fulfillment
+data; the Customer's delivery charge remains zero.
 
 ## Partner dish availability (#108)
 

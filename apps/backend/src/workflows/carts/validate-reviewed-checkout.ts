@@ -5,8 +5,7 @@ import {
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk"
 import { Modules, MedusaError } from "@medusajs/framework/utils"
-
-const CHECKOUT_REVIEW_METADATA_KEY = "mtogo_checkout_review"
+import { CHECKOUT_REVIEW_KEY as CHECKOUT_REVIEW_METADATA_KEY } from "../orders/placed-order-visibility"
 
 type ReviewedCheckout = {
   version: 1

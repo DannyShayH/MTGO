@@ -46,7 +46,13 @@ import {
   restrictCustomerProvider,
 } from "./customer-identity"
 import { requireCustomerOwnedCart, requireOwnedCart } from "./cart-ownership"
-import { requireOwnedOrder, disableOrderTransfer } from "./order-ownership"
+import {
+  requireOwnedOrder,
+  requirePlacedOrder,
+  disableOrderTransfer,
+  disableOrderExport,
+} from "./order-ownership"
+import { includeRequestedOrderMetadata } from "./order-fields"
 import { requireReviewedCheckout } from "./reviewed-checkout"
 import {
   PostStoreCustomerSchema,
@@ -86,12 +92,31 @@ export default defineMiddlewares({
   routes: [
     { matcher: "/*", middlewares: [correlateRequest] },
     {
+      matcher: "/admin/orders/export",
+      method: "POST",
+      middlewares: [disableOrderExport],
+    },
+    {
+      matcher: "/admin/orders/:id",
+      method: "GET",
+      middlewares: [requirePlacedOrder],
+    },
+    {
+      matcher: "/store/orders",
+      method: "GET",
+      middlewares: [
+        authenticate("customer", ["bearer", "session"]),
+        requireIsolatedCustomerIdentity,
+      ],
+    },
+    {
       matcher: "/store/orders/:id",
       method: "GET",
       middlewares: [
         authenticate("customer", ["bearer", "session"]),
         requireIsolatedCustomerIdentity,
         requireOwnedOrder,
+        includeRequestedOrderMetadata,
       ],
     },
     {
