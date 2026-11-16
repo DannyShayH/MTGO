@@ -1,36 +1,29 @@
 import { getCustomerLocale } from "@lib/data/customer-locale"
-import { retrieveOrder } from "@lib/data/orders"
+import { retrieveAccountOrder } from "@lib/data/orders"
+import { accountText } from "@lib/util/account-text"
+import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import OrderDetailsTemplate from "@modules/order/templates/order-details-template"
-import { Metadata } from "next"
 import { notFound } from "next/navigation"
 
-type Props = {
-  params: Promise<{ id: string }>
-}
-
-export async function generateMetadata(props: Props): Promise<Metadata> {
-  const params = await props.params
-  const order = await retrieveOrder(params.id).catch(() => null)
-
-  if (!order) {
-    notFound()
+type Props = { params: Promise<{ id: string }> }
+export default async function OrderDetailPage({ params }: Props) {
+  const { id } = await params
+  const locale = await getCustomerLocale()
+  const result = await retrieveAccountOrder(id)
+  if (result.state !== "success") {
+    if (result.state === "not_found") notFound()
+    const text = accountText[locale]
+    return (
+      <div role="alert" className="space-y-4">
+        <p>{text.failed}</p>
+        <LocalizedClientLink
+          href={`/account/orders/details/${id}`}
+          className="underline text-mtogo-text-link"
+        >
+          {text.retry}
+        </LocalizedClientLink>
+      </div>
+    )
   }
-
-  return {
-    title: `Order #${order.display_id}`,
-    description: `View your order`,
-  }
-}
-
-export default async function OrderDetailPage(props: Props) {
-  const params = await props.params
-  const order = await retrieveOrder(params.id).catch(() => null)
-
-  if (!order) {
-    notFound()
-  }
-
-  return (
-    <OrderDetailsTemplate order={order} locale={await getCustomerLocale()} />
-  )
+  return <OrderDetailsTemplate order={result.order} locale={locale} />
 }

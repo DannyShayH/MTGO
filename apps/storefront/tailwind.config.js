@@ -5,6 +5,7 @@ module.exports = {
   // MTOGO tokens (packages/ui) on top of the Medusa UI preset.
   presets: [require("@dtc/ui/tailwind-preset")],
   content: [
+    "../../node_modules/@medusajs/ui/dist/**/*.{js,ts,jsx,tsx}",
     "./src/app/**/*.{js,ts,jsx,tsx}",
     "./src/pages/**/*.{js,ts,jsx,tsx}",
     "./src/components/**/*.{js,ts,jsx,tsx}",

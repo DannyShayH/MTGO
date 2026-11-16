@@ -66,6 +66,7 @@ const ProfileName: React.FC<MyInformationProps> = ({ customer, locale }) => {
         label={profileText.name}
         currentInfo={`${customer.first_name} ${customer.last_name}`}
         isSuccess={successState}
+        feedback={state}
         isError={!!state?.error}
         clearState={clearState}
         onCancel={() => {

@@ -47,7 +47,7 @@ export default async function seedDemoOrder({ container }: ExecArgs) {
         country_code: "dk",
         phone: "+4512345678",
       },
-      metadata: { demo_order_94: true },
+      metadata: { demo_order_94: true, restaurant_name: "Demo Restaurant" },
     },
   })
   console.log(`Created synthetic Order ${result.id} for the demo Customer`)

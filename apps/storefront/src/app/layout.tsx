@@ -1,5 +1,6 @@
 import { getCustomerLocale } from "@lib/data/customer-locale"
 import { getBaseURL } from "@lib/util/env"
+import { Toaster } from "@medusajs/ui"
 import { Metadata } from "next"
 // Inter, self-hosted: Medusa UI's type classes name it, and no font request
 // leaves for a third party.
@@ -21,6 +22,7 @@ export default async function RootLayout(props: { children: React.ReactNode }) {
       </head>
       <body className="bg-mtogo-surface-page text-mtogo-text-primary">
         <main className="relative">{props.children}</main>
+        <Toaster position="top-right" />
       </body>
     </html>
   )

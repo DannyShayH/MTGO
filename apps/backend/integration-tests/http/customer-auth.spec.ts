@@ -129,6 +129,117 @@ medusaIntegrationTestRunner({
         },
       }
     }
+    it("paginates private Order history and preserves historical details after profile edits", async () => {
+      const owner = await createProfileCustomer("history-owner@example.test")
+      const other = await createProfileCustomer("history-other@example.test")
+      const { result: regions } = await createRegionsWorkflow(
+        getContainer(),
+      ).run({
+        input: {
+          regions: [
+            {
+              name: "History Denmark",
+              currency_code: "dkk",
+              countries: ["dk"],
+            },
+          ],
+        },
+      })
+      const ids: string[] = []
+      for (let index = 0; index < 12; index++) {
+        const { result: order } = await createOrderWorkflow(getContainer()).run(
+          {
+            input: {
+              customer_id: owner.customer.id,
+              email: "history-owner@example.test",
+              currency_code: "dkk",
+              region_id: regions[0].id,
+              metadata: { restaurant_name: "Synthetic Restaurant" },
+              items: [{ title: `Meal ${index}`, quantity: 1, unit_price: 50 }],
+              shipping_address: {
+                first_name: "Original",
+                last_name: "Customer",
+                address_1: "Testvej 12",
+                postal_code: "2100",
+                city: "København",
+                country_code: "dk",
+                phone: "+4512345678",
+              },
+            },
+          },
+        )
+        ids.push(order.id)
+      }
+      const options = { headers: owner.ownerHeaders }
+      const first = await api.get(
+        "/store/orders?limit=10&offset=0&order=-created_at",
+        options,
+      )
+      const second = await api.get(
+        "/store/orders?limit=10&offset=10&order=-created_at",
+        options,
+      )
+      expect(first.data.count).toBe(12)
+      expect(first.data.orders).toHaveLength(10)
+      expect(second.data.orders).toHaveLength(2)
+      const results = [...first.data.orders, ...second.data.orders]
+      expect(new Set(results.map((order: { id: string }) => order.id))).toEqual(
+        new Set(ids),
+      )
+      const dates = results.map(
+        (order: { created_at: string }) => order.created_at,
+      )
+      expect(dates).toEqual([...dates].sort().reverse())
+      expect(first.data.orders[0].metadata.restaurant_name).toBe(
+        "Synthetic Restaurant",
+      )
+      expect(
+        (await api.get("/store/orders", { headers: other.ownerHeaders })).data
+          .orders,
+      ).toHaveLength(0)
+      const denied = await api.get(`/store/orders/${ids[0]}`, {
+        headers: other.ownerHeaders,
+        validateStatus: () => true,
+      })
+      expect([401, 403, 404]).toContain(denied.status)
+      await api.post(
+        "/store/customers/me",
+        { first_name: "New", last_name: "Name", phone: "+4598765432" },
+        options,
+      )
+      const updatedHistory = await api.get(
+        "/store/orders?limit=20&order=-created_at",
+        options,
+      )
+      expect(
+        updatedHistory.data.orders.map((order: { id: string }) => order.id),
+      ).toEqual(expect.arrayContaining(ids))
+      expect(
+        (await api.get(`/store/orders/${ids[0]}`, options)).data.order
+          .shipping_address,
+      ).toMatchObject({
+        first_name: "Original",
+        address_1: "Testvej 12",
+        phone: "+4512345678",
+      })
+      const timings = await Promise.all(
+        Array.from({ length: 20 }, async () => {
+          const start = performance.now()
+          await api.get(
+            "/store/orders?limit=10&offset=0&order=-created_at",
+            options,
+          )
+          await api.get(`/store/orders/${ids[0]}`, options)
+          return performance.now() - start
+        }),
+      )
+      timings.sort((a, b) => a - b)
+      console.log(
+        `History 20 concurrent journeys, 12 orders: p95 ${timings[18].toFixed(0)} ms`,
+      )
+      expect(timings[18]).toBeLessThan(2000)
+    })
+
     it("protects Order details and disables Customer transfers", async () => {
       const owner = await createProfileCustomer("order-owner@example.test")
       const other = await createProfileCustomer("order-other@example.test")

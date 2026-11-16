@@ -1,5 +1,6 @@
 "use client"
 
+import { toast } from "@medusajs/ui"
 import { useEffect, useRef, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { Button } from "@modules/common/components/ui"
@@ -38,6 +39,11 @@ const VerifyAccount = () => {
       setState(success ? "success" : "error"),
     )
   }, [token])
+
+  useEffect(() => {
+    if (state === "success") toast.success(copy.success)
+    if (state === "error") toast.error(copy.error)
+  }, [state, copy])
 
   return (
     <div

@@ -143,30 +143,31 @@ for (const locale of ["da", "en"] as const) {
     await page.getByTestId("first-name-input").fill("   ")
     await page.getByTestId("last-name-input").fill("Jensen")
     await nameEditor.getByTestId("save-button").press("Enter")
-    await expect(nameEditor.getByRole("alert")).toContainText(
-      locale === "da" ? "Indtast" : "Enter",
-    )
+    await expect(
+      page
+        .getByText(locale === "da" ? "Indtast" : "Enter", { exact: false })
+        .first(),
+    ).toBeVisible()
     await expect(page.getByTestId("first-name-input")).toHaveValue("   ")
     await page.getByTestId("first-name-input").fill("Maja")
     await page.getByTestId("last-name-input").fill("Jensen")
     await nameEditor.getByTestId("save-button").press("Enter")
-    await expect(nameEditor.getByRole("status")).toContainText(
-      locale === "da" ? "opdateret" : "updated",
+    await expect(nameEditor.getByTestId("current-info")).toHaveText(
+      "Maja Jensen",
     )
 
     const phoneEditor = page.getByTestId("account-phone-editor")
     await phoneEditor.getByTestId("edit-button").press("Enter")
-    await expect(phoneEditor.getByRole("status")).toHaveCount(0)
     await phoneEditor.getByTestId("phone-input").fill("12345678")
     await phoneEditor.getByTestId("save-button").press("Enter")
-    await expect(phoneEditor.getByRole("alert")).toContainText(
-      locale === "da" ? "landekode" : "country code",
-    )
+    await expect(
+      page.getByText(locale === "da" ? "landekode" : "country code").first(),
+    ).toBeVisible()
     await expect(phoneEditor.getByTestId("phone-input")).toHaveValue("12345678")
     await phoneEditor.getByTestId("phone-input").fill("+45 12 34 56 78")
     await phoneEditor.getByTestId("save-button").press("Enter")
-    await expect(phoneEditor.getByRole("status")).toContainText(
-      locale === "da" ? "opdateret" : "updated",
+    await expect(phoneEditor.getByTestId("current-info")).toHaveText(
+      "+45 12 34 56 78",
     )
     await page.reload()
     await expect(
@@ -417,6 +418,8 @@ test("registration and explicit account language follow the Customer across devi
   await page.getByTestId("password-input").fill(password)
   await page.getByTestId("password-input").press("Enter")
   await verifyAndSignIn(page, request, email, password)
+  await expect(page.getByTestId("logout-button").last()).toBeVisible()
+  await page.goto("/dk/account/profile")
   await expect(page.getByTestId("account-language")).toHaveValue("en")
 
   const device = await browser.newContext({ locale: "da-DK" })
@@ -427,12 +430,14 @@ test("registration and explicit account language follow the Customer across devi
     await second.getByTestId("email-input").fill(email)
     await second.getByTestId("password-input").fill(password)
     await second.getByTestId("password-input").press("Enter")
+    await expect(second.getByTestId("logout-button").last()).toBeVisible()
+    await second.goto(`${baseURL}/dk/account/profile`)
     await expect(second.getByTestId("account-language")).toHaveValue("en")
     await second.getByTestId("account-language").focus()
     await second.keyboard.press("Home")
     await second.keyboard.press("Enter")
     await second.getByTestId("save-language").press("Enter")
-    await expect(second.getByRole("status")).toHaveText("Dit sprog er gemt.")
+    await expect(second.getByText("Dit sprog er gemt.")).toBeVisible()
     await second.reload()
     await expect(second.getByTestId("account-language")).toHaveValue("da")
   } finally {
@@ -443,6 +448,8 @@ test("registration and explicit account language follow the Customer across devi
   await page.getByTestId("email-input").fill(email)
   await page.getByTestId("password-input").fill(password)
   await page.getByTestId("password-input").press("Enter")
+  await expect(page.getByTestId("logout-button").last()).toBeVisible()
+  await page.goto("/dk/account/profile")
   await expect(page.getByTestId("account-language")).toHaveValue("da")
 })
 
@@ -462,6 +469,8 @@ test("account language failure keeps the selection and shows a translated retry 
   await page.getByTestId("password-input").fill(password)
   await page.getByTestId("password-input").press("Enter")
   await verifyAndSignIn(page, request, email, password)
+  await expect(page.getByTestId("logout-button").last()).toBeVisible()
+  await page.goto("/dk/account/profile")
   await expect(page.getByTestId("account-language")).toHaveValue("en")
   await context.addCookies([
     { name: "_medusa_jwt", value: "expired-session", url: baseURL! },
@@ -469,7 +478,7 @@ test("account language failure keeps the selection and shows a translated retry 
   await page.getByTestId("account-language").selectOption("da")
   await page.getByTestId("save-language").click()
   await expect(
-    page.getByTestId("language-settings").getByRole("alert"),
+    page.getByText("Your language could not be saved. Please try again."),
   ).toHaveText("Your language could not be saved. Please try again.")
   await expect(page.getByTestId("account-language")).toHaveValue("da")
 })

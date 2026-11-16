@@ -1,5 +1,8 @@
 "use client"
 
+import { toast } from "@medusajs/ui"
+import { accountText } from "@lib/util/account-text"
+
 import {
   deleteCustomerAddress,
   updateCustomerAddressDefault,
@@ -54,15 +57,20 @@ const EditAddress: React.FC<EditAddressProps> = ({
   useEffect(() => {
     if (formState.success) {
       closeModal()
+      toast.success(accountText[locale].addressSaved)
       router.refresh()
-    }
-  }, [closeModal, formState, router])
+    } else if (formState.error)
+      toast.error(customerAddressErrorMessage(formState.error, text))
+  }, [closeModal, formState, router, locale, text])
 
   const removeAddress = async () => {
     setRemoving(true)
     const result = await deleteCustomerAddress(address.id)
     setActionError(!result.success)
-    if (result.success) router.refresh()
+    if (result.success) {
+      toast.success(accountText[locale].addressDeleted)
+      router.refresh()
+    } else toast.error(text.genericError)
     setRemoving(false)
   }
 
@@ -71,7 +79,10 @@ const EditAddress: React.FC<EditAddressProps> = ({
     const nextIsDefault = !address.is_default_shipping
     const result = await updateCustomerAddressDefault(address.id, nextIsDefault)
     setActionError(!result.success)
-    if (result.success) router.refresh()
+    if (result.success) {
+      toast.success(accountText[locale].defaultUpdated)
+      router.refresh()
+    } else toast.error(text.genericError)
     setDefaultPending(false)
   }
 
@@ -246,7 +257,8 @@ const EditAddress: React.FC<EditAddressProps> = ({
               <Input
                 label={text.phone}
                 name="phone"
-                autoComplete="phone"
+                type="tel"
+                autoComplete="tel"
                 required
                 defaultValue={address.phone || undefined}
                 data-testid="phone-input"

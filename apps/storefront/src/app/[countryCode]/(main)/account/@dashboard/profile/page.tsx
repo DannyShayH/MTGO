@@ -1,5 +1,7 @@
+import { accountText } from "@lib/util/account-text"
 import { Metadata } from "next"
 
+import AccountLanguage from "@modules/account/components/account-language"
 import ProfilePhone from "@modules/account//components/profile-phone"
 import ProfileBillingAddress from "@modules/account/components/profile-billing-address"
 import ProfileEmail from "@modules/account/components/profile-email"
@@ -27,23 +29,27 @@ export default async function Profile() {
   return (
     <div className="w-full" data-testid="profile-page-wrapper">
       <div className="mb-8 flex flex-col gap-y-4">
-        <h1 className="text-2xl-semi">Profile</h1>
+        <h1 className="text-2xl-semi">{accountText[locale].profile}</h1>
         <p className="text-base-regular">
-          View and update your profile information, including your name, email,
-          and phone number. You can also update your billing address, or change
-          your password.
+          {accountText[locale].profileDescription}
         </p>
       </div>
       <div className="flex flex-col gap-y-8 w-full">
+        <AccountLanguage locale={locale} />
+        <Divider />
         <ProfileName customer={customer} locale={locale} />
         <Divider />
-        <ProfileEmail customer={customer} />
+        <ProfileEmail customer={customer} locale={locale} />
         <Divider />
         <ProfilePhone customer={customer} locale={locale} />
         <Divider />
         <RequestPasswordReset locale={locale} email={customer.email} />
         <Divider />
-        <ProfileBillingAddress customer={customer} regions={regions} />
+        <ProfileBillingAddress
+          customer={customer}
+          regions={regions}
+          locale={locale}
+        />
       </div>
     </div>
   )

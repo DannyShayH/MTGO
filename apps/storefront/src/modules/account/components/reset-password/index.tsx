@@ -1,6 +1,7 @@
 "use client"
 
 import { useActionState, useEffect, useState } from "react"
+import { toast } from "@medusajs/ui"
 import { CUSTOMER_AUTH } from "@dtc/i18n"
 import { resetCustomerPassword } from "@lib/data/customer"
 import Input from "@modules/common/components/input"
@@ -19,6 +20,12 @@ export default function ResetPassword() {
   const { token, language } = link
   const text = CUSTOMER_AUTH[language]
   const [state, action] = useActionState(resetCustomerPassword, null)
+  useEffect(() => {
+    if (state) {
+      if (state.success) toast.success(text.resetSuccess)
+      else toast.error(text.resetError)
+    }
+  }, [state, text])
   return (
     <div
       lang={language}

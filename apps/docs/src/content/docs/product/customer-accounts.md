@@ -152,7 +152,7 @@ journey. Before sign-in, the storefront chooses the remembered language, then th
 browser preference, then Danish. The sign-in language selector remembers explicit
 choices across visits. Registration saves its language with the Customer.
 
-After sign-in, the saved account language takes precedence. The account page
+After sign-in, the saved account language takes precedence. The Profile page
 shows a keyboard-operable Danish/English selector and save button, with translated
 pending, success and failure states. A later sign-in on another browser restores
 the saved preference even when that browser remembers another language. Older
@@ -170,3 +170,22 @@ settings and another-device sign-in.
 A signed-in Customer can open only Orders owned by their Customer account. An Order ID or link does not authorize access; signed-out, other-Customer and other-role Store API requests are refused. The detail page displays the purchased items and the Order's recorded delivery address and contact in Danish or English. Order reads are not shared through a storefront cache.
 
 The starter Order transfer pages and Store transfer operations are disabled, as are the Admin transfer operations. Admin Order views retain their existing authorization. To demonstrate the owner journey before paid ordering is available, create a synthetic Customer and region in a disposable environment, then run `DEMO_ORDER_CUSTOMER_ID=<customer-id> DEMO_ORDER_REGION_ID=<region-id> npm exec medusa exec ./src/scripts/seed-demo-order.ts` from `apps/backend`. Sign in as that Customer to open the synthetic Order. Re-running the script does not create a duplicate for that Customer.
+
+### Synthetic Order history contract
+
+Until paid ordering is implemented, synthetic Orders use Medusa's Order
+workflow, the owning `customer_id`, and `metadata.restaurant_name` as the
+Restaurant name snapshot. The history list reads Medusa's Order `status`,
+`display_id`, `created_at`, `total` and `currency_code`; the detail retains the
+Order's own items and shipping address. If a legacy Order has no Restaurant
+snapshot, the interface says so. The later paid-ordering integration must write
+this snapshot when placing the Order. This contract does not represent the
+later Restaurant fulfilment timeline.
+
+On 16 November 2026, the local HTTP integration runner used a disposable
+PostgreSQL 16 database on loopback, Node 24.22.3 and a 12-vCPU devcontainer.
+Twelve synthetic Orders belonged to one Customer; a second Customer had none.
+Twenty concurrent journeys each fetched the first ten-order page and one Order
+detail. The measured 95th percentile for the combined two requests was 1,853 ms.
+This is an exercise-scale observation, not a reporting-scale capacity claim.
+Verified email-change ownership remains dependent on issues #92 and #93.

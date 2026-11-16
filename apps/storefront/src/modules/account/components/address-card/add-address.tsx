@@ -1,5 +1,8 @@
 "use client"
 
+import { toast } from "@medusajs/ui"
+import { accountText } from "@lib/util/account-text"
+
 import { Plus } from "@medusajs/icons"
 import { Button, Heading } from "@modules/common/components/ui"
 import { useActionState, useEffect } from "react"
@@ -42,9 +45,11 @@ const AddAddress = ({
   useEffect(() => {
     if (formState.success) {
       closeModal()
+      toast.success(accountText[locale].addressSaved)
       router.refresh()
-    }
-  }, [closeModal, formState, router])
+    } else if (formState.error)
+      toast.error(customerAddressErrorMessage(formState.error, text))
+  }, [closeModal, formState, router, locale, text])
 
   return (
     <>
@@ -132,7 +137,8 @@ const AddAddress = ({
               <Input
                 label={text.phone}
                 name="phone"
-                autoComplete="phone"
+                type="tel"
+                autoComplete="tel"
                 required
                 data-testid="phone-input"
               />

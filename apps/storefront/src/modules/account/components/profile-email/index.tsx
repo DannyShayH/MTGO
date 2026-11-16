@@ -1,67 +1,20 @@
-"use client"
+import type { Locale } from "@dtc/i18n"
+import type { HttpTypes } from "@medusajs/types"
+import { accountText } from "@lib/util/account-text"
 
-import React, { useEffect, useActionState } from "react"
-
-import Input from "@modules/common/components/input"
-
-import AccountInfo from "../account-info"
-import { HttpTypes } from "@medusajs/types"
-// import { updateCustomer } from "@lib/data/customer"
-
-type MyInformationProps = {
+export default function ProfileEmail({
+  customer,
+  locale,
+}: {
   customer: HttpTypes.StoreCustomer
-}
-
-const ProfileEmail: React.FC<MyInformationProps> = ({ customer }) => {
-  const [successState, setSuccessState] = React.useState(false)
-
-  // TODO: It seems we don't support updating emails now?
-  const updateCustomerEmail = (
-    _currentState: Record<string, unknown>,
-    _formData: FormData,
-  ) => {
-    // email: formData.get("email") as string
-    return { success: true, error: null as string | null }
-  }
-
-  const [state, formAction] = useActionState(updateCustomerEmail, {
-    error: null as string | null,
-    success: false,
-  })
-
-  const clearState = () => {
-    setSuccessState(false)
-  }
-
-  useEffect(() => {
-    setSuccessState(state.success)
-  }, [state])
-
+  locale: Locale
+}) {
+  const text = accountText[locale]
   return (
-    <form action={formAction} className="w-full">
-      <AccountInfo
-        label="Email"
-        currentInfo={`${customer.email}`}
-        isSuccess={successState}
-        isError={!!state.error}
-        errorMessage={state.error || undefined}
-        clearState={clearState}
-        data-testid="account-email-editor"
-      >
-        <div className="grid grid-cols-1 gap-y-2">
-          <Input
-            label="Email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            required
-            defaultValue={customer.email}
-            data-testid="email-input"
-          />
-        </div>
-      </AccountInfo>
-    </form>
+    <div className="text-small-regular" data-testid="account-email-editor">
+      <div className="text-ui-fg-subtle">{text.email}</div>
+      <div className="font-semibold break-words">{customer.email}</div>
+      <p className="mt-2 text-ui-fg-subtle">{text.emailUnavailable}</p>
+    </div>
   )
 }
-
-export default ProfileEmail

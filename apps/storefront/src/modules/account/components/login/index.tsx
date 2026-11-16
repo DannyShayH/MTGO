@@ -4,7 +4,8 @@ import { SubmitButton } from "@modules/checkout/components/submit-button"
 import Input from "@modules/common/components/input"
 import { clx, focusRing } from "@modules/common/components/ui"
 import { CUSTOMER_AUTH, Locale } from "@dtc/i18n"
-import { useActionState } from "react"
+import { useActionState, useEffect } from "react"
+import { toast } from "@medusajs/ui"
 
 type Props = {
   setCurrentView: (view: LOGIN_VIEW) => void
@@ -15,6 +16,13 @@ type Props = {
 const Login = ({ setCurrentView, locale, next }: Props) => {
   const [message, formAction] = useActionState(login, null)
   const text = CUSTOMER_AUTH[locale]
+  useEffect(() => {
+    if (message?.state === "error") toast.error(text.errors[message.error])
+    if (message?.state === "verification_required") {
+      if (message.delivery_failed) toast.error(text.verificationDeliveryFailed)
+      else toast.success(text.verification)
+    }
+  }, [message, text])
   return (
     <div
       className="flex w-full flex-col"

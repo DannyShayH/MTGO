@@ -59,8 +59,14 @@ const ProfilePhone: React.FC<MyInformationProps> = ({ customer, locale }) => {
     <form action={formAction} className="w-full">
       <AccountInfo
         label={profileText.phone}
-        currentInfo={`${customer.phone}`}
+        currentInfo={
+          customer.phone ||
+          (locale === "da"
+            ? "Intet mobilnummer tilføjet"
+            : "No mobile number added")
+        }
         isSuccess={successState}
+        feedback={state}
         isError={!!state.error}
         editLabel={profileText.edit}
         cancelLabel={profileText.cancel}
@@ -79,8 +85,8 @@ const ProfilePhone: React.FC<MyInformationProps> = ({ customer, locale }) => {
           <Input
             label={profileText.phone}
             name="phone"
-            type="phone"
-            autoComplete="phone"
+            type="tel"
+            autoComplete="tel"
             required
             value={phone}
             onChange={(event) => setPhone(event.target.value)}

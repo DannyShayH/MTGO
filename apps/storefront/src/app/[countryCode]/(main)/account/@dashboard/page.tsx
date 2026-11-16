@@ -1,3 +1,4 @@
+import { getCustomerLocale } from "@lib/data/customer-locale"
 import { Metadata } from "next"
 
 import Overview from "@modules/account/components/overview"
@@ -18,5 +19,11 @@ export default async function OverviewTemplate() {
     notFound()
   }
 
-  return <Overview customer={customer} orders={orders} />
+  return (
+    <Overview
+      customer={customer}
+      orders={orders}
+      locale={await getCustomerLocale(customer)}
+    />
+  )
 }
