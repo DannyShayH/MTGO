@@ -1,6 +1,6 @@
 ---
 title: Browser verification
-description: Real admin, cart, manual-payment and partner app checks for dependency updates.
+description: Playwright journeys for the storefront and the partner app in the ready flow.
 ---
 
 [Issue #36](https://github.com/DannyShayH/MTGO/issues/36) adds browser verification
@@ -10,24 +10,16 @@ Chromium. They use real Medusa services and synthetic data, without API mocks.
 
 ## What is checked
 
-- An administrator signs in through the UI, loads the product list and a seeded
-  product, edits its subtitle, reloads and sees the saved value.
-- A shopper discovers a product from the store listing, selects its variant, adds
-  it to the cart, changes quantity, verifies the visible total after reload and
-  removes the item.
-- The shopper adds the product again, enters checkout, verifies the product and
-  visible total, supplies a synthetic shipping address, chooses shipping and the
-  seeded **Manual Payment** provider, places the order and sees its confirmation,
-  email, order number, payment method and final total.
-- Both scenarios fail on uncaught browser errors. There are no automatic retries
-  and no skipped critical scenarios. Locator/assertion waits and the overall test
-  duration are bounded.
+The Playwright journeys live next to each app, in `apps/storefront/e2e/` and
+`apps/partner/e2e/`. They cover Customer sign-in, Restaurant browsing and menus,
+operator Restaurant administration, and Restaurant staff sign-in, invitations,
+revocation, opening hours, dishes, categories and the food catalogue. Each fails
+on uncaught browser errors, has no automatic retries and bounds its waits.
 
-This is a focused desktop Chromium smoke suite, not exhaustive browser, visual,
-accessibility or payment-provider certification. The reports include screenshots
-of the admin product, checkout summary and manual order confirmation for review.
-Stripe card entry, Stripe authentication/redirects, Adyen, refunds and real money
-movement are **not verified** by the manual provider scenario.
+There are no smoke journeys through the starter's demo catalogue. A Customer
+basket holds only Restaurant dishes, and the backend HTTP suites prove the basket
+and amount rules. Stripe card entry, Adyen, refunds and real money movement are
+**not verified** in the browser.
 
 ## Run locally
 

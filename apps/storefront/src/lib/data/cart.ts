@@ -14,6 +14,7 @@ import {
   setCartId,
 } from "./cookies"
 import { getRegion } from "./regions"
+import { explainBasketReview } from "./basket-review"
 import { getLocale } from "./locale-actions"
 import { retrieveCustomer } from "./customer"
 import {
@@ -419,7 +420,13 @@ export async function placeOrder(cartId?: string) {
       revalidateTag(cartCacheTag, { expire: 0 })
       return cartRes
     })
-    .catch(medusaError)
+    .catch(async (error) => {
+      if (error?.message === "basket_review_required")
+        throw Object.assign(new Error(await explainBasketReview(id)), {
+          status: 400,
+        })
+      return medusaError(error)
+    })
 
   if (cartRes?.type === "order") {
     const countryCode =

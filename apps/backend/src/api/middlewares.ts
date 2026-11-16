@@ -115,6 +115,14 @@ export default defineMiddlewares({
       ],
     },
     {
+      matcher: "/store/carts/:id/basket-review",
+      method: "GET",
+      middlewares: [
+        authenticate("customer", ["bearer", "session"]),
+        requireCustomerOwnedCart,
+      ],
+    },
+    {
       matcher: "/store/carts/:id/customer",
       method: "POST",
       middlewares: [

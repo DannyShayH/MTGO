@@ -34,7 +34,7 @@ type RestaurantMenuRecord = {
  * Restaurant does not exist. The price is Medusa's calculated DKK price, the
  * amount a cart would charge, in display units.
  */
-async function readRestaurantWithMenu(
+export async function readRestaurantWithMenu(
   container: MedusaContainer,
   restaurant_id: string,
 ): Promise<{

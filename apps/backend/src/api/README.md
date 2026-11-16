@@ -28,6 +28,33 @@ cart_customer_access_denied`; the cart ID is not disclosed. The ownership check
 runs before the built-in Medusa cart route, so it applies consistently to
 nested cart actions, including `complete`.
 
+## One Restaurant basket (#131)
+
+### POST /store/carts/:id/line-items and POST /store/carts/:id/complete
+
+The `validate` hooks of `addToCartWorkflow` and `completeCartWorkflow` enforce
+the basket rules for every Store API caller. Adding a line returns `400
+basket_other_restaurant` (with `current_restaurant_id` and
+`requested_restaurant_id`) or `400 basket_not_a_dish`. Completion returns `400
+basket_review_required` with `restaurant_id` and `issues` when the basket no
+longer matches the current menu, the Restaurant cannot take the Order, or the
+amount is not the plain DKK menu total.
+
+### GET /store/carts/:id/basket-review
+
+Runs the same review read-only for the signed-in Customer who owns the cart
+(`401` otherwise) and returns `{ restaurant_id, issues }`. An empty or
+completed cart returns `{ restaurant_id: null, issues: [] }`. Each issue is
+one of:
+
+| Code                              | Fields                                                                                                             |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `dish_changed`                    | `variant_id` and the current `revision` and `price`                                                                |
+| `dish_unavailable`                | `variant_id`                                                                                                       |
+| `dish_sold_out`                   | `variant_id`                                                                                                       |
+| `restaurant_not_receiving_orders` | `reason`, such as `restaurant_closed`                                                                              |
+| `amount_not_allowed`              | `reason`: `currency_not_dkk`, `adjustment_not_allowed`, `delivery_charge_not_allowed` or `payment_amount_mismatch` |
+
 ## Partner dish availability (#108)
 
 ### POST /partner/restaurants/:id/dishes/:dish_id/availability

@@ -7,7 +7,7 @@ Every delivery runs `application-builds` in the TakT `ready-applications` wave b
 merging to `main`. It builds the Medusa backend and admin, then the Next.js
 storefront and the Next.js partner app, using the repository's npm/Turbo
 commands. It then runs the required
-[browser smoke suite](/MTGO/quality/browser-verification/) against all of them. Backend compilation errors,
+[browser journeys](/MTGO/quality/browser-verification/) against all of them. Backend compilation errors,
 storefront TypeScript errors and bundling failures fail delivery. Next.js performs
 its normal TypeScript check; `ignoreBuildErrors` is not enabled.
 
@@ -97,7 +97,7 @@ The script builds the backend/admin, migrates and seeds the database, exports th
 seed's real publishable key to a temporary file, starts the compiled backend,
 checks `/health` and an authenticated `/store/regions` request, and builds the
 storefront and the partner app. It starts the storefront and runs its browser
-smoke tests, then starts the partner app and runs its journey, then stops all
+journeys, then starts the partner app and runs its journeys, then stops all
 servers and removes the snapshot and temporary key/log files on exit.
 Ports 9000, 8000 and 8100 must be free. On failure it prints the backend log to help diagnosis.
 The script needs Bash, curl and `setsid` (available on the Ubuntu CI runner).

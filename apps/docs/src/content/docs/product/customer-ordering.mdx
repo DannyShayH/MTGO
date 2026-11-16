@@ -253,6 +253,28 @@ The later `/to-spec` chooses the exact recovery workflow, payment-attempt
 storage, integration seams and verification setup. The team calls
 `/to-tickets` separately after that spec.
 
+### One Restaurant basket (#131)
+
+A basket holds dishes of one Restaurant. The storefront menu has an "Add to basket" button on each dish that can be ordered; it is hidden for a sold-out dish and for a Restaurant that is not receiving new Orders. Feedback is a Medusa UI toast in the Customer's language.
+
+On the menu, each orderable dish has a compact "Læg i kurv" / "Add to basket" pill on its price row. Once the dish is in the basket the pill becomes a quantity stepper (minus or trash, the count, plus) that reflects the real basket when the page loads. The stepper is the confirmation: adding a dish shows no toast and does not open the header basket over the menu. On a phone, a "Se kurv" / "View basket" bar with the item count and total stays at the bottom of the menu.
+
+The header basket and the basket page (`/cart`) show the dishes of one Restaurant with their current menu names and photos, the Restaurant's name and one total in DKK that includes VAT and delivery. The basket page uses the same stepper as the menu and has no discount code or delivery charge, since checkout refuses both. A line records its Restaurant in `metadata.mtogo_restaurant_id` so the basket can show the menu's photos; this is display data only, and the backend decides ownership itself.
+
+Dishes are priced in DKK only, so Denmark must be in a DKK region. The idempotent Denmark region migration script (`ensureDenmarkRegionWorkflow`) moves `dk` out of the starter's EUR region into a "Denmark" DKK region. Without it, adding a dish fails with "Variants ... do not have a price". Run `npx medusa db:migrate` in existing environments.
+
+Rules live in the backend, so direct Store API calls cannot bypass them. Each is a stable code in the error response `code` field:
+
+| Code                      | When                                                                                                                     | Customer sees                                                                                                                             |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `basket_other_restaurant` | A dish is added from another Restaurant. The response also has `current_restaurant_id` and `requested_restaurant_id`.    | A warning toast that stays until dismissed with the action "Clear basket and add". The basket is unchanged until the Customer chooses it. |
+| `basket_not_a_dish`       | The variant is not a published Restaurant dish, such as an arbitrary Product.                                            | An error toast that the dish cannot be added.                                                                                             |
+| `basket_review_required`  | `POST /store/carts/{id}/complete` finds the basket changed or ineligible. The response has `restaurant_id` and `issues`. | A message that nothing was charged, naming each dish that changed or is no longer available, or the Restaurant or amount rule.            |
+
+Each issue is one of `dish_unavailable`, `dish_sold_out`, `dish_changed` (revision or price differs in either direction, or no snapshot was recorded; it carries the current `revision` and `price`), `restaurant_not_receiving_orders` (with `reason`, such as `restaurant_closed` or `destination_not_served`) and `amount_not_allowed`. Menu prices include VAT and delivery, so the amount must be the plain DKK item total: a promotion, discount, gift card or other credit line, a delivery charge, or a started payment for another amount or currency is refused with `amount_not_allowed`. A cart line records what the Customer saw in `metadata.mtogo_dish` (`revision` and `price`). The check runs in the `validate` hooks of `addToCartWorkflow` and `completeCartWorkflow` (`apps/backend/src/workflows/hooks/restaurant-basket.ts`), never edits the cart, and is skipped for an already completed cart. Removing every line lets the Customer start with another Restaurant.
+
+When completion is refused, checkout reads `GET /store/carts/{id}/basket-review`, names the affected dishes and records the current revision and price of each changed dish on its line. The basket is kept: the Customer checks the new total and places the order again, which is the second explicit review. A sold-out or removed dish must be removed first.
+
 ## Related workflows
 
 <SectionLinks

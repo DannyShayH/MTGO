@@ -1,6 +1,8 @@
 import { CUSTOMER_MENU_TEXT, type Locale } from "@dtc/i18n"
 import type { RestaurantMenu } from "@lib/data/restaurant-menu"
 import { PhotoWithPlaceholder } from "@modules/common/components/photo-with-placeholder"
+import type { BasketLine } from "@modules/menu/components/add-dish-button"
+import BasketBar from "@modules/menu/components/basket-bar"
 import Dish from "@modules/menu/components/dish"
 
 const page =
@@ -47,10 +49,18 @@ function StatusBadge({
 export default function MenuTemplate({
   menu,
   locale,
+  countryCode,
+  basket,
+  basketSummary,
   backHref,
 }: {
   menu: RestaurantMenu
   locale: Locale
+  countryCode: string
+  /** The Customer's basket lines by dish variant. */
+  basket: Record<string, BasketLine>
+  /** Item count and total for the phone basket bar. */
+  basketSummary?: { count: number; total: number }
   backHref?: string
 }) {
   const text = CUSTOMER_MENU_TEXT[locale]
@@ -141,12 +151,21 @@ export default function MenuTemplate({
             </h2>
             <ul className="mt-2 rounded-card border border-mtogo-border-subtle bg-mtogo-surface-card px-4">
               {category.dishes.map((dish) => (
-                <Dish key={dish.id} dish={dish} locale={locale} />
+                <Dish
+                  key={dish.id}
+                  dish={dish}
+                  restaurantId={restaurant.id}
+                  locale={locale}
+                  countryCode={countryCode}
+                  canOrder={restaurant.receiving_new_orders}
+                  basketLine={basket[dish.variant_id] ?? null}
+                />
               ))}
             </ul>
           </section>
         ))}
       </div>
+      {basketSummary && <BasketBar initial={basketSummary} locale={locale} />}
     </div>
   )
 }

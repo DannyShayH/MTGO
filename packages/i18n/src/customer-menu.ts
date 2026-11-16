@@ -49,6 +49,37 @@ export const CUSTOMER_MENU_TEXT: Record<Locale, CustomerMenuText> = {
     price_note: "Priserne er i danske kroner inklusive moms og levering.",
     sold_out: "Udsolgt",
     sold_out_note: "Kan ikke bestilles lige nu.",
+    review_required:
+      "Din kurv er ændret siden du valgte maden, eller restauranten kan ikke tage imod bestillingen. Intet er betalt. Gennemgå din kurv og prøv igen.",
+    review_not_charged: "Intet er betalt.",
+    review_dish_changed:
+      "Prisen eller oplysningerne er ændret for: {dishes}. Tjek den nye total og afgiv bestillingen igen.",
+    review_dish_unavailable:
+      "Kan ikke længere bestilles: {dishes}. Fjern dem fra kurven for at fortsætte.",
+    review_restaurant:
+      "Restauranten kan ikke tage imod bestillingen til din adresse lige nu.",
+    review_amount:
+      "Du betaler kun menuens samlede pris, uden rabatkode, gavekort eller leveringsgebyr. Fjern dem og prøv igen.",
+    add_to_basket: "Læg i kurv",
+    add_to_basket_label: "Læg {dish} i kurv",
+    increase_label: "Læg en mere af {dish} i kurv",
+    decrease_label: "Fjern en {dish} fra kurven",
+    remove_label: "Fjern {dish} fra kurven",
+    in_basket_label: "{count} i kurven",
+    basket_update_error_title: "Kurven blev ikke opdateret",
+    basket_update_error_note:
+      "Noget gik galt. Antallet er sat tilbage. Prøv igen.",
+    other_restaurant_title: "Din kurv har mad fra en anden restaurant",
+    other_restaurant_note:
+      "En kurv kan kun indeholde mad fra én restaurant. Din kurv er uændret.",
+    switch_restaurant: "Tøm kurv og læg i kurv",
+    basket_dish_unavailable_title: "Retten kan ikke lægges i kurven",
+    basket_dish_unavailable_note:
+      "Retten er ikke længere på menuen. Genindlæs siden for at se den aktuelle menu.",
+    basket_error_title: "Retten blev ikke lagt i kurven",
+    basket_error_note: "Noget gik galt. Din kurv er uændret. Prøv igen.",
+    basket_cleared_error_note:
+      "Din kurv blev tømt, men retten blev ikke lagt i kurven. Prøv igen.",
     no_photo: "Intet billede",
     allergen_info_missing: "Allergeninfo · ikke oplyst",
     allergens_unknown: "Allergener: ukendt",
@@ -87,6 +118,38 @@ export const CUSTOMER_MENU_TEXT: Record<Locale, CustomerMenuText> = {
     price_note: "Prices are in Danish kroner and include VAT and delivery.",
     sold_out: "Sold out",
     sold_out_note: "Cannot be ordered right now.",
+    review_required:
+      "Something in your basket changed since you chose it, or the Restaurant cannot take the order. Nothing has been charged. Review your basket and try again.",
+    review_not_charged: "Nothing has been charged.",
+    review_dish_changed:
+      "The price or details changed for: {dishes}. Check the new total and place the order again.",
+    review_dish_unavailable:
+      "No longer available: {dishes}. Remove them from your basket to continue.",
+    review_restaurant:
+      "The Restaurant cannot take this order for your address right now.",
+    review_amount:
+      "You pay only the menu total, without a discount code, gift card or delivery charge. Remove them and try again.",
+    add_to_basket: "Add to basket",
+    add_to_basket_label: "Add {dish} to basket",
+    increase_label: "Add one more {dish} to basket",
+    decrease_label: "Remove one {dish} from basket",
+    remove_label: "Remove {dish} from basket",
+    in_basket_label: "{count} in basket",
+    basket_update_error_title: "Your basket was not updated",
+    basket_update_error_note:
+      "Something went wrong. The quantity was put back. Try again.",
+    other_restaurant_title: "Your basket has food from another Restaurant",
+    other_restaurant_note:
+      "A basket can only hold food from one Restaurant. Your basket is unchanged.",
+    switch_restaurant: "Clear basket and add",
+    basket_dish_unavailable_title: "This dish cannot be added to your basket",
+    basket_dish_unavailable_note:
+      "The dish is no longer on the menu. Reload the page to see the current menu.",
+    basket_error_title: "The dish was not added to your basket",
+    basket_error_note:
+      "Something went wrong. Your basket is unchanged. Try again.",
+    basket_cleared_error_note:
+      "Your basket was cleared, but the dish was not added. Try again.",
     no_photo: "No photo",
     allergen_info_missing: "Allergen info · not provided",
     allergens_unknown: "Allergens: unknown",

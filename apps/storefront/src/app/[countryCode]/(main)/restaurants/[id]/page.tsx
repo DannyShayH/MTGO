@@ -7,6 +7,8 @@ import {
   type RestaurantMenu,
 } from "@lib/data/restaurant-menu"
 import { locationQueryFrom, locationSearch } from "@lib/util/location-query"
+import { retrieveCart } from "@lib/data/cart"
+import { countBasketItems } from "@lib/util/basket"
 import MenuTemplate, { MenuNotice } from "@modules/menu/templates"
 
 type Props = {
@@ -54,5 +56,25 @@ export default async function RestaurantMenuPage({
   }
   if (!menu)
     return <MenuNotice kind="not_found" locale={locale} backHref={backHref} />
-  return <MenuTemplate menu={menu} locale={locale} backHref={backHref} />
+  const cart = await retrieveCart(undefined, "id,total,*items", { fresh: true })
+  const basket = Object.fromEntries(
+    (cart?.items ?? []).flatMap((item) =>
+      item.variant_id
+        ? [[item.variant_id, { lineId: item.id, quantity: item.quantity }]]
+        : [],
+    ),
+  )
+  return (
+    <MenuTemplate
+      menu={menu}
+      locale={locale}
+      countryCode={countryCode}
+      basket={basket}
+      basketSummary={{
+        count: countBasketItems(cart),
+        total: Number(cart?.total ?? 0),
+      }}
+      backHref={backHref}
+    />
+  )
 }

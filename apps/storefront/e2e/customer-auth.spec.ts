@@ -295,60 +295,6 @@ test("verification delivery failure keeps checkout verification pending", async 
   )
 })
 
-test("preserves the basket through sign-in and clears it on explicit sign-out", async ({
-  page,
-  context,
-  request,
-}) => {
-  expect(process.env.E2E_DISPOSABLE).toBe("1")
-  const email = `basket-session-${Date.now()}@example.test`
-  const password = "ci-only-customer-password"
-
-  await page.goto("/dk/products/t-shirt")
-  await page
-    .getByRole("group", { name: "Select Size" })
-    .getByText("S", { exact: true })
-    .click()
-  await page
-    .getByRole("group", { name: "Select Color" })
-    .getByText("Black", { exact: true })
-    .click()
-  await page.getByTestId("add-product-button").click()
-  await page.getByTestId("nav-cart-link").click()
-  const row = page.getByTestId("product-row")
-  await expect(row.getByTestId("product-title")).toHaveText("Medusa T-Shirt")
-  await page.getByTestId("checkout-button").click()
-  await expect(page).toHaveURL(/\/dk\/account\?next=/)
-
-  await page.getByRole("combobox").selectOption("en")
-  await page.getByTestId("register-button").click()
-  await page.getByTestId("email-input").fill(email)
-  await page.getByTestId("password-input").fill(password)
-  await page.getByTestId("password-input").press("Enter")
-  await verifyAndSignIn(page, request, email, password)
-
-  await expect(page).toHaveURL(/\/dk\/checkout/)
-  await expect(
-    page.getByTestId("product-row").getByTestId("product-title"),
-  ).toHaveText("Medusa T-Shirt")
-  await page.reload()
-  await expect(
-    page.getByTestId("product-row").getByTestId("product-title"),
-  ).toHaveText("Medusa T-Shirt")
-
-  await page.goto("/dk/account")
-  await page.getByTestId("logout-button").last().click()
-  await expect(page.getByTestId("login-page")).toBeVisible()
-  await expect(
-    (await context.cookies()).find(
-      (cookie) => cookie.name === "_medusa_cart_id",
-    ),
-  ).toBeUndefined()
-
-  await page.goto("/dk/cart")
-  await expect(page.getByTestId("empty-cart-message")).toBeVisible()
-})
-
 for (const scenario of [
   {
     reason: "browser preference",

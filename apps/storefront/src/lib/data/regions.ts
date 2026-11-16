@@ -7,13 +7,15 @@ import { getCacheOptions } from "./cookies"
 export const listRegions = async () => {
   const next = {
     ...(await getCacheOptions("regions")),
+    // A region change, such as Denmark moving to its own DKK region, must reach
+    // a running storefront without a restart.
+    revalidate: REGION_REVALIDATE_SECONDS,
   }
 
   return await sdk.client
     .fetch<{ regions: HttpTypes.StoreRegion[] }>(`/store/regions`, {
       method: "GET",
       next,
-      cache: "force-cache",
     })
     .then(({ regions }) => regions)
 }
@@ -32,14 +34,22 @@ export const retrieveRegion = async (id: string) => {
     .then(({ region }) => region)
 }
 
-const regionMap = new Map<string, HttpTypes.StoreRegion>()
+const REGION_REVALIDATE_SECONDS = 60
+
+let regionMap = new Map<string, HttpTypes.StoreRegion>()
+let regionMapLoadedAt = 0
 
 export const getRegion = async (countryCode: string) => {
-  if (regionMap.has(countryCode)) {
+  if (
+    regionMap.has(countryCode) &&
+    Date.now() - regionMapLoadedAt < REGION_REVALIDATE_SECONDS * 1000
+  ) {
     return regionMap.get(countryCode)
   }
 
   const regions = await listRegions()
+  regionMap = new Map()
+  regionMapLoadedAt = Date.now()
 
   if (!regions) {
     return null

@@ -74,7 +74,7 @@ export default async function Nav() {
                 </LocalizedClientLink>
               }
             >
-              <CartButton label={text.basket} />
+              <CartButton label={text.basket} locale={locale} />
             </Suspense>
           </div>
         </nav>

@@ -39,12 +39,27 @@ module.exports = {
         "mtogo-pop-in": {
           from: { opacity: "0", transform: "scale(0.8)" },
         },
+        // One control becoming another: a soft blur hides the hand-over.
+        "mtogo-swap-in": {
+          from: { opacity: "0", transform: "scale(0.96)", filter: "blur(2px)" },
+        },
+        // A changed number arriving from below, short enough for fast taps.
+        "mtogo-tick": {
+          from: { opacity: "0", transform: "translateY(35%)" },
+        },
+        // A bar fixed to the bottom edge rising from beneath it.
+        "mtogo-rise-in": {
+          from: { transform: "translateY(calc(100% + 1rem))" },
+        },
       },
       // Use these through motion-safe:, so reduced motion skips the movement.
       animation: {
         "fade-in": "mtogo-fade-in 200ms cubic-bezier(0.23, 1, 0.32, 1) both",
         "fade-up": "mtogo-fade-up 300ms cubic-bezier(0.23, 1, 0.32, 1) both",
         "pop-in": "mtogo-pop-in 200ms cubic-bezier(0.23, 1, 0.32, 1) both",
+        "swap-in": "mtogo-swap-in 180ms cubic-bezier(0.23, 1, 0.32, 1) both",
+        tick: "mtogo-tick 140ms cubic-bezier(0.23, 1, 0.32, 1) both",
+        "rise-in": "mtogo-rise-in 320ms cubic-bezier(0.32, 0.72, 0, 1) both",
       },
     },
   },

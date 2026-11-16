@@ -31,12 +31,6 @@ export function selectBrowserTests(files) {
       add(app, name)
       continue
     }
-    if (file === ".github/workflows/on_ready.yml") {
-      add("partner", "partner.smoke.spec.ts")
-      add("storefront", "storefront.smoke.spec.ts")
-      selection.admin = true
-      continue
-    }
     if (/^apps\/partner\//.test(file)) {
       add("partner", "*")
       continue
@@ -108,16 +102,6 @@ export function selectBrowserTests(files) {
         "restaurant-opening.spec.ts",
       )
       add("storefront", "restaurant-menu.spec.ts", "restaurants.admin.spec.ts")
-      continue
-    }
-    if (
-      /^scripts\/(select-browser-tests|run-browser-tests|verify-applications|verify-application-builds)/.test(
-        file,
-      )
-    ) {
-      add("partner", "partner.smoke.spec.ts")
-      add("storefront", "storefront.smoke.spec.ts")
-      selection.admin = true
       continue
     }
     all()

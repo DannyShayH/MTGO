@@ -6,48 +6,47 @@ import {
   PopoverPanel,
   Transition,
 } from "@headlessui/react"
+import { CUSTOMER_CART, formatDkk, type Locale } from "@dtc/i18n"
 import { retrieveCart } from "@lib/data/cart"
 import { CART_UPDATED_EVENT } from "@lib/util/cart-events"
-import { convertToLocale } from "@lib/util/money"
+import { countBasketItems } from "@lib/util/basket"
 import { ShoppingCart } from "@medusajs/icons"
 import { HttpTypes } from "@medusajs/types"
 import { Button } from "@modules/common/components/ui"
-import DeleteButton from "@modules/common/components/delete-button"
-import LineItemOptions from "@modules/common/components/line-item-options"
-import LineItemPrice from "@modules/common/components/line-item-price"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import CartIcon, {
   cartLinkClassName,
 } from "@modules/layout/components/cart-icon"
-import Thumbnail from "@modules/products/components/thumbnail"
 import { usePathname } from "next/navigation"
 import { Fragment, useEffect, useRef, useState } from "react"
-
-const countItems = (cart?: HttpTypes.StoreCart | null) =>
-  cart?.items?.reduce((acc, item) => acc + item.quantity, 0) || 0
+import BasketLines, {
+  useBasketDishes,
+} from "@modules/cart/components/basket-lines"
 
 const CartDropdown = ({
   cart: serverCart,
   label,
+  locale,
 }: {
   cart?: HttpTypes.StoreCart | null
   /** The header link's name in the Customer's language; the count follows it. */
   label: string
+  locale: Locale
 }) => {
+  const text = CUSTOMER_CART[locale]
   // Statically rendered pages can't read the cart cookie, so the cart is loaded in the browser.
   const [clientCart, setClientCart] = useState<HttpTypes.StoreCart | null>(null)
   const cartState = serverCart ?? clientCart
+  const basketDishes = useBasketDishes(cartState)
   const [activeTimer, setActiveTimer] = useState<NodeJS.Timer | undefined>(
     undefined,
   )
-  const [cartDropdownOpen, setCartDropdownOpen] = useState(false)
+  const [isOpen, setIsOpen] = useState(false)
 
-  const open = () => setCartDropdownOpen(true)
-  const close = () => setCartDropdownOpen(false)
+  const open = () => setIsOpen(true)
+  const close = () => setIsOpen(false)
 
-  const totalItems = countItems(cartState)
-
-  const subtotal = cartState?.subtotal ?? 0
+  const totalItems = countBasketItems(cartState)
   const itemRef = useRef<number>(totalItems || 0)
 
   useEffect(() => {
@@ -61,7 +60,7 @@ const CartDropdown = ({
         .then((cart) => {
           if (isInitialLoad) {
             // Don't auto-open the dropdown for items that were already in the cart.
-            itemRef.current = countItems(cart)
+            itemRef.current = countBasketItems(cart)
             isInitialLoad = false
           }
           setClientCart(cart)
@@ -75,38 +74,37 @@ const CartDropdown = ({
 
   const timedOpen = () => {
     open()
-
-    const timer = setTimeout(close, 5000)
-
-    setActiveTimer(timer)
+    setActiveTimer(setTimeout(close, 5000))
   }
 
   const openAndCancel = () => {
-    if (activeTimer) {
-      clearTimeout(activeTimer)
-    }
-
+    if (activeTimer) clearTimeout(activeTimer)
     open()
   }
 
-  // Clean up the timer when the component unmounts
   useEffect(() => {
     return () => {
-      if (activeTimer) {
-        clearTimeout(activeTimer)
-      }
+      if (activeTimer) clearTimeout(activeTimer)
     }
   }, [activeTimer])
 
   const pathname = usePathname()
 
-  // open cart dropdown when modifying the cart items, but only if we're not on the cart page
+  // A menu confirms an added dish in its own stepper, so the basket only opens
+  // by itself elsewhere; it would otherwise cover the dishes being chosen.
   useEffect(() => {
-    if (itemRef.current !== totalItems && !pathname.includes("/cart")) {
+    if (
+      itemRef.current !== totalItems &&
+      !pathname.includes("/cart") &&
+      !pathname.includes("/restaurants/")
+    ) {
       timedOpen()
     }
+    itemRef.current = totalItems
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [totalItems, itemRef.current])
+  }, [totalItems])
+
+  const items = cartState?.items ?? []
 
   return (
     <div
@@ -125,7 +123,7 @@ const CartDropdown = ({
           </LocalizedClientLink>
         </PopoverButton>
         <Transition
-          show={cartDropdownOpen}
+          show={isOpen}
           as={Fragment}
           // The panel grows out of the basket icon above its right corner and
           // leaves faster than it arrives.
@@ -140,97 +138,46 @@ const CartDropdown = ({
               travel from the icon to the panel without closing it. */}
           <PopoverPanel
             static
-            className="absolute right-0 top-full hidden w-[420px] origin-top-right pt-2 text-mtogo-text-primary small:block"
+            className="absolute right-0 top-full hidden w-[380px] origin-top-right pt-2 text-mtogo-text-primary small:block"
             data-testid="nav-cart-dropdown"
           >
             <div className="overflow-hidden rounded-card border border-mtogo-border-subtle bg-mtogo-surface-card shadow-lg">
-              <div className="flex items-center justify-center border-b border-mtogo-border-subtle p-4">
-                <h3 className="text-large-semi">Cart</h3>
+              <div className="border-b border-mtogo-border-subtle px-4 py-3">
+                <h3 className="text-base font-semibold">{text.basketTitle}</h3>
+                {items.length > 0 && basketDishes && (
+                  <p className="truncate text-sm text-mtogo-text-secondary">
+                    {text.basketFrom.replace(
+                      "{restaurant}",
+                      basketDishes.restaurant.name,
+                    )}
+                  </p>
+                )}
               </div>
-              {cartState && cartState.items?.length ? (
+              {cartState && items.length ? (
                 <>
-                  <div className="overflow-y-scroll max-h-[402px] p-4 grid grid-cols-1 gap-y-8 no-scrollbar">
-                    {cartState.items
-                      .sort((a, b) => {
-                        return (a.created_at ?? "") > (b.created_at ?? "")
-                          ? -1
-                          : 1
-                      })
-                      .map((item) => (
-                        <div
-                          className="grid grid-cols-[122px_1fr] gap-x-4"
-                          key={item.id}
-                          data-testid="cart-item"
-                        >
-                          <LocalizedClientLink
-                            href={`/products/${item.product_handle}`}
-                            className="w-24"
-                          >
-                            <Thumbnail
-                              thumbnail={item.thumbnail}
-                              images={item.variant?.product?.images}
-                              size="square"
-                            />
-                          </LocalizedClientLink>
-                          <div className="flex flex-col justify-between flex-1">
-                            <div className="flex flex-col flex-1">
-                              <div className="flex items-start justify-between">
-                                <div className="flex flex-col overflow-ellipsis whitespace-nowrap mr-4 w-[180px]">
-                                  <h3 className="text-base-regular overflow-hidden text-ellipsis">
-                                    <LocalizedClientLink
-                                      href={`/products/${item.product_handle}`}
-                                      data-testid="product-link"
-                                    >
-                                      {item.title}
-                                    </LocalizedClientLink>
-                                  </h3>
-                                  <LineItemOptions
-                                    variant={item.variant}
-                                    data-testid="cart-item-variant"
-                                    data-value={item.variant}
-                                  />
-                                  <span
-                                    data-testid="cart-item-quantity"
-                                    data-value={item.quantity}
-                                  >
-                                    Quantity: {item.quantity}
-                                  </span>
-                                </div>
-                                <div className="flex justify-end">
-                                  <LineItemPrice
-                                    item={item}
-                                    style="tight"
-                                    currencyCode={cartState.currency_code}
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                            <DeleteButton
-                              id={item.id}
-                              className="mt-1"
-                              data-testid="cart-item-remove-button"
-                            >
-                              Remove
-                            </DeleteButton>
-                          </div>
-                        </div>
-                      ))}
+                  <div className="max-h-[360px] overflow-y-auto px-4 no-scrollbar">
+                    <BasketLines
+                      items={items}
+                      dishes={basketDishes}
+                      locale={locale}
+                    />
                   </div>
-                  <div className="flex flex-col gap-y-4 border-t border-mtogo-border-subtle p-4 text-base">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-mtogo-text-primary">
-                        Subtotal{" "}
-                        <span className="font-normal">(excl. taxes)</span>
+                  <div className="flex flex-col gap-y-3 border-t border-mtogo-border-subtle p-4">
+                    <div className="flex items-baseline justify-between gap-4">
+                      <span>
+                        <span className="block text-base font-semibold">
+                          {text.total}
+                        </span>
+                        <span className="block text-sm text-mtogo-text-secondary">
+                          {text.totalNote}
+                        </span>
                       </span>
                       <span
-                        className="text-large-semi"
+                        className="text-large-semi tabular-nums"
                         data-testid="cart-subtotal"
-                        data-value={subtotal}
+                        data-value={cartState.total ?? 0}
                       >
-                        {convertToLocale({
-                          amount: subtotal,
-                          currency_code: cartState.currency_code,
-                        })}
+                        {formatDkk(cartState.total ?? 0, locale)}
                       </span>
                     </div>
                     <LocalizedClientLink href="/cart" passHref>
@@ -239,31 +186,25 @@ const CartDropdown = ({
                         size="large"
                         data-testid="go-to-cart-button"
                       >
-                        Go to cart
+                        {text.goToBasket}
                       </Button>
                     </LocalizedClientLink>
                   </div>
                 </>
               ) : (
-                <div>
-                  <div className="flex py-16 flex-col gap-y-4 items-center justify-center">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-mtogo-surface-selected text-mtogo-text-link">
-                      <ShoppingCart aria-hidden="true" className="h-6 w-6" />
-                    </div>
-                    <span className="text-base text-mtogo-text-secondary">
-                      Your shopping bag is empty.
-                    </span>
-                    <div>
-                      <LocalizedClientLink href="/store">
-                        <>
-                          <span className="sr-only">
-                            Go to all products page
-                          </span>
-                          <Button onClick={close}>Explore products</Button>
-                        </>
-                      </LocalizedClientLink>
-                    </div>
+                <div className="flex flex-col items-center justify-center gap-y-3 px-6 py-12 text-center">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-mtogo-surface-selected text-mtogo-text-link">
+                    <ShoppingCart aria-hidden="true" className="h-6 w-6" />
                   </div>
+                  <span className="text-base font-medium">
+                    {text.emptyBasket}
+                  </span>
+                  <span className="text-sm text-mtogo-text-secondary">
+                    {text.emptyBasketNote}
+                  </span>
+                  <LocalizedClientLink href="/">
+                    <Button onClick={close}>{text.findRestaurants}</Button>
+                  </LocalizedClientLink>
                 </div>
               )}
             </div>

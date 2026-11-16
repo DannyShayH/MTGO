@@ -6,6 +6,9 @@ import {
   type Locale,
 } from "@dtc/i18n"
 import type { MenuDish } from "@lib/data/restaurant-menu"
+import AddDishButton, {
+  type BasketLine,
+} from "@modules/menu/components/add-dish-button"
 import { LabelInfo } from "./label-info"
 import { PhotoWithPlaceholder } from "@modules/common/components/photo-with-placeholder"
 
@@ -170,10 +173,18 @@ function FoodLabelNames({
  */
 export default function Dish({
   dish,
+  restaurantId,
   locale,
+  countryCode,
+  canOrder,
+  basketLine,
 }: {
   dish: MenuDish
+  restaurantId: string
   locale: Locale
+  countryCode: string
+  canOrder: boolean
+  basketLine: BasketLine | null
 }) {
   const text = CUSTOMER_MENU_TEXT[locale]
   const name = dish.name[locale]
@@ -208,22 +219,37 @@ export default function Dish({
             {dish.description[locale]}
           </p>
         )}
-        <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span
-            className="text-base font-semibold tabular-nums text-mtogo-text-primary"
-            data-testid="menu-dish-price"
-          >
-            {formatDkk(dish.price.amount, locale)}
-          </span>
-          {dish.is_sold_out && (
-            <span className="inline-flex flex-wrap items-center gap-x-2 text-base text-mtogo-text-secondary">
-              <span className="rounded-full bg-mtogo-status-warning-surface px-2.5 py-0.5 font-medium text-mtogo-status-warning-text">
-                {text.sold_out}
-              </span>
-              {text.sold_out_note}
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span
+              className="text-base font-semibold tabular-nums text-mtogo-text-primary"
+              data-testid="menu-dish-price"
+            >
+              {formatDkk(dish.price.amount, locale)}
             </span>
+            {dish.is_sold_out && (
+              <span className="inline-flex flex-wrap items-center gap-x-2 text-base text-mtogo-text-secondary">
+                <span className="rounded-full bg-mtogo-status-warning-surface px-2.5 py-0.5 font-medium text-mtogo-status-warning-text">
+                  {text.sold_out}
+                </span>
+                {text.sold_out_note}
+              </span>
+            )}
+          </p>
+          {canOrder && !dish.is_sold_out && (
+            <AddDishButton
+              dishName={name}
+              variantId={dish.variant_id}
+              restaurantId={restaurantId}
+              revision={dish.revision}
+              price={dish.price.amount}
+              priceLabel={formatDkk(dish.price.amount, locale)}
+              countryCode={countryCode}
+              locale={locale}
+              line={basketLine}
+            />
           )}
-        </p>
+        </div>
         <details
           className="group text-base"
           data-testid="menu-dish-food-information"
