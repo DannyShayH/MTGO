@@ -42,6 +42,24 @@ const photoFileProvider = process.env.PHOTO_S3_BUCKET
       },
     }
 
+// Real email only when a Resend key is configured. Development and tests keep
+// the local provider, which only logs, so they never send mail.
+const emailNotificationProvider = process.env.RESEND_API_KEY
+  ? {
+      resolve: "./src/modules/resend",
+      id: "resend",
+      options: {
+        channels: ["email"],
+        api_key: process.env.RESEND_API_KEY,
+        from: process.env.RESEND_FROM_EMAIL || undefined,
+      },
+    }
+  : {
+      resolve: "@medusajs/medusa/notification-local",
+      id: "local",
+      options: { channels: ["email"] },
+    }
+
 module.exports = defineConfig({
   admin: {
     // The staging worker container serves no dashboard.
@@ -108,13 +126,7 @@ module.exports = defineConfig({
     {
       resolve: "@medusajs/medusa/notification",
       options: {
-        providers: [
-          {
-            resolve: "@medusajs/medusa/notification-local",
-            id: "local",
-            options: { channels: ["email"] },
-          },
-        ],
+        providers: [emailNotificationProvider],
       },
     },
     {

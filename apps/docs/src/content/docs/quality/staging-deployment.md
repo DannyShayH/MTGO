@@ -234,7 +234,10 @@ remove the network; stop staging first (`sudo mtogo-deploy.sh compose down`).
 Copy `deploy/staging/.env.template` to `/srv/mtogo-staging/.env` and fill in
 the three public URLs, the image prefix (`ghcr.io/<owner lower case>/mtgo-staging`),
 `STAGING_DB_NETWORK` from step 2, the database password, and `JWT_SECRET` and
-`COOKIE_SECRET` from `openssl rand -hex 32`:
+`COOKIE_SECRET` from `openssl rand -hex 32`. Add `RESEND_API_KEY` so new
+Customers receive their verification email; without it the backend only logs
+the email. `RESEND_FROM_EMAIL` is optional and defaults to
+`MTogo <noreply@corral.dk>`:
 
 ```bash
 sudo install -o root -g root -m 600 /dev/null /srv/mtogo-staging/.env
@@ -357,6 +360,7 @@ issue.
 | Droplet `.env`               | `STAGING_IMAGE_PREFIX`, `STAGING_BIND_ADDRESS`, `STAGING_*_PORT`, `STAGING_DEFAULT_REGION`                                   | Images, where Caddy reaches the apps, seed region           |
 | Droplet `.env`               | `STAGING_DB_NETWORK`, `STAGING_DB_HOST`, `STAGING_DB_PORT`, `STAGING_DB_NAME`, `STAGING_DB_USER`, `STAGING_DB_PASSWORD`      | The existing `db` container and the restricted role         |
 | Droplet `.env`               | `JWT_SECRET`, `COOKIE_SECRET`, `STAGING_SPLIT_WORKER`, `BACKEND_HEAP_MB`                                                     | Medusa secrets, worker mode and memory                      |
+| Droplet `.env`               | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` (optional)                                                                             | Customer verification emails via Resend (`corral.dk`)       |
 | Storefront image, build time | `NEXT_PUBLIC_MEDUSA_BACKEND_URL`, `NEXT_PUBLIC_BASE_URL`, `NEXT_PUBLIC_DEFAULT_REGION`, `NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY` | Returned by `prepare`, inlined by Next.js                   |
 
 Missing or malformed values fail visibly: Compose refuses to start with a

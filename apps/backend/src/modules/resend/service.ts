@@ -1,0 +1,79 @@
+import {
+  AbstractNotificationProviderService,
+  MedusaError,
+} from "@medusajs/framework/utils"
+import type { Logger, NotificationTypes } from "@medusajs/framework/types"
+import { Resend } from "resend"
+import { renderCustomerVerification } from "./templates"
+
+export type ResendOptions = {
+  api_key: string
+  from?: string
+}
+
+export const DEFAULT_FROM = "MTogo <noreply@corral.dk>"
+
+type InjectedDependencies = { logger: Logger }
+
+type SendClient = Pick<Resend, "emails">
+
+export default class ResendNotificationProviderService extends AbstractNotificationProviderService {
+  static readonly identifier = "notification-resend"
+
+  protected client_: SendClient
+  protected from_: string
+  protected logger_: Logger
+
+  constructor({ logger }: InjectedDependencies, options: ResendOptions) {
+    super()
+    this.logger_ = logger
+    this.from_ = options.from || DEFAULT_FROM
+    this.client_ = new Resend(options.api_key)
+  }
+
+  static validateOptions(options: Record<string, unknown>) {
+    if (!options?.api_key)
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "api_key is required for the Resend notification provider",
+      )
+  }
+
+  async send(
+    notification: NotificationTypes.ProviderSendNotificationDTO,
+  ): Promise<NotificationTypes.ProviderSendNotificationResultsDTO> {
+    // Never log the data: it holds the verification link and token.
+    const recipientDomain = String(notification.to).split("@")[1] ?? "unknown"
+
+    if (notification.template !== "customer-verification") {
+      this.logger_.error(
+        `Resend: unknown template "${notification.template}" (recipient domain ${recipientDomain})`,
+      )
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `Unknown email template: ${notification.template}`,
+      )
+    }
+    const content = renderCustomerVerification(notification.data)
+
+    const { data, error } = await this.client_.emails.send({
+      from: this.from_,
+      to: [notification.to],
+      subject: content.subject,
+      text: content.text,
+      html: content.html,
+    })
+
+    if (error || !data) {
+      this.logger_.error(
+        `Resend: sending template "${notification.template}" to a recipient at ${recipientDomain} failed: ${error?.message ?? "no response"}`,
+      )
+      throw new MedusaError(
+        MedusaError.Types.UNEXPECTED_STATE,
+        "email_delivery_failed",
+      )
+    }
+
+    return { id: data.id }
+  }
+}
