@@ -1217,14 +1217,14 @@ valid published dish of an active Restaurant returns
 `409 last_published_dish_while_active`, including when it is sold out.
 Deactivate the Restaurant before removing that dish.
 
-## First Restaurant and dish photos (#113)
+## Restaurant and dish photos (#113, #114)
 
 Current staff may `POST /partner/restaurants/:id/cover` or
 `POST /partner/restaurants/:id/dishes/:dish_id/photo` for their own Restaurant.
 Both accept JSON `{ "request_id": "<UUID>", "revision": 1, "content": "<base64>" }`.
 The revision comes from the partner Restaurant or dish read. `content` is the
 actual JPEG, PNG or WebP bytes encoded as base64, not a URL or file ID. Success
-returns `200` with `{ "cover": { "url": "…", "revision": 1 } }` or the same
+returns `200` with `{ "cover": { "url": "…", "revision": 2 } }` or the same
 shape under `photo`. The client never chooses a published URL or filename.
 On staging, response and Customer read URLs are presigned for one hour from
 registered, processed files in the private Tigris bucket. A new read issues a
@@ -1234,13 +1234,16 @@ The request body is limited to 7 MB and decoded input to 5 MiB and 20 million
 pixels. Processing times out after 10 seconds and permits two active decodes
 per backend process. Output is metadata-free WebP, at most 2048 pixels on its
 longest side and 1 MiB. Each Restaurant may have 100 attachments or 50 MiB of
-processed output and add 20 attachments per UTC day. The first attachment is
-the only operation in this issue; replacement and removal belong to #114.
+processed output and upload 20 photos per UTC day. POST replaces an existing
+photo after validating and storing the new output. DELETE on either path takes
+`{ "request_id": "<UUID>", "revision": 1 }` and returns the same shape with
+`url: null`. Every successful action increments the resource revision. Reads
+after removal use the existing placeholder.
 
 Invalid images return `400 photo_invalid`; quotas return `400 photo_quota` or
-`400 photo_rate_limit`; stale revisions and existing images return `409
-photo_stale` and `409 photo_exists`. Foreign targets return `404
+`400 photo_rate_limit`; stale revisions return `409 photo_stale`. Foreign targets return `404
 photo_target_not_found`, revoked staff `403 staff_access_revoked`, and storage
 failure `503 photo_storage_failed`. A retry with the same request ID and target
-returns the original attachment, while reuse for another target returns `409
+returns its result while it is still current; a superseded retry returns `409
+photo_stale`. Reuse for another target or action returns `409
 photo_retry_conflict`. Failed processing leaves published state untouched.

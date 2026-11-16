@@ -19,7 +19,9 @@ export const PHOTO_TEXT = {
     currentDish: "Rettens foto",
     currentCover: "Restaurantens forsidefoto",
     upload: "Tilføj foto",
-    saved: "Fotoet er tilføjet og vises nu for kunder.",
+    replace: "Erstat foto",
+    remove: "Fjern foto",
+    saved: "Fotoet er opdateret.",
     errors: {
       photo_invalid:
         "Billedet kunne ikke bruges. Vælg en gyldig JPEG, PNG eller WebP på højst 5 MB og 20 megapixel.",
@@ -45,7 +47,9 @@ export const PHOTO_TEXT = {
     currentDish: "Dish photo",
     currentCover: "Restaurant cover photo",
     upload: "Add photo",
-    saved: "The photo was added and is now visible to customers.",
+    replace: "Replace photo",
+    remove: "Remove photo",
+    saved: "The photo has been updated.",
     errors: {
       photo_invalid:
         "This image cannot be used. Choose a valid JPEG, PNG or WebP up to 5 MB and 20 megapixels.",

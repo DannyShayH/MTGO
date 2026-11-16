@@ -709,17 +709,26 @@ leaves its category and current menu; image assets are retained. A missing
 identity on the next fresh menu read requires ordering consumers to request
 Customer review before payment.
 
-### Photo attachments (#113)
+### Photo attachments (#113, #114)
 
-`PhotoAttachment` is the Restaurant-owned registry for the first photo of a
-dish product or Restaurant cover. It stores the kind, resource ID, Restaurant
-ID, File Module key and provider URL, processed byte count, request ID, actor and
-time. Unique indexes prevent two attachments to one resource and two successful
-histories for one request. The File Module is a storage facade and cannot
-enumerate this registry. The workflow checks current staff authorization,
-Restaurant ownership and target revision under the Restaurant lock before it
-decodes and stores. It deletes a successfully uploaded output if the later
-attachment write fails. No original bytes are published.
+`PhotoAttachment` holds the current Restaurant-owned dish photo or cover. The
+partner endpoints `POST /partner/restaurants/:id/cover` and
+`POST /partner/restaurants/:id/dishes/:dish_id/photo` accept a request UUID,
+resource revision and base64 image. `DELETE` on either route accepts the UUID
+and revision. Every action checks current staff access, ownership and the
+revision under the Restaurant lock; stale changes return `photo_stale`.
+Successful responses contain the new revision and image URL (or null after
+removal). Replacement processes and stores the image before atomically changing
+the reference, revision, cleanup queue and actor/time history. A failed
+replacement leaves the published reference intact.
+
+`PhotoChange` records successful changes and request identities. `PhotoFile`
+tracks pending uploads and files awaiting cleanup independently of the File
+Module, which has no registry. The cleanup job runs every five minutes, waits
+at least five minutes for pending uploads, checks references across both photo
+kinds and retries failed deletions. It verifies provider deletion before
+removing a queue entry, because the installed S3 provider can suppress errors.
+No original bytes are published.
 
 The local File Module provider stores development files in
 `apps/backend/static` (relative to the repository root), outside `.medusa`

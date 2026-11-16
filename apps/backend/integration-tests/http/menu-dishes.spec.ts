@@ -20,6 +20,7 @@ import { readActivationFacts } from "../../src/workflows/restaurants/steps/activ
 import { evaluateActivationRequirements } from "../../src/workflows/restaurants/activation-requirements"
 import { readPublishedMenu } from "../../src/workflows/menu"
 import { Migration20261115153517 } from "../../src/modules/restaurant/migrations/Migration20261115153517"
+import { cleanupPhotosWorkflow } from "../../src/workflows/photos/cleanup"
 import seedFoodCatalogue from "../../src/migration-scripts/food-catalogue"
 
 jest.setTimeout(120000)
@@ -753,6 +754,194 @@ medusaIntegrationTestRunner({
       ).toHaveLength(2)
     })
 
+    it("protects both photo kinds from stale replacement and removal", async () => {
+      const dish = (await post()).data.categories[0].dishes[0]
+      const content = (
+        await sharp({
+          create: { width: 20, height: 20, channels: 3, background: "red" },
+        })
+          .jpeg()
+          .toBuffer()
+      ).toString("base64")
+      for (const path of [
+        `/partner/restaurants/${restaurantId}/cover`,
+        `/partner/restaurants/${restaurantId}/dishes/${dish.id}/photo`,
+      ]) {
+        const firstRequest = crypto.randomUUID()
+        const first = await api.post(
+          path,
+          { request_id: firstRequest, revision: 1, content },
+          config,
+        )
+        expect(first.status).toBe(200)
+        const revision = (first.data.cover ?? first.data.photo).revision
+        const replacement = await api.post(
+          path,
+          { request_id: crypto.randomUUID(), revision, content },
+          config,
+        )
+        expect(replacement.status).toBe(200)
+        expect(
+          (
+            await api.post(
+              path,
+              { request_id: firstRequest, revision: 1, content },
+              config,
+            )
+          ).data.code,
+        ).toBe("photo_stale")
+        expect(
+          (
+            await api.delete(path, {
+              ...config,
+              data: { request_id: crypto.randomUUID(), revision },
+            })
+          ).status,
+        ).toBe(409)
+        const removed = await api.delete(path, {
+          ...config,
+          data: {
+            request_id: crypto.randomUUID(),
+            revision: (replacement.data.cover ?? replacement.data.photo)
+              .revision,
+          },
+        })
+        expect(removed.status).toBe(200)
+      }
+    })
+
+    it("preserves published photos when replacement fails and refuses revoked removal", async () => {
+      const dish = (await post()).data.categories[0].dishes[0]
+      const content = (
+        await sharp({
+          create: { width: 20, height: 20, channels: 3, background: "red" },
+        })
+          .jpeg()
+          .toBuffer()
+      ).toString("base64")
+      const paths = [
+        `/partner/restaurants/${restaurantId}/cover`,
+        `/partner/restaurants/${restaurantId}/dishes/${dish.id}/photo`,
+      ]
+      for (const path of paths) {
+        expect(
+          (
+            await api.post(
+              path,
+              { request_id: crypto.randomUUID(), revision: 1, content },
+              config,
+            )
+          ).status,
+        ).toBe(200)
+        const invalid = await api.post(
+          path,
+          {
+            request_id: crypto.randomUUID(),
+            revision: 2,
+            content: Buffer.from("bad").toString("base64"),
+          },
+          config,
+        )
+        expect(invalid.data.code).toBe("photo_invalid")
+      }
+      const before = await service().listPhotoAttachments({
+        restaurant_id: restaurantId,
+      })
+      const changes = await service().listPhotoChanges({
+        restaurant_id: restaurantId,
+      })
+      expect(changes).toHaveLength(2)
+      await service().updateRestaurantStaffs({ id: staffId, status: "revoked" })
+      for (const path of paths) {
+        expect(
+          (
+            await api.delete(path, {
+              ...config,
+              data: { request_id: crypto.randomUUID(), revision: 2 },
+            })
+          ).status,
+        ).toBe(403)
+      }
+      expect(
+        await service().listPhotoAttachments({ restaurant_id: restaurantId }),
+      ).toEqual(before)
+      expect(
+        await service().listPhotoChanges({ restaurant_id: restaurantId }),
+      ).toHaveLength(2)
+    })
+
+    it("retains files referenced by either kind and retries failed cleanup", async () => {
+      const dish = (await post()).data.categories[0].dishes[0]
+      const content = (
+        await sharp({
+          create: { width: 20, height: 20, channels: 3, background: "red" },
+        })
+          .jpeg()
+          .toBuffer()
+      ).toString("base64")
+      const coverPath = `/partner/restaurants/${restaurantId}/cover`
+      const dishPath = `/partner/restaurants/${restaurantId}/dishes/${dish.id}/photo`
+      for (const path of [coverPath, dishPath]) {
+        expect(
+          (
+            await api.post(
+              path,
+              { request_id: crypto.randomUUID(), revision: 1, content },
+              config,
+            )
+          ).status,
+        ).toBe(200)
+      }
+      const [cover] = await service().listPhotoAttachments({
+        restaurant_id: restaurantId,
+        kind: "cover",
+      })
+      const [photo] = await service().listPhotoAttachments({
+        restaurant_id: restaurantId,
+        kind: "dish",
+      })
+      await service().updatePhotoAttachments({
+        id: photo.id,
+        file_id: cover.file_id,
+      })
+      expect(
+        (
+          await api.delete(coverPath, {
+            ...config,
+            data: { request_id: crypto.randomUUID(), revision: 2 },
+          })
+        ).status,
+      ).toBe(200)
+      const file = getContainer().resolve(Modules.FILE)
+      const deleted = jest.spyOn(file, "deleteFiles")
+      try {
+        await cleanupPhotosWorkflow(getContainer()).run()
+        expect(deleted).not.toHaveBeenCalled()
+        expect((await file.getAsBuffer(cover.file_id)).length).toBeGreaterThan(
+          0,
+        )
+        expect(
+          (
+            await api.delete(dishPath, {
+              ...config,
+              data: { request_id: crypto.randomUUID(), revision: 2 },
+            })
+          ).status,
+        ).toBe(200)
+        deleted.mockRejectedValueOnce(new Error("storage unavailable"))
+        await cleanupPhotosWorkflow(getContainer()).run()
+        expect(
+          await service().listPhotoFiles({ file_id: cover.file_id }),
+        ).toHaveLength(1)
+        await cleanupPhotosWorkflow(getContainer()).run()
+        expect(
+          await service().listPhotoFiles({ file_id: cover.file_id }),
+        ).toHaveLength(0)
+      } finally {
+        deleted.mockRestore()
+      }
+    })
+
     it("refuses invalid content, foreign targets and revoked staff for both photo kinds", async () => {
       const dish = (await post()).data.categories[0].dishes[0]
       const coverPath = `/partner/restaurants/${restaurantId}/cover`
@@ -813,7 +1002,7 @@ medusaIntegrationTestRunner({
       ).toString("base64")
       const file = getContainer().resolve(Modules.FILE)
       const create = jest
-        .spyOn(file, "createFiles")
+        .spyOn(file, "getUploadStream")
         .mockRejectedValue(new Error("provider unavailable"))
       try {
         for (const path of [
@@ -844,7 +1033,7 @@ medusaIntegrationTestRunner({
       }
     })
 
-    it("deletes transformed output when the later attachment write fails", async () => {
+    it("recovers transformed output when the later attachment write fails", async () => {
       const content = (
         await sharp({
           create: { width: 20, height: 20, channels: 3, background: "red" },
@@ -868,7 +1057,16 @@ medusaIntegrationTestRunner({
           config,
         )
         expect(response.status).toBe(503)
+        const [pending] = await service().listPhotoFiles({
+          restaurant_id: restaurantId,
+        })
+        expect(pending).toBeDefined()
+        await service().updatePhotoFiles({ id: pending.id, state: "cleanup" })
+        await cleanupPhotosWorkflow(getContainer()).run()
         expect(deleted).toHaveBeenCalledTimes(1)
+        expect(
+          await service().listPhotoFiles({ restaurant_id: restaurantId }),
+        ).toHaveLength(0)
         expect(
           await service().listPhotoAttachments({ restaurant_id: restaurantId }),
         ).toHaveLength(0)
@@ -887,9 +1085,9 @@ medusaIntegrationTestRunner({
           .toBuffer()
       ).toString("base64")
       const module = service()
-      const original = module.createPhotoAttachments.bind(module)
+      const original = module.commitPhotoChange.bind(module)
       const write = jest
-        .spyOn(module, "createPhotoAttachments")
+        .spyOn(module, "commitPhotoChange")
         .mockImplementationOnce(async (data) => {
           await original(data)
           throw new Error("acknowledgement lost")

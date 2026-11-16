@@ -3,7 +3,6 @@ import {
   createStep,
   createWorkflow,
   StepResponse,
-  transform,
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk"
 import {
@@ -15,7 +14,6 @@ import type {
   IFileModuleService,
   MedusaContainer,
 } from "@medusajs/framework/types"
-import { acquireLockStep, releaseLockStep } from "@medusajs/medusa/core-flows"
 import { RESTAURANT_MODULE } from "../../modules/restaurant"
 import type RestaurantModuleService from "../../modules/restaurant/service"
 import { restaurantLock } from "../restaurants/restaurant-lock"
@@ -29,12 +27,17 @@ export type PhotoCommand = {
   staff_id: string
   revision: number
   request_id: string
-  content: string
+  content?: string
+  action: "attach" | "remove"
 }
 
 const refuse = (type: string, code: string) => new MedusaError(type, code, code)
 
-async function validateTarget(container: MedusaContainer, input: PhotoCommand) {
+async function validateTarget(
+  container: MedusaContainer,
+  input: PhotoCommand,
+  skipRevision = false,
+) {
   const service = container.resolve<RestaurantModuleService>(RESTAURANT_MODULE)
   const [staff] = await service.listRestaurantStaffs(
     { id: input.staff_id },
@@ -52,9 +55,9 @@ async function validateTarget(container: MedusaContainer, input: PhotoCommand) {
   if (input.kind === "cover") {
     if (input.resource_id !== restaurant.id)
       throw refuse(MedusaError.Types.NOT_FOUND, "photo_target_not_found")
-    if (restaurant.cover_revision !== input.revision)
+    if (!skipRevision && restaurant.cover_revision !== input.revision)
       throw refuse(MedusaError.Types.CONFLICT, "photo_stale")
-    return
+    return undefined
   }
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
   const { data: owned } = await query.graph({
@@ -83,128 +86,223 @@ async function validateTarget(container: MedusaContainer, input: PhotoCommand) {
   )?.menu_dish
   if (!dish?.publication_committed)
     throw refuse(MedusaError.Types.NOT_FOUND, "photo_target_not_found")
-  if (dish.revision !== input.revision)
+  if (!skipRevision && dish.revision !== input.revision)
     throw refuse(MedusaError.Types.CONFLICT, "photo_stale")
+  return (rows[0] as { menu_dish: { id: string } }).menu_dish.id
 }
 
 type Attachment = Awaited<
   ReturnType<RestaurantModuleService["listPhotoAttachments"]>
 >[number]
 
-function validateQuota(existing: Attachment[], input: PhotoCommand) {
+function validateQuota(
+  existing: Attachment[],
+  changes: { occurred_at: Date | string; action: string; request_id: string }[],
+  current: Attachment | undefined,
+) {
+  const others = existing.filter((row) => row.id !== current?.id)
   if (
-    existing.some(
-      ({ kind, resource_id }) =>
-        kind === input.kind && resource_id === input.resource_id,
-    )
-  )
-    throw refuse(MedusaError.Types.CONFLICT, "photo_exists")
-  if (
-    existing.length >= 100 ||
-    existing.reduce((total, row) => total + row.size_bytes, 0) >=
-      50 * 1024 * 1024
+    others.length >= 100 ||
+    others.reduce((total, row) => total + row.size_bytes, 0) >= 50 * 1024 * 1024
   )
     throw refuse(MedusaError.Types.INVALID_DATA, "photo_quota")
   const today = new Date().toISOString().slice(0, 10)
-  if (
-    existing.filter(({ occurred_at }) =>
+  const recorded = new Set(changes.map(({ request_id }) => request_id))
+  const legacyToday = existing.filter(
+    ({ request_id, occurred_at }) =>
+      !recorded.has(request_id) &&
       new Date(occurred_at).toISOString().startsWith(today),
-    ).length >= 20
+  ).length
+  if (
+    legacyToday +
+      changes.filter(
+        ({ occurred_at, action }) =>
+          action === "attach" &&
+          new Date(occurred_at).toISOString().startsWith(today),
+      ).length >=
+    20
   )
     throw refuse(MedusaError.Types.INVALID_DATA, "photo_rate_limit")
 }
 
-async function storeAttachment(
+async function uploadPhoto(
   container: MedusaContainer,
   input: PhotoCommand,
-  output: Buffer,
+  existing: Attachment[],
+  changes: { occurred_at: Date | string; action: string; request_id: string }[],
+  current: Attachment | undefined,
 ) {
-  const file = container.resolve<IFileModuleService>(Modules.FILE)
   const service = container.resolve<RestaurantModuleService>(RESTAURANT_MODULE)
-  let uploaded: { id: string; url: string } | undefined
-  try {
-    uploaded = await file.createFiles({
-      filename: `${randomUUID()}.webp`,
-      mimeType: "image/webp",
-      content: output.toString("base64"),
-      access: "private",
-    })
-    await service.createPhotoAttachments({
-      restaurant_id: input.restaurant_id,
-      kind: input.kind,
-      resource_id: input.resource_id,
-      file_id: uploaded.id,
-      url: uploaded.url,
-      size_bytes: output.length,
-      request_id: input.request_id,
-      actor_id: input.staff_id,
-      occurred_at: new Date(),
-    })
-    return {
-      url: await signedPhotoUrl(container, uploaded.id),
-      revision: input.revision,
-    }
-  } catch {
-    if (uploaded) {
-      let committed: Attachment | undefined
+  let uploaded:
+    { id: string; file_id: string; url: string; size_bytes: number } | undefined
+  if (input.action === "attach") {
+    validateQuota(existing, changes, current)
+    const output = await processPhoto(input.content ?? "")
+    if (
+      existing
+        .filter(({ id }) => id !== current?.id)
+        .reduce((sum, row) => sum + row.size_bytes, 0) +
+        output.length >
+      50 * 1024 * 1024
+    )
+      throw refuse(MedusaError.Types.INVALID_DATA, "photo_quota")
+    const file = container.resolve<IFileModuleService>(Modules.FILE)
+    try {
+      const filename = `${randomUUID()}.webp`
+      // Persist the generated name before opening a provider stream. The
+      // local provider can create an empty file as soon as it opens.
+      const pending = await service.createPhotoFiles({
+        restaurant_id: input.restaurant_id,
+        file_id: `intent:${filename}`,
+        state: "pending",
+      })
+      const stream = await file.getUploadStream({
+        filename,
+        mimeType: "image/webp",
+        access: "private",
+      })
       try {
-        const records = await service.listPhotoAttachments({
-          restaurant_id: input.restaurant_id,
-          request_id: input.request_id,
+        await service.updatePhotoFiles({
+          id: pending.id,
+          file_id: stream.fileKey,
         })
-        committed = records[0]
-      } catch {
-        // The write may have committed. Keep its file rather than break a
-        // published reference when the database cannot confirm the outcome.
-        throw refuse(MedusaError.Types.UNEXPECTED_STATE, "photo_storage_failed")
+      } catch (error) {
+        stream.promise.catch(() => undefined)
+        stream.writeStream.destroy()
+        throw error
       }
-      if (committed?.file_id === uploaded.id)
-        return {
-          url: await signedPhotoUrl(container, committed.file_id),
-          revision: input.revision,
-        }
-      await file.deleteFiles(uploaded.id).catch(() => undefined)
+      uploaded = {
+        id: pending.id,
+        file_id: stream.fileKey,
+        url: stream.url,
+        size_bytes: output.length,
+      }
+      stream.writeStream.end(output)
+      await stream.promise
+    } catch {
+      throw refuse(MedusaError.Types.UNEXPECTED_STATE, "photo_storage_failed")
     }
-    throw refuse(MedusaError.Types.UNEXPECTED_STATE, "photo_storage_failed")
   }
+  return uploaded
+}
+
+async function reconcilePhotoCommit(
+  service: RestaurantModuleService,
+  input: PhotoCommand,
+  error: unknown,
+) {
+  if (
+    error instanceof MedusaError &&
+    [
+      "photo_stale",
+      "staff_access_revoked",
+      "photo_quota",
+      "photo_rate_limit",
+    ].includes(error.code ?? "")
+  )
+    throw error
+  const [committed] = await service
+    .listPhotoChanges({
+      restaurant_id: input.restaurant_id,
+      request_id: input.request_id,
+    })
+    .catch(() => [])
+  if (!committed)
+    throw refuse(MedusaError.Types.UNEXPECTED_STATE, "photo_storage_failed")
 }
 
 const attachPhotoStep = createStep(
   "attach-photo",
   async (input: PhotoCommand, { container }) => {
-    const service =
-      container.resolve<RestaurantModuleService>(RESTAURANT_MODULE)
-    await validateTarget(container, input)
-    const existing = await service.listPhotoAttachments(
-      { restaurant_id: input.restaurant_id },
-      { take: null },
+    const locking = container.resolve(Modules.LOCKING)
+    const result = await locking.execute(
+      [restaurantLock(input.restaurant_id).key, "photo-files"],
+      async (signal) => {
+        const service =
+          container.resolve<RestaurantModuleService>(RESTAURANT_MODULE)
+        const [prior] = await service.listPhotoChanges({
+          restaurant_id: input.restaurant_id,
+          request_id: input.request_id,
+        })
+        const menuDishId = await validateTarget(container, input, !!prior)
+        const existing = await service.listPhotoAttachments(
+          { restaurant_id: input.restaurant_id },
+          { take: null },
+        )
+        const current = existing.find(
+          ({ kind, resource_id }) =>
+            kind === input.kind && resource_id === input.resource_id,
+        )
+        const changes = await service.listPhotoChanges(
+          { restaurant_id: input.restaurant_id },
+          { take: null },
+        )
+        const retry = prior
+        if (retry) {
+          if (
+            retry.kind !== input.kind ||
+            retry.resource_id !== input.resource_id ||
+            retry.action !== input.action
+          )
+            throw refuse(MedusaError.Types.CONFLICT, "photo_retry_conflict")
+          const actualRevision =
+            input.kind === "cover"
+              ? (await service.retrieveRestaurant(input.restaurant_id))
+                  .cover_revision
+              : (await service.retrieveMenuDish(menuDishId!)).revision
+          if (actualRevision !== retry.revision)
+            throw refuse(MedusaError.Types.CONFLICT, "photo_stale")
+          return {
+            url: current
+              ? await signedPhotoUrl(container, current.file_id)
+              : null,
+            revision: retry.revision,
+          }
+        }
+        const uploaded = await uploadPhoto(
+          container,
+          input,
+          existing,
+          changes,
+          current,
+        )
+        signal?.throwIfAborted()
+        await validateTarget(container, input)
+        signal?.throwIfAborted()
+        try {
+          await service.commitPhotoChange({
+            restaurant_id: input.restaurant_id,
+            resource_id: input.resource_id,
+            kind: input.kind,
+            action: input.action,
+            request_id: input.request_id,
+            actor_id: input.staff_id,
+            revision: input.revision,
+            menu_dish_id: menuDishId,
+            attachment_id: current?.id,
+            previous_file_id: current?.file_id,
+            file: uploaded,
+          })
+        } catch (error) {
+          await reconcilePhotoCommit(service, input, error)
+        }
+        return {
+          url: uploaded
+            ? await signedPhotoUrl(container, uploaded.file_id)
+            : null,
+          revision: input.revision + 1,
+        }
+      },
+      { timeout: 5, expire: 30 },
     )
-    const retry = existing.find(
-      ({ request_id }) => request_id === input.request_id,
-    )
-    if (retry) {
-      if (retry.kind !== input.kind || retry.resource_id !== input.resource_id)
-        throw refuse(MedusaError.Types.CONFLICT, "photo_retry_conflict")
-      return new StepResponse({
-        url: await signedPhotoUrl(container, retry.file_id),
-        revision: input.revision,
-      })
-    }
-    validateQuota(existing, input)
-    const output = await processPhoto(input.content)
-    return new StepResponse(await storeAttachment(container, input, output))
+    return new StepResponse(result)
   },
 )
 
 export const attachFirstPhotoWorkflow = createWorkflow(
   "attach-first-photo",
   function (input: PhotoCommand) {
-    const lock = transform({ input }, ({ input }) =>
-      restaurantLock(input.restaurant_id),
-    )
-    acquireLockStep(lock)
     const result = attachPhotoStep(input)
-    releaseLockStep(lock)
     return new WorkflowResponse(result)
   },
 )

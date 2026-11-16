@@ -7,3 +7,9 @@ export const photoInputSchema = z.object({
 })
 
 export type PhotoInput = z.infer<typeof photoInputSchema>
+
+export const photoRemovalSchema = z.object({
+  request_id: z.uuid(),
+  revision: z.number().int().positive(),
+})
+export type PhotoRemovalInput = z.infer<typeof photoRemovalSchema>

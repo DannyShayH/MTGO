@@ -181,6 +181,29 @@ export const PhotoAttachment = model
     { on: ["restaurant_id"] },
   ])
 
+/** Provider keys pending upload or deletion remain durable across restarts. */
+export const PhotoFile = model.define("photo_file", {
+  id: model.id({ prefix: "phfl" }).primaryKey(),
+  restaurant_id: model.text(),
+  file_id: model.text().unique(),
+  state: model.enum(["pending", "cleanup"]),
+})
+
+/** Successful photo changes also provide durable retry and rate-limit history. */
+export const PhotoChange = model
+  .define("photo_change", {
+    id: model.id({ prefix: "phch" }).primaryKey(),
+    restaurant_id: model.text(),
+    resource_id: model.text(),
+    kind: model.enum(["dish", "cover"]),
+    action: model.enum(["attach", "remove"]),
+    request_id: model.text(),
+    actor_id: model.text(),
+    occurred_at: model.dateTime(),
+    revision: model.number(),
+  })
+  .indexes([{ on: ["restaurant_id", "request_id"], unique: true }])
+
 /** Durable creation intent survives compensation and process interruption. */
 export const MenuDishCreation = model
   .define("menu_dish_creation", {
