@@ -1,3 +1,4 @@
+import Thumbnail from "@modules/common/components/thumbnail"
 import { accountText } from "@lib/util/account-text"
 import { CUSTOMER_ORDER_DETAIL_TEXT, type Locale } from "@dtc/i18n"
 import { ArrowLeft, Calendar, MapPin, ShoppingBag } from "@medusajs/icons"
@@ -8,9 +9,11 @@ import LocalizedClientLink from "@modules/common/components/localized-client-lin
 export default function OrderDetailsTemplate({
   order,
   locale,
+  confirmation = false,
 }: {
   order: HttpTypes.StoreOrder
   locale: Locale
+  confirmation?: boolean
 }) {
   const text = CUSTOMER_ORDER_DETAIL_TEXT[locale]
   const address = order.shipping_address
@@ -38,37 +41,41 @@ export default function OrderDetailsTemplate({
       className="space-y-8"
       data-testid="order-details-container"
     >
-      <LocalizedClientLink
-        href="/account/orders"
-        className="inline-flex min-h-11 items-center gap-2 rounded-md text-sm font-medium text-mtogo-text-link underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mtogo-focus-ring focus-visible:ring-offset-2"
-        data-testid="back-to-overview-button"
-      >
-        <ArrowLeft aria-hidden="true" />
-        {text.back}
-      </LocalizedClientLink>
+      {!confirmation && (
+        <LocalizedClientLink
+          href="/account/orders"
+          className="inline-flex min-h-11 items-center gap-2 rounded-md text-sm font-medium text-mtogo-text-link underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mtogo-focus-ring focus-visible:ring-offset-2"
+          data-testid="back-to-overview-button"
+        >
+          <ArrowLeft aria-hidden="true" />
+          {text.back}
+        </LocalizedClientLink>
+      )}
 
-      <header className="border-b border-mtogo-border-subtle pb-6">
-        <p className="text-sm font-medium text-mtogo-text-secondary">
-          {text.title}
-        </p>
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight text-mtogo-text-primary">
-            #{order.display_id}
-          </h1>
-          <span className="inline-flex items-center rounded-full bg-mtogo-surface-selected px-3 py-1 text-sm font-medium text-mtogo-text-link">
-            {statuses[order.status] ?? order.status}
-          </span>
-        </div>
-        <p className="mt-3 flex items-center gap-2 text-sm text-mtogo-text-secondary">
-          <Calendar aria-hidden="true" />
-          <span>
-            {text.date}:{" "}
-            <time dateTime={new Date(order.created_at).toISOString()}>
-              {date}
-            </time>
-          </span>
-        </p>
-      </header>
+      {!confirmation && (
+        <header className="border-b border-mtogo-border-subtle pb-6">
+          <p className="text-sm font-medium text-mtogo-text-secondary">
+            {text.title}
+          </p>
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+            <h1 className="text-2xl font-semibold tracking-tight text-mtogo-text-primary">
+              #{order.display_id}
+            </h1>
+            <span className="inline-flex items-center rounded-full bg-mtogo-surface-selected px-3 py-1 text-sm font-medium text-mtogo-text-link">
+              {statuses[order.status] ?? order.status}
+            </span>
+          </div>
+          <p className="mt-3 flex items-center gap-2 text-sm text-mtogo-text-secondary">
+            <Calendar aria-hidden="true" />
+            <span>
+              {text.date}:{" "}
+              <time dateTime={new Date(order.created_at).toISOString()}>
+                {date}
+              </time>
+            </span>
+          </p>
+        </header>
+      )}
 
       <section aria-labelledby="order-items-heading">
         <div className="flex items-center gap-3">
@@ -84,21 +91,47 @@ export default function OrderDetailsTemplate({
           data-testid="products-table"
         >
           {order.items?.map((item) => (
-            <li key={item.id} className="flex items-start gap-4 py-4">
-              <span className="flex h-9 min-w-9 shrink-0 items-center justify-center rounded-md bg-mtogo-surface-page px-2 text-sm font-semibold text-mtogo-text-primary">
-                {item.quantity} ×
-              </span>
-              <div className="min-w-0 break-words">
+            <li
+              key={item.id}
+              className="grid grid-cols-[64px_minmax(0,1fr)] items-start gap-x-3 gap-y-2 py-5 sm:grid-cols-[96px_minmax(0,1fr)_auto] sm:gap-x-4"
+            >
+              <div className="row-span-2 h-16 w-16 overflow-hidden rounded-lg border border-mtogo-border-subtle sm:h-24 sm:w-24">
+                <Thumbnail
+                  thumbnail={item.thumbnail}
+                  size="square"
+                  alt={item.product_title || item.title || ""}
+                  className="h-full !rounded-none !p-0 !shadow-none"
+                />
+              </div>
+              <div className="min-w-0 flex-1 break-words [overflow-wrap:anywhere]">
                 <p className="font-medium">
                   {item.product_title || item.title}
                 </p>
                 {item.variant_title &&
-                  item.variant_title !== item.product_title && (
+                  item.variant_title !== item.product_title &&
+                  !["regular", "default variant"].includes(
+                    item.variant_title.toLowerCase(),
+                  ) && (
                     <p className="mt-1 text-sm text-mtogo-text-secondary">
                       {item.variant_title}
                     </p>
                   )}
+                <p className="mt-2 text-sm tabular-nums text-mtogo-text-secondary">
+                  {item.quantity} ×{" "}
+                  {convertToLocale({
+                    amount: item.unit_price,
+                    currency_code: order.currency_code,
+                    locale: locale === "da" ? "da-DK" : "en-GB",
+                  })}
+                </p>
               </div>
+              <span className="col-start-2 text-sm font-semibold tabular-nums sm:col-start-3 sm:row-start-1 sm:text-base">
+                {convertToLocale({
+                  amount: item.total ?? item.unit_price * item.quantity,
+                  currency_code: order.currency_code,
+                  locale: locale === "da" ? "da-DK" : "en-GB",
+                })}
+              </span>
             </li>
           ))}
         </ul>
@@ -122,7 +155,7 @@ export default function OrderDetailsTemplate({
           </h2>
         </div>
         <div className="mt-4 grid gap-5 text-sm leading-6 xsmall:grid-cols-2">
-          <div className="min-w-0 break-words">
+          <div className="min-w-0 break-words [overflow-wrap:anywhere]">
             <p className="font-medium">
               {address?.first_name} {address?.last_name}
             </p>
@@ -134,7 +167,7 @@ export default function OrderDetailsTemplate({
             </p>
             <p>{address?.country_code?.toUpperCase()}</p>
           </div>
-          <div className="min-w-0 break-words">
+          <div className="min-w-0 break-words [overflow-wrap:anywhere]">
             <h3 className="font-semibold">{text.contact}</h3>
             <p>{address?.phone}</p>
             <p>{order.email}</p>

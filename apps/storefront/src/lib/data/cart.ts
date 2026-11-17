@@ -13,6 +13,7 @@ import {
   removeCartId,
   setCartId,
 } from "./cookies"
+import { listCartShippingMethods } from "./fulfillment"
 import { getRegion } from "./regions"
 import { explainBasketReview } from "./basket-review"
 import { getLocale } from "./locale-actions"
@@ -304,6 +305,7 @@ export async function submitPromotionForm(
 
 // TODO: Pass a POJO instead of a form entity here
 export async function setAddresses(currentState: unknown, formData: FormData) {
+  let nextStep = "delivery"
   try {
     if (!formData) {
       throw new Error("No form data found when setting addresses")
@@ -389,12 +391,25 @@ export async function setAddresses(currentState: unknown, formData: FormData) {
         [CHECKOUT_REVIEW_METADATA_KEY]: review,
       },
     })
+    const methods = await listCartShippingMethods(cartId)
+    const included = methods?.find(
+      (method) =>
+        method.name === "MTOGO delivery included" && method.amount === 0,
+    )
+    if (included) {
+      try {
+        await setShippingMethod({ cartId, shippingMethodId: included.id })
+      } catch {
+        return "checkout_delivery_failed"
+      }
+      nextStep = "payment"
+    }
   } catch (e) {
     return e instanceof Error ? e.message : String(e)
   }
 
   redirect(
-    `/${formData.get("shipping_address.country_code")}/checkout?step=delivery`,
+    `/${formData.get("shipping_address.country_code")}/checkout?step=${nextStep}`,
   )
 }
 

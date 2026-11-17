@@ -1,9 +1,24 @@
+import {
+  CUSTOMER_ADDRESS_TEXT,
+  CUSTOMER_CHECKOUT_TEXT,
+  type Locale,
+} from "@dtc/i18n"
 import { HttpTypes } from "@medusajs/types"
 import Input from "@modules/common/components/input"
 import React, { useState } from "react"
 import CountrySelect from "../country-select"
 
-const BillingAddress = ({ cart }: { cart: HttpTypes.StoreCart | null }) => {
+const BillingAddress = ({
+  cart,
+  locale,
+  errors = {},
+}: {
+  cart: HttpTypes.StoreCart | null
+  locale: Locale
+  errors?: Record<string, string>
+}) => {
+  const text = CUSTOMER_CHECKOUT_TEXT[locale]
+  const addressText = CUSTOMER_ADDRESS_TEXT[locale]
   const [formData, setFormData] = useState<Record<string, string>>({
     "billing_address.first_name": cart?.billing_address?.first_name || "",
     "billing_address.last_name": cart?.billing_address?.last_name || "",
@@ -29,10 +44,11 @@ const BillingAddress = ({ cart }: { cart: HttpTypes.StoreCart | null }) => {
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Input
-          label="First name"
+          label={addressText.firstName}
           name="billing_address.first_name"
+          error={errors["billing_address.first_name"]}
           autoComplete="given-name"
           value={formData["billing_address.first_name"]}
           onChange={handleChange}
@@ -40,8 +56,9 @@ const BillingAddress = ({ cart }: { cart: HttpTypes.StoreCart | null }) => {
           data-testid="billing-first-name-input"
         />
         <Input
-          label="Last name"
+          label={addressText.lastName}
           name="billing_address.last_name"
+          error={errors["billing_address.last_name"]}
           autoComplete="family-name"
           value={formData["billing_address.last_name"]}
           onChange={handleChange}
@@ -49,8 +66,9 @@ const BillingAddress = ({ cart }: { cart: HttpTypes.StoreCart | null }) => {
           data-testid="billing-last-name-input"
         />
         <Input
-          label="Address"
+          label={addressText.street}
           name="billing_address.address_1"
+          error={errors["billing_address.address_1"]}
           autoComplete="address-line1"
           value={formData["billing_address.address_1"]}
           onChange={handleChange}
@@ -58,16 +76,18 @@ const BillingAddress = ({ cart }: { cart: HttpTypes.StoreCart | null }) => {
           data-testid="billing-address-input"
         />
         <Input
-          label="Company"
+          label={addressText.company}
           name="billing_address.company"
+          error={errors["billing_address.company"]}
           value={formData["billing_address.company"]}
           onChange={handleChange}
           autoComplete="organization"
           data-testid="billing-company-input"
         />
         <Input
-          label="Postal code"
+          label={addressText.postalCode}
           name="billing_address.postal_code"
+          error={errors["billing_address.postal_code"]}
           autoComplete="postal-code"
           value={formData["billing_address.postal_code"]}
           onChange={handleChange}
@@ -75,14 +95,18 @@ const BillingAddress = ({ cart }: { cart: HttpTypes.StoreCart | null }) => {
           data-testid="billing-postal-input"
         />
         <Input
-          label="City"
+          label={addressText.city}
           name="billing_address.city"
+          error={errors["billing_address.city"]}
           autoComplete="address-level2"
           value={formData["billing_address.city"]}
           onChange={handleChange}
         />
         <CountrySelect
+          locale={locale}
+          aria-label={text.country}
           name="billing_address.country_code"
+          aria-invalid={!!errors["billing_address.country_code"]}
           autoComplete="country"
           region={cart?.region}
           value={formData["billing_address.country_code"]}
@@ -91,16 +115,18 @@ const BillingAddress = ({ cart }: { cart: HttpTypes.StoreCart | null }) => {
           data-testid="billing-country-select"
         />
         <Input
-          label="State / Province"
+          label={addressText.province}
           name="billing_address.province"
+          error={errors["billing_address.province"]}
           autoComplete="address-level1"
           value={formData["billing_address.province"]}
           onChange={handleChange}
           data-testid="billing-province-input"
         />
         <Input
-          label="Phone"
+          label={addressText.phone}
           name="billing_address.phone"
+          error={errors["billing_address.phone"]}
           autoComplete="tel"
           value={formData["billing_address.phone"]}
           onChange={handleChange}

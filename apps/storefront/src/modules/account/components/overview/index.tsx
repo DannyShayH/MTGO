@@ -1,10 +1,9 @@
+import { ArrowRight, ShoppingBag } from "@medusajs/icons"
+import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import type { Locale } from "@dtc/i18n"
 import { accountText } from "@lib/util/account-text"
-import { Container } from "@modules/common/components/ui"
+import OrderRow from "../order-row"
 
-import ChevronDown from "@modules/common/icons/chevron-down"
-import LocalizedClientLink from "@modules/common/components/localized-client-link"
-import { convertToLocale } from "@lib/util/money"
 import { HttpTypes } from "@medusajs/types"
 
 type OverviewProps = {
@@ -17,12 +16,12 @@ const Overview = ({ customer, orders, locale }: OverviewProps) => {
   const text = accountText[locale]
   return (
     <div data-testid="overview-page-wrapper">
-      <div className="hidden small:block">
-        <div className="text-xl-semi flex justify-between items-center mb-4">
+      <div className="min-w-0">
+        <div className="mb-6 flex flex-wrap items-start justify-between gap-3 text-2xl font-semibold">
           <span data-testid="welcome-message" data-value={customer?.first_name}>
             {text.hello} {customer?.first_name}
           </span>
-          <span className="text-small-regular text-ui-fg-base">
+          <span className="text-sm font-normal text-mtogo-text-secondary [overflow-wrap:anywhere]">
             {text.signedIn}:{" "}
             <span
               className="font-semibold"
@@ -35,8 +34,8 @@ const Overview = ({ customer, orders, locale }: OverviewProps) => {
         </div>
         <div className="flex flex-col py-8 border-t border-gray-200">
           <div className="flex flex-col gap-y-4 h-full col-span-1 row-span-2 flex-1">
-            <div className="flex items-start gap-x-16 mb-6">
-              <div className="flex flex-col gap-y-4">
+            <div className="mb-8 grid grid-cols-2 gap-4">
+              <div className="flex min-w-0 flex-col gap-y-4">
                 <h3 className="text-large-semi">{text.profile}</h3>
                 <div className="flex items-end gap-x-2">
                   <span
@@ -52,7 +51,7 @@ const Overview = ({ customer, orders, locale }: OverviewProps) => {
                 </div>
               </div>
 
-              <div className="flex flex-col gap-y-4">
+              <div className="flex min-w-0 flex-col gap-y-4">
                 <h3 className="text-large-semi">{text.addresses}</h3>
                 <div className="flex items-end gap-x-2">
                   <span
@@ -70,8 +69,16 @@ const Overview = ({ customer, orders, locale }: OverviewProps) => {
             </div>
 
             <div className="flex flex-col gap-y-4">
-              <div className="flex items-center gap-x-2">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <h3 className="text-large-semi">{text.recent}</h3>
+                <LocalizedClientLink
+                  href="/account/orders"
+                  className="inline-flex min-h-11 items-center gap-2 rounded-md border border-mtogo-border-control bg-mtogo-surface-card px-4 text-sm font-semibold text-mtogo-text-link transition-colors hover:bg-mtogo-surface-selected focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mtogo-focus-ring focus-visible:ring-offset-2"
+                >
+                  <ShoppingBag aria-hidden="true" />
+                  {text.viewAllOrders}
+                  <ArrowRight aria-hidden="true" />
+                </LocalizedClientLink>
               </div>
               <ul
                 className="flex flex-col gap-y-4"
@@ -85,48 +92,7 @@ const Overview = ({ customer, orders, locale }: OverviewProps) => {
                         data-testid="order-wrapper"
                         data-value={order.id}
                       >
-                        <LocalizedClientLink
-                          href={`/account/orders/details/${order.id}`}
-                        >
-                          <Container className="bg-gray-50 flex justify-between items-center p-4">
-                            <div className="grid grid-cols-3 grid-rows-2 text-small-regular gap-x-4 flex-1">
-                              <span className="font-semibold">{text.date}</span>
-                              <span className="font-semibold">
-                                {text.reference}
-                              </span>
-                              <span className="font-semibold">
-                                {text.total}
-                              </span>
-                              <span data-testid="order-created-date">
-                                {new Date(order.created_at).toLocaleDateString(
-                                  locale === "da" ? "da-DK" : "en-GB",
-                                )}
-                              </span>
-                              <span
-                                data-testid="order-id"
-                                data-value={order.display_id}
-                              >
-                                #{order.display_id}
-                              </span>
-                              <span data-testid="order-amount">
-                                {convertToLocale({
-                                  amount: order.total,
-                                  currency_code: order.currency_code,
-                                  locale: locale === "da" ? "da-DK" : "en-GB",
-                                })}
-                              </span>
-                            </div>
-                            <button
-                              className="flex items-center justify-between"
-                              data-testid="open-order-button"
-                            >
-                              <span className="sr-only">
-                                {text.details} #{order.display_id}
-                              </span>
-                              <ChevronDown className="-rotate-90" />
-                            </button>
-                          </Container>
-                        </LocalizedClientLink>
+                        <OrderRow order={order} locale={locale} />
                       </li>
                     )
                   })

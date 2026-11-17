@@ -5,7 +5,7 @@ import { placeOrder } from "@lib/data/cart"
 import { HttpTypes } from "@medusajs/types"
 import { Button } from "@modules/common/components/ui"
 import { useElements, useStripe } from "@stripe/react-stripe-js"
-import { useParams } from "next/navigation"
+import { unstable_rethrow, useParams } from "next/navigation"
 import React, { useState } from "react"
 import ErrorMessage from "../error-message"
 import { getPaymentErrorMessage } from "@lib/util/payment-error"
@@ -192,6 +192,7 @@ const ManualTestPaymentButton = ({
   const onPaymentCompleted = async () => {
     await placeOrder()
       .catch((err) => {
+        unstable_rethrow(err)
         // The data layer already worded the refusal in the Customer's language.
         setErrorMessage(
           err instanceof Error && err.message
@@ -205,6 +206,8 @@ const ManualTestPaymentButton = ({
   }
 
   const handlePayment = () => {
+    if (submitting) return
+    setErrorMessage(null)
     setSubmitting(true)
 
     void onPaymentCompleted()
@@ -213,7 +216,8 @@ const ManualTestPaymentButton = ({
   return (
     <>
       <Button
-        disabled={notReady}
+        disabled={notReady || submitting}
+        className="w-full sm:w-auto"
         isLoading={submitting}
         onClick={handlePayment}
         size="large"

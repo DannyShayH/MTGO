@@ -32,7 +32,7 @@ export default async function Checkout({
   const locale = await getCustomerLocale(customer)
 
   return (
-    <div className="grid grid-cols-1 small:grid-cols-[1fr_416px] content-container gap-x-40 py-12">
+    <div className="content-container grid grid-cols-1 items-start gap-8 py-6 small:grid-cols-[minmax(0,1fr)_360px] small:py-10">
       <PaymentWrapper cart={cart}>
         <CheckoutForm cart={cart} customer={customer} locale={locale} />
       </PaymentWrapper>

@@ -5,6 +5,9 @@ import compareAddresses from "@lib/util/compare-addresses"
 import { CheckCircleSolid } from "@medusajs/icons"
 import { HttpTypes } from "@medusajs/types"
 import {
+  CUSTOMER_ADDRESS_TEXT,
+  customerAddressErrorMessage,
+  validateCustomerAddress,
   CUSTOMER_CHECKOUT_TEXT,
   LANGUAGE_NAMES,
   customerCheckoutErrorMessage,
@@ -15,7 +18,8 @@ import Divider from "@modules/common/components/divider"
 import { Heading, Text } from "@modules/common/components/ui"
 import Spinner from "@modules/common/icons/spinner"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { useActionState } from "react"
+import { toast } from "@medusajs/ui"
+import { useActionState, useState } from "react"
 import BillingAddress from "../billing_address"
 import ErrorMessage from "../error-message"
 import ShippingAddress from "../shipping-address"
@@ -48,7 +52,22 @@ const Addresses = ({
     router.push(pathname + "?step=address")
   }
 
-  const [message, formAction] = useActionState(setAddresses, null)
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const explainError = (code: string) =>
+    code === "checkout_delivery_failed"
+      ? text.deliverySelectionFailed
+      : code.startsWith("customer_address_")
+        ? customerAddressErrorMessage(code, CUSTOMER_ADDRESS_TEXT[locale])
+        : customerCheckoutErrorMessage(code, locale)
+  const [message, formAction] = useActionState(
+    async (previous: string | null, data: FormData) => {
+      const result = await setAddresses(previous, data)
+      if (result)
+        toast.error(explainError(result), { id: "checkout-address-error" })
+      return result
+    },
+    null,
+  )
 
   return (
     <div className="bg-white">
@@ -73,9 +92,82 @@ const Addresses = ({
         )}
       </div>
       {isOpen ? (
-        <form action={formAction}>
+        <form
+          action={formAction}
+          onInput={(event) => {
+            const target = event.target
+            if (
+              target instanceof HTMLInputElement ||
+              target instanceof HTMLSelectElement
+            )
+              setFieldErrors((previous) => {
+                const next = { ...previous }
+                delete next[target.name]
+                return next
+              })
+          }}
+          noValidate
+          onSubmit={(event) => {
+            const form = event.currentTarget
+            const errors: Record<string, string> = {}
+            for (const element of Array.from(form.elements)) {
+              if (
+                (element instanceof HTMLInputElement ||
+                  element instanceof HTMLSelectElement) &&
+                !element.validity.valid
+              ) {
+                errors[element.name] = element.validity.typeMismatch
+                  ? text.emailInvalid
+                  : text.requiredField
+              }
+            }
+            const data = new FormData(form)
+            const field = (name: string) =>
+              String(data.get(`shipping_address.${name}`) ?? "").trim()
+            const code = validateCustomerAddress({
+              first_name: field("first_name"),
+              last_name: field("last_name"),
+              address_1: field("address_1"),
+              postal_code: field("postal_code"),
+              city: field("city"),
+              country_code: field("country_code"),
+              phone: field("phone"),
+            })
+            if (code) {
+              const key = code.includes("name")
+                ? field("first_name")
+                  ? "last_name"
+                  : "first_name"
+                : code.includes("street")
+                  ? "address_1"
+                  : code.includes("postal")
+                    ? "postal_code"
+                    : code.includes("city")
+                      ? "city"
+                      : code.includes("country")
+                        ? "country_code"
+                        : "phone"
+              errors[`shipping_address.${key}`] = customerAddressErrorMessage(
+                code,
+                CUSTOMER_ADDRESS_TEXT[locale],
+              )
+            }
+            setFieldErrors(errors)
+            if (!Object.keys(errors).length)
+              toast.dismiss("checkout-address-error")
+            if (Object.keys(errors).length) {
+              event.preventDefault()
+              toast.error(Object.values(errors)[0], {
+                id: "checkout-address-error",
+              })
+              const target = form.elements.namedItem(Object.keys(errors)[0])
+              if (target instanceof HTMLElement) target.focus()
+            }
+          }}
+        >
           <div className="pb-8">
             <ShippingAddress
+              errors={fieldErrors}
               customer={customer}
               checked={sameAsBilling}
               onChange={toggleSameAsBilling}
@@ -89,17 +181,21 @@ const Addresses = ({
                   level="h2"
                   className="text-3xl-regular gap-x-4 pb-6 pt-8"
                 >
-                  Billing address
+                  {text.billingAddress}
                 </Heading>
 
-                <BillingAddress cart={cart} />
+                <BillingAddress
+                  cart={cart}
+                  locale={locale}
+                  errors={fieldErrors}
+                />
               </div>
             )}
             <SubmitButton className="mt-6" data-testid="submit-address-button">
-              Continue to delivery
+              {text.continueToPayment}
             </SubmitButton>
             <ErrorMessage
-              error={customerCheckoutErrorMessage(message, locale)}
+              error={message ? explainError(message) : null}
               data-testid="address-error-message"
             />
           </div>
@@ -109,9 +205,9 @@ const Addresses = ({
           <div className="text-small-regular">
             {cart && cart.shipping_address ? (
               <div className="flex items-start gap-x-8">
-                <div className="flex items-start gap-x-1 w-full">
+                <div className="grid w-full min-w-0 gap-5 sm:grid-cols-2 lg:grid-cols-3">
                   <div
-                    className="flex flex-col w-1/3"
+                    className="flex min-w-0 flex-col break-words [overflow-wrap:anywhere]"
                     data-testid="shipping-address-summary"
                   >
                     <Text className="txt-medium-plus text-ui-fg-base mb-1">
@@ -135,7 +231,7 @@ const Addresses = ({
                   </div>
 
                   <div
-                    className="flex flex-col w-1/3 "
+                    className="flex min-w-0 flex-col break-words [overflow-wrap:anywhere] "
                     data-testid="shipping-contact-summary"
                   >
                     <Text className="txt-medium-plus text-ui-fg-base mb-1">
@@ -159,7 +255,7 @@ const Addresses = ({
                   </div>
 
                   <div
-                    className="flex flex-col w-1/3"
+                    className="flex min-w-0 flex-col break-words [overflow-wrap:anywhere]"
                     data-testid="billing-address-summary"
                   >
                     <Text className="txt-medium-plus text-ui-fg-base mb-1">

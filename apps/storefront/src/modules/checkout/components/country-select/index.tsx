@@ -1,3 +1,4 @@
+import type { Locale } from "@dtc/i18n"
 import { forwardRef, useImperativeHandle, useMemo, useRef } from "react"
 
 import NativeSelect, {
@@ -8,9 +9,10 @@ import { HttpTypes } from "@medusajs/types"
 const CountrySelect = forwardRef<
   HTMLSelectElement,
   NativeSelectProps & {
+    locale?: Locale
     region?: HttpTypes.StoreRegion
   }
->(({ placeholder = "Country", region, defaultValue, ...props }, ref) => {
+>(({ placeholder, locale = "en", region, defaultValue, ...props }, ref) => {
   const innerRef = useRef<HTMLSelectElement>(null)
 
   useImperativeHandle<HTMLSelectElement | null, HTMLSelectElement | null>(
@@ -25,14 +27,18 @@ const CountrySelect = forwardRef<
 
     return region.countries?.map((country) => ({
       value: country.iso_2,
-      label: country.display_name,
+      label: country.iso_2
+        ? new Intl.DisplayNames([locale], { type: "region" }).of(
+            country.iso_2.toUpperCase(),
+          )
+        : country.display_name,
     }))
-  }, [region])
+  }, [region, locale])
 
   return (
     <NativeSelect
       ref={innerRef}
-      placeholder={placeholder}
+      placeholder={placeholder ?? (locale === "da" ? "Land" : "Country")}
       defaultValue={defaultValue}
       {...props}
     >

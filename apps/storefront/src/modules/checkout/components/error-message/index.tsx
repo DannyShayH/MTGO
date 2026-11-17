@@ -13,6 +13,8 @@ const ErrorMessage = ({
     <div
       className="pt-2 text-rose-500 text-small-regular"
       data-testid={dataTestid}
+      id={dataTestid}
+      role="alert"
     >
       <span>{error}</span>
     </div>

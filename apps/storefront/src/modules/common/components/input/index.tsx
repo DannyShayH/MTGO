@@ -8,6 +8,7 @@ type InputProps = Omit<
   Omit<React.InputHTMLAttributes<HTMLInputElement>, "size">,
   "placeholder"
 > & {
+  error?: string
   label: string
   errors?: Record<string, unknown>
   touched?: Record<string, unknown>
@@ -22,6 +23,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       type,
       name,
       label,
+      error,
       touched: _touched,
       required,
       topLabel,
@@ -54,6 +56,10 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         )}
         <div className="relative z-0 flex w-full">
           <input
+            aria-invalid={!!error}
+            aria-describedby={
+              error ? `${inputId}-error` : props["aria-describedby"]
+            }
             type={inputType}
             name={name}
             placeholder=" "
@@ -91,6 +97,14 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             </button>
           )}
         </div>
+        {error && (
+          <p
+            id={`${inputId}-error`}
+            className="mt-1 text-sm text-mtogo-status-error-text"
+          >
+            {error}
+          </p>
+        )}
       </div>
     )
   },

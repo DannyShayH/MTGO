@@ -1,3 +1,4 @@
+import { CUSTOMER_CHECKOUT_TEXT, type Locale } from "@dtc/i18n"
 import { Listbox, Transition } from "@headlessui/react"
 import { ChevronUpDown } from "@medusajs/icons"
 import { clx } from "@modules/common/components/ui"
@@ -8,6 +9,7 @@ import { HttpTypes } from "@medusajs/types"
 import Radio from "@modules/common/components/radio"
 
 type AddressSelectProps = {
+  locale?: Locale
   addresses: HttpTypes.StoreCustomerAddress[]
   addressInput: HttpTypes.StoreCartAddress | null
   onSelect: (
@@ -17,6 +19,7 @@ type AddressSelectProps = {
 }
 
 const AddressSelect = ({
+  locale = "en",
   addresses,
   addressInput,
   onSelect,
@@ -35,7 +38,7 @@ const AddressSelect = ({
   }, [addresses, addressInput])
 
   return (
-    <Listbox onChange={handleSelect} value={selectedAddress?.id}>
+    <Listbox onChange={handleSelect} value={selectedAddress?.id ?? ""}>
       <div className="relative">
         <Listbox.Button
           className="relative w-full flex justify-between items-center px-4 py-[10px] text-left bg-white cursor-default focus:outline-none border rounded-rounded focus-visible:ring-2 focus-visible:ring-opacity-75 focus-visible:ring-white focus-visible:ring-offset-gray-300 focus-visible:ring-offset-2 focus-visible:border-gray-300 text-base-regular"
@@ -46,7 +49,7 @@ const AddressSelect = ({
               <span className="block truncate">
                 {selectedAddress
                   ? selectedAddress.address_1
-                  : "Choose an address"}
+                  : CUSTOMER_CHECKOUT_TEXT[locale].chooseAddress}
               </span>
               <ChevronUpDown
                 className={clx("transition-rotate duration-200", {

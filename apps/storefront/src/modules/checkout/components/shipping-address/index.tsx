@@ -1,5 +1,6 @@
 import { HttpTypes } from "@medusajs/types"
 import {
+  CUSTOMER_ADDRESS_TEXT,
   CUSTOMER_CHECKOUT_TEXT,
   LANGUAGE_NAMES,
   reviewedCheckoutLanguage,
@@ -19,13 +20,16 @@ const ShippingAddress = ({
   checked,
   onChange,
   locale,
+  errors = {},
 }: {
   customer: HttpTypes.StoreCustomer | null
   cart: HttpTypes.StoreCart | null
   checked: boolean
   onChange: () => void
   locale: Locale
+  errors?: Record<string, string>
 }) => {
+  const addressText = CUSTOMER_ADDRESS_TEXT[locale]
   const text = CUSTOMER_CHECKOUT_TEXT[locale]
   const reviewedLanguage = reviewedCheckoutLanguage(cart?.metadata)
 
@@ -126,11 +130,10 @@ const ShippingAddress = ({
     <>
       {customer && (addressesInRegion?.length || 0) > 0 && (
         <Container className="mb-6 flex flex-col gap-y-4 p-5">
-          <p className="text-small-regular">
-            {`Hi ${customer.first_name}, do you want to use one of your saved addresses?`}
-          </p>
+          <p className="text-small-regular">{text.savedAddresses}</p>
           <AddressSelect
-            addresses={customer.addresses}
+            addresses={addressesInRegion ?? []}
+            locale={locale}
             addressInput={
               mapKeys(formData, (_, key) =>
                 key.replace("shipping_address.", ""),
@@ -140,10 +143,11 @@ const ShippingAddress = ({
           />
         </Container>
       )}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Input
-          label="First name"
+          label={addressText.firstName}
           name="shipping_address.first_name"
+          error={errors["shipping_address.first_name"]}
           autoComplete="given-name"
           value={formData["shipping_address.first_name"]}
           onChange={handleChange}
@@ -151,8 +155,9 @@ const ShippingAddress = ({
           data-testid="shipping-first-name-input"
         />
         <Input
-          label="Last name"
+          label={addressText.lastName}
           name="shipping_address.last_name"
+          error={errors["shipping_address.last_name"]}
           autoComplete="family-name"
           value={formData["shipping_address.last_name"]}
           onChange={handleChange}
@@ -160,8 +165,9 @@ const ShippingAddress = ({
           data-testid="shipping-last-name-input"
         />
         <Input
-          label="Address"
+          label={addressText.street}
           name="shipping_address.address_1"
+          error={errors["shipping_address.address_1"]}
           autoComplete="address-line1"
           value={formData["shipping_address.address_1"]}
           onChange={handleChange}
@@ -171,22 +177,25 @@ const ShippingAddress = ({
         <Input
           label={text.apartment}
           name="shipping_address.address_2"
+          error={errors["shipping_address.address_2"]}
           autoComplete="address-line2"
           value={formData["shipping_address.address_2"]}
           onChange={handleChange}
           data-testid="shipping-address-2-input"
         />
         <Input
-          label="Company"
+          label={addressText.company}
           name="shipping_address.company"
+          error={errors["shipping_address.company"]}
           value={formData["shipping_address.company"]}
           onChange={handleChange}
           autoComplete="organization"
           data-testid="shipping-company-input"
         />
         <Input
-          label="Postal code"
+          label={addressText.postalCode}
           name="shipping_address.postal_code"
+          error={errors["shipping_address.postal_code"]}
           autoComplete="postal-code"
           value={formData["shipping_address.postal_code"]}
           onChange={handleChange}
@@ -194,8 +203,9 @@ const ShippingAddress = ({
           data-testid="shipping-postal-code-input"
         />
         <Input
-          label="City"
+          label={addressText.city}
           name="shipping_address.city"
+          error={errors["shipping_address.city"]}
           autoComplete="address-level2"
           value={formData["shipping_address.city"]}
           onChange={handleChange}
@@ -203,7 +213,10 @@ const ShippingAddress = ({
           data-testid="shipping-city-input"
         />
         <CountrySelect
+          locale={locale}
+          aria-label={text.country}
           name="shipping_address.country_code"
+          aria-invalid={!!errors["shipping_address.country_code"]}
           autoComplete="country"
           region={cart?.region}
           value={formData["shipping_address.country_code"]}
@@ -212,8 +225,9 @@ const ShippingAddress = ({
           data-testid="shipping-country-select"
         />
         <Input
-          label="State / Province"
+          label={addressText.province}
           name="shipping_address.province"
+          error={errors["shipping_address.province"]}
           autoComplete="address-level1"
           value={formData["shipping_address.province"]}
           onChange={handleChange}
@@ -222,19 +236,20 @@ const ShippingAddress = ({
       </div>
       <div className="my-8">
         <Checkbox
-          label="Billing address same as shipping address"
+          label={text.billingSameAsDelivery}
           name="same_as_billing"
           checked={checked}
           onChange={onChange}
           data-testid="billing-address-checkbox"
         />
       </div>
-      <div className="grid grid-cols-2 gap-4 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
         <Input
-          label="Email"
+          label={text.email}
           name="email"
+          error={errors["email"]}
           type="email"
-          title="Enter a valid email address."
+          title={text.emailInvalid}
           autoComplete="email"
           value={formData.email}
           onChange={handleChange}
@@ -242,8 +257,11 @@ const ShippingAddress = ({
           data-testid="shipping-email-input"
         />
         <Input
-          label="Phone"
+          label={addressText.phone}
           name="shipping_address.phone"
+          required
+          type="tel"
+          error={errors["shipping_address.phone"]}
           autoComplete="tel"
           value={formData["shipping_address.phone"]}
           onChange={handleChange}
@@ -257,6 +275,7 @@ const ShippingAddress = ({
         <select
           id="order-language"
           name="order_language"
+          aria-invalid={!!errors["order_language"]}
           value={formData.order_language}
           onChange={handleChange}
           className="mt-1 w-full rounded-rounded border px-4 py-2"

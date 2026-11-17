@@ -204,6 +204,46 @@ cards, promotions and a separate delivery charge are outside the MVP. Hide
 their storefront controls and prevent direct API calls from changing the
 reviewed amount through those unsupported paths.
 
+The current storefront presents a test-card form for the built-in manual
+payment provider. It accepts only the displayed test card, a non-expired date
+and a three-digit code, all checked in the browser. Card details are not sent
+to Medusa or saved. This is a checkout demonstration, not card processing or a
+server-side payment authorization; the existing API can still be called
+directly. A successful simulated payment moves no money.
+
+For the current MVP demo, the mock resolves immediately. Issues #134 and #135
+were closed as not planned following the decision to defer uncertain and delayed
+supplier outcomes. The earlier specification above retains those scenarios as
+historical context; they are not implemented by the test-card form. Safe retries
+and recovery after a lost application response remain part of issue #133.
+Use “Udfyld testkort” / “Fill in test card” to supply valid demo details. An
+expired date, such as `12/06`, keeps the Customer on payment with an expiry
+message and focus on that field.
+
+Checkout address labels, saved-address choices and country names follow the
+Customer's Danish or English language. Validation appears after submission,
+beside invalid fields and in the existing Medusa toast. Address errors from the
+server remain visible inline. After the address is saved, checkout selects the
+available zero-price MTOGO delivery option and advances to payment. If that
+option cannot be found, the delivery step remains available with a clear failure
+state; its continue action saves the single option without a separate selection
+click. Order details show the recorded dish thumbnail (or an image placeholder),
+quantity, unit price and line total using the Order's recorded currency.
+For existing Orders without a Medusa thumbnail, the storefront reads the linked
+Restaurant's current menu photo by variant. This is a current presentation
+image, not a historical photo snapshot; unavailable or removed menu photos keep
+the placeholder. Recorded names, quantities and prices are preserved. Account
+overview and paginated history share the same responsive Order row and expose
+one keyboard-accessible detail link per Order.
+Photo lookup uses the Restaurant ID already recorded on the Order line when a
+Restaurant relation is absent from the Store response. Order detail resolves the photos; overview and history use a Medusa bag icon
+and total item count, so a large Order stays one compact row without fetching
+menu photos for every history entry. The overview requests at most five Orders;
+the full history shows ten per page and offers Medusa's built-in status filter.
+Applying a filter starts at page one, and pagination retains that filter. These
+are server-side pages of the Customer's own Orders, not filtering of one loaded
+page or a download of all their history.
+
 The current menu route supplies each dish's variant, revision, price and
 availability for the pre-payment comparison. Existing completion middleware
 protects Customer ownership and reviewed address/contact details. Add checks

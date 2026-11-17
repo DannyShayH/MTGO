@@ -3,7 +3,7 @@
 import { CUSTOMER_CHECKOUT_TEXT, type Locale } from "@dtc/i18n"
 import { setShippingMethod } from "@lib/data/cart"
 import { convertToLocale } from "@lib/util/money"
-import { CheckCircleSolid } from "@medusajs/icons"
+import { CheckCircleSolid, MapPin } from "@medusajs/icons"
 import { HttpTypes } from "@medusajs/types"
 import ErrorMessage from "@modules/checkout/components/error-message"
 import Divider from "@modules/common/components/divider"
@@ -26,22 +26,21 @@ export default function Shipping({
   const router = useRouter()
   const pathname = usePathname()
   const isOpen = useSearchParams().get("step") === "delivery"
-  const [selectedId, setSelectedId] = useState<string | null>(
-    cart.shipping_methods?.at(-1)?.shipping_option_id ?? null,
-  )
+  const selectedId = cart.shipping_methods?.at(-1)?.shipping_option_id ?? null
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const option = availableShippingMethods[0]
 
   const selectDelivery = async () => {
-    if (!option || isLoading) return
+    if (!option || isLoading) return false
     setIsLoading(true)
     setError(null)
     try {
       await setShippingMethod({ cartId: cart.id, shippingMethodId: option.id })
-      setSelectedId(option.id)
+      return true
     } catch {
       setError(text.deliverySelectionFailed)
+      return false
     } finally {
       setIsLoading(false)
     }
@@ -77,22 +76,29 @@ export default function Shipping({
       {isOpen ? (
         <div className="space-y-4">
           {option ? (
-            <button
-              type="button"
-              onClick={selectDelivery}
-              aria-pressed={selectedId === option.id}
-              className="flex min-h-14 w-full items-center justify-between gap-4 rounded-card border border-mtogo-border-control bg-mtogo-surface-card px-4 text-left text-mtogo-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mtogo-focus-ring focus-visible:ring-offset-2 aria-pressed:bg-mtogo-surface-selected"
+            <div
+              className="flex min-h-16 items-center gap-3 rounded-card border border-mtogo-border-subtle bg-mtogo-surface-selected p-4"
               data-testid="delivery-option-radio"
             >
-              <span>{text.deliveryIncluded}</span>
-              <span>
+              <MapPin
+                aria-hidden="true"
+                className="shrink-0 text-mtogo-text-link"
+              />
+              <span className="flex-1 font-medium">
+                {text.deliveryIncluded}
+              </span>
+              <span className="font-semibold tabular-nums">
                 {convertToLocale({
                   amount: 0,
                   currency_code: cart.currency_code,
                   locale: locale === "da" ? "da-DK" : "en-GB",
                 })}
               </span>
-            </button>
+              <CheckCircleSolid
+                aria-hidden="true"
+                className="shrink-0 text-mtogo-text-link"
+              />
+            </div>
           ) : (
             <Text className="text-mtogo-status-error-text">
               {text.deliveryUnavailable}
@@ -104,10 +110,11 @@ export default function Shipping({
           />
           <Button
             size="large"
-            onClick={() =>
-              router.push(`${pathname}?step=payment`, { scroll: false })
-            }
-            disabled={!selectedId || isLoading}
+            onClick={async () => {
+              if (selectedId === option?.id || (await selectDelivery()))
+                router.push(`${pathname}?step=payment`, { scroll: false })
+            }}
+            disabled={!option || isLoading}
             isLoading={isLoading}
             data-testid="submit-delivery-option-button"
           >
