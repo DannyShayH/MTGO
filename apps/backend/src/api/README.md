@@ -1318,3 +1318,24 @@ failure `503 photo_storage_failed`. A retry with the same request ID and target
 returns its result while it is still current; a superseded retry returns `409
 photo_stale`. Reuse for another target or action returns `409
 photo_retry_conflict`. Failed processing leaves published state untouched.
+
+## Customer email-change notices (#93)
+
+### GET /admin/customer-email-change-notices
+
+**Actor:** MTOGO operator (authenticated admin user).
+
+Returns `200` with `notices`, containing the Customer ID, masked old and new
+addresses and language for the oldest failed notice of each Customer. No
+confirmation link is returned. After a retry, the next notice becomes visible.
+An unauthenticated or unauthorized caller cannot access this endpoint.
+
+### POST /admin/customer-email-change-notices/:customer_id/retry
+
+**Actor:** MTOGO operator (authenticated admin user). No request body is needed.
+
+Retries the Customer's oldest failed notice. Success returns `200` with
+`{ "delivered": true }`. A Customer without a pending notice receives a
+`customer_old_email_notice_not_pending` error. Delivery errors leave the notice
+pending for a later retry. An unauthenticated or unauthorized caller cannot
+access this endpoint.

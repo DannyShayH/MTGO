@@ -97,6 +97,15 @@ bearer tokens, sessions and refresh attempts are rejected. Staff and operator
 identities are not touched. The old mailbox receives a notice after completion;
 failure of that notice does not roll back the completed login change.
 
+Operators can use the English-only Admin page at `/app/customer-email-change-notices`
+to see failed old-address notices and retry them. The list exposes only masked
+addresses and the Customer ID; it never returns a confirmation or recovery link.
+Failed notices are queued per Customer, with the oldest shown and retried first.
+Before changing credentials, the workflow records recovery state on the Customer.
+A scheduled job checks for interrupted changes each minute and finishes or rolls
+back the change under the same Customer lock. A recovered completion leaves its
+old-address notice for an operator to retry.
+
 ## Evidence
 
 `integration-tests/http/customer-auth.spec.ts` exercises real registration/login,

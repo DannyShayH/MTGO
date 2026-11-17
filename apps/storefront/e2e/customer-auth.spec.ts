@@ -223,12 +223,17 @@ for (const locale of ["da", "en"] as const) {
     const editModal = page.locator('[data-testid="edit-address-modal"]:visible')
     await editModal.getByTestId("city-input").fill("Odense")
     await editModal.getByTestId("save-button").press("Enter")
+    await expect(editModal).toBeHidden()
     await expect(firstAddress).toContainText("Odense")
 
     const secondAddress = addresses
       .getByTestId("address-container")
       .filter({ hasText: "Havnegade 4" })
-    await secondAddress.getByTestId("address-default-button").press("Enter")
+    const defaultButton = secondAddress.getByTestId("address-default-button")
+    await expect(defaultButton).toBeEnabled()
+    await defaultButton.focus()
+    await expect(defaultButton).toBeFocused()
+    await page.keyboard.press("Enter")
     await expect(secondAddress).toContainText(
       locale === "da" ? "Standardadresse" : "Default address",
     )

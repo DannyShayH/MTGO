@@ -1,3 +1,4 @@
+import { recoverCustomerEmailChangesWorkflow } from "../../src/workflows/customer-auth/recover-customer-email-changes"
 import { createRestaurantWorkflow } from "../../src/workflows/restaurants"
 import { createAuthorizedStaffWorkflow } from "../../src/workflows/restaurant-staff"
 import { Modules, generateJwtToken } from "@medusajs/framework/utils"
@@ -891,6 +892,275 @@ medusaIntegrationTestRunner({
       })
       expect(notices).toHaveLength(1)
       expect(notices[0].data?.language).toBe("en")
+    })
+    it("retains and retries each failed notice after successive email changes", async () => {
+      const addresses = [
+        "queue-first@example.test",
+        "queue-second@example.test",
+        "queue-third@example.test",
+      ]
+      const owner = await createProfileCustomer(addresses[0])
+      const notifications = getContainer().resolve(Modules.NOTIFICATION)
+      let customerHeaders = owner.ownerHeaders
+      for (let index = 0; index < 2; index++) {
+        await api.post(
+          "/store/customers/me/email-change/request",
+          { current_password: password, new_email: addresses[index + 1] },
+          { headers: customerHeaders },
+        )
+        const [notice] = await notifications.listNotifications({
+          to: addresses[index + 1],
+          template: "customer-email-change",
+        })
+        const code = new URL(
+          String(notice.data?.confirmation_url),
+        ).searchParams.get("token")
+        process.env.TEST_MAILBOX_FAIL_RECIPIENT = addresses[index]
+        try {
+          const confirmed = await api.post(
+            "/auth/customer-email-change/confirm",
+            { code },
+          )
+          expect(confirmed.data.old_email_notice).toBe("failed")
+        } finally {
+          delete process.env.TEST_MAILBOX_FAIL_RECIPIENT
+        }
+        const login = await signIn({ email: addresses[index + 1], password })
+        expect(login.status).toBe(200)
+        customerHeaders = {
+          ...headers,
+          authorization: `Bearer ${login.data.token}`,
+        }
+      }
+      const customer = await getContainer()
+        .resolve(Modules.CUSTOMER)
+        .retrieveCustomer(owner.customer.id)
+      expect(
+        customer.metadata?.pending_customer_email_change_notices,
+      ).toHaveLength(2)
+      for (const oldEmail of addresses.slice(0, 2)) {
+        const retried = await api.post(
+          "/store/customers/me/email-change/retry-old-address-notice",
+          {},
+          { headers: customerHeaders },
+        )
+        expect(retried.status).toBe(200)
+        expect(
+          await notifications.listNotifications({
+            to: oldEmail,
+            template: "customer-email-change-completed",
+          }),
+        ).toHaveLength(1)
+      }
+    })
+    it("keeps the original login and Customer email when confirmation is interrupted after the profile update", async () => {
+      const oldEmail = "email-change-interrupted-old@example.test"
+      const newEmail = "email-change-interrupted-new@example.test"
+      const owner = await createProfileCustomer(oldEmail)
+      await api.post(
+        "/store/customers/me/email-change/request",
+        { current_password: password, new_email: newEmail },
+        { headers: owner.ownerHeaders },
+      )
+      const notifications = getContainer().resolve(Modules.NOTIFICATION)
+      const [notice] = await notifications.listNotifications({
+        to: newEmail,
+        template: "customer-email-change",
+      })
+      const code = new URL(
+        String(notice.data?.confirmation_url),
+      ).searchParams.get("token")
+
+      process.env.TEST_CUSTOMER_EMAIL_CHANGE_FAIL_AFTER_CUSTOMER_UPDATE = "1"
+      try {
+        const interrupted = await api.post(
+          "/auth/customer-email-change/confirm",
+          { code },
+          { validateStatus: () => true },
+        )
+        expect(interrupted.status).toBeGreaterThanOrEqual(500)
+      } finally {
+        delete process.env.TEST_CUSTOMER_EMAIL_CHANGE_FAIL_AFTER_CUSTOMER_UPDATE
+      }
+
+      const oldLogin = await signIn({ email: oldEmail, password })
+      expect(oldLogin.status).toBe(200)
+      const currentCustomer = await api.get("/store/customers/me", {
+        headers: {
+          ...headers,
+          authorization: `Bearer ${oldLogin.data.token}`,
+        },
+        validateStatus: () => true,
+      })
+      expect(currentCustomer.status).toBe(200)
+      expect(currentCustomer.data.customer.id).toBe(owner.customer.id)
+      expect(currentCustomer.data.customer.email).toBe(oldEmail)
+      expect((await signIn({ email: newEmail, password })).status).toBe(401)
+    })
+    it("recovers a change interrupted after the provider update", async () => {
+      const oldEmail = "email-change-crash-old@example.test"
+      const newEmail = "email-change-crash-new@example.test"
+      const owner = await createProfileCustomer(oldEmail)
+      await api.post(
+        "/store/customers/me/email-change/request",
+        { current_password: password, new_email: newEmail },
+        { headers: owner.ownerHeaders },
+      )
+      const notifications = getContainer().resolve(Modules.NOTIFICATION)
+      const [notice] = await notifications.listNotifications({
+        to: newEmail,
+        template: "customer-email-change",
+      })
+      const code = new URL(
+        String(notice.data?.confirmation_url),
+      ).searchParams.get("token")
+      process.env.TEST_CUSTOMER_EMAIL_CHANGE_INTERRUPT_AFTER_PROVIDER = "1"
+      try {
+        const response = await api.post(
+          "/auth/customer-email-change/confirm",
+          { code },
+          { validateStatus: () => true },
+        )
+        expect(response.status).toBeGreaterThanOrEqual(500)
+      } finally {
+        delete process.env.TEST_CUSTOMER_EMAIL_CHANGE_INTERRUPT_AFTER_PROVIDER
+      }
+      await recoverCustomerEmailChangesWorkflow(getContainer()).run()
+      await recoverCustomerEmailChangesWorkflow(getContainer()).run()
+      const login = await signIn({ email: newEmail, password })
+      expect(login.status).toBe(200)
+      const customer = await getContainer()
+        .resolve(Modules.CUSTOMER)
+        .retrieveCustomer(owner.customer.id)
+      expect(customer.email).toBe(newEmail)
+      expect(customer.metadata?.customer_email_change_recovery).toBeFalsy()
+      expect(
+        customer.metadata?.pending_customer_email_change_notices,
+      ).toHaveLength(1)
+    })
+    it("lets an operator view and retry a failed old-address notice without exposing a recovery link", async () => {
+      const oldEmail = "email-change-operator-old@example.test"
+      const newEmail = "email-change-operator-new@example.test"
+      const owner = await createProfileCustomer(oldEmail)
+      await api.post(
+        "/store/customers/me/email-change/request",
+        { current_password: password, new_email: newEmail },
+        { headers: owner.ownerHeaders },
+      )
+      const notifications = getContainer().resolve(Modules.NOTIFICATION)
+      const [notice] = await notifications.listNotifications({
+        to: newEmail,
+        template: "customer-email-change",
+      })
+      const code = new URL(
+        String(notice.data?.confirmation_url),
+      ).searchParams.get("token")
+      process.env.TEST_MAILBOX_FAIL_RECIPIENT = oldEmail
+      try {
+        const confirmed = await api.post(
+          "/auth/customer-email-change/confirm",
+          { code },
+        )
+        expect(confirmed.status).toBe(200)
+      } finally {
+        delete process.env.TEST_MAILBOX_FAIL_RECIPIENT
+      }
+
+      const operatorEmail = "email-change-operator@example.test"
+      const operatorPassword = "ci-only-operator-password"
+      const registration = await api.post("/auth/user/emailpass/register", {
+        email: operatorEmail,
+        password: operatorPassword,
+      })
+      const authIdentityId = JSON.parse(
+        Buffer.from(
+          registration.data.token.split(".")[1],
+          "base64url",
+        ).toString(),
+      ).auth_identity_id
+      const { result: operators } = await createUsersWorkflow(
+        getContainer(),
+      ).run({ input: { users: [{ email: operatorEmail }] } })
+      await getContainer()
+        .resolve(Modules.AUTH)
+        .updateAuthIdentities({
+          id: authIdentityId,
+          app_metadata: { user_id: operators[0].id },
+        })
+      const operator = await api.post("/auth/user/emailpass", {
+        email: operatorEmail,
+        password: operatorPassword,
+      })
+      const operatorHeaders = {
+        authorization: `Bearer ${operator.data.token}`,
+      }
+
+      const denied = await api.get("/admin/customer-email-change-notices", {
+        headers: owner.ownerHeaders,
+        validateStatus: () => true,
+      })
+      expect(denied.status).toBeGreaterThanOrEqual(400)
+      const listed = await api.get("/admin/customer-email-change-notices", {
+        headers: operatorHeaders,
+      })
+      expect(listed.status).toBe(200)
+      const failed = listed.data.notices.find(
+        (entry: { customer_id: string }) =>
+          entry.customer_id === owner.customer.id,
+      )
+      expect(failed).toMatchObject({
+        customer_id: owner.customer.id,
+        old_email: "e***@example.test",
+        new_email: "e***@example.test",
+        language: "da",
+      })
+      expect(failed.confirmation_url).toBeUndefined()
+      expect(failed.token).toBeUndefined()
+
+      process.env.TEST_CUSTOMER_EMAIL_CHANGE_FAIL_AFTER_NOTICE_DELIVERY = "1"
+      try {
+        const interruptedRetry = await api.post(
+          `/admin/customer-email-change-notices/${owner.customer.id}/retry`,
+          {},
+          { headers: operatorHeaders, validateStatus: () => true },
+        )
+        expect(interruptedRetry.status).toBeGreaterThanOrEqual(500)
+      } finally {
+        delete process.env.TEST_CUSTOMER_EMAIL_CHANGE_FAIL_AFTER_NOTICE_DELIVERY
+      }
+      const retries = await Promise.all(
+        [1, 2].map(() =>
+          api.post(
+            `/admin/customer-email-change-notices/${owner.customer.id}/retry`,
+            {},
+            { headers: operatorHeaders, validateStatus: () => true },
+          ),
+        ),
+      )
+      expect(retries.filter((retry) => retry.status === 200)).toHaveLength(1)
+      expect(
+        retries.find((retry) => retry.status === 200)?.data.delivered,
+      ).toBe(true)
+      const retriedCustomer = await getContainer()
+        .resolve(Modules.CUSTOMER)
+        .retrieveCustomer(owner.customer.id)
+      expect(
+        retriedCustomer.metadata?.pending_customer_email_change_notice,
+      ).toBeFalsy()
+      const afterRetry = await api.get("/admin/customer-email-change-notices", {
+        headers: operatorHeaders,
+      })
+      expect(
+        afterRetry.data.notices.some(
+          (entry: { customer_id: string }) =>
+            entry.customer_id === owner.customer.id,
+        ),
+      ).toBe(false)
+      const oldNotices = await notifications.listNotifications({
+        to: oldEmail,
+        template: "customer-email-change-completed",
+      })
+      expect(oldNotices).toHaveLength(1)
     })
     it("requires email verification before a Customer can receive checkout access", async () => {
       const unverifiedEmail = "unverified@example.test"

@@ -1,0 +1,11 @@
+{
+  "customer_email_change_notices": {
+    "loading": "Loading failed notices…",
+    "load_error": "Could not load failed email-change notices. Reload to try again.",
+    "title": "Failed old-address notices",
+    "description": "Retry delivery after a Customer email change. Recovery links are not shown here.",
+    "empty": "No failed notices need attention.",
+    "customer": "Customer {{id}}",
+    "retry": "Retry notice"
+  }
+}
