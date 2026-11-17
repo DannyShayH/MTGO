@@ -18,6 +18,7 @@ import { restaurantLock } from "../restaurants/restaurant-lock"
 import { retrieveAuthorizedStaffStep } from "../restaurant-staff/steps/retrieve-authorized-staff"
 import { assertOwnRestaurantStep } from "../restaurant-staff/steps/own-restaurant"
 import { ensureMenuCommerceSetupWorkflow } from "../menu"
+import { setDishThumbnailsWorkflow } from "../dish-thumbnails"
 import {
   CreateDishCommand,
   prepareDishPublicationStep,
@@ -96,6 +97,11 @@ export const createMenuDishWorkflow = createWorkflow(
         }),
       )
       const products = createProductsWorkflow.runAsStep({ input: productInput })
+      setDishThumbnailsWorkflow.runAsStep({
+        input: transform({ products }, ({ products }) => ({
+          product_ids: products.map(({ id }) => id),
+        })),
+      })
       const contentInput = transform(
         { prepared, products },
         ({ prepared }) => ({

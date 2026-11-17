@@ -1,4 +1,5 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
+import { BuildingStorefront } from "@medusajs/icons"
 import {
   Alert,
   Button,
@@ -115,5 +116,8 @@ const RestaurantsPage = () => {
     </Container>
   )
 }
-export const config = defineRouteConfig({ label: "Restaurants" })
+export const config = defineRouteConfig({
+  label: "Restaurants",
+  icon: BuildingStorefront,
+})
 export default RestaurantsPage

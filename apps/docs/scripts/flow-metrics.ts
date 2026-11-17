@@ -228,7 +228,7 @@ export type FlowMetrics = {
 
 export const TIME_ZONE = "Europe/Copenhagen"
 
-export const LIMITS = { inProgress: 3, deliveryInitiated: 2, ready: 5 }
+export const LIMITS = { inProgress: 3, deliveryInitiated: 2, ready: 10 }
 
 /** Work type labels. The order decides which label wins on an issue with several, and how the charts stack and color them */
 export const WORK_TYPES = ["development", "ad hoc", "rework"]

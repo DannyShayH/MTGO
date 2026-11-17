@@ -7,6 +7,6 @@ sidebar:
 tableOfContents: false
 ---
 
-:::note[No releases yet]
-Release notes will appear here after the first SemVer tag. The first release is cut after issue #68 is delivered. Follow [Releasing a version](/MTGO/way-of-working/releasing/) to cut one. The GitHub releases are the source of truth; each version also gets a page here.
-:::
+The GitHub releases are the source of truth; each version also gets a page here. Follow [Releasing a version](/MTGO/way-of-working/releasing/) to cut one.
+
+- [0.1.0 — Initial release](/MTGO/releases/0-1-0/) (16 November 2026)

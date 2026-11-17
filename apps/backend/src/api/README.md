@@ -1375,3 +1375,12 @@ Restaurant's valid published dishes are included, in the existing menu order.
 A missing Restaurant returns `404 restaurant_not_found`. Responses use
 `Cache-Control: no-store`. This read reuses the existing menu and photo
 projection; it exposes neither menu editing nor stock quantities.
+
+## GET /admin/products/{id}/dish/photo (#150)
+
+Operator-only (Admin session, bearer or API key). Redirects (302, `no-store`)
+to a fresh read URL of the registered dish photo owned by the Product's linked
+Restaurant. With no photo, a removed or unreadable photo, an unlinked, deleted
+or unknown Product, it returns 200 with a placeholder SVG so the native Admin
+row keeps rendering. It is the `thumbnail` value stored on dish Products; see
+[Admin customizations](../admin/README.md).

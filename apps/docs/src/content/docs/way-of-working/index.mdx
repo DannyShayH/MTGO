@@ -18,8 +18,8 @@ Every change is an issue on the [board](https://github.com/users/DannyShayH/proj
 ```mermaid
 flowchart LR
     accTitle: Work moves through the Kanban board
-    accDescr: Backlog moves to Ready, a queue limited to five work items. In Progress has a WIP limit of three and Delivery Initiated has a WIP limit of two. Successful ready checks move work to Done.
-    backlog["Backlog<br/>Work to consider"] --> ready["Ready<br/>Queue limit 5"]
+    accDescr: Backlog moves to Ready, a queue limited to ten work items. In Progress has a WIP limit of three and Delivery Initiated has a WIP limit of two. Successful ready checks move work to Done.
+    backlog["Backlog<br/>Work to consider"] --> ready["Ready<br/>Queue limit 10"]
     ready --> progress["In Progress<br/>WIP limit 3"]
     progress --> delivery["Delivery Initiated<br/>WIP limit 2"]
     delivery --> done["Done<br/>Delivered"]
@@ -31,7 +31,7 @@ flowchart LR
 
 <p class="docs-workflow-hint">The board flows from left to right. Highlighted columns count as WIP. Scroll horizontally on a narrow screen to read every step.</p>
 <ul class="docs-workflow-steps">
-  <li><strong>Ready is a queue</strong>Up to five prioritised work items can wait to be pulled. Start work with <code>gh workon</code>. Ready does not count as WIP.</li>
+  <li><strong>Ready is a queue</strong>Up to ten prioritised work items can wait to be pulled. Start work with <code>gh workon</code>. Ready does not count as WIP.</li>
   <li><strong>Work within the limits</strong>In Progress allows three work items; Delivery Initiated allows two. Commit and push during work with <code>gh wrapup</code>.</li>
   <li><strong>Checks complete delivery</strong>The developer runs <code>gh deliver</code>. Successful ready checks merge the change to <code>main</code> and move the issue to Done.</li>
 </ul>

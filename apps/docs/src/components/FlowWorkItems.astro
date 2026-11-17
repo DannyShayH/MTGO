@@ -4,6 +4,13 @@ import FlowDailyCounts from "./FlowDailyCounts.astro"
 import FlowMetricsHeader from "./FlowMetricsHeader.astro"
 import { metrics, columns, percent, scope, days, average, range, flowUrl, LIMITS } from "../lib/flow-view.ts"
 import type { IssueLink } from "../../scripts/flow-metrics.ts"
+
+const relatedFeatures = metrics.features
+  .map((feature) => ({
+    feature,
+    children: feature.children.filter((child) => child.isWorkItem && (child.scope === "Required" || child.scope === "Removed")),
+  }))
+  .filter(({ children }) => children.length > 0)
 ---
 <div class="flow-page flow-evidence">
 <FlowMetricsHeader current="work-items" />
@@ -11,10 +18,21 @@ import type { IssueLink } from "../../scripts/flow-metrics.ts"
 <nav class="flow-jump not-content" aria-label="Work item sections">
   <a href="#blocked">Blocked</a><a href="#work-item-age">Work item age</a><a href="#data-problems">Data problems</a><a href="#current-columns">Current columns</a><a href="#throughput">Throughput</a><a href="#cycle-time">Cycle time</a><a href="#daily-status-counts">Completed work</a><a href="#wip-limit-breaches">Breaches</a>
 </nav>
-{metrics.features.some((feature) => feature.children.length) && <section aria-label="Work item Features">
-<h2>Related Features</h2>
-<p>Current direct children link back to their ongoing Feature. Standalone work remains in the flow views below.</p>
-<ul>{metrics.features.flatMap((feature) => feature.children.filter((child) => child.isWorkItem && (child.scope === "Required" || child.scope === "Removed")).map((child) => <li><a href={child.url}>#{child.number} {child.title}</a> — <a href={flowUrl(`features/#feature-${feature.number}`)}>{feature.title}</a></li>))}</ul>
+{relatedFeatures.length > 0 && <section class="flow-related not-content" aria-labelledby="related-features">
+<h2 id="related-features">Related Features</h2>
+<p>Work items grouped under the ongoing Feature they belong to. Standalone work remains in the flow views below.</p>
+{relatedFeatures.map(({ feature, children }, index) => (
+  <details class="flow-related-group" open={index === 0}>
+    <summary>
+      <span class="flow-related-title">{feature.title.replace(/^Feature:\s*/, "")}</span>
+      <span class="flow-related-count">{children.length} {children.length === 1 ? "work item" : "work items"}</span>
+    </summary>
+    <ul>
+      {children.map((child) => <li><a href={child.url}><span class="flow-issue-number">#{child.number}</span><span>{child.title}</span></a></li>)}
+    </ul>
+    <a class="flow-related-open" href={flowUrl(`features/#feature-${feature.number}`)}>Open Feature</a>
+  </details>
+))}
 </section>}
 <h2 id="blocked">Blocked work items</h2>
 <p>Open work items with the <code>blocked</code> label. Blocked WIP is listed first.</p>

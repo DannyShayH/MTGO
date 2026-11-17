@@ -17,6 +17,7 @@ import {
 import initialDataSeed from "../../src/migration-scripts/initial-data-seed"
 import operatorProductLayout from "../../src/migration-scripts/operator-product-layout"
 import operatorSidebar from "../../src/migration-scripts/operator-sidebar"
+import dishThumbnails from "../../src/migration-scripts/dish-thumbnails"
 import { retireStarterMerchandiseWorkflow } from "../../src/workflows/starter-cleanup"
 import { RESTAURANT_MODULE } from "../../src/modules/restaurant"
 import {
@@ -221,6 +222,154 @@ medusaIntegrationTestRunner({
           })
         ).status,
       ).toBe(404)
+    })
+    it("serves a stable authorized dish thumbnail for native Admin tables and never stores signed URLs", async () => {
+      const container = getContainer()
+      const { restaurant, result } = await seedDish("-thumb")
+      const productId = result.product_ids[0]
+      const thumbnail = `/admin/products/${productId}/dish/photo`
+      const productModule = container.resolve(Modules.PRODUCT)
+      expect((await productModule.retrieveProduct(productId)).thumbnail).toBe(
+        thumbnail,
+      )
+      const user = await container
+        .resolve(Modules.USER)
+        .createUsers({ email: "thumb-operator@example.test" })
+      const secret = container.resolve(ContainerRegistrationKeys.CONFIG_MODULE)
+        .projectConfig.http.jwtSecret
+      const token = generateJwtToken(
+        { actor_id: user.id, actor_type: "user", auth_identity_id: "auth" },
+        { secret, expiresIn: "1h" },
+      )
+      const headers = { authorization: `Bearer ${token}` }
+      const read = (path = thumbnail) =>
+        api.get(path, { headers, maxRedirects: 0, validateStatus: () => true })
+      expect(
+        (await api.get(thumbnail, { validateStatus: () => true })).status,
+      ).toBe(401)
+      const staffToken = generateJwtToken(
+        {
+          actor_id: "staff",
+          actor_type: "restaurant_staff",
+          auth_identity_id: "staff-auth",
+        },
+        { secret, expiresIn: "1h" },
+      )
+      expect(
+        (
+          await api.get(thumbnail, {
+            headers: { authorization: `Bearer ${staffToken}` },
+            validateStatus: () => true,
+          })
+        ).status,
+      ).toBe(401)
+      const placeholder = await read()
+      expect(placeholder.status).toBe(200)
+      expect(placeholder.headers["content-type"]).toContain("image/svg+xml")
+      expect(placeholder.headers["cache-control"]).toContain("no-store")
+      expect(placeholder.data).toContain("<svg")
+      const fileService = container.resolve(Modules.FILE)
+      const restaurants = container.resolve(RESTAURANT_MODULE)
+      const register = async (owner: string, name: string) => {
+        const file = await fileService.createFiles({
+          filename: name,
+          mimeType: "image/webp",
+          content: (
+            await sharp({
+              create: { width: 4, height: 3, channels: 3, background: "white" },
+            })
+              .webp()
+              .toBuffer()
+          ).toString("base64"),
+          access: "private",
+        })
+        const attachment = await restaurants.createPhotoAttachments({
+          restaurant_id: owner,
+          resource_id: productId,
+          kind: "dish",
+          file_id: file.id,
+          url: "https://untrusted.example/stored-url",
+          size_bytes: 13,
+          request_id: `fixture-${name}`,
+          actor_id: user.id,
+          occurred_at: new Date(),
+        })
+        return { file, attachment }
+      }
+      const foreign = await register("res_foreign", "foreign.webp")
+      expect((await read()).status).toBe(200)
+      await restaurants.deletePhotoAttachments(foreign.attachment.id)
+      const first = await register(restaurant.id, "first.webp")
+      const firstUrl = (await fileService.retrieveFile(first.file.id)).url
+      const shown = await read()
+      expect(shown.status).toBe(302)
+      expect(shown.headers.location).toBe(firstUrl)
+      expect(shown.headers["cache-control"]).toContain("no-store")
+      expect((await productModule.retrieveProduct(productId)).thumbnail).toBe(
+        thumbnail,
+      )
+      await restaurants.deletePhotoAttachments(first.attachment.id)
+      const second = await register(restaurant.id, "second.webp")
+      expect((await read()).headers.location).toBe(
+        (await fileService.retrieveFile(second.file.id)).url,
+      )
+      const outage = jest
+        .spyOn(fileService, "retrieveFile")
+        .mockRejectedValueOnce(new Error("Storage provider unavailable"))
+      try {
+        const failed = await read()
+        expect(failed.status).toBe(200)
+        expect(failed.headers["content-type"]).toContain("image/svg+xml")
+      } finally {
+        outage.mockRestore()
+      }
+      await restaurants.deletePhotoAttachments(second.attachment.id)
+      expect((await read()).status).toBe(200)
+      await register(restaurant.id, "third.webp")
+      await container.resolve(Modules.PRODUCT).softDeleteProducts([productId])
+      const deleted = await read()
+      expect(deleted.status).toBe(200)
+      expect(deleted.headers["content-type"]).toContain("image/svg+xml")
+      expect(
+        (await read(`/admin/products/prod_missing/dish/photo`)).status,
+      ).toBe(200)
+    })
+    it("leaves ordinary Products alone and backfills only linked dishes", async () => {
+      const container = getContainer()
+      const { result } = await seedDish("-backfill")
+      const {
+        result: [ordinary],
+      } = await createProductsWorkflow(container).run({
+        input: {
+          products: [
+            {
+              title: "Ordinary Product",
+              thumbnail: "https://images.example/ordinary.png",
+              options: [{ title: "Portion", values: ["Regular"] }],
+              variants: [
+                {
+                  title: "Regular",
+                  options: { Portion: "Regular" },
+                  manage_inventory: false,
+                  prices: [{ currency_code: "dkk", amount: 100 }],
+                },
+              ],
+            },
+          ],
+        },
+      })
+      const productModule = container.resolve(Modules.PRODUCT)
+      await productModule.updateProducts(result.product_ids[0], {
+        thumbnail: null,
+      })
+      await dishThumbnails({ container })
+      await dishThumbnails({ container })
+      expect(
+        (await productModule.retrieveProduct(result.product_ids[0])).thumbnail,
+      ).toBe(`/admin/products/${result.product_ids[0]}/dish/photo`)
+      expect((await productModule.retrieveProduct(ordinary.id)).thumbnail).toBe(
+        "https://images.example/ordinary.png",
+      )
     })
     it("omits clothing on repeated setup and retires only known demo data without changing historical Orders", async () => {
       const container = getContainer()

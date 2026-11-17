@@ -138,7 +138,7 @@ try {
     ).toBeVisible()
     await expect(
       page.getByRole("link", {
-        name: "Ready: 1 work items, limit 5. View work items.",
+        name: "Ready: 1 work items, limit 10. View work items.",
         exact: true,
       }),
     ).toBeVisible()

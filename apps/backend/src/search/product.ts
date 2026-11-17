@@ -86,7 +86,10 @@ function toDocument(
     title: product.title ?? null,
     description: product.description ?? null,
     handle: product.handle ?? null,
-    thumbnail: product.thumbnail ?? null,
+    // Admin-only dish thumbnail paths (#150) cannot load in the storefront.
+    thumbnail: product.thumbnail?.startsWith("/admin/")
+      ? null
+      : (product.thumbnail ?? null),
     created_at: product.created_at ?? null,
     category,
     labels,

@@ -42,17 +42,17 @@ The Kanban slides stress that the point of the metrics is continuous improvement
 
 These facts are already in place and are not up for discussion in the grill session unless something is wrong with them.
 
-| Area          | Current state                                                                                                                                                             |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Board         | GitHub Project #2, owned by the user account `DannyShayH`, linked to the public repository `DannyShayH/MTGO`                                                              |
-| Status column | `Backlog`, `Ready` (WIP 5), `In Progress` (WIP 3), `Delivery Initiated` (WIP 2), `Done`. The names are exact, because `gh tt` sets `In Progress` and `Delivery Initiated` |
-| Other fields  | `Priority` (Must have, Should have, Could have, Won't have), `Size` (XS–XL), `Start date` (date)                                                                          |
-| Labels        | Work type only (`development`, `ad hoc`, `rework`) and `blocked`                                                                                                          |
-| Start date    | Set automatically to today in `Europe/Copenhagen` by `gh workon -i <nr>` (`scripts/workon.sh`) when empty. Existing and historical dates are never overwritten            |
-| Closed        | Set by GitHub when the ready flow closes the issue. The project workflow _Item closed_ then moves it to Done                                                              |
-| Flow          | `gh workon -i <nr>` → `gh wrapup` → `gh deliver` → ready flow (checks, merge to `main`, issue closed) → `on_main`                                                         |
-| Docs as code  | Documentation changes go through the same issue, branch and quality checks as code                                                                                        |
-| Roles         | PL facilitates the board, priorities and the weekly review. Tech lead owns architecture. DevOps lead owns the pipeline and secrets. Danny is the only admin on GitHub     |
+| Area          | Current state                                                                                                                                                                |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Board         | GitHub Project #2, owned by the user account `DannyShayH`, linked to the public repository `DannyShayH/MTGO`                                                                 |
+| Status column | `Backlog`, `Ready` (limit 10), `In Progress` (WIP 3), `Delivery Initiated` (WIP 2), `Done`. The names are exact, because `gh tt` sets `In Progress` and `Delivery Initiated` |
+| Other fields  | `Priority` (Must have, Should have, Could have, Won't have), `Size` (XS–XL), `Start date` (date)                                                                             |
+| Labels        | Work type only (`development`, `ad hoc`, `rework`) and `blocked`                                                                                                             |
+| Start date    | Set automatically to today in `Europe/Copenhagen` by `gh workon -i <nr>` (`scripts/workon.sh`) when empty. Existing and historical dates are never overwritten               |
+| Closed        | Set by GitHub when the ready flow closes the issue. The project workflow _Item closed_ then moves it to Done                                                                 |
+| Flow          | `gh workon -i <nr>` → `gh wrapup` → `gh deliver` → ready flow (checks, merge to `main`, issue closed) → `on_main`                                                            |
+| Docs as code  | Documentation changes go through the same issue, branch and quality checks as code                                                                                           |
+| Roles         | PL facilitates the board, priorities and the weekly review. Tech lead owns architecture. DevOps lead owns the pipeline and secrets. Danny is the only admin on GitHub        |
 
 The site must not become a second board or a second source of truth for issue status.
 

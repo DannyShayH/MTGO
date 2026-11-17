@@ -101,6 +101,11 @@ export default defineMiddlewares({
       middlewares: [authenticate("user", ["session", "bearer", "api-key"])],
     },
     {
+      matcher: "/admin/products/:id/dish/photo",
+      method: "GET",
+      middlewares: [authenticate("user", ["session", "bearer", "api-key"])],
+    },
+    {
       matcher: "/admin/orders/export",
       method: "POST",
       middlewares: [disableOrderExport],

@@ -18,6 +18,7 @@ import {
 import { RESTAURANT_MODULE } from "../../modules/restaurant"
 import { restaurantLock } from "../restaurants/restaurant-lock"
 import { MENU_CURRENCY } from "./published-menu"
+import { setDishThumbnailsWorkflow } from "../dish-thumbnails"
 import {
   MENU_SALES_CHANNEL_NAME,
   readMenuCommerceSetupStep,
@@ -162,6 +163,11 @@ export const publishSyntheticMenuWorkflow = createWorkflow(
       ),
     }))
     const products = createProductsWorkflow.runAsStep({ input: productInput })
+    setDishThumbnailsWorkflow.runAsStep({
+      input: transform({ products }, ({ products }) => ({
+        product_ids: products.map(({ id }) => id),
+      })),
+    })
     const contentInput = transform(
       { input, categoryIds },
       ({ input, categoryIds }) => ({ ...input, category_ids: categoryIds }),

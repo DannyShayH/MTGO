@@ -1,4 +1,5 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
+import { Envelope } from "@medusajs/icons"
 import { Alert, Button, Container, Heading, Text } from "@medusajs/ui"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
@@ -91,6 +92,7 @@ const CustomerEmailChangeNoticesPage = () => {
 
 export const config = defineRouteConfig({
   label: "Email-change notices",
+  icon: Envelope,
 })
 
 export default CustomerEmailChangeNoticesPage

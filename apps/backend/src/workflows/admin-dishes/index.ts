@@ -139,3 +139,37 @@ export const readAdminRestaurantMenuWorkflow = createWorkflow(
     return new WorkflowResponse(readAdminRestaurantMenuStep(input))
   },
 )
+
+const readAdminDishPhotoStep = createStep(
+  "read-admin-dish-photo",
+  async (input: { product_id: string }, { container }) => {
+    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const { data } = await query.graph({
+      entity: "product",
+      fields: ["id", "restaurant.id"],
+      filters: { id: input.product_id },
+    })
+    const [product] = data as unknown as {
+      id: string
+      restaurant?: { id: string } | null
+    }[]
+    // Only the attachment owned by the linked Restaurant counts; a deleted,
+    // unlinked or unreadable photo is simply no photo (never an error).
+    if (!product?.restaurant)
+      return new StepResponse<{ url: string | null }>({ url: null })
+    const photos = await readDishPhotos(container, product.restaurant.id, [
+      product.id,
+    ])
+    return new StepResponse<{ url: string | null }>({
+      url: photos.get(product.id)?.url ?? null,
+    })
+  },
+)
+
+/** Fresh read-time URL for the stable native thumbnail path; never persisted. */
+export const readAdminDishPhotoWorkflow = createWorkflow(
+  "read-admin-dish-photo",
+  function (input: { product_id: string }) {
+    return new WorkflowResponse(readAdminDishPhotoStep(input))
+  },
+)

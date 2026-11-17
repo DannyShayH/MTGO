@@ -200,7 +200,7 @@ describe("calculateFlowMetrics", () => {
     const transfer = "2026-11-07T09:00:00Z"
     const metrics = calculateFlowMetrics(
       board([
-        ...[1, 2, 3, 4, 5, 6].map((number) =>
+        ...Array.from({ length: 11 }, (_, index) => 101 + index).map((number) =>
           issue(number, {
             status: "Ready",
             statusChanges: [{ to: "Ready", at: start }],
@@ -240,7 +240,7 @@ describe("calculateFlowMetrics", () => {
         end: null,
         peakExcess: 1,
       },
-      { column: "Ready", limit: 5, start, end: null, peakExcess: 1 },
+      { column: "Ready", limit: 10, start, end: null, peakExcess: 1 },
     ])
   })
 
@@ -716,7 +716,7 @@ describe("calculateFlowMetrics", () => {
     expect(metrics.inProgress).toMatchObject({ count: 1, limit: 3 })
     expect(metrics.inProgress.issues.map((item) => item.number)).toEqual([1])
     expect(metrics.deliveryInitiated).toMatchObject({ count: 1, limit: 2 })
-    expect(metrics.ready).toMatchObject({ count: 1, limit: 5 })
+    expect(metrics.ready).toMatchObject({ count: 1, limit: 10 })
     expect(metrics.ready.issues.map((item) => item.number)).toEqual([3])
   })
 

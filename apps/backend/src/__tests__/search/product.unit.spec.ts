@@ -83,6 +83,24 @@ describe("product search index", () => {
     ])
   })
 
+  it("does not index the Admin-only dish thumbnail path for the storefront", async () => {
+    const mutations = await productIndex.consume!(
+      { name: "product.updated", data: { id: "prod_1" } } as never,
+      contextFor(
+        fakeQuery([
+          { ...shirt, thumbnail: "/admin/products/prod_1/dish/photo" },
+        ]),
+      ),
+    )
+
+    expect(mutations).toEqual([
+      {
+        action: "upsert",
+        documents: [{ ...shirtDocument, thumbnail: null }],
+      },
+    ])
+  })
+
   it("writes empty catalogue fields for a product that has only an id and prices", async () => {
     const mutations = await productIndex.consume!(
       { name: "product.created", data: { id: "prod_2" } } as never,

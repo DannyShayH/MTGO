@@ -458,24 +458,38 @@ class GitHubGraphQLError extends Error {
   }
 }
 
+const RETRY_ATTEMPTS = 4
+const RETRY_DELAY_MS = process.env.VITEST ? 0 : 2000
+const sleep = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms))
+
 function createQuery(token: string, fetchImpl: typeof fetch): Query {
   const mask = (text: string) => text.replaceAll(token, "***")
   return async (text, variables) => {
-    let response: Response
-    try {
-      response = await fetchImpl(ENDPOINT, {
-        method: "POST",
-        headers: {
-          authorization: `Bearer ${token}`,
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({ query: text, variables }),
-      })
-    } catch (error) {
-      throw new Error(
-        mask(`GitHub API request failed: ${(error as Error).message}`),
-      )
+    let response: Response | undefined
+    for (let attempt = 1; attempt <= RETRY_ATTEMPTS; attempt++) {
+      try {
+        response = await fetchImpl(ENDPOINT, {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${token}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ query: text, variables }),
+        })
+      } catch (error) {
+        if (attempt === RETRY_ATTEMPTS)
+          throw new Error(
+            mask(`GitHub API request failed: ${(error as Error).message}`),
+          )
+        await sleep(RETRY_DELAY_MS * attempt)
+        continue
+      }
+      // A 5xx from GitHub is transient (a 502 failed the daily refresh on 2026-11-17), so try again before failing
+      if (response.status < 500 || attempt === RETRY_ATTEMPTS) break
+      await sleep(RETRY_DELAY_MS * attempt)
     }
+    if (!response) throw new Error("GitHub API request failed")
     if (response.status === 401)
       throw new Error(
         "GitHub rejected PROJECT_READER (401), it is invalid or expired. Ask the admin to renew it (ADR-0003)",

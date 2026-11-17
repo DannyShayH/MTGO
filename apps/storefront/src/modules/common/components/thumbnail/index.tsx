@@ -23,7 +23,9 @@ const Thumbnail: React.FC<ThumbnailProps> = ({
   alt = "",
   "data-testid": dataTestid,
 }) => {
-  const initialImage = thumbnail || images?.[0]?.url
+  // Dish Products carry an Admin-only thumbnail path (#150): it cannot load here.
+  const usable = thumbnail?.startsWith("/admin/") ? null : thumbnail
+  const initialImage = usable || images?.[0]?.url
 
   return (
     <Container

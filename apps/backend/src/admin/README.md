@@ -172,3 +172,29 @@ inspection verified both descriptions, line breaks, long text and empty
 descriptions at 320px and 1280px without overflow or runtime errors. Clicking an
 availability cell navigated to the correct Product in both the fixture and the
 running Admin; the native dish link remains keyboard accessible.
+
+## Native Product and Order thumbnails (#150)
+
+Native Products and Order tables only read a plain `thumbnail` field, so every
+Restaurant dish Product carries the stable, non-expiring path
+`/admin/products/{id}/dish/photo`. Dish creation sets it through
+`setDishThumbnailsWorkflow`; the repeatable `dish-thumbnails` migration script
+backfills dishes published earlier and never touches ordinary Products (their
+own images keep working). The path is not a signed URL. Each request
+re-reads the registered photo of the linked Restaurant and Product (same
+attachment registry, File Module and reader as the dish panel) and redirects to
+a fresh URL, so expiry never needs a rewrite of Product or Order records. The
+Admin session cookie authorizes the browser's image request (the route also
+accepts bearer and API key like the dish panel route); unauthenticated and
+Restaurant staff requests get 401. Recovery: if an operator overwrites a dish
+thumbnail in native Product edit, rerun the `dish-thumbnails` script
+(`medusa db:migrate`) to restore it.
+
+Order photo policy: a line shows the dish's _current_ photo, as a menu
+illustration, not a purchase-time snapshot. Replacing the photo changes it for
+every line of that dish; a removed photo, failed storage read, deleted Product
+or inactive Restaurant's missing photo shows a placeholder image while the
+line's name, quantity, price and destination stay as recorded. Lines created
+before #150 are not rewritten and keep no thumbnail. Immutable historical
+photos would need a separate retention slice. The storefront and search index
+ignore the Admin-only path and keep their own placeholder.
