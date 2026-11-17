@@ -592,6 +592,306 @@ medusaIntegrationTestRunner({
         ).status,
       ).toBe(401)
     })
+    it("changes the login email after password and mailbox confirmation without replacing the Customer", async () => {
+      const oldEmail = "email-change-owner@example.test"
+      const newEmail = "email-change-new@example.test"
+      const owner = await createProfileCustomer(oldEmail)
+      const secondLogin = await signIn({ email: oldEmail, password })
+      const oldHeaders = owner.ownerHeaders
+      const secondHeaders = {
+        ...headers,
+        authorization: `Bearer ${secondLogin.data.token}`,
+      }
+      const request = await api.post(
+        "/store/customers/me/email-change/request",
+        { current_password: "wrong-password", new_email: newEmail },
+        { headers: oldHeaders, validateStatus: () => true },
+      )
+      expect(request.status).toBe(401)
+      expect(request.data.message).toBe("customer_current_password_invalid")
+
+      const started = await api.post(
+        "/store/customers/me/email-change/request",
+        { current_password: password, new_email: newEmail },
+        { headers: oldHeaders },
+      )
+      expect(started.status).toBe(201)
+      expect(started.data.email).toBe(newEmail)
+
+      const notifications = getContainer().resolve(Modules.NOTIFICATION)
+      const messages = await notifications.listNotifications({
+        to: newEmail,
+        template: "customer-email-change",
+      })
+      expect(messages).toHaveLength(1)
+      const confirmationUrl = new URL(
+        String(messages[0].data?.confirmation_url),
+      )
+      const code = confirmationUrl.searchParams.get("token")
+      expect(code).toBeTruthy()
+
+      const confirmed = await api.post("/auth/customer-email-change/confirm", {
+        code,
+      })
+      expect(confirmed.status).toBe(200)
+      expect(confirmed.data.email).toBe(newEmail)
+      expect(
+        (
+          await api.post(
+            "/auth/customer-email-change/confirm",
+            { code },
+            { validateStatus: () => true },
+          )
+        ).status,
+      ).toBe(400)
+
+      expect(
+        (
+          await api.get("/store/customers/me", {
+            headers: oldHeaders,
+            validateStatus: () => true,
+          })
+        ).status,
+      ).toBe(401)
+      expect(
+        (
+          await api.get("/store/customers/me", {
+            headers: secondHeaders,
+            validateStatus: () => true,
+          })
+        ).status,
+      ).toBe(401)
+      expect((await signIn({ email: oldEmail, password })).status).toBe(401)
+
+      const fresh = await signIn({ email: newEmail, password })
+      expect(fresh.status).toBe(200)
+      const claims = JSON.parse(
+        Buffer.from(fresh.data.token.split(".")[1], "base64url").toString(),
+      )
+      expect(claims.actor_id).toBe(owner.customer.id)
+      const customer = await api.get("/store/customers/me", {
+        headers: {
+          ...headers,
+          authorization: `Bearer ${fresh.data.token}`,
+        },
+        validateStatus: () => true,
+      })
+      expect(customer.status).toBe(200, JSON.stringify(customer.data))
+      expect(customer.data.customer.id).toBe(owner.customer.id)
+      expect(customer.data.customer.email).toBe(newEmail)
+
+      const oldNotice = await notifications.listNotifications({
+        to: oldEmail,
+        template: "customer-email-change-completed",
+      })
+      expect(oldNotice).toHaveLength(1)
+    })
+    it("rejects an unchanged or occupied login email without sending a confirmation", async () => {
+      const oldEmail = "email-change-conflict@example.test"
+      const occupiedEmail = "email-change-occupied@example.test"
+      const owner = await createProfileCustomer(oldEmail)
+      await createProfileCustomer(occupiedEmail)
+      for (const newEmail of [oldEmail, occupiedEmail]) {
+        const response = await api.post(
+          "/store/customers/me/email-change/request",
+          { current_password: password, new_email: newEmail },
+          { headers: owner.ownerHeaders, validateStatus: () => true },
+        )
+        expect(response.status).toBe(409)
+      }
+      const customer = await api.get("/store/customers/me", {
+        headers: owner.ownerHeaders,
+        validateStatus: () => true,
+      })
+      expect(customer.status).toBe(200)
+      expect(customer.data.customer.email).toBe(oldEmail)
+      const notices = await getContainer()
+        .resolve(Modules.NOTIFICATION)
+        .listNotifications({ template: "customer-email-change" })
+      expect(notices).toHaveLength(0)
+    })
+    it("refuses a superseded mailbox link and retains the latest pending address", async () => {
+      const oldEmail = "email-change-superseded@example.test"
+      const owner = await createProfileCustomer(oldEmail)
+      const firstEmail = "email-change-first@example.test"
+      const secondEmail = "email-change-second@example.test"
+      for (const newEmail of [firstEmail, secondEmail]) {
+        const response = await api.post(
+          "/store/customers/me/email-change/request",
+          { current_password: password, new_email: newEmail },
+          { headers: owner.ownerHeaders, validateStatus: () => true },
+        )
+        expect(response.status).toBe(201)
+      }
+      const notifications = getContainer().resolve(Modules.NOTIFICATION)
+      const [firstNotice] = await notifications.listNotifications({
+        to: firstEmail,
+        template: "customer-email-change",
+      })
+      const code = new URL(
+        String(firstNotice.data?.confirmation_url),
+      ).searchParams.get("token")
+      const rejected = await api.post(
+        "/auth/customer-email-change/confirm",
+        { code },
+        { validateStatus: () => true },
+      )
+      expect(rejected.status).toBe(400)
+      const login = await signIn({ email: oldEmail, password })
+      expect(login.status).toBe(200)
+      expect(login.data.token).toBeTruthy()
+    })
+    it("refuses confirmation codes for another purpose or without email-change details", async () => {
+      const oldEmail = "email-change-invalid-link@example.test"
+      const owner = await createProfileCustomer(oldEmail)
+      const identityId = JSON.parse(
+        Buffer.from(
+          owner.ownerHeaders.authorization.split(" ")[1].split(".")[1],
+          "base64url",
+        ).toString(),
+      ).auth_identity_id
+      const auth = getContainer().resolve(Modules.AUTH)
+      for (const [entityType, metadata] of [
+        ["email", undefined],
+        ["customer-email-change", {}],
+      ] as const) {
+        const verification = await auth.requestAuthVerification({
+          auth_identity_id: identityId,
+          entity_id: "unrelated@example.test",
+          entity_type: entityType,
+          code_provider: "token",
+          metadata,
+        })
+        const response = await api.post(
+          "/auth/customer-email-change/confirm",
+          { code: verification.code },
+          { validateStatus: () => true },
+        )
+        expect(response.status).toBe(400)
+      }
+      const login = await signIn({ email: oldEmail, password })
+      expect(login.status).toBe(200)
+    })
+    it("refuses confirmation when another Customer claims the target address", async () => {
+      const oldEmail = "email-change-race-old@example.test"
+      const newEmail = "email-change-race-new@example.test"
+      const owner = await createProfileCustomer(oldEmail)
+      const started = await api.post(
+        "/store/customers/me/email-change/request",
+        { current_password: password, new_email: newEmail },
+        { headers: owner.ownerHeaders, validateStatus: () => true },
+      )
+      expect(started.status).toBe(201)
+      const notifications = getContainer().resolve(Modules.NOTIFICATION)
+      const [notice] = await notifications.listNotifications({
+        to: newEmail,
+        template: "customer-email-change",
+      })
+      const code = new URL(
+        String(notice.data?.confirmation_url),
+      ).searchParams.get("token")
+      await createProfileCustomer(newEmail)
+      const rejected = await api.post(
+        "/auth/customer-email-change/confirm",
+        { code },
+        { validateStatus: () => true },
+      )
+      expect(rejected.status).toBe(409)
+      const oldLogin = await signIn({ email: oldEmail, password })
+      expect(oldLogin.status).toBe(200)
+    })
+    it("reports a failed new mailbox delivery and keeps the original login", async () => {
+      const oldEmail = "email-change-delivery-old@example.test"
+      const newEmail = "email-change-delivery-new@example.test"
+      const owner = await createProfileCustomer(oldEmail)
+      process.env.TEST_MAILBOX_FAIL_RECIPIENT = newEmail
+      try {
+        const failed = await api.post(
+          "/store/customers/me/email-change/request",
+          { current_password: password, new_email: newEmail },
+          { headers: owner.ownerHeaders, validateStatus: () => true },
+        )
+        expect(failed.status).toBeGreaterThanOrEqual(400)
+      } finally {
+        delete process.env.TEST_MAILBOX_FAIL_RECIPIENT
+      }
+      const login = await signIn({ email: oldEmail, password })
+      expect(login.status).toBe(200)
+      const notices = await getContainer()
+        .resolve(Modules.NOTIFICATION)
+        .listNotifications({ to: newEmail, template: "customer-email-change" })
+      expect(notices).toHaveLength(0)
+    })
+    it("retries the old mailbox notice after confirmation delivery fails", async () => {
+      const oldEmail = "email-change-notice-old@example.test"
+      const newEmail = "email-change-notice-new@example.test"
+      const owner = await createProfileCustomer(oldEmail)
+      await getContainer()
+        .resolve(Modules.CUSTOMER)
+        .updateCustomers(owner.customer.id, {
+          metadata: { preferred_language: "en" },
+        })
+      const prematureRetry = await api.post(
+        "/store/customers/me/email-change/retry-old-address-notice",
+        {},
+        { headers: owner.ownerHeaders, validateStatus: () => true },
+      )
+      expect(prematureRetry.status).toBe(400)
+      await api.post(
+        "/store/customers/me/email-change/request",
+        { current_password: password, new_email: newEmail },
+        { headers: owner.ownerHeaders },
+      )
+      const notifications = getContainer().resolve(Modules.NOTIFICATION)
+      const [notice] = await notifications.listNotifications({
+        to: newEmail,
+        template: "customer-email-change",
+      })
+      const code = new URL(
+        String(notice.data?.confirmation_url),
+      ).searchParams.get("token")
+      process.env.TEST_MAILBOX_FAIL_RECIPIENT = oldEmail
+      try {
+        const confirmed = await api.post(
+          "/auth/customer-email-change/confirm",
+          { code },
+        )
+        expect(confirmed.status).toBe(200)
+        expect(confirmed.data.old_email_notice).toBe("failed")
+      } finally {
+        delete process.env.TEST_MAILBOX_FAIL_RECIPIENT
+      }
+      const login = await signIn({ email: newEmail, password })
+      expect(login.status).toBe(200)
+      const freshHeaders = {
+        ...headers,
+        authorization: `Bearer ${login.data.token}`,
+      }
+      process.env.TEST_MAILBOX_FAIL_RECIPIENT = oldEmail
+      try {
+        const failedRetry = await api.post(
+          "/store/customers/me/email-change/retry-old-address-notice",
+          {},
+          { headers: freshHeaders, validateStatus: () => true },
+        )
+        expect(failedRetry.status).toBeGreaterThanOrEqual(400)
+      } finally {
+        delete process.env.TEST_MAILBOX_FAIL_RECIPIENT
+      }
+      const retry = await api.post(
+        "/store/customers/me/email-change/retry-old-address-notice",
+        {},
+        { headers: freshHeaders, validateStatus: () => true },
+      )
+      expect(retry.status).toBe(200)
+      expect(retry.data.delivered).toBe(true)
+      const notices = await notifications.listNotifications({
+        to: oldEmail,
+        template: "customer-email-change-completed",
+      })
+      expect(notices).toHaveLength(1)
+      expect(notices[0].data?.language).toBe("en")
+    })
     it("requires email verification before a Customer can receive checkout access", async () => {
       const unverifiedEmail = "unverified@example.test"
       const registration = await api.post(

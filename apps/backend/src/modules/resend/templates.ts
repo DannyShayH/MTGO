@@ -37,7 +37,62 @@ const copy = {
 export const supportedTemplates = [
   "customer-verification",
   "customer-password-reset",
+  "customer-email-change",
+  "customer-email-change-completed",
 ] as const
+
+export function renderCustomerEmailChange(
+  data:
+    | { confirmation_url?: unknown; expires_at?: unknown; language?: unknown }
+    | null
+    | undefined,
+): EmailContent {
+  const en = data?.language === "en"
+  const url =
+    typeof data?.confirmation_url === "string" ? data.confirmation_url : ""
+  if (!url)
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "confirmation_url is required",
+    )
+  const subject = en
+    ? "Confirm your new MTogo email"
+    : "Bekræft din nye e-mail hos MTogo"
+  const intro = en
+    ? "Confirm your new email address within 15 minutes to finish the change."
+    : "Bekræft din nye e-mail inden for 15 minutter for at gennemføre ændringen."
+  return {
+    subject,
+    text: [intro, url].join("\n\n"),
+    html: `<p>${intro}</p><p><a href="${escapeHtml(url)}">${subject}</a></p>`,
+  }
+}
+
+export function renderCustomerEmailChangeCompleted(
+  data: { new_email?: unknown; language?: unknown } | null | undefined,
+): EmailContent {
+  const newEmail = typeof data?.new_email === "string" ? data.new_email : ""
+  if (!newEmail)
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "new_email is required",
+    )
+  const en = data?.language === "en"
+  const subject = en
+    ? "Your MTogo login email changed"
+    : "Din login-e-mail hos MTogo er ændret"
+  const message = en
+    ? `Your MTogo login email is now ${newEmail}.`
+    : `Din login-e-mail hos MTogo er nu ${newEmail}.`
+  const warning = en
+    ? "If you did not make this change, contact support."
+    : "Hvis du ikke har foretaget ændringen, skal du kontakte support."
+  return {
+    subject,
+    text: `${message} ${warning}`,
+    html: `<p>${message}</p><p>${warning}</p>`,
+  }
+}
 
 export function renderCustomerPasswordReset(
   data: { reset_url?: unknown; language?: unknown } | null | undefined,

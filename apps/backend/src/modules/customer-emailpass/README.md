@@ -84,6 +84,19 @@ available only in disposable test environments with the configured secret key.
 The standard reset flow has no application-specific resend throttle; deployments
 must apply request rate limiting at the edge.
 
+## Customer email changes
+
+`POST /store/customers/me/email-change/request` confirms the current password,
+rejects an unavailable target and stores the pending target on the provider
+identity metadata
+identity. A 15-minute single-use Auth verification token is delivered to the new
+mailbox. Starting another request supersedes the previous pending target. The
+confirmation route updates the same Customer and provider identity, preserving
+addresses and Orders, and writes a fresh `security_version` so existing Customer
+bearer tokens, sessions and refresh attempts are rejected. Staff and operator
+identities are not touched. The old mailbox receives a notice after completion;
+failure of that notice does not roll back the completed login change.
+
 ## Evidence
 
 `integration-tests/http/customer-auth.spec.ts` exercises real registration/login,

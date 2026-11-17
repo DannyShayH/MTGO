@@ -117,6 +117,45 @@ export async function resetCustomerPassword(
   }
 }
 
+export type CustomerEmailChangeState = {
+  success: boolean
+  error: string | null
+  email?: string
+}
+
+export async function requestCustomerEmailChange(
+  _currentState: CustomerEmailChangeState,
+  formData: FormData,
+): Promise<CustomerEmailChangeState> {
+  const newEmail = String(formData.get("new_email") ?? "")
+    .trim()
+    .toLowerCase()
+  const currentPassword = String(formData.get("current_password") ?? "")
+  try {
+    const result = await sdk.client.fetch<{ email: string }>(
+      "/store/customers/me/email-change/request",
+      {
+        method: "POST",
+        body: { new_email: newEmail, current_password: currentPassword },
+        headers: await getAuthHeaders(),
+      },
+    )
+    return { success: true, error: null, email: result.email }
+  } catch (error) {
+    if (error instanceof FetchError) {
+      const message = String(error.message)
+      if (message.includes("customer_current_password_invalid"))
+        return { success: false, error: "customer_current_password_invalid" }
+      if (
+        message.includes("customer_email_unavailable") ||
+        message.includes("customer_email_same")
+      )
+        return { success: false, error: "customer_email_unavailable" }
+    }
+    return { success: false, error: "customer_email_change_failed" }
+  }
+}
+
 // Requests a verification email for the given customer. The request must be
 // authenticated with a token tied to the auth identity (the token returned by
 // register or by a login that requires verification).
@@ -392,6 +431,26 @@ export async function confirmEmailVerification(
     return { success: true }
   } catch (error) {
     return { success: false, error: customerAuthCode(error) }
+  }
+}
+
+export async function confirmCustomerEmailChange(
+  token: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await sdk.client.fetch("/auth/customer-email-change/confirm", {
+      method: "POST",
+      body: { code: token },
+    })
+    return { success: true }
+  } catch (error) {
+    return {
+      success: false,
+      error:
+        error instanceof FetchError
+          ? String(error.message)
+          : "customer_email_change_link_invalid",
+    }
   }
 }
 

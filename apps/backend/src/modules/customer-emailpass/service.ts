@@ -98,8 +98,40 @@ export default class CustomerEmailPassService extends EmailPassAuthService {
       { ...input, body: { ...input.body, email } },
       identities,
     )
-    return result.success
-      ? result
-      : { success: false, error: "customer_credentials_invalid" }
+    if (!result.success)
+      return { success: false, error: "customer_credentials_invalid" }
+
+    const identity = await identities.retrieve({ entity_id: email })
+    const sanitizedIdentity = JSON.parse(JSON.stringify(identity))
+    const provider = sanitizedIdentity.provider_identities?.find(
+      (entry: { provider?: string }) => entry.provider === "customer-emailpass",
+    )
+    delete provider?.provider_metadata?.password
+    if (
+      !sanitizedIdentity.app_metadata?.customer_id &&
+      provider?.user_metadata?.customer_id
+    ) {
+      sanitizedIdentity.app_metadata = {
+        ...sanitizedIdentity.app_metadata,
+        customer_id: provider.user_metadata.customer_id,
+      }
+    }
+    if (
+      !sanitizedIdentity.app_metadata?.security_version &&
+      provider?.user_metadata?.security_version
+    ) {
+      sanitizedIdentity.app_metadata = {
+        ...sanitizedIdentity.app_metadata,
+        security_version: provider.user_metadata.security_version,
+      }
+    }
+    if (provider?.user_metadata?.security_version) {
+      sanitizedIdentity.user_metadata = {
+        ...sanitizedIdentity.user_metadata,
+        customer_id: provider.user_metadata.customer_id,
+        security_version: provider.user_metadata.security_version,
+      }
+    }
+    return { ...result, authIdentity: sanitizedIdentity }
   }
 }

@@ -61,6 +61,10 @@ import {
   PostStoreUpdateCustomerSchema,
 } from "./store/customers/validators"
 import { PostCustomerVerificationRequestSchema } from "./auth/customer-verification/validators"
+import {
+  PostCustomerEmailChangeConfirmSchema,
+  PostCustomerEmailChangeRequestSchema,
+} from "./store/customers/me/email-change/validators"
 import { GetStoreRestaurantsSchema } from "./store/restaurants/validators"
 import { GetStorePostalCodesSchema } from "./store/postal-codes/validators"
 import { mtogoErrorHandler } from "./error-handler"
@@ -166,6 +170,23 @@ export default defineMiddlewares({
       middlewares: [validateAndTransformBody(PostStoreUpdateCustomerSchema)],
     },
     {
+      matcher: "/store/customers/me/email-change/request",
+      method: "POST",
+      middlewares: [
+        authenticate("customer", ["bearer", "session"]),
+        requireIsolatedCustomerIdentity,
+        validateAndTransformBody(PostCustomerEmailChangeRequestSchema),
+      ],
+    },
+    {
+      matcher: "/store/customers/me/email-change/retry-old-address-notice",
+      method: "POST",
+      middlewares: [
+        authenticate("customer", ["bearer", "session"]),
+        requireIsolatedCustomerIdentity,
+      ],
+    },
+    {
       matcher: "/store/customers/me/addresses",
       method: "POST",
       middlewares: [
@@ -193,6 +214,13 @@ export default defineMiddlewares({
         }),
         requireIsolatedCustomerIdentity,
         validateAndTransformBody(PostCustomerVerificationRequestSchema),
+      ],
+    },
+    {
+      matcher: "/auth/customer-email-change/confirm",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(PostCustomerEmailChangeConfirmSchema),
       ],
     },
     {

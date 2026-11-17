@@ -41,7 +41,8 @@ export const accountText = {
     canceled: "Annulleret",
     archived: "Arkiveret",
     requiresAction: "Kræver handling",
-    emailUnavailable: "Ændring af e-mail er endnu ikke tilgængelig.",
+    emailUnavailable:
+      "Skift din login-e-mail ved at bekræfte din adgangskode og den nye indbakke.",
     addressSaved: "Adressen er gemt.",
     addressDeleted: "Adressen er slettet.",
     defaultUpdated: "Standardadressen er opdateret.",
@@ -88,7 +89,8 @@ export const accountText = {
     canceled: "Canceled",
     archived: "Archived",
     requiresAction: "Action required",
-    emailUnavailable: "Changing your email is not available yet.",
+    emailUnavailable:
+      "Change your login email by confirming your password and the new inbox.",
     addressSaved: "Address saved.",
     addressDeleted: "Address deleted.",
     defaultUpdated: "Default address updated.",

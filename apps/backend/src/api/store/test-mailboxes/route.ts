@@ -26,7 +26,12 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const messages = await notifications.listNotifications(
     {
       to: email,
-      template: ["customer-verification", "customer-password-reset"],
+      template: [
+        "customer-verification",
+        "customer-password-reset",
+        "customer-email-change",
+        "customer-email-change-completed",
+      ],
     },
     { take: 20, order: { created_at: "DESC" } },
   )

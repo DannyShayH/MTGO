@@ -5,6 +5,8 @@ import {
 import type { Logger, NotificationTypes } from "@medusajs/framework/types"
 import { Resend } from "resend"
 import {
+  renderCustomerEmailChange,
+  renderCustomerEmailChangeCompleted,
   renderCustomerPasswordReset,
   renderCustomerVerification,
 } from "./templates"
@@ -50,7 +52,9 @@ export default class ResendNotificationProviderService extends AbstractNotificat
 
     if (
       notification.template !== "customer-verification" &&
-      notification.template !== "customer-password-reset"
+      notification.template !== "customer-password-reset" &&
+      notification.template !== "customer-email-change" &&
+      notification.template !== "customer-email-change-completed"
     ) {
       this.logger_.error(
         `Resend: unknown template "${notification.template}" (recipient domain ${recipientDomain})`,
@@ -60,10 +64,16 @@ export default class ResendNotificationProviderService extends AbstractNotificat
         `Unknown email template: ${notification.template}`,
       )
     }
-    const content =
-      notification.template === "customer-password-reset"
-        ? renderCustomerPasswordReset(notification.data)
-        : renderCustomerVerification(notification.data)
+    let content
+    if (notification.template === "customer-password-reset") {
+      content = renderCustomerPasswordReset(notification.data)
+    } else if (notification.template === "customer-email-change") {
+      content = renderCustomerEmailChange(notification.data)
+    } else if (notification.template === "customer-email-change-completed") {
+      content = renderCustomerEmailChangeCompleted(notification.data)
+    } else {
+      content = renderCustomerVerification(notification.data)
+    }
 
     const { data, error } = await this.client_.emails.send({
       from: this.from_,

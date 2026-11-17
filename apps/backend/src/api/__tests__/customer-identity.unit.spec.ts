@@ -23,13 +23,18 @@ function customerRequest(provider = "customer-emailpass") {
     app_metadata: { customer_id: "cus_test" },
     provider_identities: [{ provider: "customer-emailpass" }],
   })
+  const listProviderIdentities = jest.fn().mockResolvedValue([])
   const listAuthVerifications = jest
     .fn()
     .mockResolvedValue([{ verified_at: new Date() }])
   const scope = createMedusaContainer()
   scope.register(
     Modules.AUTH,
-    asValue({ retrieveAuthIdentity, listAuthVerifications }),
+    asValue({
+      retrieveAuthIdentity,
+      listAuthVerifications,
+      listProviderIdentities,
+    }),
   )
   scope.register(
     "configModule",
@@ -42,7 +47,12 @@ function customerRequest(provider = "customer-emailpass") {
     session: { auth_context: context },
     scope,
   } as unknown as AuthenticatedMedusaRequest
-  return { req, retrieveAuthIdentity, listAuthVerifications }
+  return {
+    req,
+    retrieveAuthIdentity,
+    listAuthVerifications,
+    listProviderIdentities,
+  }
 }
 
 const res = {} as MedusaResponse
@@ -85,6 +95,104 @@ it("preserves an isolated Customer's authentication", async () => {
   expect(req.session.auth_context).toBe(context)
   expect(req.headers.authorization).toBe("Bearer legacy-token")
   expect(next).toHaveBeenCalledTimes(1)
+})
+
+it("keeps a Customer signed in when the provider is found through the identity link", async () => {
+  const { req, retrieveAuthIdentity, listProviderIdentities } =
+    customerRequest()
+  req.auth_context.user_metadata = {
+    customer_id: "cus_test",
+    security_version: "current",
+  }
+  retrieveAuthIdentity.mockResolvedValue({
+    app_metadata: { customer_id: "cus_test" },
+    provider_identities: [],
+  })
+  listProviderIdentities.mockResolvedValue([
+    {
+      provider: "customer-emailpass",
+      auth_identity_id: "authid_test",
+      user_metadata: { customer_id: "cus_test", security_version: "current" },
+    },
+  ])
+  const next = jest.fn()
+  await discardLegacyCustomerIdentity(req, res, next)
+  expect(req.auth_context.actor_id).toBe("cus_test")
+  expect(next).toHaveBeenCalledTimes(1)
+
+  req.auth_context.user_metadata.security_version = "stale"
+  await discardLegacyCustomerIdentity(req, res, jest.fn())
+  expect(req.auth_context).toBeUndefined()
+})
+
+it("finds a Customer provider by profile email when the identity link is absent", async () => {
+  const { req, retrieveAuthIdentity, listProviderIdentities } =
+    customerRequest()
+  req.auth_context.user_metadata = { customer_id: "cus_test" }
+  retrieveAuthIdentity.mockResolvedValue({
+    app_metadata: { customer_id: "cus_test" },
+    provider_identities: [],
+  })
+  req.scope.register(
+    Modules.CUSTOMER,
+    asValue({
+      retrieveCustomer: jest
+        .fn()
+        .mockResolvedValue({ email: "customer@example.test" }),
+    }),
+  )
+  listProviderIdentities.mockResolvedValueOnce([]).mockResolvedValueOnce([
+    {
+      provider: "customer-emailpass",
+      auth_identity_id: "authid_test",
+      entity_id: "customer@example.test",
+      user_metadata: { customer_id: "cus_test" },
+    },
+  ])
+  const next = jest.fn()
+  await discardLegacyCustomerIdentity(req, res, next)
+  expect(req.auth_context.actor_id).toBe("cus_test")
+  expect(listProviderIdentities).toHaveBeenCalledWith({
+    provider: "customer-emailpass",
+    entity_id: "customer@example.test",
+  })
+  expect(next).toHaveBeenCalledTimes(1)
+})
+
+it("rejects a stale token when Customer lookup is unavailable", async () => {
+  const { req, retrieveAuthIdentity, listProviderIdentities } =
+    customerRequest()
+  req.auth_context.user_metadata = { security_version: "stale" }
+  retrieveAuthIdentity.mockResolvedValue({
+    app_metadata: { customer_id: "cus_test", security_version: "current" },
+    provider_identities: [],
+  })
+  listProviderIdentities.mockResolvedValue([])
+  const next = jest.fn()
+  await discardLegacyCustomerIdentity(req, res, next)
+  expect(req.auth_context).toBeUndefined()
+  expect(req.headers.authorization).toBeUndefined()
+  expect(next).toHaveBeenCalledTimes(1)
+})
+
+it("propagates a failed Customer lookup during provider fallback", async () => {
+  const { req, retrieveAuthIdentity, listProviderIdentities } =
+    customerRequest()
+  retrieveAuthIdentity.mockResolvedValue({
+    app_metadata: { customer_id: "cus_test" },
+    provider_identities: [],
+  })
+  listProviderIdentities.mockResolvedValue([])
+  const failure = new Error("Database unavailable")
+  req.scope.register(
+    Modules.CUSTOMER,
+    asValue({ retrieveCustomer: jest.fn().mockRejectedValue(failure) }),
+  )
+  const next = jest.fn()
+  await expect(discardLegacyCustomerIdentity(req, res, next)).rejects.toBe(
+    failure,
+  )
+  expect(next).not.toHaveBeenCalled()
 })
 
 it("rejects a Customer session issued before its password reset", async () => {
