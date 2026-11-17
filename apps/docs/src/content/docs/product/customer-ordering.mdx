@@ -142,10 +142,11 @@ Use these scenarios to test the journey before splitting it into implementation 
   </li>
   <li>
     **The Restaurant rejects the Order.** Rejection or five minutes without
-    acceptance cancels it with a full refund owed. Failed refunds stay
-    unresolved. Customers may cancel before acceptance; operator handling is
-    required afterward, with no automatic change-of-mind refund once preparation
-    starts.
+    acceptance cancels it with a full refund owed. A staff-provided rejection
+    reason is optional, as agreed during Feature #47 discovery #139. Failed
+    refunds stay unresolved. Customers may cancel before acceptance; operator
+    handling is required afterward, with no automatic change-of-mind refund once
+    preparation starts.
   </li>
   <li>
     **Handover cannot be completed.** Contact attempts and operator escalation
@@ -159,6 +160,8 @@ Use these scenarios to test the journey before splitting it into implementation 
     messages stay visible to operators and retries avoid duplicates.
   </li>
 </ul>
+
+The confirmed [Restaurant Order acceptance and preparation discovery](/MTGO/product/restaurant-order-preparation/) records Feature #47's staff journey, historical kitchen details and Customer progress decisions.
 
 ## Open decisions
 

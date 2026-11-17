@@ -276,6 +276,8 @@ flowchart TB
 
 The [agreed Feature backlog](/MTGO/product/feature-backlog-proposal/) records MoSCoW scope, ordering, dependencies and provisional milestone groups. Implementation choices belong to Feature grills. See [ADR-0008](/MTGO/architecture/decisions/0008-role-boundaries-and-restaurant-activation/) and [ADR-0009](/MTGO/architecture/decisions/0009-paid-orders-and-independent-preparation-and-assignment/).
 
+[Discovery #139](https://github.com/DannyShayH/MTGO/issues/139), confirmed on 17 November 2026, refined Restaurant acceptance and preparation for Feature #47. The [acceptance and preparation workflow](/MTGO/product/restaurant-order-preparation/) records explicit staff milestones, optional rejection reasons, the strict five-minute acceptance boundary, automatic mocked full-refund attempts, historical bilingual kitchen details and SSE updates with reconnect recovery and polling fallback. Feature #47 also introduces the Customer's simple food-progress timeline; #48 adds delivery milestones and #50 completes the event history and SMS. Specification and implementation follow separately.
+
 ## Cancellation, handover and recovery
 
 - Alert an operator after ten minutes without assignment; cancel after twenty minutes if still unassigned. Both periods start at Restaurant acceptance. Refund the Customer in full; MTOGO carries the loss of food already prepared. Credit the Restaurant the full food value excluding VAT with no commission, as a loss funded by MTOGO.
