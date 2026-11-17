@@ -1,0 +1,24 @@
+---
+import { getCollection } from "astro:content"
+
+const releases = (await getCollection("docs"))
+  .filter((entry) => entry.id.startsWith("releases/") && entry.data.releaseDate)
+  // Newest first; two releases on the same day are ordered by version
+  .sort(
+    (a, b) =>
+      b.data.releaseDate!.getTime() - a.data.releaseDate!.getTime() ||
+      b.id.localeCompare(a.id, "en", { numeric: true }),
+  )
+const dateFormat = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
+const version = (id: string) => id.replace("releases/", "").replaceAll("-", ".")
+---
+<ol class="release-timeline not-content" aria-label="Releases, newest first">
+  {releases.map((entry, index) => <li>
+    <a class="release-card" href={`/MTGO/${entry.id}/`}>
+      <span class="release-version">{version(entry.id)}{index === 0 && <span class="release-latest">Latest</span>}</span>
+      <time datetime={entry.data.releaseDate!.toISOString().slice(0, 10)}>{dateFormat.format(entry.data.releaseDate)}</time>
+      <strong>{entry.data.title.replace(/^[\d.]+\s*[—-]\s*/, "")}</strong>
+      {entry.data.summary && <span class="release-summary">{entry.data.summary}</span>}
+    </a>
+  </li>)}
+</ol>

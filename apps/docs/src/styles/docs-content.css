@@ -440,3 +440,103 @@ main footer .meta a {
 .sl-markdown-content figure.docs-diagram pre.mermaid {
   min-width: 76rem;
 }
+
+/* Releases timeline */
+.release-timeline {
+  --release-rail: var(--sl-color-hairline);
+  margin: 1.5rem 0;
+  padding: 0;
+  list-style: none;
+}
+
+.release-timeline li {
+  position: relative;
+  padding: 0 0 1.25rem 1.75rem;
+}
+
+.release-timeline li::before {
+  content: "";
+  position: absolute;
+  inset-block: 0.35rem 0;
+  inset-inline-start: 0.4rem;
+  width: 2px;
+  background: var(--release-rail);
+}
+
+.release-timeline li:last-child::before {
+  display: none;
+}
+
+.release-timeline li::after {
+  content: "";
+  position: absolute;
+  inset-block-start: 0.35rem;
+  inset-inline-start: 0;
+  width: 0.85rem;
+  height: 0.85rem;
+  border: 2px solid var(--sl-color-accent);
+  border-radius: 50%;
+  background: var(--sl-color-bg);
+}
+
+.release-timeline li:first-child::after {
+  background: var(--sl-color-accent);
+}
+
+.release-card {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--sl-color-hairline-light);
+  border-radius: 0.5rem;
+  background: var(--sl-color-bg-nav);
+  color: var(--sl-color-text);
+  text-decoration: none;
+  transition:
+    border-color 150ms ease,
+    transform 150ms ease;
+}
+
+.release-card:active {
+  transform: scale(0.99);
+}
+
+.release-card:focus-visible {
+  outline: 2px solid var(--sl-color-text-accent);
+  outline-offset: 2px;
+}
+
+.release-version {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--sl-color-white);
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.release-latest {
+  padding: 0.05rem 0.5rem;
+  border-radius: 999px;
+  background: var(--sl-color-accent);
+  color: var(--sl-color-black);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.release-card time {
+  color: var(--sl-color-gray-3);
+  font-size: 0.8rem;
+}
+
+.release-summary {
+  color: var(--sl-color-gray-2);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .release-card:hover {
+    border-color: var(--sl-color-text-accent);
+  }
+}

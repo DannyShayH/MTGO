@@ -47,7 +47,7 @@ A release is a SemVer tag on a commit that is already on `main` and running on [
    ```
 
 7. **Check the tag run.** The Release workflow (`on_semver.yml`) verifies the tag is on `main` and writes a summary. It deploys nothing.
-8. **Add the release to the docs site.** Copy the notes into `apps/docs/src/content/docs/releases/<version>.md` in the next work item you deliver. Set `slug: releases/<version with dashes>` in its frontmatter, because dots in a file name are dropped from the page address, and link it from the [Releases](/MTGO/releases/) page.
+8. **Add the release to the docs site.** Copy the notes into `apps/docs/src/content/docs/releases/<version>.md` in the next work item you deliver. Set `slug: releases/<version with dashes>` in its frontmatter, because dots in a file name are dropped from the page address, plus `releaseDate` (the publish date) and a one-line `summary`; the [Releases](/MTGO/releases/) timeline lists the page from these. Link it from the [Releases](/MTGO/releases/) page.
 
 ## Rules
 
