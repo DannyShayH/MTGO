@@ -96,6 +96,11 @@ export default defineMiddlewares({
   routes: [
     { matcher: "/*", middlewares: [correlateRequest] },
     {
+      matcher: "/admin/products/:id/dish",
+      method: "GET",
+      middlewares: [authenticate("user", ["session", "bearer", "api-key"])],
+    },
+    {
       matcher: "/admin/orders/export",
       method: "POST",
       middlewares: [disableOrderExport],

@@ -24,3 +24,7 @@ The comparison used installed package documentation in `apps/backend/node_module
 | Commercial and operational scope | The recipe introduces Restaurant and Delivery concepts and a tracked delivery journey.                                                                                                                                                                                                                                                                                                                                                        | MTOGO additionally needs its agreed fees, failure responsibility, bonus pool and points, three feedback subjects, role boundaries and website timeline. Existing recipe behavior does not decide these rules.                             |
 
 Keep the installed dependency versions. Each Feature grill chooses the concrete adaptation, checks the installed package APIs and verifies the agreed behavior. The [domain model](/MTGO/product/domain-model/) and ADRs hold business decisions.
+
+The [recipe gap audit](/MTGO/architecture/restaurant-recipe-gap-audit/) maps the
+recipe and Medusa Eats capabilities to delivered work, open work items, broader
+Feature parents and the operator experience gaps identified during #136.

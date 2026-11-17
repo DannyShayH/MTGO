@@ -1,3 +1,4 @@
+import { RestaurantMenuSection } from "../../../components/restaurant-menu-section"
 import { Alert, Button, Container, Heading, Text } from "@medusajs/ui"
 import { useQuery } from "@tanstack/react-query"
 import { useState } from "react"
@@ -66,6 +67,7 @@ const RestaurantPage = () => {
         </dl>
       </Container>
       <ReadinessSection restaurant={restaurant} />
+      <RestaurantMenuSection restaurantId={restaurant.id} />
       <DeliveryAreaSection restaurant={restaurant} />
       <CommercialTermsSection restaurant={restaurant} />
       <StaffSection restaurant={restaurant} />

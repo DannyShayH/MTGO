@@ -1339,3 +1339,39 @@ Retries the Customer's oldest failed notice. Success returns `200` with
 `customer_old_email_notice_not_pending` error. Delivery errors leave the notice
 pending for a later retry. An unauthenticated or unauthorized caller cannot
 access this endpoint.
+
+## Operator dish inspection (#136)
+
+### GET /admin/products/:id/dish
+
+Requires an authenticated Medusa `user` (session, bearer or API key).
+Restaurant staff and Customers cannot use their actor credentials here.
+Returns `200 { dish }` with `restaurant: { id, name }`,
+`category: { id, name: { da, en } }`, `name: { da, en }`,
+`description: { da, en } | null`, `is_sold_out`
+and `photo: { url } | null`. The category must belong to the linked Restaurant.
+Descriptions come from the Restaurant-owned menu content, with nullable language
+values retained for operator inspection of incomplete data. Both absent returns
+`description: null`. Inactive Restaurants remain available for inspection. An ordinary Product without a linked
+dish returns `200 { dish: null }`; a missing Product returns `404
+product_not_found`. No mutation is exposed.
+
+Photo reads resolve only the current registered attachment belonging to this
+Restaurant and Product, through Medusa's File Module. Stored unsigned photo
+URLs and generic Product images are not exposed as dish photos. Staging uses
+short-lived signed URLs; the local provider uses its development static URL.
+Responses use `Cache-Control: no-store`. A failed photo-provider read returns `photo: null` while preserving dish
+details. The widget shows a named placeholder; general API failures still offer
+Retry. Product and Restaurant menu reads share the same registered-photo reader.
+
+### GET /admin/restaurants/:id/menu
+
+Requires the existing authenticated operator access to `/admin/restaurants*`.
+Returns `200 { restaurant_id, categories }` for an existing Restaurant, including
+an inactive one. Each category contains `id`, bilingual `name` and `dishes`;
+each dish contains its Product `id`, bilingual `name`, DKK `price`, manual
+`is_sold_out` and current registered `photo: { url } | null`. Only that
+Restaurant's valid published dishes are included, in the existing menu order.
+A missing Restaurant returns `404 restaurant_not_found`. Responses use
+`Cache-Control: no-store`. This read reuses the existing menu and photo
+projection; it exposes neither menu editing nor stock quantities.

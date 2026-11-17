@@ -1,3 +1,4 @@
+import { readDishPhotos } from "../../photos/read-dish-photos"
 import { MedusaContainer } from "@medusajs/framework/types"
 import {
   ContainerRegistrationKeys,
@@ -104,21 +105,10 @@ export async function withDishPhotos(
   menu: PublishedCategory[],
   includeMissing = true,
 ) {
-  const attachments = await container
-    .resolve<RestaurantModuleService>(RESTAURANT_MODULE)
-    .listPhotoAttachments({ restaurant_id, kind: "dish" }, { take: null })
-  const photos = new Map(
-    await Promise.all(
-      attachments.map(
-        async ({ resource_id, file_id }) =>
-          [
-            resource_id,
-            await signedPhotoUrl(container, file_id)
-              .then((url) => ({ url }))
-              .catch(() => null),
-          ] as const,
-      ),
-    ),
+  const photos = await readDishPhotos(
+    container,
+    restaurant_id,
+    menu.flatMap(({ dishes }) => dishes.map(({ id }) => id)),
   )
   return menu.map((category) => ({
     ...category,
