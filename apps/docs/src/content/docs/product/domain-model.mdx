@@ -38,7 +38,7 @@ A Customer places an Order with one Restaurant location. The Restaurant prepares
 
 ## Agreed foundations
 
-- **Scope:** Website journeys for Customers, Restaurant staff, Delivery agents and MTOGO operators, in Danish and English, with mocked payment and SMS services demonstrating success and failure. Native apps, telephone ordering and scheduled orders are outside the MVP. See [ADR-0004](/MTGO/architecture/decisions/0004-website-mvp-with-mocked-external-services/).
+- **Scope:** Website journeys for Customers, Restaurant staff, Delivery agents and MTOGO operators, in Danish and English, with mocked payment demonstrating success and failure, and browser updates with a live delivery map under the Feature #48/#50 revisions agreed in discovery #152. Native apps, telephone ordering and scheduled orders are outside the MVP. See [ADR-0004](/MTGO/architecture/decisions/0004-website-mvp-with-mocked-external-services/).
 - **Restaurant identity:** One preparation and pickup location, including a catering business operating that way; separate branches are separate Restaurants. Restaurant staff, Delivery agents and MTOGO operators are distinct business roles. See the [glossary](/MTGO/architecture/glossary/).
 - **Order boundary:** One Customer, exactly one Restaurant, one destination and one intended delivery. Ordered names, quantities, prices and the destination remain historical facts after menu or saved-address changes. See [ADR-0005](/MTGO/architecture/decisions/0005-single-restaurant-orders-and-historical-facts/).
 - **Fees:** Marginal commission tiers on Order value excluding VAT, plus DKK 100 excluding VAT per active Restaurant per month under a common MVP policy. The service fee is prorated by active Copenhagen calendar days, with historical amounts preserved. See [ADR-0006](/MTGO/architecture/decisions/0006-marginal-commission-and-monthly-service-fee/).
@@ -172,7 +172,7 @@ classDiagram
     reason
   }
   class Notification {
-    channel (SMS/app)
+    channel (website)
     type
     sentAt
   }
@@ -228,7 +228,7 @@ classDiagram
 | Restaurant statement | Monthly commercial account excluding VAT                     | None                         | `commission`                                                |
 | Feedback             | The customer's three ratings after delivery                  | None                         | `feedback`                                                  |
 | BonusAward           | A delivery agent's bonus for a period                        | None                         | `bonus`                                                     |
-| Notification         | SMS or app message about order status                        | Built-in notification        | Mock SMS provider                                           |
+| Notification         | Customer website update about Order status                   | Built-in notification        | Browser SSE under Feature #50                               |
 | Complaint            | A complaint from a customer or restaurant, planned for later | None                         | Future `complaint` module                                   |
 | MTOGO operator       | An internal employee operating the platform                  | Built-in admin user          | None                                                        |
 
@@ -276,11 +276,11 @@ flowchart TB
 
 The [agreed Feature backlog](/MTGO/product/feature-backlog-proposal/) records MoSCoW scope, ordering, dependencies and provisional milestone groups. Implementation choices belong to Feature grills. See [ADR-0008](/MTGO/architecture/decisions/0008-role-boundaries-and-restaurant-activation/) and [ADR-0009](/MTGO/architecture/decisions/0009-paid-orders-and-independent-preparation-and-assignment/).
 
-[Discovery #139](https://github.com/DannyShayH/MTGO/issues/139), confirmed on 17 November 2026, refined Restaurant acceptance and preparation for Feature #47. The [acceptance and preparation workflow](/MTGO/product/restaurant-order-preparation/) records explicit staff milestones, optional rejection reasons, the strict five-minute acceptance boundary, automatic mocked full-refund attempts, historical bilingual kitchen details and SSE updates with reconnect recovery and polling fallback. Feature #47 also introduces the Customer's simple food-progress timeline; #48 adds delivery milestones and #50 completes the event history and SMS. Specification and implementation follow separately.
+[Discovery #139](https://github.com/DannyShayH/MTGO/issues/139), confirmed on 17 November 2026, refined Restaurant acceptance and preparation for Feature #47. The [acceptance and preparation workflow](/MTGO/product/restaurant-order-preparation/) records explicit staff milestones, optional rejection reasons, the strict five-minute acceptance boundary, automatic mocked full-refund attempts, historical bilingual kitchen details and SSE updates with reconnect recovery and polling fallback. Feature #47 also introduces the Customer's simple food-progress timeline; #48 adds delivery milestones and #50 completes the event history and live delivery map over SSE, as revised in discovery #152. Specification and implementation follow separately.
 
 ## Cancellation, handover and recovery
 
-- Alert an operator after ten minutes without assignment; cancel after twenty minutes if still unassigned. Both periods start at Restaurant acceptance. Refund the Customer in full; MTOGO carries the loss of food already prepared. Credit the Restaurant the full food value excluding VAT with no commission, as a loss funded by MTOGO.
+- Alert an operator after ten minutes without assignment; cancel after thirty minutes if still unassigned. Both periods start at Restaurant acceptance. Refund the Customer in full; MTOGO carries the loss of food already prepared. Credit the Restaurant the full food value excluding VAT with no commission, as a loss funded by MTOGO.
 - Customers may cancel themselves before acceptance with a full refund. After acceptance an operator must handle cancellation: before preparation starts a full refund is available; after preparation starts a change of mind has no automatic refund, but an operator can grant a reasoned exception. Restaurant inability to fulfil requires a full refund.
 - Confirm delivery only after handover to the Customer or a designated recipient. An unreachable Customer triggers contact attempts and operator escalation after ten minutes at the destination, never a false delivered status. Customer-caused failed handover has no automatic refund; MTOGO-caused failure requires a full refund.
 - Operators may correct mistakes with a reason, retaining original events and the identity of the person making the correction. Agent release and reassignment are outside the MVP; corrections do not add that excluded workflow.
@@ -330,9 +330,9 @@ The school-project validation baseline is twenty simultaneous user journeys: ord
 
 ## Order timeline and notifications
 
-The Customer website displays an Order timeline with the same business progress information as mocked SMS: placement, acceptance, preparation starting, readiness, pickup, delivery and cancellation, plus the Feedback invitation. The reference to the app stays within the website MVP. Record the Customer's chosen language with the Order and use it for messages.
+The Customer website displays an Order timeline with placement, acceptance, preparation starting, readiness, pickup, delivery and cancellation, plus the Feedback invitation. Use the Customer's chosen language recorded with the Order. Discovery #152 replaced mocked SMS with browser SSE and added a live delivery map for the ordering Customer. Feature #48 captures the assigned agent's actual phone location, with permission, from pickup until completion; #50 presents the map and recorded progress with a location last-updated time.
 
-The website remains the place to check current status. Failed SMS does not block food preparation or delivery; unsuccessful messages stay visible for operator attention and retries avoid duplicate messages. Include an Order reference and status without unnecessary personal or address details. See [ADR-0013](/MTGO/architecture/decisions/0013-order-timeline-and-independent-notification-delivery/).
+Stream failure does not block preparation or delivery. Reconcile durable progress after reconnecting and keep location separate from actual pickup and handover confirmations. Tracking is foreground-only in the website MVP, with honest last-updated information during interruptions. Location unavailability does not block delivery completion. Keep only the latest coordinate during the active delivery and remove it at delivery end; retain milestones. SSE failure uses periodic status requests and reconnect reconciliation. See the revision in [ADR-0013](/MTGO/architecture/decisions/0013-order-timeline-and-independent-notification-delivery/).
 
 ## Bonus funding and Feedback
 
@@ -401,7 +401,7 @@ Checked entries record agreements from the business grill. Unchecked entries are
 - [x] **Restaurant per Order:** Exactly one Restaurant location, one Customer, one destination and one intended delivery; retain historical Order facts.
 - [x] **Delivery agent assignment:** Agents claim available deliveries in their area, with one active delivery each, one responsible agent per delivery and operator intervention available.
 - [x] **Rejection and acceptance timeout:** Rejection or no acceptance within five minutes cancels the Order with a full refund owed; failed refunds remain visibly unresolved.
-- [x] **Unclaimed work:** Operator alert after ten minutes, cancellation after twenty minutes if still unassigned, from acceptance; full Customer refund and MTOGO bears prepared-food loss.
+- [x] **Unclaimed work:** Operator alert after ten minutes, cancellation after thirty minutes if still unassigned, from acceptance; full Customer refund and MTOGO bears prepared-food loss.
 - [x] **Customer cancellation:** Self-service before acceptance; operator handling after acceptance. Full refund before preparation starts; after that a change of mind has no automatic refund, with reasoned operator exceptions possible.
 - [x] **Handover:** Customer or designated recipient; contact attempts and operator escalation after ten minutes for an unreachable Customer. Customer-caused failure has no automatic refund; MTOGO-caused failure requires a full refund.
 - [x] **Reassignment:** Agent release and reassignment are outside the MVP, before and after pickup.
@@ -415,7 +415,7 @@ Checked entries record agreements from the business grill. Unchecked entries are
 - [x] **Menu rules:** Bilingual names, bilingual descriptions when supplied, Restaurant-provided allergens with unknown information visible, positive DKK prices including VAT and delivery, immediate publishing, visible sold-out dishes and Customer review of checkout changes.
 - [x] **Payment and acceptance:** Charge at submission; payment success places an Order awaiting acceptance, independently of assignment. Uncertain results stay pending while checked and retries do not duplicate charges or purchases.
 - [x] **Preparation and assignment:** Proceed independently after acceptance; pickup requires ready food and an assigned agent.
-- [x] **Timeline and notifications:** The website timeline and mocked SMS carry placement, acceptance, preparation, readiness, pickup, delivery, cancellation and Feedback-invitation information, in the language recorded with the Order. Notification failure does not block fulfilment and remains visible to operators; retries avoid duplicates.
+- [x] **Timeline and notifications:** The website timeline carries placement, acceptance, preparation, readiness, pickup, delivery, cancellation and Feedback-invitation information in the Order language. Discovery #152 replaces mocked SMS with browser SSE and adds the Customer delivery map; reconnects reconcile recorded progress and stream failures never block fulfilment.
 
 ### Customer feedback
 

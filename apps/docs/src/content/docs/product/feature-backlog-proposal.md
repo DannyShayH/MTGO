@@ -19,23 +19,23 @@ Each Feature is an aggregate and may exceed effort M. Its work items must satisf
 
 Order is a pull preference; only listed blockers become native blocking links. An unblocked Feature can be pulled while another is in progress, within the human-owned WIP policy. Week groups are provisional demo goals for five developers, without fixed time budgets or delivery promises. Should have and Could have scope follows the Must have capability; the list can change by explicit agreement.
 
-| Order                                                     | Feature                                         | MoSCoW      | Demo group | Native blockers         |
-| --------------------------------------------------------- | ----------------------------------------------- | ----------- | ---------- | ----------------------- |
-| [F01 / #42](https://github.com/DannyShayH/MTGO/issues/42) | Measure Feature delivery and work item flow     | Must have   | Week 47    | None                    |
-| [F02 / #43](https://github.com/DannyShayH/MTGO/issues/43) | Onboard and operate Restaurants                 | Must have   | Week 47    | None                    |
-| [F03 / #44](https://github.com/DannyShayH/MTGO/issues/44) | Publish bilingual Restaurant menus              | Must have   | Week 47    | F02 work items #71, #73 |
-| [F04 / #45](https://github.com/DannyShayH/MTGO/issues/45) | Manage Customer accounts and delivery details   | Must have   | Week 47    | None                    |
-| [F05 / #46](https://github.com/DannyShayH/MTGO/issues/46) | Order from one Restaurant and pay               | Must have   | Week 47    | F03, F04                |
-| [F06 / #47](https://github.com/DannyShayH/MTGO/issues/47) | Accept and prepare Restaurant Orders            | Must have   | Week 48    | F05                     |
-| [F07 / #48](https://github.com/DannyShayH/MTGO/issues/48) | Claim and complete deliveries                   | Must have   | Week 48    | F06                     |
-| [F08 / #49](https://github.com/DannyShayH/MTGO/issues/49) | Resolve operational exceptions and full refunds | Must have   | Week 48    | F07                     |
-| [F09 / #50](https://github.com/DannyShayH/MTGO/issues/50) | Follow Orders through a timeline and SMS        | Must have   | Week 48    | F07                     |
-| [F10 / #51](https://github.com/DannyShayH/MTGO/issues/51) | Rate delivered Orders                           | Must have   | Week 49    | F07                     |
-| [F11 / #52](https://github.com/DannyShayH/MTGO/issues/52) | Explain Restaurant fees and monthly statements  | Must have   | Week 49    | F07                     |
-| [F12 / #53](https://github.com/DannyShayH/MTGO/issues/53) | Award and explain sustainable agent bonuses     | Must have   | Week 49    | F10, F11                |
-| [F13 / #54](https://github.com/DannyShayH/MTGO/issues/54) | Monitor MTOGO operations                        | Should have | Week 49    | F07                     |
-| [F14 / #55](https://github.com/DannyShayH/MTGO/issues/55) | Apply Restaurant opening schedules              | Could have  | Week 49    | F02                     |
-| [F15 / #56](https://github.com/DannyShayH/MTGO/issues/56) | Show estimated arrival times                    | Could have  | Week 49    | F09                     |
+| Order                                                     | Feature                                                | MoSCoW      | Demo group | Native blockers         |
+| --------------------------------------------------------- | ------------------------------------------------------ | ----------- | ---------- | ----------------------- |
+| [F01 / #42](https://github.com/DannyShayH/MTGO/issues/42) | Measure Feature delivery and work item flow            | Must have   | Week 47    | None                    |
+| [F02 / #43](https://github.com/DannyShayH/MTGO/issues/43) | Onboard and operate Restaurants                        | Must have   | Week 47    | None                    |
+| [F03 / #44](https://github.com/DannyShayH/MTGO/issues/44) | Publish bilingual Restaurant menus                     | Must have   | Week 47    | F02 work items #71, #73 |
+| [F04 / #45](https://github.com/DannyShayH/MTGO/issues/45) | Manage Customer accounts and delivery details          | Must have   | Week 47    | None                    |
+| [F05 / #46](https://github.com/DannyShayH/MTGO/issues/46) | Order from one Restaurant and pay                      | Must have   | Week 47    | F03, F04                |
+| [F06 / #47](https://github.com/DannyShayH/MTGO/issues/47) | Accept and prepare Restaurant Orders                   | Must have   | Week 48    | F05                     |
+| [F07 / #48](https://github.com/DannyShayH/MTGO/issues/48) | Claim and complete deliveries                          | Must have   | Week 48    | F06                     |
+| [F08 / #49](https://github.com/DannyShayH/MTGO/issues/49) | Resolve operational exceptions and full refunds        | Must have   | Week 48    | F07                     |
+| [F09 / #50](https://github.com/DannyShayH/MTGO/issues/50) | Follow Orders through a live timeline and delivery map | Must have   | Week 48    | F07                     |
+| [F10 / #51](https://github.com/DannyShayH/MTGO/issues/51) | Rate delivered Orders                                  | Must have   | Week 49    | F07                     |
+| [F11 / #52](https://github.com/DannyShayH/MTGO/issues/52) | Explain Restaurant fees and monthly statements         | Must have   | Week 49    | F07                     |
+| [F12 / #53](https://github.com/DannyShayH/MTGO/issues/53) | Award and explain sustainable agent bonuses            | Must have   | Week 49    | F10, F11                |
+| [F13 / #54](https://github.com/DannyShayH/MTGO/issues/54) | Monitor MTOGO operations                               | Should have | Week 49    | F07                     |
+| [F14 / #55](https://github.com/DannyShayH/MTGO/issues/55) | Apply Restaurant opening schedules                     | Could have  | Week 49    | F02                     |
+| [F15 / #56](https://github.com/DannyShayH/MTGO/issues/56) | Show estimated arrival times                           | Could have  | Week 49    | F09                     |
 
 ## Published milestones
 
@@ -329,7 +329,7 @@ Operators need a shared view and reasoned actions for uncertain payments, overdu
 
 [ADR-0006](/MTGO/architecture/decisions/0006-marginal-commission-and-monthly-service-fee/), [ADR-0008](/MTGO/architecture/decisions/0008-role-boundaries-and-restaurant-activation/), [ADR-0009](/MTGO/architecture/decisions/0009-paid-orders-and-independent-preparation-and-assignment/), [ADR-0011](/MTGO/architecture/decisions/0011-order-failures-cancellation-and-mvp-handover/), [ADR-0014](/MTGO/architecture/decisions/0014-durable-business-state-and-auditable-corrections/).
 
-### F09: Follow Orders through a timeline and SMS
+### F09: Follow Orders through a live timeline and delivery map
 
 GitHub Feature: [#50](https://github.com/DannyShayH/MTGO/issues/50).
 
@@ -337,26 +337,28 @@ GitHub Feature: [#50](https://github.com/DannyShayH/MTGO/issues/50).
 
 #### Problem
 
-Customers need consistent progress information on the website and through SMS even when message delivery fails.
+Customers need recorded Order progress and a truthful view of delivery location, including when the browser connection or location is stale.
 
 #### User stories
 
-- As a Customer, I want an Order timeline showing recorded progress so I can understand what is happening.
-- As a Customer, I want SMS updates in my chosen language so I can follow progress without keeping the website open.
+- As a Customer, I want a live Order timeline in my Order language so I can understand recorded progress.
+- As a Customer, I want to see my assigned agent's shared location during delivery, with its last-updated time, so I can distinguish current information from a stale location.
 
 #### Agreed rules and boundaries
 
-- The website timeline and mocked SMS carry placement, acceptance, preparation starting, readiness, pickup, delivery, cancellation and Feedback-invitation information.
-- Use the language recorded with the Order, with Danish and English supported.
-- The website is the place to check current status; failed SMS does not block preparation or delivery.
-- Failed messages stay visible for operator attention; retries avoid duplicate Customer messages.
-- SMS includes the Order reference and status without unnecessary personal/address details; the Customer timeline respects ownership and does not expose internal financial or operator-only notes.
-- Native apps and live location tracking are outside this MVP capability.
+- Browser SSE replaces mocked SMS, as agreed in discovery #152; no promise of updates with the website closed.
+- Preserve placement, acceptance, preparation starting, readiness, pickup, delivery, cancellation and Feedback-invitation information in Danish and English using the Order language.
+- Feature #48 captures agent location with permission from pickup until completion; #50 presents the ordering Customer's map and live timeline.
+- Enforce ownership; never expose another Customer's delivery, internal financial information or operator-only notes.
+- Display location last-updated time; coordinates never confirm pickup or handover.
+- Stream failure does not block preparation or delivery. Reconcile durable progress after reconnecting.
+- Native apps remain outside scope. Foreground tracking is sufficient; unavailable location does not prevent delivery. Retain only the latest active-delivery coordinate and remove it at delivery end. Label a location stale after sixty seconds; use status polling when SSE fails.
 
 #### Acceptance examples to refine
 
-- A preparation event appears consistently in the Customer timeline and mocked SMS in the Order language.
-- An SMS failure leaves the timeline usable and does not prevent pickup or delivery.
+- Recorded food and delivery milestones appear on the authorized Customer's live timeline in the Order language.
+- Shared delivery location appears only for the ordering Customer and includes its last-updated time.
+- A lost stream cannot invent progress or prevent delivery; reconnecting restores the current recorded state.
 
 #### References
 
@@ -383,7 +385,7 @@ MTOGO needs voluntary feedback that distinguishes food, the overall experience a
 - Use three separate integer ratings from 1 to 5: food, overall experience and agent.
 - One voluntary submission within seven days of delivery, uneditable in the MVP; missing Feedback is unrated, never zero.
 - Only the agent rating affects the individual rating-based bonus; food and experience ratings do not reduce that reward.
-- The Feedback invitation is part of the timeline/SMS capability; this Feature does not depend on that external delivery succeeding.
+- The Feedback invitation is part of the live timeline capability; this Feature does not depend on that external delivery succeeding.
 
 #### Acceptance examples to refine
 

@@ -43,13 +43,13 @@ Rejection, acceptance timeout and pre-acceptance Customer cancellation automatic
 
 After acceptance, remove the staff Reject action. Restaurant staff contact an MTOGO operator using the Order reference if the Restaurant cannot fulfil it. The operator records the reason and handles cancellation with the required full refund under #49; staff cannot reverse acceptance themselves.
 
-The operator's cancellation, exception and refund-investigation screens belong to Feature #49. Delivery assignment and pickup belong to #48; the complete Customer event timeline and SMS belong to #50. Preparation remains independent of assignment, and notification failures must not block progress.
+The operator's cancellation, exception and refund-investigation screens belong to Feature #49. Delivery assignment and pickup belong to #48; the complete Customer event timeline and live delivery map belong to #50. Preparation remains independent of assignment, and notification failures must not block progress.
 
 ## Customer progress
 
 Feature #47 updates the existing Customer Order details with acceptance, preparation, readiness, cancellation and refund status, and a Cancel action available only before acceptance. Present food progress as a simple chronological progress display: Order placed, Restaurant accepted, Preparing and Ready for pickup. Use the actual recorded milestones; future steps remain upcoming, and food readiness does not imply agent assignment or pickup.
 
-A cancelled Order shows cancellation and its separate refund outcome. Pending or failed refunds must not appear successful. The complete event history, notification delivery and SMS remain under #50; delivery milestones belong to #48. The team confirmed this simple progress timeline as the intended presentation for #47. It introduces the food-preparation steps that #48 and #50 later extend.
+A cancelled Order shows cancellation and its separate refund outcome. Pending or failed refunds must not appear successful. The complete event history, live browser updates and delivery map remain under #50; delivery milestones belong to #48. The team confirmed this simple progress timeline as the intended presentation for #47. It introduces the food-preparation steps that #48 and #50 later extend.
 
 ## Agreed live updates
 
@@ -69,7 +69,7 @@ Read-only inspection found the following constraints for the later specification
 - Existing placed-Order visibility and placement retry logic recognize the awaiting-acceptance state. They must continue recognizing a paid Order after acceptance, preparation or cancellation, without re-placing it or hiding its history.
 - Restaurant staff authorization and Restaurant ownership checks are reusable and independent of Restaurant open/active status. The partner app has no Orders queue or acceptance/preparation actions yet.
 - Native Order lines preserve the English dish title, quantity and unit price. Both language names and the Restaurant's allergen and food-label declarations are only available from the current menu; the agreed historical kitchen view therefore needs additional capture during the ordering journey.
-- Customer Order details show generic Medusa status, with no Customer cancellation action. Feature #47 must add the agreed current progress, refund outcome and pre-acceptance cancellation display, while #50 retains the complete event timeline and SMS.
+- Customer Order details show generic Medusa status, with no Customer cancellation action. Feature #47 must add the agreed current progress, refund outcome and pre-acceptance cancellation display, while #50 retains the complete event timeline and live delivery map.
 - The installed Medusa 2.22.4 SDK supports `client.fetchStream`. The recipe's per-delivery workflow stream does not itself supply a new-Order feed for the Restaurant. The later specification must preserve staff authorization, disconnect cleanup and reconciliation with durable Order facts.
 
 ## Acceptance examples for the later specification

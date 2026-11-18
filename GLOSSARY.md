@@ -93,7 +93,7 @@ The ordering Customer's voluntary assessment of a delivered Order, with separate
 _Avoid_: Complaint, agent rating (when referring to the whole assessment)
 
 **Order timeline**:
-The Customer's website view of the recorded progress of one Order, carrying the same business status information as its SMS updates.
+The Customer's website view of the recorded business progress of one Order. Location on a delivery map is separate from confirmed pickup and handover milestones.
 _Avoid_: SMS delivery history, live location tracking
 
 **Commission**:

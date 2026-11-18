@@ -1,6 +1,6 @@
 ---
 title: Delivery agent workflow
-description: The proposed delivery agent journey from receiving a delivery to pickup, handover and completion.
+description: Confirmed delivery agent discovery covering the phone workspace, claiming, pickup, handover and foreground location sharing.
 sidebar:
   order: 5
 ---
@@ -12,12 +12,13 @@ import "../../../styles/review-documents.css"
 <div class="review-document">
 
 <aside class="review-intro not-content" aria-label="Document status">
-  <strong>Business rules agreed; interactions to refine</strong>
+  <strong>Discovery confirmed; implementation follows separately</strong>
   <p>
-    Based on the supplied MTOGO case and agreed domain model. A delivery agent
-    website journey is agreed for the MVP. Area-based claiming and core access
-    rules and failure handling are agreed; detailed interactions are refined
-    during the Feature grill; functionality is not yet implemented.
+    The team confirmed shared understanding on 18 November 2026 in discovery
+    #152 for Feature #48, including the phone workspace and revised GPS/SSE
+    scope shared with Feature #50. These are agreed requirements; functionality
+    is not yet implemented. Specification and implementation tickets follow in
+    separate steps.
   </p>
 </aside>
 
@@ -31,7 +32,7 @@ The delivery agent collects food from the restaurant and delivers it to the cust
   <a href="#proposed-workflow">Delivery agent workflow</a>
   <a href="#connection-to-delivery-states">Delivery states</a>
   <a href="#exceptions-to-discuss">Exceptions</a>
-  <a href="#open-decisions">Open decisions</a>
+  <a href="#agreed-business-decisions">Business decisions</a>
 </nav>
 
 ## Case requirements and agreed scope
@@ -41,6 +42,92 @@ The delivery agent collects food from the restaurant and delivers it to the cust
 The team must design a financially sustainable bonus scheme. The case suggests delivered order value, early or late hours and customer ratings as possible factors; it does not prescribe the calculation or amounts.
 
 **Proposed interface:** A delivery agent workspace for viewing delivery details and reporting progress. The case does not specify whether it is a web page or app, how delivery agents obtain deliveries, or whether they see ratings and bonus information. The MVP uses a website; area-based claiming and the core access boundary are agreed, and agents can see their own completed work, points and provisional/final awards. Delivery agent access does not imply general access to the internal MTOGO Medusa Admin.
+
+## Confirmed discovery requirements
+
+The team confirmed the following requirements during discovery [#152](https://github.com/DannyShayH/MTGO/issues/152) for Feature [#48](https://github.com/DannyShayH/MTGO/issues/48). Shared understanding was explicitly confirmed on 18 November 2026. These decisions describe required behavior, not implemented functionality.
+
+- **Access:** Operators invite Delivery agents, who set their own password. There is no public agent registration. Operators assign permitted operating areas; agents cannot authorize themselves for another area.
+- **Eligible work:** Both the Restaurant pickup postal code and the Customer destination postal code must belong to the agent's permitted operating areas. Agents may filter available work by postal code within those areas; filtering never expands permission.
+- **Before assignment:** Available-work cards show the Restaurant name, pickup address, destination postal code, Order reference, preparation status and time since Restaurant acceptance. The Customer's name, full delivery address, phone number and delivery instructions become visible only after successful assignment to the responsible agent.
+- **Workspace:** The partner app provides an Available deliveries list, a prominent Current delivery view and a simple history of the agent's own completed deliveries. An agent with an active delivery cannot claim another. Bonus calculation remains within Feature #53.
+- **Phone acceptance:** The complete journey must work in a phone browser: sign-in, finding work, claiming, reading addresses, calling the Customer, reporting actual pickup and confirming handover. Provide readable Danish and English text, clear touch controls and no horizontal page scrolling. Verify the journey on real iPhones and Android phones, including the software keyboard and browser controls; desktop device emulation alone is insufficient evidence.
+- **Interrupted phone use:** Returning from a call, locking the phone or losing the connection preserves responsibility. Reconcile the actual delivery status when the workspace resumes; an interrupted response must not invent a successful action or lose a successful assignment.
+
+### Access changes and phone actions
+
+- **Area changes after assignment:** Changing an agent's permitted operating areas affects future claims. The responsible agent retains access to complete an already assigned delivery.
+- **Revoked access:** Revocation stops further agent access immediately. An active delivery retains its recorded assignment and raises operator attention; it is not silently released or reassigned.
+- **Pickup and handover:** The responsible agent explicitly confirms collection and later confirms actual handover, with a confirmation step for each action. Pickup requires food readiness. Repeated actions retain the original milestone. Photos, signatures and recipient codes are not required for the MVP.
+- **Uncertain actions:** A phone action whose server outcome is unknown shows Checking status until reconciled. Reconnecting or returning from a call retrieves the actual state; a local tap alone never establishes successful assignment, pickup or handover.
+
+### Revised deadline and live tracking scope
+
+The team confirmed a thirty-minute claim cutoff and automatic cancellation for work still unassigned thirty minutes after Restaurant acceptance, replacing the earlier twenty-minute deadline. The ten-minute operator alert stays. The separate thirty-minute attention threshold for assigned work without pickup remains an alert rather than automatic cancellation.
+
+Actual phone location sharing is in scope from pickup until completion, with location permission. Feature #48 captures location and explicit delivery actions; Feature #50 presents a live Customer timeline and delivery map over browser SSE instead of mocked SMS. Only the ordering Customer sees the Customer map, including the location last-updated time. Coordinates never automatically confirm pickup or handover. The foreground tracking and recovery requirements below define background behavior, unavailable-location handling and retention.
+
+The pinned Medusa Eats [Customer status component](https://github.com/medusajs/medusa-eats/blob/734e7a2fb2d5e2671daaacf2b79fb72fd75073a7/frontend/src/components/store/order/order-status.tsx) supplies milestone and animation inspiration, not an implemented GPS tracker. The team deliberately expanded scope beyond that example. These revisions supersede the earlier SMS scope in ADR-0004/ADR-0013 and the twenty-minute deadline in ADR-0011.
+
+### Phone tracking and connection recovery
+
+- **Foreground tracking:** The website MVP shares location while the agent workspace is visible and active. A locked phone, hidden tab or another app can interrupt updates. The Customer sees the latest available location and its age rather than an uninterrupted-tracking promise. Sharing resumes when the agent returns to the workspace.
+- **Location unavailable:** Denied permission, unavailable positioning or lost connectivity does not block completion of the delivery. Show Location unavailable or stale-location information without claiming that the agent is still at a previously reported position.
+- **Arrival and contact:** The responsible agent explicitly records Arrived at destination. That recorded arrival starts the ten-minute unreachable-Customer clock. Record contact attempts and escalate after ten minutes without handover; GPS proximity alone establishes neither arrival nor delivery.
+- **Location retention:** Retain only the latest coordinate during the active delivery, not a route history. Stop sharing and remove that coordinate when the delivery ends. Preserve the separate business milestone history.
+- **Customer update recovery:** Customer SSE updates fall back to periodic status requests when streaming fails, with a visible connection indicator. Reconnects reconcile durable progress. Delivery milestones and location freshness are separate information.
+
+Browser evidence: the [Geolocation specification](https://www.w3.org/TR/geolocation/) restricts position updates to active, visible documents with permission. The [browser page lifecycle documentation](https://developer.chrome.com/docs/web-platform/page-lifecycle-api) describes hidden-page freezing and discarding. These support the foreground scope and recovery requirements; they do not establish real-device acceptance evidence for this application.
+
+### Operator assignment, availability and history
+
+- **Initial operator assignment:** An operator may assign an unclaimed delivery to an eligible agent, using the same operating-area, deadline and one-active-delivery checks as claiming. Record the assigning operator. This does not allow reassignment.
+- **Next delivery:** An agent becomes eligible for another delivery only when the current delivery is delivered, cancelled or explicitly marked failed by an operator. Attention thresholds do not free the agent. Keep the original responsibility in history; operator failure and refund resolution belong to Feature #49.
+- **Available-work updates:** Update eligible available deliveries automatically, ordered by oldest Restaurant acceptance first. Show preparation status and the claim deadline, reconcile after reconnecting and use polling fallback. A stale card never guarantees a successful claim.
+- **Completed history:** Show the agent's own Order references, Restaurants, milestone times and outcomes. Hide Customer phone numbers, delivery instructions and full destination addresses after completion. Retain the separate historical Order facts under their authorized access boundaries.
+- **Location freshness:** Always show the position's last-updated time. After sixty seconds without a newer position, label it stale and do not present it as live. Keep recorded Order progress visible.
+
+### Explicitly parked reporting interface
+
+The team skipped Q22 at its request: an in-app Report a problem action and its category choices are not part of the agreed Feature #48 interface. This does not remove the shared duties to contact an operator when unable to continue, record contact attempts for an unreachable Customer, or raise the agreed deadline and access-revocation alerts. The reporting interface and operator exception workflow remain parked for Feature #49 refinement. No self-release, reassignment or false delivery follows from this omission.
+
+### Refined user stories
+
+1. As an MTOGO operator, I want to invite agents and manage permitted postal codes, so that only authorized employees can claim local work.
+2. As a Delivery agent, I want to use my entire workspace on a phone in Danish or English, so that I can work without a desktop computer.
+3. As a Delivery agent, I want to filter eligible available deliveries and see preparation and deadline information, so that I can choose work within my permitted area.
+4. As a Delivery agent, I want a successful claim to establish one durable responsibility, so that competing claims, retries and interrupted phone use do not give me or another employee conflicting work.
+5. As a responsible Delivery agent, I want access to the pickup and permitted Customer details, so that I can collect the correct Order and reach its recipient.
+6. As a responsible Delivery agent, I want explicit collection, arrival, contact-attempt and handover records, so that progress describes actual events.
+7. As a responsible Delivery agent, I want foreground location sharing without blocking work when location is unavailable, so that Customers receive honest location information when possible.
+8. As an MTOGO operator, I want deadline and access-revocation attention and accountable initial assignment, so that stalled work has an identifiable owner.
+9. As a Delivery agent, I want private completed-work history and eligibility for another delivery after a terminal outcome, so that I can continue working without retaining unnecessary Customer contact access.
+10. As a Customer, I want my own recorded progress and delivery location with freshness information, so that browser connection problems do not look like successful delivery or a current position.
+
+### Concrete acceptance examples
+
+- **Area eligibility:** An agent permitted postal codes 2100 and 2200 may claim a delivery from 2100 to 2200, but not from 2100 to 2300. Filtering never changes authorization.
+- **Privacy:** Before assignment the card shows destination postal code only. Successful assignment reveals the required Customer details to the responsible agent. Another agent cannot read them, including by direct request or subscription.
+- **Competing claims:** Two eligible agents claim one delivery concurrently; only one obtains responsibility. One agent concurrently claiming two deliveries obtains at most one active assignment. A repeated successful claim returns the existing responsibility.
+- **Exact cancellation boundary:** Acceptance at 12:00 produces operator attention at 12:10. A still-unassigned delivery cannot be claimed at 12:30 and cancels with a full refund owed and applicable prepared-food credit. A successful earlier claim prevents unassigned cancellation. Restart recovery applies the elapsed deadline without duplicating assignment, cancellation or financial obligations.
+- **Readiness:** Assignment before food readiness is permitted, and preparation does not wait for assignment. Pickup is refused until food is ready and the requester is responsible. A repeated pickup keeps the original timestamp.
+- **Access changes:** Removing a permitted postal code after assignment leaves the existing delivery actionable for that agent. Revoking access instead stops agent requests and location writes, retains the responsibility and raises operator attention.
+- **Interrupted phone use:** A successful claim whose response is lost is recovered as the same assignment after reconnecting. A local tap without server confirmation never shows successful pickup or delivery.
+- **Location:** After pickup, a permitted foreground phone shares actual location for that delivery. Switching apps or denying permission does not block delivery; the Customer sees unavailable or aged location. A position sixty seconds old is stale. Delivery end removes the latest coordinate and stops sharing.
+- **Unreachable recipient:** Explicit arrival starts the ten-minute clock. Contact attempts are recorded. At ten minutes without handover, escalation is required; neither GPS proximity nor a timeout marks the delivery delivered. The in-app problem-reporting interface is parked for #49.
+- **Terminal work:** Delivered, cancelled or operator-confirmed failed work frees the agent for a new delivery while keeping the original responsibility and milestones in history. A thirty-minute assigned-work alert alone does not free the agent or cancel the Order.
+- **Customer recovery:** A broken SSE connection shows its connection state and uses status polling. Reconnect reconciles current durable progress without duplicating milestones. Another Customer cannot access the stream or map.
+- **History privacy:** The agent's completed entry retains the Order reference, Restaurant, times and outcome, but no Customer phone number, delivery instructions or full destination address.
+
+### Existing-code and recipe evidence
+
+The inspected repository has paid-order visibility and Restaurant staff invitations, authorization and partner-app menu screens. It does not yet provide a Delivery agent actor/module, assignment/pickup/handover endpoints, or delivery deadline jobs. Restaurant delivery-area postal codes govern Restaurant serviceability; agent operating areas are a separate permission. Feature #47's confirmed preparation specification and open implementation slices are integration inputs, not delivered preparation behavior.
+
+The [recipe compatibility review](/MTGO/architecture/restaurant-recipe-review/) records why paid Order placement and preparation must not wait for an agent claim, why commerce changes use core workflows, and why the example is not proof of atomic claiming. Installed Medusa and core-flows package guidance supports thin authenticated routes, workflow orchestration and core commerce workflows; specific API signatures, persistence choices, GPS update cadence and map-provider selection belong to the later specification. The pinned Medusa Eats status animation is not a GPS implementation.
+
+### Validation evidence required by later implementation
+
+Use focused unit and HTTP/module integration evidence for eligibility, ownership, competing claims, one active delivery, exact deadlines, retry safety, restart recovery, milestone guards and location deletion. Extend the existing application journey only if required by a changed existing journey; this discovery does not request a new Playwright suite. Exercise the relevant shared baseline of twenty simultaneous journeys and 95% of ordinary browsing/status requests within two seconds. Real iPhone and Android checks must cover Danish and English, narrow and wide layouts, long text, focus, phone calls, keyboard, screen locking, location permission denial, stale GPS and reconnects. No product runtime, device or performance checks have been performed by this documentation-only discovery.
 
 ## Proposed workflow
 
@@ -78,7 +165,7 @@ The team must design a financially sustainable bonus scheme. The case suggests d
     {
       title: "Confirm the handover",
       detail:
-        "Mark the delivery as delivered after the agreed handover condition is met. Detailed confirmation interactions and evidence are refined during the Feature grill, preserving the agreed handover condition.",
+        "Mark the delivery as delivered after the agreed handover condition is met. Use an explicit handover action and confirmation step; GPS proximity never establishes delivery.",
     },
     {
       title: "Return to delivery work",
@@ -86,7 +173,7 @@ The team must design a financially sustainable bonus scheme. The case suggests d
         "See that the delivery is complete and return to the next available or assigned delivery. Completion feeds the customer feedback request and the agreed bonus calculation.",
     },
   ]}
-  note="Proposed happy path. A delivery agent action must be distinguished from restaurant preparation and system notifications. Claiming, independent preparation, handover, cancellation and bonus points are agreed. Release and reassignment are outside the MVP; Feature scope is agreed; implementation refinement belongs to the later Feature grill."
+  note="Proposed happy path. A delivery agent action must be distinguished from restaurant preparation and system notifications. Claiming, independent preparation, handover, cancellation and bonus points are agreed. Release and reassignment are outside the MVP. Discovery #152 confirms the requirements above; specification and implementation follow separately."
 />
 
 ## Connection to delivery states
@@ -104,12 +191,14 @@ Signing in, viewing a destination and returning to the work list are delivery ag
 <ul class="review-criteria">
   <li>
     **Two delivery agents try to claim the same delivery.** Only one obtains
-    responsibility. The losing agent must not appear assigned; detailed
-    interaction design belongs to the Feature grill.
+    responsibility. The losing agent must not appear assigned and reconciles the
+    actual state; a stale card never establishes responsibility.
   </li>
   <li>
-    **Food is not ready or the order cannot be found.** Define how the delivery
-    agent reports the problem, who resolves it and what the customer is told.
+    **Food is not ready or the order cannot be found.** Pickup cannot be
+    confirmed without readiness and assignment. The agent contacts an operator
+    when unable to continue. The in-app reporting interface was explicitly
+    skipped in this discovery; Feature #49 refines exception handling.
   </li>
   <li>
     **The delivery agent can no longer complete the delivery.** Escalate to an
@@ -135,22 +224,22 @@ Signing in, viewing a destination and returning to the work list are delivery ag
   </li>
 </ul>
 
-## Open decisions
+## Agreed business decisions
 
 - [x] **Delivery agent access:** Operators create access. Agents see available work in their area and assigned deliveries; Customer contact details become visible after assignment.
 - [x] **Assignment:** Agents claim available work in their operating area, with at most one active delivery and one responsible agent per delivery; operators can intervene.
-- [x] **Unclaimed work:** Alert an operator after ten minutes and cancel after twenty if still unassigned, from acceptance. MTOGO bears prepared-food loss and the Customer receives a full refund.
+- [x] **Unclaimed work:** Alert an operator after ten minutes and cancel after thirty if still unassigned, from acceptance. MTOGO bears prepared-food loss and the Customer receives a full refund.
 - [x] **Release and reassignment:** Outside the MVP, before and after pickup.
 - [x] **Stalled assigned work and operating areas:** Operators manage areas. Attention is required after thirty minutes from acceptance without pickup or thirty minutes from pickup without delivery; operators record continuation or failure.
 - [x] **Preparation sequence:** Preparation and assignment proceed independently after acceptance. Pickup requires ready food and an assigned agent.
 - [x] **Handover and failure:** Handover to the Customer or designated recipient; contact attempts and operator escalation after ten minutes for an unreachable Customer. Customer-caused failure has no automatic refund; MTOGO-caused failure requires a full refund.
 - [x] **Status corrections:** Operators may correct mistakes with a reason, retaining original events and the identity of the person making the correction.
-- [x] **Delivery agent journey:** Website access to eligible work, assigned pickup/destination/contact details and own work/bonus history. Detailed presentation and navigation interactions are refined in the Feature grill.
+- [x] **Delivery agent journey:** Website access to eligible work, assigned pickup/destination/contact details and own work/bonus history. Discovery #152 confirms the phone workspace, available list, current delivery and private completed history above.
 - [x] **Bonus funding and rating subjects:** The monthly pool is capped at 20% of commission after refunds/reversals, excluding service fees. Only the separate 1–5 agent rating may influence the individual rating-based bonus.
 - [x] **Bonus points and finalization:** Delivered Order value excluding VAT, multiplied by 1.25 for early/late pickup and 1.10 for agent ratings of 4 or 5. Share the pool proportionally and finalize on the 8th; later refunds affect future funding without wage deductions.
 - [x] **Bonus financial details and visibility:** Approved refund obligations, food compensation and carried losses reduce funding; full pre-finalization refunds remove points. Awards round down to DKK 0.01 increments. Agents see their own completed work, points and clearly distinguished provisional/final awards.
 
-Live location tracking, route optimization, proof-of-delivery uploads and a delivery agent earnings dashboard are not requirements specified by the case. Add them only if the team chooses and justifies them. Complaint management remains a future extension.
+Live location tracking was added by the team during discovery #152. Route optimization, proof-of-delivery uploads and a delivery agent earnings dashboard are not requirements specified by the case. Add them only if the team chooses and justifies them. Complaint management remains a future extension.
 
 ## Related workflows
 
@@ -178,6 +267,6 @@ Live location tracking, route optimization, proof-of-delivery uploads and a deli
   ]}
 />
 
-Record agreed answers and follow-up requirements in [issue #10](https://github.com/DannyShayH/MTGO/issues/10). Core claiming, access and funding rules are recorded in the domain model and ADRs; business rules and MVP boundaries are agreed; detailed interactions are refined when the Feature is pulled.
+Discovery [#152](https://github.com/DannyShayH/MTGO/issues/152) records the confirmed agreement for Feature [#48](https://github.com/DannyShayH/MTGO/issues/48). Core claiming, access and funding rules are recorded in the domain model and ADRs. The team invokes `/to-spec` and `/to-tickets` separately. Keep the Feature parent open until the business outcome is accepted and all required work items are delivered.
 
 </div>
