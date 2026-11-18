@@ -196,6 +196,23 @@ uncertain failure) shows its Danish or English text from `ORDER_ACTION_ERRORS`
 next to the Order's current state. Focus moves to the outcome message, so
 keyboard users do not lose their place when the button disappears.
 
+### Reject an Order (#143)
+
+**Reject Order** is a secondary button next to Accept, offered only while the
+backend lists `reject`. The first press only opens a confirmation, with the
+consequence ("cancelled, refunded in full automatically"), an optional reason
+(1000 characters, counted) noted as hidden from the Customer, and **Reject and
+refund** next to **Keep Order**. Escape or Keep Order closes it and returns
+focus to the button. The server action `rejectOrder` posts
+`POST /partner/orders/{id}/reject`. While pending, both buttons are disabled,
+and every outcome refreshes the Order and moves focus to the outcome message.
+
+A cancelled Order's details show a **Cancellation and refund** panel: who
+cancelled it and when, the staff member's reason, and the refund as a separate
+line. "In progress", "failed – still owed, MTOGO will follow up" or "refunded".
+History cards carry a short refund badge. An accepted Order offers no Reject.
+It shows a line that only MTOGO can cancel it, with the Order number to give.
+
 ## Run it
 
 Start the backend first, then seed a staff member (see the `restaurant` module

@@ -55,7 +55,8 @@ export default function OrderRow({
             data-testid="order-amount"
           >
             {convertToLocale({
-              amount: order.total,
+              // The purchased total: a cancellation's refund credit line lowers `total`.
+              amount: order.original_total ?? order.total,
               currency_code: order.currency_code,
               locale: locale === "da" ? "da-DK" : "en-GB",
             })}

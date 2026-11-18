@@ -45,9 +45,17 @@ A failure stops the ready flow before merging to `main`.
 
 `JEST_MAX_WORKERS` sets how many Jest workers the coverage and HTTP suites use.
 Unset, it is 1 and the suites run in band, which fits an 8 GB devcontainer.
-The ready flow and dependency verification set 2 on GitHub's 16 GB runners.
-This is safe because each HTTP spec uses its own `dbName` and Medusa's test
-runner gives each app a free port. HTTP suites are not
+The ready flow and dependency verification set 3 on GitHub's 4-vCPU, 16 GB
+runners for public repositories; each worker boots its own Medusa app. The
+fourth core stays free for PostgreSQL: with 4 workers the CPU saturated and
+the specs' latency gates (95% within two seconds) failed, because they then
+measured CPU starvation rather than the application. This is safe because each HTTP spec uses its own `dbName` and
+Medusa's test runner gives each app a free port. Jest spreads whole spec files
+over the workers, so the slowest file bounds the run: split a spec that grows
+far beyond the others, sharing its setup through `integration-tests/helpers/`
+(as the partner Order specs do with `restaurant-orders.ts`). Both workflows
+also turn off `fsync`, `synchronous_commit` and `full_page_writes` on their
+throwaway PostgreSQL service, because every spec migrates a fresh database. HTTP suites are not
 run again as a separate ready check. The backend job uploads the LCOV report as
 `backend-coverage-<commit SHA>` for the post-delivery
 [Sonar analysis](/MTGO/quality/static-analysis/).

@@ -3,7 +3,9 @@ import {
   acceptanceWindow,
   availableActions,
   decideAcceptance,
+  decideCancellation,
   queueView,
+  rejectionNote,
 } from "../rules"
 
 const placedAt = new Date("2026-11-18T12:00:00.000Z")
@@ -148,8 +150,8 @@ describe("Accepting an Order", () => {
     {
       order: awaiting,
       now: "2026-11-18T12:04:59.999Z",
-      actions: ["accept"],
-      reason: "BVA: 1 ms before the deadline, Accept is offered",
+      actions: ["accept", "reject"],
+      reason: "BVA: 1 ms before the deadline, Accept and Reject are offered",
     },
     {
       order: awaiting,
@@ -169,5 +171,106 @@ describe("Accepting an Order", () => {
     },
   ])("$reason", ({ order, now, actions }) => {
     expect(availableActions(order, new Date(now))).toEqual(actions)
+  })
+})
+
+describe("Cancelling an Order before acceptance", () => {
+  const awaiting = {
+    state: "awaiting_acceptance" as const,
+    acceptance_deadline: deadline,
+    accepted_at: null,
+  }
+  const acceptedAt = new Date("2026-11-18T12:02:00.000Z")
+
+  it.each([
+    {
+      order: awaiting,
+      now: "2026-11-18T12:04:59.999Z",
+      expected: { outcome: "cancel", category: "restaurant_rejected" },
+      reason: "BVA: 1 ms before the deadline the rejection applies",
+    },
+    {
+      order: awaiting,
+      now: "2026-11-18T12:05:00.000Z",
+      expected: { outcome: "cancel", category: "acceptance_timeout" },
+      reason: "BVA: exactly at the deadline the Order times out instead",
+    },
+    {
+      order: awaiting,
+      now: "2026-11-18T12:05:00.001Z",
+      expected: { outcome: "cancel", category: "acceptance_timeout" },
+      reason: "BVA: 1 ms after the deadline the Order times out instead",
+    },
+    {
+      order: { ...awaiting, acceptance_deadline: null },
+      now: "2026-11-18T12:00:00.000Z",
+      expected: { outcome: "refused", code: "acceptance_timing_unavailable" },
+      reason:
+        "DT: a legacy Order is left to an operator, never refunded on a guessed deadline",
+    },
+    {
+      order: {
+        ...awaiting,
+        state: "cancelled" as const,
+      },
+      now: "2026-11-18T12:01:00.000Z",
+      expected: { outcome: "already_cancelled" },
+      reason: "DT: a repeated rejection returns the recorded cancellation",
+    },
+    {
+      order: {
+        ...awaiting,
+        state: "cancelled" as const,
+      },
+      now: "2026-11-18T12:09:00.000Z",
+      expected: { outcome: "already_cancelled" },
+      reason:
+        "DT: a repeat after the deadline is still the recorded cancellation",
+    },
+    ...(["accepted", "preparing", "ready"] as const).map((state) => ({
+      order: { ...awaiting, state, accepted_at: acceptedAt },
+      now: "2026-11-18T12:03:00.000Z",
+      expected: { outcome: "refused", code: "order_not_awaiting_acceptance" },
+      reason: `DT: ${state} Orders go to an operator, not a staff rejection`,
+    })),
+  ])("$reason", ({ order, now, expected }) => {
+    expect(
+      decideCancellation(order, "restaurant_rejected", new Date(now)),
+    ).toEqual(expected)
+  })
+
+  it("records a Customer cancellation in its own category", () => {
+    expect(
+      decideCancellation(
+        awaiting,
+        "customer_cancelled",
+        new Date("2026-11-18T12:01:00.000Z"),
+      ),
+    ).toEqual({ outcome: "cancel", category: "customer_cancelled" })
+  })
+})
+
+describe("An optional rejection reason", () => {
+  it.each([
+    { raw: undefined, expected: null, reason: "EP: omitted" },
+    { raw: "", expected: null, reason: "BVA: empty" },
+    { raw: "  \n\t ", expected: null, reason: "EP: only whitespace" },
+    {
+      raw: "  Out of dough  ",
+      expected: "Out of dough",
+      reason: "EP: surrounding whitespace is trimmed",
+    },
+    {
+      raw: "Oven\u0000 broken\u0007",
+      expected: "Oven broken",
+      reason: "EP: control characters are removed",
+    },
+    {
+      raw: "Line one\nLine two",
+      expected: "Line one\nLine two",
+      reason: "EP: a line break inside the note is kept",
+    },
+  ])("$reason", ({ raw, expected }) => {
+    expect(rejectionNote(raw)).toBe(expected)
   })
 })

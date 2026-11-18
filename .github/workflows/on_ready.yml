@@ -46,12 +46,27 @@ jobs:
         with:
           verify: gh insitu run trunk-worthy
 
+      # Throwaway database: trade crash safety for speed. Every HTTP spec
+      # creates its own database and runs all Medusa migrations on it, and
+      # four workers write at once, so waiting on disk flushes is wasted time.
+      # These settings take effect on reload, without a restart.
+      - name: Tune the throwaway PostgreSQL for tests
+        run: |
+          docker exec ${{ job.services.postgres.id }} psql -U postgres -v ON_ERROR_STOP=1 \
+            -c "ALTER SYSTEM SET fsync = off" \
+            -c "ALTER SYSTEM SET synchronous_commit = off" \
+            -c "ALTER SYSTEM SET full_page_writes = off" \
+            -c "SELECT pg_reload_conf()"
+
       - name: Lint and backend tests
         env:
           # Each HTTP spec has its own database and a free port, so CI runs
-          # two Jest workers. Locally the default stays 1 (in band) to fit an
-          # 8 GB devcontainer.
-          JEST_MAX_WORKERS: 2
+          # three Jest workers on the 4-vCPU, 16 GB public-repo runner (each
+          # boots its own Medusa app, about 1.5 GB). The fourth core stays
+          # free for PostgreSQL: with four workers the CPU saturated and the
+          # specs' latency gates (95% within two seconds) failed. Locally the
+          # default stays 1 (in band) to fit an 8 GB devcontainer.
+          JEST_MAX_WORKERS: 3
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DB_HOST: localhost
           DB_PORT: 5432

@@ -16,6 +16,14 @@ import {
   QueueView,
 } from "../rules"
 import { KitchenFacts, toKitchenFacts } from "../purchased-items"
+import {
+  iso,
+  cancellationOutcome,
+  CancellationOutcome,
+  refundOutcomesOf,
+  RefundOutcomeView,
+} from "../outcomes"
+import type { CancellationCategory } from "../../../modules/order-operation/models/order-operation"
 
 type OperationRow = {
   order_id: string
@@ -24,13 +32,16 @@ type OperationRow = {
   acceptance_deadline: Date | string | null
   purchased_items?: unknown
   accepted_at: Date | string | null
+  cancelled_at: Date | string | null
+  cancellation_category: CancellationCategory | null
+  cancellation_note: string | null
 }
 
 type OrderRow = {
   id: string
   display_id: number
   currency_code: string
-  total: unknown
+  original_total: unknown
   items?: {
     id: string
     title: string
@@ -53,6 +64,15 @@ export type RestaurantOrder = {
   accepted_at: string | null
   /** What staff may do now, decided at the server's time. */
   available_actions: OrderAction[]
+  /** Null until cancelled; then the category and actual server time. */
+  cancellation:
+    | (NonNullable<CancellationOutcome> & {
+        /** The rejecting staff member's optional note, for their own Restaurant only. */
+        note: string | null
+      })
+    | null
+  /** The owed full refund's outcome, independent of the provider's refund rows. */
+  refund: RefundOutcomeView
   currency_code: string
   /** Menu prices include VAT (ADR-0012), so purchased amounts do too. */
   total_including_vat: number
@@ -74,13 +94,16 @@ const OPERATION_FIELDS = [
   "acceptance_deadline",
   "purchased_items",
   "accepted_at",
+  "cancelled_at",
+  "cancellation_category",
+  "cancellation_note",
 ] as const
 
 const ORDER_FIELDS = [
   "id",
   "display_id",
   "currency_code",
-  "total",
+  "original_total",
   "items.id",
   "items.title",
   "items.product_title",
@@ -90,9 +113,6 @@ const ORDER_FIELDS = [
   "items.total",
 ]
 
-const iso = (value: Date | string | null) =>
-  value ? new Date(value).toISOString() : null
-
 /**
  * The line items are Medusa's purchase snapshot and the kitchen facts were
  * frozen at review, so later menu edits change neither.
@@ -100,8 +120,10 @@ const iso = (value: Date | string | null) =>
 function toRestaurantOrder(
   operation: OperationRow,
   order: OrderRow,
+  refund: RefundOutcomeView | undefined,
   now: Date,
 ): RestaurantOrder {
+  const cancellation = cancellationOutcome(operation)
   return {
     id: order.id,
     display_id: order.display_id,
@@ -114,8 +136,15 @@ function toRestaurantOrder(
         : "unavailable",
     accepted_at: iso(operation.accepted_at),
     available_actions: availableActions(operation, now),
+    cancellation: cancellation && {
+      ...cancellation,
+      note: operation.cancellation_note,
+    },
+    refund: refund ?? null,
     currency_code: order.currency_code,
-    total_including_vat: Number(order.total),
+    // The purchased total: a cancellation's refund credit line lowers the
+    // native `total` to zero, which must not rewrite the purchase.
+    total_including_vat: Number(order.original_total),
     items: (order.items ?? []).map((item) => ({
       id: item.id,
       name: item.product_title || item.title,
@@ -170,13 +199,26 @@ export const listRestaurantOrdersStep = createStep(
         },
       )
     const rows = operations as unknown as OperationRow[]
-    const orders = await readOrders(container, rows)
+    const [orders, refunds] = await Promise.all([
+      readOrders(container, rows),
+      refundOutcomesOf(
+        container,
+        rows
+          .filter(({ state }) => state === "cancelled")
+          .map((r) => r.order_id),
+      ),
+    ])
     const now = new Date()
     return new StepResponse({
       orders: rows
         .filter((operation) => orders.has(operation.order_id))
         .map((operation) =>
-          toRestaurantOrder(operation, orders.get(operation.order_id)!, now),
+          toRestaurantOrder(
+            operation,
+            orders.get(operation.order_id)!,
+            refunds.get(operation.order_id),
+            now,
+          ),
         ),
       count,
       offset: input.offset,
@@ -210,9 +252,10 @@ export async function readRestaurantOrder(
   const row = operation as unknown as OperationRow | undefined
   const order = row && (await readOrders(container, [row])).get(row.order_id)
   if (!row || !order) throw orderNotFound()
+  const refunds = await refundOutcomesOf(container, [row.order_id])
   const now = new Date()
   return {
-    order: toRestaurantOrder(row, order, now),
+    order: toRestaurantOrder(row, order, refunds.get(row.order_id), now),
     server_time: now.toISOString(),
   }
 }

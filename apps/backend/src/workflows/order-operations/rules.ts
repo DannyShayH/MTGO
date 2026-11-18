@@ -1,4 +1,8 @@
-import type { OrderOperationState } from "../../modules/order-operation/models/order-operation"
+import type {
+  CancellationCategory,
+  OrderOperationState,
+} from "../../modules/order-operation/models/order-operation"
+import { DEACTIVATION_REASON_MAX_LENGTH } from "../restaurants/deactivation-reason"
 
 /** Staff must accept strictly before paid placement plus five minutes (ADR-0009). */
 export const ACCEPTANCE_WINDOW_MS = 5 * 60 * 1000
@@ -69,14 +73,70 @@ export function decideAcceptance(
   }
 }
 
-export type OrderAction = "accept"
+/** The actor recorded for automatic outcomes, such as an acceptance timeout. */
+export const SYSTEM_ACTOR = "system"
 
-/** The actions staff may take now; later slices add reject and preparation. */
+export type CancellationDecision =
+  | { outcome: "cancel"; category: CancellationCategory }
+  | { outcome: "already_cancelled" }
+  | {
+      outcome: "refused"
+      code: "acceptance_timing_unavailable" | "order_not_awaiting_acceptance"
+    }
+
+/**
+ * Whether a pre-acceptance cancellation applies now (spec #47 stories 11,
+ * 13, 14, 31; #143). The same expiry rule as acceptance comes first: at or
+ * after the deadline the Order receives the timeout outcome, whoever asked.
+ * A recorded cancellation is the current outcome for any repeat. Accepted
+ * work is the operator's to cancel (#49), and a legacy Order without a
+ * deadline is never refunded on a guessed one.
+ */
+export function decideCancellation(
+  order: AcceptanceFacts,
+  requested: Exclude<CancellationCategory, "acceptance_timeout">,
+  now: Date,
+): CancellationDecision {
+  if (order.state === "cancelled") return { outcome: "already_cancelled" }
+  if (order.state !== "awaiting_acceptance")
+    return { outcome: "refused", code: "order_not_awaiting_acceptance" }
+  const window = acceptanceWindow(order.acceptance_deadline, now)
+  if (window === "unavailable")
+    return { outcome: "refused", code: "acceptance_timing_unavailable" }
+  return {
+    outcome: "cancel",
+    category: window === "open" ? requested : "acceptance_timeout",
+  }
+}
+
+/** The shared bound for a free-text reason, as for Restaurant deactivation. */
+export const REJECTION_REASON_MAX_LENGTH = DEACTIVATION_REASON_MAX_LENGTH
+
+// Control characters except tab and line feed, which a note may contain.
+// eslint-disable-next-line no-control-regex
+const CONTROL_CHARACTERS = /[\u0000-\u0008\u000B-\u001F\u007F]/g
+
+/**
+ * The stored form of an optional rejection reason: control characters
+ * removed and trimmed; nothing left means no reason. Length is bounded by
+ * the validator before this runs.
+ */
+export function rejectionNote(raw: string | null | undefined): string | null {
+  const note = (raw ?? "").replace(CONTROL_CHARACTERS, "").trim()
+  return note || null
+}
+
+export type OrderAction = "accept" | "reject"
+
+/**
+ * The actions staff may take now. Reject is offered exactly while Accept is:
+ * after acceptance, inability to fulfil goes to an operator (#49).
+ */
 export const availableActions = (
   order: AcceptanceFacts,
   now: Date,
 ): OrderAction[] =>
-  decideAcceptance(order, now).outcome === "accept" ? ["accept"] : []
+  decideAcceptance(order, now).outcome === "accept" ? ["accept", "reject"] : []
 
 export const QUEUE_VIEWS = ["awaiting", "active", "history"] as const
 export type QueueView = (typeof QUEUE_VIEWS)[number]

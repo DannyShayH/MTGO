@@ -11,6 +11,17 @@ export const ORDER_OPERATION_STATES = [
 export type OrderOperationState = (typeof ORDER_OPERATION_STATES)[number]
 
 /**
+ * Why an Order was cancelled before acceptance (spec #47). Each names its
+ * actor type: Restaurant staff, the system at the deadline, or the Customer.
+ */
+export const CANCELLATION_CATEGORIES = [
+  "restaurant_rejected",
+  "acceptance_timeout",
+  "customer_cancelled",
+] as const
+export type CancellationCategory = (typeof CANCELLATION_CATEGORIES)[number]
+
+/**
  * One per paid Order: its existence is the immutable paid-placement fact.
  * `order_id` and `restaurant_id` never change after creation. A legacy Order
  * placed before this record existed has no `placed_at` or deadline.
@@ -35,6 +46,17 @@ const OrderOperation = model
     /** The acceptance milestone: actual server time and the accepting staff member. */
     accepted_at: model.dateTime().nullable(),
     accepted_by: model.text().nullable(),
+    /**
+     * The business cancellation (#143): actual server time, actor (staff or
+     * Customer id, or `system`), category and an optional internal note.
+     * Authoritative even while native commerce cancellation is pending.
+     */
+    cancelled_at: model.dateTime().nullable(),
+    cancelled_by: model.text().nullable(),
+    cancellation_category: model.enum([...CANCELLATION_CATEGORIES]).nullable(),
+    cancellation_note: model.text().nullable(),
+    /** When native Order cancellation, reservations and payment collection were synchronized. */
+    native_cancelled_at: model.dateTime().nullable(),
   })
   .indexes([
     { on: ["order_id"], unique: true },

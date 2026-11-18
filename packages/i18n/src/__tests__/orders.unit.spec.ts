@@ -44,3 +44,18 @@ test("EP: only a known refusal code is recognised", () => {
   assert.equal(isOrderActionErrorCode("dish_stale"), false)
   assert.equal(isOrderActionErrorCode(undefined), false)
 })
+
+test("the Customer's cancellation and refund texts exist in both languages", async () => {
+  const { CUSTOMER_ORDER_DETAIL_TEXT } =
+    await import("../customer-order-detail.ts")
+  assert.deepEqual(
+    Object.keys(CUSTOMER_ORDER_DETAIL_TEXT.da).sort(),
+    Object.keys(CUSTOMER_ORDER_DETAIL_TEXT.en).sort(),
+  )
+  for (const locale of ["da", "en"] as const)
+    for (const status of ["pending", "failed", "succeeded"] as const)
+      assert.match(
+        CUSTOMER_ORDER_DETAIL_TEXT[locale][`refund_${status}`],
+        /\{amount\}/,
+      )
+})

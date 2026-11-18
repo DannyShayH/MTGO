@@ -5,6 +5,7 @@ import { sdk } from "@lib/config"
 import medusaError from "@lib/util/medusa-error"
 import { getAuthHeaders } from "./cookies"
 import { HttpTypes } from "@medusajs/types"
+import { log } from "@lib/logger"
 
 export const retrieveOrder = async (id: string) => {
   const headers = {
@@ -88,6 +89,52 @@ export const retrieveAccountOrder = async (id: string) => {
           ? ("not_found" as const)
           : ("failed" as const),
     }
+  }
+}
+
+/** The owning Customer's progress read (#143); refund outcome kept apart. */
+export type OrderProgress = {
+  order_id: string
+  state:
+    "awaiting_acceptance" | "accepted" | "preparing" | "ready" | "cancelled"
+  placed_at: string | null
+  accepted_at: string | null
+  cancellation: {
+    category:
+      "restaurant_rejected" | "acceptance_timeout" | "customer_cancelled"
+    cancelled_at: string
+  } | null
+  refund: {
+    status: "pending" | "failed" | "succeeded"
+    amount_including_vat: number
+    currency_code: string
+  } | null
+}
+
+/**
+ * Progress is additional to the Order details: when it cannot be read, the
+ * page still shows the purchase and simply omits the outcome panel. A
+ * refused read (another Customer's or unknown Order) is expected and the
+ * details page handles it; any other failure is logged.
+ */
+export const retrieveOrderProgress = async (
+  id: string,
+): Promise<OrderProgress | null> => {
+  try {
+    const { progress } = await sdk.client.fetch<{ progress: OrderProgress }>(
+      `/store/orders/${encodeURIComponent(id)}/progress`,
+      { method: "GET", headers: await getAuthHeaders(), cache: "no-store" },
+    )
+    return progress
+  } catch (error) {
+    const status = (error as { status?: number }).status
+    if (status !== 401 && status !== 404)
+      log("upstream.request.failed", {
+        route: "/store/orders/:id/progress",
+        method: "GET",
+        status,
+      })
+    return null
   }
 }
 

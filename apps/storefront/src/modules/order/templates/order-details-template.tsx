@@ -5,15 +5,19 @@ import { ArrowLeft, Calendar, MapPin, ShoppingBag } from "@medusajs/icons"
 import { HttpTypes } from "@medusajs/types"
 import { convertToLocale } from "@lib/util/money"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
+import type { OrderProgress } from "@lib/data/orders"
+import OrderCancellation from "@modules/order/components/order-cancellation"
 
 export default function OrderDetailsTemplate({
   order,
   locale,
   confirmation = false,
+  progress = null,
 }: {
   order: HttpTypes.StoreOrder
   locale: Locale
   confirmation?: boolean
+  progress?: OrderProgress | null
 }) {
   const text = CUSTOMER_ORDER_DETAIL_TEXT[locale]
   const address = order.shipping_address
@@ -30,7 +34,8 @@ export default function OrderDetailsTemplate({
     { day: "numeric", month: "long", year: "numeric" },
   )
   const total = convertToLocale({
-    amount: order.total,
+    // The purchased total: a cancellation's refund credit line lowers `total`.
+    amount: order.original_total ?? order.total,
     currency_code: order.currency_code,
     locale: locale === "da" ? "da-DK" : "en-GB",
   })
@@ -76,6 +81,8 @@ export default function OrderDetailsTemplate({
           </p>
         </header>
       )}
+
+      {progress && <OrderCancellation progress={progress} locale={locale} />}
 
       <section aria-labelledby="order-items-heading">
         <div className="flex items-center gap-3">

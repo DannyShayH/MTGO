@@ -71,14 +71,27 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
-      # Each HTTP spec has its own database and a free port. Locally the
-      # default stays 1 (in band) to fit an 8 GB devcontainer.
-      JEST_MAX_WORKERS: 2
+      # Each HTTP spec has its own database and a free port: three workers
+      # on the 4-vCPU runner, leaving a core for PostgreSQL so the latency
+      # gates stay meaningful. Locally the default stays 1 (in band) to fit
+      # an 8 GB devcontainer.
+      JEST_MAX_WORKERS: 3
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/prep-runner
         with:
           report-statuses: "false"
+      # Throwaway database: trade crash safety for speed. Every HTTP spec
+      # creates its own database and runs all Medusa migrations on it, and
+      # four workers write at once, so waiting on disk flushes is wasted time.
+      # These settings take effect on reload, without a restart.
+      - name: Tune the throwaway PostgreSQL for tests
+        run: |
+          docker exec ${{ job.services.postgres.id }} psql -U postgres -v ON_ERROR_STOP=1 \
+            -c "ALTER SYSTEM SET fsync = off" \
+            -c "ALTER SYSTEM SET synchronous_commit = off" \
+            -c "ALTER SYSTEM SET full_page_writes = off" \
+            -c "SELECT pg_reload_conf()"
       - name: Run lint and backend tests
         run: |
           for check in lint coverage integration-modules; do

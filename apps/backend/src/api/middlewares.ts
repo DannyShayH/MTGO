@@ -38,6 +38,7 @@ import {
   PostPartnerAcceptStaffInvitationSchema,
   GetPartnerOrdersSchema,
   PostPartnerAcceptOrderSchema,
+  PostPartnerRejectOrderSchema,
 } from "./partner/validators"
 import { isDanishPostalCode } from "../workflows/restaurants/postal-code"
 import { RESTAURANT_STAFF_ACTOR } from "../workflows/restaurant-staff"
@@ -156,6 +157,15 @@ export default defineMiddlewares({
         requireIsolatedCustomerIdentity,
         requireOwnedOrder,
         includeRequestedOrderMetadata,
+      ],
+    },
+    {
+      matcher: "/store/orders/:id/progress",
+      method: "GET",
+      middlewares: [
+        authenticate("customer", ["bearer", "session"]),
+        requireIsolatedCustomerIdentity,
+        requireOwnedOrder,
       ],
     },
     {
@@ -473,6 +483,11 @@ export default defineMiddlewares({
       matcher: "/partner/orders/:id/accept",
       method: "POST",
       middlewares: [validateAndTransformBody(PostPartnerAcceptOrderSchema)],
+    },
+    {
+      matcher: "/partner/orders/:id/reject",
+      method: "POST",
+      middlewares: [validateAndTransformBody(PostPartnerRejectOrderSchema)],
     },
     {
       matcher: "/partner/restaurants*",

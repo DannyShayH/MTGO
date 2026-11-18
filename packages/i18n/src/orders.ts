@@ -65,7 +65,31 @@ type OrderText = Record<
   | "connection_reconnecting"
   | "connection_fallback"
   | "connection_offline"
-  | "try_again",
+  | "try_again"
+  | "reject"
+  | "reject_intro"
+  | "reject_reason"
+  | "reject_reason_hint"
+  | "reject_reason_count"
+  | "reject_confirm"
+  | "rejecting"
+  | "reject_keep"
+  | "reject_unknown"
+  | "rejected_notice"
+  | "cancellation"
+  | "cancelled_restaurant_rejected"
+  | "cancelled_acceptance_timeout"
+  | "cancelled_customer_cancelled"
+  | "cancellation_note"
+  | "refund"
+  | "refund_pending"
+  | "refund_failed"
+  | "refund_succeeded"
+  | "refund_none"
+  | "operator_boundary"
+  | "refund_short_pending"
+  | "refund_short_failed"
+  | "refund_short_succeeded",
   string
 >
 
@@ -144,6 +168,36 @@ export const ORDER_TEXT: Record<Locale, OrderText> = {
     connection_offline:
       "Ingen forbindelse. Ordrerne er måske ikke aktuelle. Prøver igen automatisk.",
     try_again: "Prøv igen",
+    reject: "Afvis ordre",
+    reject_intro:
+      "Afvis kun, hvis I ikke kan lave maden. Ordren annulleres, og kunden får automatisk hele beløbet tilbage.",
+    reject_reason: "Begrundelse (valgfri)",
+    reject_reason_hint:
+      "Kun for jeres restaurant og MTOGO. Kunden ser den ikke.",
+    reject_reason_count: "{count} af {max} tegn",
+    reject_confirm: "Afvis og refunder",
+    rejecting: "Afviser…",
+    reject_keep: "Behold ordren",
+    reject_unknown:
+      "Vi ved ikke, om ordren blev afvist. Se ordrens status, og prøv igen. En ordre annulleres og refunderes kun én gang.",
+    rejected_notice: "Ordre #{number} er afvist og annulleret.",
+    cancellation: "Annullering og refusion",
+    cancelled_restaurant_rejected: "Afvist af jeres restaurant {time}",
+    cancelled_acceptance_timeout:
+      "Annulleret automatisk {time}, fordi fristen for accept udløb",
+    cancelled_customer_cancelled: "Annulleret af kunden {time}",
+    cancellation_note: "Jeres begrundelse",
+    refund: "Refusion",
+    refund_pending: "Refusion af {amount} til kunden er i gang.",
+    refund_failed:
+      "Refusionen af {amount} mislykkedes. Beløbet skyldes stadig kunden, og MTOGO følger op.",
+    refund_succeeded: "{amount} er refunderet til kunden.",
+    refund_none: "Der var ingen betaling at refundere.",
+    refund_short_pending: "Refusion i gang",
+    refund_short_failed: "Refusion mislykkedes – skyldes stadig",
+    refund_short_succeeded: "Refunderet",
+    operator_boundary:
+      "Kan I ikke lave maden alligevel? Kontakt MTOGO med ordre #{number}. En accepteret ordre kan kun annulleres af MTOGO.",
   },
   en: {
     title: "Orders",
@@ -218,6 +272,36 @@ export const ORDER_TEXT: Record<Locale, OrderText> = {
     connection_offline:
       "No connection. Orders may be out of date. Retrying automatically.",
     try_again: "Try again",
+    reject: "Reject Order",
+    reject_intro:
+      "Reject only if you cannot make the food. The Order is cancelled and the Customer is refunded in full automatically.",
+    reject_reason: "Reason (optional)",
+    reject_reason_hint:
+      "Only for your Restaurant and MTOGO. The Customer does not see it.",
+    reject_reason_count: "{count} of {max} characters",
+    reject_confirm: "Reject and refund",
+    rejecting: "Rejecting…",
+    reject_keep: "Keep Order",
+    reject_unknown:
+      "We could not confirm whether the Order was rejected. Check its status and try again. An Order is only ever cancelled and refunded once.",
+    rejected_notice: "Order #{number} is rejected and cancelled.",
+    cancellation: "Cancellation and refund",
+    cancelled_restaurant_rejected: "Rejected by your Restaurant at {time}",
+    cancelled_acceptance_timeout:
+      "Cancelled automatically at {time} because the acceptance deadline passed",
+    cancelled_customer_cancelled: "Cancelled by the Customer at {time}",
+    cancellation_note: "Your reason",
+    refund: "Refund",
+    refund_pending: "Refund of {amount} to the Customer is in progress.",
+    refund_failed:
+      "The refund of {amount} failed. It is still owed to the Customer, and MTOGO will follow up.",
+    refund_succeeded: "{amount} was refunded to the Customer.",
+    refund_none: "There was no payment to refund.",
+    refund_short_pending: "Refund in progress",
+    refund_short_failed: "Refund failed – still owed",
+    refund_short_succeeded: "Refunded",
+    operator_boundary:
+      "Can you no longer make the food? Contact MTOGO with Order #{number}. Only MTOGO can cancel an accepted Order.",
   },
 }
 

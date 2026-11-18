@@ -139,6 +139,41 @@ The zero-cost `MTOGO delivery included` shipping option is created by the
 run again without adding another option. The option is internal fulfillment
 data; the Customer's delivery charge remains zero.
 
+### GET /store/orders/:id/progress
+
+**Actor:** the owning Customer (`customer`, bearer or session), with the same
+ownership and placed-Order checks as `GET /store/orders/:id` (#143). Another
+Customer's Order, an unpaid provisional row and an unknown id are all `404`;
+signed out is `401`.
+
+```json
+{
+  "progress": {
+    "order_id": "order_01...",
+    "state": "cancelled",
+    "placed_at": "2026-11-18T12:00:00.000Z",
+    "accepted_at": null,
+    "cancellation": {
+      "category": "restaurant_rejected",
+      "cancelled_at": "2026-11-18T12:02:10.000Z"
+    },
+    "refund": {
+      "status": "failed",
+      "amount_including_vat": 190,
+      "currency_code": "dkk",
+      "last_attempted_at": "2026-11-18T12:02:10.000Z",
+      "succeeded_at": null
+    }
+  },
+  "server_time": "2026-11-18T12:03:00.000Z"
+}
+```
+
+The Customer sees the cancellation's category (`restaurant_rejected`,
+`acceptance_timeout` or `customer_cancelled`), never the Restaurant's
+free-text reason or a staff identity. A `failed` refund is still owed.
+`cancellation` and `refund` are `null` while the Order is active.
+
 ## Partner dish availability (#108)
 
 ### POST /partner/restaurants/:id/dishes/:dish_id/availability
@@ -1221,6 +1256,81 @@ curl -N http://localhost:9000/partner/orders/stream \
 | ------ | --------------------------------------------------------------- |
 | `401`  | As for `GET /partner/me`                                        |
 | `403`  | `code: "staff_access_revoked"`: revoked before the stream opens |
+
+### POST /partner/orders/{id}/reject
+
+**Actor:** Restaurant staff (`restaurant_staff`, bearer token only). Rejects an
+awaiting Order of the staff member's own Restaurant, cancels it and attempts
+its full refund (#143, spec #47 stories 11, 13, 14, 32, 33). The body is `{}`
+or `{ "reason": "..." }`. The reason is optional, at most 1000 characters
+(the shared reason bound, as for Restaurant deactivation), stored trimmed and
+without control characters; a blank one counts as none. Any other field, such
+as an actor, time or amount, is refused with `400`.
+
+```bash
+curl -X POST http://localhost:9000/partner/orders/$ORDER_ID/reject \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"reason":"The oven is broken"}'
+```
+
+Under the Order's lock the workflow re-reads the record and decides with the
+server's time. Before the deadline it records `cancellation_category:
+restaurant_rejected`, `cancelled_by` (the staff id) and the reason. At or after
+the deadline the same request records the timeout outcome instead
+(`acceptance_timeout`, `cancelled_by: "system"`, no reason). In the same
+transaction it creates the Order's one `RefundObligation` (captured minus
+already refunded, with a stable idempotency key), so both are committed before
+the provider is contacted.
+
+After the lock, the refund is attempted through Medusa's
+`refundPaymentWorkflow` with that amount and key, and the obligation records
+`pending`, `failed` or `succeeded`. Success is claimed only from the persisted
+refund row. Native cancellation then runs Medusa's own core steps: reservations
+released, uncaptured payments cancelled, the payment collection marked
+`canceled`, `order.canceled` emitted and the Order `canceled`. Medusa's
+`cancelOrderWorkflow` is not used, because it refunds without our key before
+it cancels. A provider failure, or an interrupted native step, never
+reactivates the Order. The obligation stays `failed` (owed) for operator
+handling (#49). Only the request that cancelled settles: a repeated or
+competing rejection returns the recorded cancellation and refund without
+retrying the refund or emitting events again.
+
+**Success:** `200` with `{ "order": { ... }, "server_time": "..." }`, the Order
+as `GET /partner/orders/{id}` returns it, now with:
+
+```json
+{
+  "state": "cancelled",
+  "available_actions": [],
+  "cancellation": {
+    "category": "restaurant_rejected",
+    "cancelled_at": "2026-11-18T12:02:10.000Z",
+    "note": "The oven is broken"
+  },
+  "refund": {
+    "status": "succeeded",
+    "amount_including_vat": 190,
+    "currency_code": "dkk",
+    "last_attempted_at": "2026-11-18T12:02:10.000Z",
+    "succeeded_at": "2026-11-18T12:02:11.000Z"
+  }
+}
+```
+
+`cancellation` and `refund` are `null` until the Order is cancelled, on every
+partner Order read. `note` is shown to the Restaurant's own staff only.
+
+| Status | When                                                                                                             |
+| ------ | ---------------------------------------------------------------------------------------------------------------- |
+| `400`  | An unknown field, a non-text reason or one over 1000 characters (`invalid_data`); nothing changes                |
+| `401`  | As for `GET /partner/me`                                                                                         |
+| `403`  | `code: "staff_access_revoked"`: as for `GET /partner/me`                                                         |
+| `404`  | `code: "order_not_found"`: another Restaurant's Order or an unknown one, answered identically                    |
+| `400`  | `code: "order_not_awaiting_acceptance"`: the Order is accepted or further along; staff contact an operator (#49) |
+| `400`  | `code: "acceptance_timing_unavailable"`: a legacy Order without a recorded deadline is left to an operator       |
+| `409`  | `code: "order_changed"`: the record changed between the guarded read and the write; read the Order and retry     |
+
+Each refusal carries `order` and `server_time`, as for acceptance.
 
 ### POST /partner/restaurants/{id}/open and POST /partner/restaurants/{id}/close
 

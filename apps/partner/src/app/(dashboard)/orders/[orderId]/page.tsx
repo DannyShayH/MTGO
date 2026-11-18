@@ -21,6 +21,11 @@ import {
 } from "@modules/orders/components/purchased-food"
 import { AcceptOrder } from "@modules/orders/components/accept-order"
 import { LiveOrders } from "@modules/orders/components/live-orders"
+import { RejectOrder } from "@modules/orders/components/reject-order"
+import { CancellationOutcome } from "@modules/orders/components/cancellation-outcome"
+
+/** Active kitchen work: only an operator can cancel it now (#49). */
+const ACCEPTED_STATES = new Set(["accepted", "preparing", "ready"])
 
 const LINK_CLASS =
   "focus-visible:ring-mtogo-focus-ring inline-flex min-h-11 items-center rounded border border-mtogo-border-control px-4 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
@@ -109,10 +114,25 @@ export default async function OrderPage({
             time: formatOrderTime(result.server_time, locale),
           })}
         </Text>
-        <div className="mt-2 empty:hidden">
+        <div className="mt-2 flex flex-col gap-4 empty:hidden sm:flex-row sm:items-start sm:justify-between">
           <AcceptOrder key={order.id} order={order} locale={locale} />
+          <RejectOrder
+            key={`${order.id}-reject`}
+            order={order}
+            locale={locale}
+          />
         </div>
+        {ACCEPTED_STATES.has(order.state) && (
+          <Text size="small" className="text-ui-fg-subtle mt-2 max-w-prose">
+            {formatText(text.operator_boundary, { number: order.display_id })}
+          </Text>
+        )}
       </Container>
+      {order.cancellation && (
+        <Container className="rounded-card px-4 py-4 sm:px-6 sm:py-5">
+          <CancellationOutcome order={order} locale={locale} />
+        </Container>
+      )}
       <Container className="rounded-card px-4 py-4 sm:px-6 sm:py-5">
         <Heading level="h2">{text.items}</Heading>
         <table className="mt-3 w-full table-fixed border-collapse text-left">

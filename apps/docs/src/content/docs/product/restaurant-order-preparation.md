@@ -99,7 +99,9 @@ Read-only inspection found the following constraints for the later specification
 - [#141](https://github.com/DannyShayH/MTGO/issues/141): the kitchen view shows the bilingual dish names, allergen declarations and food labels frozen at purchase.
 - [#142](https://github.com/DannyShayH/MTGO/issues/142): staff accept an awaiting Order from its details page strictly before its placement time plus five minutes, checked at the server's time. Acceptance records its time and actor once, a repeated acceptance returns the recorded one, and a late or conflicting attempt is refused with the Order's current outcome. Acceptance starts no preparation and assigns no Delivery agent. The endpoint is documented in the backend [API README](https://github.com/DannyShayH/MTGO/blob/main/apps/backend/src/api/README.md).
 
-Rejection, deadline expiry, Customer cancellation, preparation milestones, Customer progress and live updates remain open.
+- [#143](https://github.com/DannyShayH/MTGO/issues/143): staff reject an awaiting Order with an optional reason. The cancellation and its full-refund obligation are recorded before the mocked provider is called. The refund is attempted automatically with a stored idempotency key, and a failed refund leaves the Order cancelled and the money visibly owed. A rejection at or after the deadline records the timeout outcome. Staff and the Customer's existing Order page show the cancellation and the refund's pending, failed or succeeded outcome. Accepted Orders have no Reject and point staff to an MTOGO operator.
+
+Deadline expiry without a staff action, Customer cancellation, recovery of interrupted refunds, preparation milestones, the Customer food-progress timeline and live updates remain open.
 
 ## Evidence required during implementation
 

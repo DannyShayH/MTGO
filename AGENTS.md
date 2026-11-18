@@ -194,7 +194,7 @@ The devcontainer shares a few GB of memory with VS Code and the editor agents. W
 - Never run builds, `verify:applications`, Playwright or the integration suites in parallel, and never start one while another is still running in the background.
 - Stop dev servers you started before running `verify:applications` or a full suite.
 - While developing, run the single test file you are changing.
-- Leave `JEST_MAX_WORKERS` unset locally, so the backend HTTP and coverage suites run in band. Each worker boots its own Medusa app, and CI sets 2 on its 16 GB runners.
+- Leave `JEST_MAX_WORKERS` unset locally, so the backend HTTP and coverage suites run in band. Each worker boots its own Medusa app, and CI sets 3 on its 4-vCPU, 16 GB runners (a fourth worker starves PostgreSQL and fails the latency gates).
 - Pass `--concurrency=1` to Turbo builds.
 
 Single test — pass a path/pattern through to Jest, keeping `TEST_TYPE`:

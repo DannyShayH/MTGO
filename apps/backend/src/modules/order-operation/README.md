@@ -3,15 +3,16 @@
 Registered as `orderOperations` (spec #47). Owns the operational side of a paid
 Order, separate from Medusa's payment, fulfillment and Order status. Issue #140
 adds the first part: one durable record per paid Order. Issue #142 adds the
-acceptance milestone. Preparation, cancellation and refund facts arrive in
-later slices.
+acceptance milestone, and #143 the cancellation and its full-refund
+obligation. Preparation facts arrive in a later slice.
 
 ## Data model
 
-| Model            | Owns                                                                                                                                                                                                                                                                                                                |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `OrderOperation` | `order_id` (unique), `restaurant_id`, `placed_at`, `acceptance_deadline`, `state` (`awaiting_acceptance`, `accepted`, `preparing`, `ready` or `cancelled`, default `awaiting_acceptance`), `revision` (default 1), `purchased_items` (JSON, nullable), `accepted_at` and `accepted_by` (both `null` until accepted) |
-| `PurchaseReview` | `cart_id` (unique), `items` (JSON) and `reviewed_at`: the kitchen facts of the cart's last server-validated review                                                                                                                                                                                                  |
+| Model              | Owns                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `OrderOperation`   | `order_id` (unique), `restaurant_id`, `placed_at`, `acceptance_deadline`, `state` (`awaiting_acceptance`, `accepted`, `preparing`, `ready` or `cancelled`, default `awaiting_acceptance`), `revision` (default 1), `purchased_items` (JSON, nullable), `accepted_at` and `accepted_by` (both `null` until accepted), `cancelled_at`, `cancelled_by` (staff or Customer id, or `system`), `cancellation_category` (`restaurant_rejected`, `acceptance_timeout` or `customer_cancelled`), `cancellation_note` and `native_cancelled_at` (all `null` until cancelled) |
+| `RefundObligation` | `order_id` (unique), `payment_id`, `amount` (captured minus already refunded, incl. VAT), `currency_code`, `idempotency_key` (unique, `mtogo-full-refund:{order_id}`), `status` (`pending`, `failed` or `succeeded`), `attempt_count`, `last_attempted_at`, `failure_code` (a safe class, never a provider message), `refund_id` and `succeeded_at`                                                                                                                                                                                                                |
+| `PurchaseReview`   | `cart_id` (unique), `items` (JSON) and `reviewed_at`: the kitchen facts of the cart's last server-validated review                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 - **The record is the paid-placement fact.** The placement workflow creates it
   last, after capture and the Restaurant link, so an Order is placed exactly
@@ -77,6 +78,25 @@ based on a stale read matches nothing and is refused with `order_changed`.
   second acceptance. Acceptance does not touch the native Order, preparation,
   assignment or pickup.
 
+- **Reject** (`rejectPartnerOrderWorkflow`, #143): decided by
+  `decideCancellation` in `rules.ts`. While awaiting and before the deadline
+  it records `restaurant_rejected`; at or after the deadline the same request
+  records `acceptance_timeout` by `system`, the outcome the later timeout
+  sweep gives. Accepted work and legacy Orders without a deadline are refused.
+  `cancelWithRefundObligation` commits the cancellation and the Order's one
+  `RefundObligation` in one transaction, guarded like acceptance, before any
+  provider call. The step has no compensation: a committed cancellation is
+  authoritative. `settleOrderCancellationStep` then runs `attemptFullRefund`
+  (`full-refund.ts`) and `syncNativeOrderCancellationWorkflow`
+  (`native-cancellation.ts`). Neither can throw past it, both are idempotent,
+  and the later timeout, Customer-cancellation and recovery slices reuse them.
+  A refund is `succeeded` only when the payment's persisted refund with the
+  obligation's key succeeded for its amount. The pure decisions (owed amount,
+  failure class, the outcome an attempt records and the native cancellation
+  plan) live in `refund-rules.ts`, covered by `refund-rules.unit.spec.ts`. The installed payment module
+  soft-deletes a failed refund row, so the obligation is the lasting record.
+  An unset `native_cancelled_at` marks native synchronization still to repair.
+
 ## Link
 
 `src/links/order-order-operation.ts` is a read-only, one-to-one link from the Order
@@ -118,13 +138,20 @@ queue-read target, and acceptance: recorded facts, visibility after acceptance,
 retried placement, repeated and competing acceptance, refusals with the
 current outcome, closed and deactivated Restaurants, and own, foreign and
 revoked access. `src/workflows/order-operations/__tests__/rules.unit.spec.ts`
-covers the deadline boundary, the view definitions and the acceptance decision
-table (before, at and after the deadline; repeat; cancelled; legacy). The same HTTP suite
+covers the deadline boundary, the view definitions, the acceptance decision
+table (before, at and after the deadline; repeat; cancelled; legacy), the
+pre-acceptance cancellation table and the rejection reason. The same HTTP suite
 covers the kitchen feed: new Orders, a persisted change, Restaurant isolation,
 reconnection, refusals, revocation and token expiry during a connection, the
 first heartbeat, a failed read closing the stream without `ended`, and that a
 closed connection stops reading. `order-feed.unit.spec.ts` covers
 duplicate and out-of-order revisions.
+`integration-tests/http/partner-order-rejection.spec.ts` covers rejection
+with and without a reason, its bounds, refused client fields, repeats and a
+competing rejection (one refund, one credit line), an explicitly failing mock
+provider (cancellation kept, refund `failed`), an interrupted native
+cancellation (Order stays cancelled, `native_cancelled_at` unset), the timeout outcome, accepted
+and legacy refusals, history, access, and the Customer progress read.
 
 Measured locally in the devcontainer (in-process HTTP runner, disposable
 PostgreSQL, one Restaurant with five awaiting Orders, twenty simultaneous

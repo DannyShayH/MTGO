@@ -15,7 +15,7 @@ export type OrderActionResult = {
   error?: OrderActionErrorCode
 }
 
-const ROUTE = "/partner/orders/:id/accept"
+type OrderAction = "accept" | "reject"
 
 /**
  * Accepts one of the staff member's Restaurant's Orders. The backend decides
@@ -24,13 +24,33 @@ const ROUTE = "/partner/orders/:id/accept"
  * fresh read instead of a guess.
  */
 export async function acceptOrder(orderId: string): Promise<OrderActionResult> {
+  return postOrderAction(orderId, "accept", {})
+}
+
+/**
+ * Rejects an awaiting Order with an optional reason (#143). The backend
+ * cancels it and starts the full refund; time, actor and amount are its own.
+ */
+export async function rejectOrder(
+  orderId: string,
+  reason: string,
+): Promise<OrderActionResult> {
+  return postOrderAction(orderId, "reject", reason.trim() ? { reason } : {})
+}
+
+async function postOrderAction(
+  orderId: string,
+  action: OrderAction,
+  payload: Record<string, string>,
+): Promise<OrderActionResult> {
+  const route = `/partner/orders/:id/${action}`
   const token = (await cookies()).get(PARTNER_TOKEN_COOKIE)?.value
   const correlationId = requestId((await headers()).get("x-request-id"))
   let response: Response
   try {
     response = await fetch(
       new URL(
-        `/partner/orders/${encodeURIComponent(orderId)}/accept`,
+        `/partner/orders/${encodeURIComponent(orderId)}/${action}`,
         BACKEND_URL,
       ),
       {
@@ -41,13 +61,13 @@ export async function acceptOrder(orderId: string): Promise<OrderActionResult> {
           "content-type": "application/json",
           "x-request-id": correlationId,
         },
-        body: "{}",
+        body: JSON.stringify(payload),
       },
     )
   } catch {
     log("upstream.request.failed", {
       request_id: correlationId,
-      route: ROUTE,
+      route,
       method: "POST",
     })
     revalidatePath("/orders", "layout")
@@ -65,7 +85,7 @@ export async function acceptOrder(orderId: string): Promise<OrderActionResult> {
   if (response.ok) return { order: body?.order }
   log("upstream.request.failed", {
     request_id: correlationId,
-    route: ROUTE,
+    route,
     method: "POST",
     status: response.status,
   })

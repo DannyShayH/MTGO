@@ -13,6 +13,9 @@ export const ORDERS_PAGE_SIZE = 20
 export type OrderState =
   "awaiting_acceptance" | "accepted" | "preparing" | "ready" | "cancelled"
 
+export type CancellationCategory =
+  "restaurant_rejected" | "acceptance_timeout" | "customer_cancelled"
+
 /** What the backend decided about the acceptance window at `server_time`. */
 export type AcceptanceWindow = "open" | "elapsed" | "unavailable"
 
@@ -59,7 +62,19 @@ export type RestaurantOrder = {
   acceptance_window: AcceptanceWindow
   accepted_at: string | null
   /** What staff may do now, as the backend decided at `server_time`. */
-  available_actions: "accept"[]
+  available_actions: ("accept" | "reject")[]
+  /** Null until cancelled. The note is the rejecting staff's own, never the Customer's. */
+  cancellation: {
+    category: CancellationCategory
+    cancelled_at: string
+    note: string | null
+  } | null
+  /** The owed full refund; `failed` means still owed, never money returned. */
+  refund: {
+    status: "pending" | "failed" | "succeeded"
+    amount_including_vat: number
+    currency_code: string
+  } | null
   currency_code: string
   total_including_vat: number
   items: {

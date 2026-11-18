@@ -1,9 +1,10 @@
 import Link from "next/link"
 import { formatOrderTime, formatText, ORDER_TEXT, type Locale } from "@dtc/i18n"
-import { Text } from "@medusajs/ui"
+import { Badge, Text } from "@medusajs/ui"
 import type { RestaurantOrder } from "@lib/data/orders"
 import { AcceptanceDeadline, OrderStateBadge } from "./order-status"
 import { pickPurchasedName } from "./purchased-food"
+import { REFUND_COLORS } from "./cancellation-outcome"
 
 /**
  * One scannable queue entry: reference, state, deadline and purchased dishes,
@@ -29,7 +30,14 @@ export function OrderCard({
           <Text weight="plus" className="txt-compact-large-plus">
             {reference}
           </Text>
-          <OrderStateBadge state={order.state} locale={locale} />
+          <div className="flex flex-wrap items-center gap-2">
+            {order.refund && (
+              <Badge size="small" color={REFUND_COLORS[order.refund.status]}>
+                {text[`refund_short_${order.refund.status}`]}
+              </Badge>
+            )}
+            <OrderStateBadge state={order.state} locale={locale} />
+          </div>
         </div>
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           <AcceptanceDeadline order={order} locale={locale} />
