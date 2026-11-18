@@ -16,7 +16,6 @@ import {
   capturePaymentWorkflow,
   createRemoteLinkStep,
   releaseLockStep,
-  updateOrdersStep,
 } from "@medusajs/medusa/core-flows"
 import { RESTAURANT_MODULE } from "../../modules/restaurant"
 import {
@@ -24,10 +23,8 @@ import {
   restaurantsOfVariants,
   ReviewedCart,
 } from "../carts/review-basket"
-import {
-  AWAITING_ACCEPTANCE,
-  ORDER_STATE_METADATA_KEY,
-} from "./placed-order-visibility"
+import { recordPaidPlacementStep } from "../order-operations/steps/record-paid-placement"
+import { hasPaidPlacement } from "./placed-order-visibility"
 
 type Input = { order_id: string; cart_id: string }
 
@@ -37,7 +34,6 @@ type PlacementFacts = {
   payment_id: string
   captured: boolean
   linked: boolean
-  metadata: Record<string, unknown>
 }
 
 /** Read-only: decides what is still missing, so each write below is a compensable core step. */
@@ -56,6 +52,7 @@ const loadPlacementFactsStep = createStep(
         fields: [
           "id",
           "metadata",
+          "order_operation.id",
           "restaurant.id",
           "payment_collections.payments.id",
           "payment_collections.payments.captured_at",
@@ -67,6 +64,7 @@ const loadPlacementFactsStep = createStep(
     const order = orders[0] as unknown as
       | {
           metadata?: Record<string, unknown> | null
+          order_operation?: { id: string } | null
           restaurant?: { id: string } | null
           payment_collections?: {
             payments?: { id: string; captured_at?: Date | string | null }[]
@@ -75,8 +73,7 @@ const loadPlacementFactsStep = createStep(
       | undefined
     if (!cart || !order)
       throw new MedusaError(MedusaError.Types.NOT_FOUND, "order_not_found")
-    const metadata = order.metadata ?? {}
-    if (metadata[ORDER_STATE_METADATA_KEY] === AWAITING_ACCEPTANCE)
+    if (hasPaidPlacement(order))
       return new StepResponse({ placed: true } as PlacementFacts)
 
     const variants = cartVariantIds(cart.items)
@@ -103,14 +100,15 @@ const loadPlacementFactsStep = createStep(
       payment_id: payment.id,
       captured: !!payment.captured_at,
       linked: !!order.restaurant,
-      metadata,
     })
   },
 )
 
 /**
- * Capture the mock payment, link the Restaurant, then expose the Order. The cart
- * lock also serializes a retried post-completion capture and linking.
+ * Capture the mock payment, link the Restaurant, then expose the Order by
+ * recording its paid placement. The cart lock also serializes a retried
+ * post-completion capture and linking; a placed Order keeps its placement time
+ * and deadline.
  */
 export const placePaidRestaurantOrderWorkflow = createWorkflow(
   "place-paid-restaurant-order",
@@ -144,20 +142,15 @@ export const placePaidRestaurantOrderWorkflow = createWorkflow(
     })
 
     when(
-      "mark-needed",
+      "placement-record-needed",
       { facts },
       ({ facts }) => !(facts as PlacementFacts).placed,
     ).then(() => {
-      const update = transform({ facts, input }, ({ facts, input }) => ({
-        selector: { id: input.order_id },
-        update: {
-          metadata: {
-            ...(facts as PlacementFacts).metadata,
-            [ORDER_STATE_METADATA_KEY]: AWAITING_ACCEPTANCE,
-          },
-        },
+      const placement = transform({ facts, input }, ({ facts, input }) => ({
+        order_id: input.order_id,
+        restaurant_id: (facts as PlacementFacts).restaurant_id,
       }))
-      updateOrdersStep(update)
+      recordPaidPlacementStep(placement)
     })
 
     releaseLockStep({ key: input.cart_id })

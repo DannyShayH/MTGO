@@ -20,9 +20,15 @@ export default function OrderRow({
     archived: text.archived,
     requires_action: text.requiresAction,
   }
+  // Placed since #140: the operational record; before it, the metadata marker.
+  const { order_operation } = order as typeof order & {
+    order_operation?: { state?: string } | null
+  }
+  const awaitingAcceptance = order_operation
+    ? order_operation.state === "awaiting_acceptance"
+    : order.metadata?.mtogo_order_state === "awaiting_restaurant_acceptance"
   const state =
-    order.metadata?.mtogo_order_state === "awaiting_restaurant_acceptance" &&
-    order.status === "pending"
+    awaitingAcceptance && order.status === "pending"
       ? CUSTOMER_ORDER_CONFIRMATION_TEXT[locale].state
       : (statuses[order.status] ?? order.status)
   const itemCount = order.items?.reduce((sum, item) => sum + item.quantity, 0)

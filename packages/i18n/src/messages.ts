@@ -32,6 +32,7 @@ export type Messages = {
     categories: string
     allergens: string
     menu: string
+    orders: string
     overview: string
     signed_in_as: string
     restaurant: string
@@ -89,6 +90,7 @@ export const MESSAGES: Record<Locale, Messages> = {
       sign_out: "Log ud",
       navigation: "Hovedmenu",
       overview: "Overblik",
+      orders: "Ordrer",
       categories: "Kategorier",
       allergens: "Allergener",
       menu: "Menu",
@@ -155,6 +157,7 @@ export const MESSAGES: Record<Locale, Messages> = {
       sign_out: "Sign out",
       navigation: "Main menu",
       overview: "Overview",
+      orders: "Orders",
       categories: "Categories",
       allergens: "Allergens",
       menu: "Menu",

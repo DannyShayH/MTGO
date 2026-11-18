@@ -21,6 +21,7 @@ export {
   type CustomerAuthCode,
 } from "./customer-auth.ts"
 export { MENU_TEXT } from "./menu.ts"
+export { ORDER_TEXT, formatOrderTime } from "./orders.ts"
 
 export {
   CATEGORY_SUGGESTIONS,

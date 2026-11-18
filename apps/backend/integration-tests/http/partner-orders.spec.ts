@@ -1,0 +1,785 @@
+import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
+import {
+  ContainerRegistrationKeys,
+  generateJwtToken,
+  Modules,
+} from "@medusajs/framework/utils"
+import { ExecArgs } from "@medusajs/framework/types"
+import {
+  createApiKeysWorkflow,
+  createOrderWorkflow,
+  createRegionsWorkflow,
+  createStockLocationsWorkflow,
+  linkSalesChannelsToApiKeyWorkflow,
+} from "@medusajs/medusa/core-flows"
+import { RESTAURANT_MODULE } from "../../src/modules/restaurant"
+import type RestaurantModuleService from "../../src/modules/restaurant/service"
+import { ORDER_OPERATION_MODULE } from "../../src/modules/order-operation"
+import type OrderOperationModuleService from "../../src/modules/order-operation/service"
+import register from "../../src/modules/postal-code/data/postal-codes.json"
+import { syncPostalCodeRegisterWorkflow } from "../../src/workflows/postal-codes"
+import {
+  ensureMenuCommerceSetupWorkflow,
+  readPublishedMenu,
+} from "../../src/workflows/menu"
+import { ensureDenmarkRegionWorkflow } from "../../src/workflows/regions/ensure-denmark-region"
+import {
+  createAuthorizedStaffWorkflow,
+  revokeRestaurantStaffWorkflow,
+} from "../../src/workflows/restaurant-staff"
+import seedDemoMenu from "../../src/scripts/seed-demo-menu"
+import menuDelivery from "../../src/migration-scripts/menu-delivery"
+import legacyOrderPlacements from "../../src/migration-scripts/legacy-order-placements"
+
+jest.setTimeout(240000)
+
+const FIVE_MINUTES = 5 * 60 * 1000
+
+const restaurant = (name: string, street: string) => ({
+  name,
+  address_street: street,
+  address_postal_code: "2200",
+  address_city: "København N",
+  contact_phone: "+45 12 34 56 78",
+  contact_email: "kontakt@restaurant.example",
+})
+
+const address = {
+  first_name: "Ada",
+  last_name: "Lovelace",
+  address_1: "Testvej 1",
+  address_2: "",
+  company: "",
+  postal_code: "2200",
+  city: "København N",
+  province: "",
+  country_code: "dk",
+  phone: "+45 12 34 56 78",
+}
+
+type QueueOrder = {
+  id: string
+  display_id: number
+  state: string
+  placed_at: string | null
+  acceptance_deadline: string | null
+  acceptance_window: string
+  items: { name: string; quantity: number; unit_price: number }[]
+}
+
+medusaIntegrationTestRunner({
+  dbName: "medusa_ci_partner_orders_http",
+  env: { JWT_SECRET: "ci-only-partner-orders-secret", REDIS_URL: "" },
+  testSuite: ({ api, getContainer }) => {
+    const password = "ci-only-orders-password"
+    let admin: { authorization: string }
+    let store: { "x-publishable-api-key": string }
+    let customer: Record<string, string>
+    let customerId: string
+    let regionId: string
+    let pizzeriaId: string
+    let burgerId: string
+
+    const operations = () =>
+      getContainer().resolve<OrderOperationModuleService>(
+        ORDER_OPERATION_MODULE,
+      )
+    const restaurants = () =>
+      getContainer().resolve<RestaurantModuleService>(RESTAURANT_MODULE)
+
+    const activate = async (id: string) => {
+      await api.post(
+        `/admin/restaurants/${id}/commercial-terms`,
+        { terms_version: "common_mvp_v1" },
+        { headers: admin },
+      )
+      await api.post(
+        `/admin/restaurants/${id}/delivery-area-postal-codes`,
+        { postal_code: "2200" },
+        { headers: admin },
+      )
+      await restaurants().updateRestaurants({
+        id,
+        is_active: true,
+        is_open: true,
+      })
+    }
+
+    const registerCustomer = async (email: string) => {
+      const registration = await api.post(
+        "/auth/customer/customer-emailpass/register",
+        { email, password },
+      )
+      const { auth_identity_id } = JSON.parse(
+        Buffer.from(
+          registration.data.token.split(".")[1],
+          "base64url",
+        ).toString(),
+      )
+      const auth = getContainer().resolve(Modules.AUTH)
+      const verification = await auth.requestAuthVerification({
+        auth_identity_id,
+        entity_id: email,
+        entity_type: "email",
+        code_provider: "token",
+      })
+      await auth.confirmAuthVerification({
+        code: verification.code!,
+        code_provider: "token",
+      })
+      const created = await api.post(
+        "/store/customers",
+        { email },
+        {
+          headers: {
+            ...store,
+            authorization: `Bearer ${registration.data.token}`,
+          },
+        },
+      )
+      const login = await api.post("/auth/customer/customer-emailpass", {
+        email,
+        password,
+      })
+      return {
+        id: created.data.customer.id as string,
+        headers: { ...store, authorization: `Bearer ${login.data.token}` },
+      }
+    }
+
+    /** The Customer's whole paid checkout through the public completion route. */
+    const reviewedCartOf = async (restaurantId: string, quantity = 1) => {
+      const [{ dishes }] = await readPublishedMenu(getContainer(), restaurantId)
+      const dish = dishes[0]
+      const cartId = (
+        await api.post(
+          "/store/carts",
+          { region_id: regionId },
+          { headers: customer },
+        )
+      ).data.cart.id as string
+      await api.post(
+        `/store/carts/${cartId}/line-items`,
+        {
+          variant_id: dish.variant_id,
+          quantity,
+          metadata: {
+            mtogo_dish: { revision: dish.revision, price: dish.price.amount },
+          },
+        },
+        { headers: customer },
+      )
+      await api.post(
+        `/store/carts/${cartId}`,
+        {
+          email: "orders-customer@example.test",
+          shipping_address: address,
+          billing_address: address,
+          locale: "da",
+          metadata: {
+            mtogo_checkout_review: {
+              version: 1,
+              customer_id: customerId,
+              destination: address,
+              contact: {
+                first_name: address.first_name,
+                last_name: address.last_name,
+                phone: address.phone,
+                email: "orders-customer@example.test",
+              },
+              order_language: "da",
+              reviewed_at: new Date().toISOString(),
+            },
+          },
+        },
+        { headers: customer },
+      )
+      const { data: options } = await api.get(
+        `/store/shipping-options?cart_id=${cartId}`,
+        { headers: customer },
+      )
+      const delivery = options.shipping_options.find(
+        ({ name }: { name: string }) => name === "MTOGO delivery included",
+      )
+      await api.post(
+        `/store/carts/${cartId}/shipping-methods`,
+        { option_id: delivery.id },
+        { headers: customer },
+      )
+      const collection = await api.post(
+        "/store/payment-collections",
+        { cart_id: cartId },
+        { headers: customer },
+      )
+      await api.post(
+        `/store/payment-collections/${collection.data.payment_collection.id}/payment-sessions`,
+        { provider_id: "pp_system_default" },
+        { headers: customer },
+      )
+      return { cartId, dish }
+    }
+    const complete = (cartId: string) =>
+      api.post(`/store/carts/${cartId}/complete`, {}, { headers: customer })
+    const placePaidOrder = async (restaurantId: string, quantity = 1) => {
+      const { cartId } = await reviewedCartOf(restaurantId, quantity)
+      return (await complete(cartId)).data.order as {
+        id: string
+        display_id: number
+        order_operation: { placed_at: string; acceptance_deadline: string }
+      }
+    }
+
+    const signInAsStaffOf = async (restaurant_id: string, email: string) => {
+      const registered = await api.post(
+        "/auth/restaurant_staff/emailpass/register",
+        { email, password },
+      )
+      const { auth_identity_id } = JSON.parse(
+        Buffer.from(
+          registered.data.token.split(".")[1],
+          "base64url",
+        ).toString(),
+      )
+      const { result } = await createAuthorizedStaffWorkflow(
+        getContainer(),
+      ).run({
+        input: { restaurant_id, name: "Mette Jensen", email, auth_identity_id },
+      })
+      const { data } = await api.post("/auth/restaurant_staff/emailpass", {
+        email,
+        password,
+      })
+      return {
+        staffId: result.id,
+        headers: { authorization: `Bearer ${data.token}` },
+      }
+    }
+    const queue = (headers: Record<string, string>, query = "") =>
+      api.get(`/partner/orders${query}`, {
+        headers,
+        validateStatus: () => true,
+      })
+    const detail = (headers: Record<string, string>, id: string) =>
+      api.get(`/partner/orders/${id}`, { headers, validateStatus: () => true })
+
+    beforeEach(async () => {
+      const container = getContainer()
+      await syncPostalCodeRegisterWorkflow(container).run({
+        input: { postal_codes: register.postal_codes },
+      })
+      const user = await container
+        .resolve(Modules.USER)
+        .createUsers({ email: "operator@example.test" })
+      admin = {
+        authorization: `Bearer ${generateJwtToken(
+          { actor_id: user.id, actor_type: "user", auth_identity_id: "auth" },
+          {
+            secret: container.resolve(ContainerRegistrationKeys.CONFIG_MODULE)
+              .projectConfig.http.jwtSecret,
+            expiresIn: "1h",
+          },
+        )}`,
+      }
+      const setup = await ensureMenuCommerceSetupWorkflow(container).run({
+        input: undefined,
+      })
+      const {
+        result: [key],
+      } = await createApiKeysWorkflow(container).run({
+        input: {
+          api_keys: [
+            { title: "Customer app", type: "publishable", created_by: "" },
+          ],
+        },
+      })
+      await linkSalesChannelsToApiKeyWorkflow(container).run({
+        input: { id: key.id, add: [setup.result.sales_channel_id] },
+      })
+      store = { "x-publishable-api-key": key.token }
+      await createRegionsWorkflow(container).run({
+        input: {
+          regions: [
+            { name: "Europe", currency_code: "eur", countries: ["dk", "se"] },
+          ],
+        },
+      })
+      await ensureDenmarkRegionWorkflow(container).run({ input: undefined })
+      const { regions } = (
+        await api.get("/store/regions?fields=id,*countries", { headers: store })
+      ).data
+      regionId = regions.find(
+        ({ countries }: { countries: { iso_2: string }[] }) =>
+          countries.some(({ iso_2 }) => iso_2 === "dk"),
+      ).id
+      const {
+        result: [location],
+      } = await createStockLocationsWorkflow(container).run({
+        input: {
+          locations: [
+            {
+              name: "Restaurant delivery test",
+              address: { city: "København", country_code: "DK", address_1: "" },
+            },
+          ],
+        },
+      })
+      const set = await container
+        .resolve(Modules.FULFILLMENT)
+        .createFulfillmentSets({
+          name: "Restaurant delivery test",
+          type: "shipping",
+          service_zones: [
+            {
+              name: "Denmark",
+              geo_zones: [{ country_code: "dk", type: "country" }],
+            },
+          ],
+        })
+      const link = container.resolve(ContainerRegistrationKeys.LINK)
+      await link.create({
+        [Modules.STOCK_LOCATION]: { stock_location_id: location.id },
+        [Modules.FULFILLMENT]: { fulfillment_set_id: set.id },
+      })
+      await link.create({
+        [Modules.STOCK_LOCATION]: { stock_location_id: location.id },
+        [Modules.FULFILLMENT]: { fulfillment_provider_id: "manual_manual" },
+      })
+      await menuDelivery({ container })
+
+      pizzeriaId = (
+        await api.post(
+          "/admin/restaurants",
+          restaurant("Pizzeria Nørrebro", "Nørrebrogade 1"),
+          { headers: admin },
+        )
+      ).data.restaurant.id
+      burgerId = (
+        await api.post(
+          "/admin/restaurants",
+          restaurant("Burgerbaren", "Nørrebrogade 2"),
+          { headers: admin },
+        )
+      ).data.restaurant.id
+      for (const id of [pizzeriaId, burgerId]) {
+        await seedDemoMenu({ container, args: [id] } as ExecArgs)
+        await activate(id)
+      }
+      const registered = await registerCustomer("orders-customer@example.test")
+      customer = registered.headers
+      customerId = registered.id
+    })
+
+    describe("paid placement", () => {
+      it("records one placement time and deadline, kept across a retried completion", async () => {
+        const { cartId, dish } = await reviewedCartOf(pizzeriaId, 2)
+        const first = (await complete(cartId)).data.order
+        const placedAt = new Date(first.order_operation.placed_at).getTime()
+        expect(Math.abs(placedAt - Date.now())).toBeLessThan(60000)
+        expect(
+          new Date(first.order_operation.acceptance_deadline).getTime(),
+        ).toBe(placedAt + FIVE_MINUTES)
+
+        const retried = (await complete(cartId)).data.order
+        expect(retried.id).toBe(first.id)
+        expect(retried.order_operation).toEqual(first.order_operation)
+        expect(retried.payment_collections[0].payments).toHaveLength(1)
+        expect(Number(retried.payment_collections[0].payments[0].amount)).toBe(
+          dish.price.amount * 2,
+        )
+        const records = await operations().listOrderOperations({
+          order_id: first.id,
+        })
+        expect(records).toHaveLength(1)
+      })
+
+      it("keeps paid Orders visible to Customer and Admin whatever their later operational state", async () => {
+        const accepted = await placePaidOrder(pizzeriaId)
+        const cancelled = await placePaidOrder(pizzeriaId)
+        for (const [order, state] of [
+          [accepted, "accepted"],
+          [cancelled, "cancelled"],
+        ] as const) {
+          const [record] = await operations().listOrderOperations({
+            order_id: order.id,
+          })
+          await operations().updateOrderOperations({ id: record.id, state })
+        }
+        // A provisional core row from an unfinished completion stays hidden.
+        await createOrderWorkflow(getContainer()).run({
+          input: {
+            region_id: regionId,
+            customer_id: customerId,
+            email: "orders-customer@example.test",
+            currency_code: "dkk",
+            metadata: { mtogo_checkout_review: { version: 1 } },
+            items: [{ title: "Provisional", quantity: 1, unit_price: 100 }],
+          },
+        })
+
+        const all = await api.get("/store/orders", { headers: customer })
+        expect(all.data.count).toBe(2)
+        // History labels an Order by its operational state, not a metadata marker.
+        expect(
+          Object.fromEntries(
+            all.data.orders.map(
+              (o: { id: string; order_operation: { state: string } }) => [
+                o.id,
+                o.order_operation.state,
+              ],
+            ),
+          ),
+        ).toEqual({ [accepted.id]: "accepted", [cancelled.id]: "cancelled" })
+        expect(
+          all.data.orders.map(({ id }: { id: string }) => id).sort(),
+        ).toEqual([accepted.id, cancelled.id].sort())
+        for (const id of [accepted.id, cancelled.id]) {
+          expect(
+            (await api.get(`/store/orders/${id}`, { headers: customer }))
+              .status,
+          ).toBe(200)
+          expect(
+            (await api.get(`/admin/orders/${id}`, { headers: admin })).status,
+          ).toBe(200)
+        }
+        const operator = await api.get("/admin/orders", { headers: admin })
+        expect(operator.data.count).toBe(2)
+      })
+    })
+
+    describe("GET /partner/orders", () => {
+      it("shows staff their Restaurant's awaiting Orders by earliest deadline, paginated", async () => {
+        const first = await placePaidOrder(pizzeriaId, 2)
+        const second = await placePaidOrder(pizzeriaId)
+        const third = await placePaidOrder(pizzeriaId)
+        const foreign = await placePaidOrder(burgerId)
+        // Two Orders sharing a deadline keep a stable order by id.
+        const records = await operations().listOrderOperations({
+          order_id: [second.id, third.id],
+        })
+        const tie = new Date(first.order_operation.acceptance_deadline)
+        tie.setSeconds(tie.getSeconds() + 30)
+        await operations().updateOrderOperations(
+          records.map(({ id }) => ({ id, acceptance_deadline: tie })),
+        )
+        const tied = [...records]
+          .sort((x, y) => (x.id < y.id ? -1 : 1))
+          .map(({ order_id }) => order_id)
+        const { headers } = await signInAsStaffOf(
+          pizzeriaId,
+          "mette@pizzeria.example",
+        )
+
+        const page = await queue(headers, "?limit=2")
+        expect(page.status).toBe(200)
+        expect(page.data).toMatchObject({ count: 3, offset: 0, limit: 2 })
+        expect(Date.parse(page.data.server_time)).not.toBeNaN()
+        const rest = await queue(headers, "?limit=2&offset=2")
+        const ids = [...page.data.orders, ...rest.data.orders].map(
+          ({ id }: QueueOrder) => id,
+        )
+        expect(ids).toEqual([first.id, ...tied])
+        expect(ids).not.toContain(foreign.id)
+
+        const [top] = page.data.orders as QueueOrder[]
+        expect(top).toMatchObject({
+          id: first.id,
+          display_id: first.display_id,
+          state: "awaiting_acceptance",
+          placed_at: first.order_operation.placed_at,
+          acceptance_deadline: first.order_operation.acceptance_deadline,
+          acceptance_window: "open",
+          currency_code: "dkk",
+        })
+        expect(top.items).toEqual([
+          expect.objectContaining({ quantity: 2, name: expect.any(String) }),
+        ])
+        // Kitchen reads carry no Customer account or contact details.
+        const text = JSON.stringify(page.data)
+        expect(text).not.toContain("orders-customer@example.test")
+        expect(text).not.toContain("Lovelace")
+        expect(text).not.toContain(customerId)
+
+        for (const view of ["active", "history"]) {
+          const empty = await queue(headers, `?view=${view}`)
+          expect(empty.data).toMatchObject({ orders: [], count: 0 })
+        }
+      })
+
+      it("moves an Order between views by its operational state and reports an elapsed window honestly", async () => {
+        const order = await placePaidOrder(pizzeriaId)
+        const late = await placePaidOrder(pizzeriaId)
+        const { headers } = await signInAsStaffOf(
+          pizzeriaId,
+          "mette@pizzeria.example",
+        )
+        const [record] = await operations().listOrderOperations({
+          order_id: order.id,
+        })
+        await operations().updateOrderOperations({
+          id: record.id,
+          state: "preparing",
+        })
+        const [lateRecord] = await operations().listOrderOperations({
+          order_id: late.id,
+        })
+        await operations().updateOrderOperations({
+          id: lateRecord.id,
+          acceptance_deadline: new Date(Date.now() - 1000),
+        })
+
+        const active = await queue(headers, "?view=active")
+        expect(active.data.orders.map(({ id }: QueueOrder) => id)).toEqual([
+          order.id,
+        ])
+        expect(active.data.orders[0].state).toBe("preparing")
+        const awaiting = await queue(headers)
+        expect(awaiting.data.orders).toEqual([
+          expect.objectContaining({
+            id: late.id,
+            acceptance_window: "elapsed",
+            state: "awaiting_acceptance",
+          }),
+        ])
+        await operations().updateOrderOperations({
+          id: record.id,
+          state: "cancelled",
+        })
+        expect((await queue(headers, "?view=history")).data.orders[0].id).toBe(
+          order.id,
+        )
+      })
+
+      it("keeps a closed or deactivated Restaurant's paid Orders readable for its staff", async () => {
+        const order = await placePaidOrder(pizzeriaId)
+        const { headers } = await signInAsStaffOf(
+          pizzeriaId,
+          "mette@pizzeria.example",
+        )
+        await restaurants().updateRestaurants({
+          id: pizzeriaId,
+          is_open: false,
+        })
+        expect((await queue(headers)).data.orders[0].id).toBe(order.id)
+        await restaurants().updateRestaurants({
+          id: pizzeriaId,
+          is_active: false,
+        })
+        expect((await queue(headers)).data.orders[0].id).toBe(order.id)
+        expect((await detail(headers, order.id)).status).toBe(200)
+      })
+
+      it("shows a legacy Order with unavailable timing instead of an invented deadline", async () => {
+        const recent = await placePaidOrder(pizzeriaId)
+        const legacy = await placePaidOrder(pizzeriaId)
+        // Placed before #140: only the metadata marker recorded placement.
+        const [record] = await operations().listOrderOperations({
+          order_id: legacy.id,
+        })
+        await operations().deleteOrderOperations(record.id)
+        const orderModule = getContainer().resolve(Modules.ORDER)
+        const { metadata } = await orderModule.retrieveOrder(legacy.id, {
+          select: ["metadata"],
+        })
+        await orderModule.updateOrders(legacy.id, {
+          metadata: {
+            ...metadata,
+            mtogo_order_state: "awaiting_restaurant_acceptance",
+          },
+        })
+        expect(
+          (await api.get(`/store/orders/${legacy.id}`, { headers: customer }))
+            .status,
+        ).toBe(200)
+
+        await legacyOrderPlacements({ container: getContainer() })
+        await legacyOrderPlacements({ container: getContainer() })
+        expect(
+          await operations().listOrderOperations({ order_id: legacy.id }),
+        ).toHaveLength(1)
+        const { headers } = await signInAsStaffOf(
+          pizzeriaId,
+          "mette@pizzeria.example",
+        )
+        const { data } = await queue(headers)
+        expect(data.orders.map(({ id }: QueueOrder) => id)).toEqual([
+          recent.id,
+          legacy.id,
+        ])
+        expect(data.orders[1]).toMatchObject({
+          placed_at: null,
+          acceptance_deadline: null,
+          acceptance_window: "unavailable",
+          state: "awaiting_acceptance",
+        })
+      })
+
+      it("serves twenty simultaneous queue journeys with at least 95% within two seconds", async () => {
+        const orders: { id: string }[] = []
+        for (let i = 0; i < 5; i++)
+          orders.push(await placePaidOrder(pizzeriaId))
+        const { headers } = await signInAsStaffOf(
+          pizzeriaId,
+          "mette@pizzeria.example",
+        )
+        const durations = (
+          await Promise.all(
+            Array.from({ length: 20 }, async (_, i) => {
+              const timed = async (read: () => Promise<{ status: number }>) => {
+                const start = performance.now()
+                expect((await read()).status).toBe(200)
+                return performance.now() - start
+              }
+              return [
+                await timed(() => queue(headers)),
+                await timed(() => detail(headers, orders[i % 5].id)),
+              ]
+            }),
+          )
+        )
+          .flat()
+          .sort((a, b) => a - b)
+        const percentile = (share: number) =>
+          durations[Math.ceil(share * durations.length) - 1]
+        console.log(
+          `Partner Orders queue, 20 concurrent journeys (list + detail), 5 Orders: ` +
+            `p50 ${Math.round(percentile(0.5))} ms, p95 ${Math.round(percentile(0.95))} ms`,
+        )
+        expect(
+          durations.filter((d) => d <= 2000).length / durations.length,
+        ).toBeGreaterThanOrEqual(0.95)
+      })
+    })
+
+    describe("access", () => {
+      type Caller =
+        | "own_staff"
+        | "signed_out"
+        | "customer"
+        | "foreign_staff"
+        | "revoked_staff"
+      it.each([
+        {
+          caller: "own_staff" as Caller,
+          status: 200,
+          sees: true,
+          reason: "DT R1: authorized staff of the owning Restaurant",
+        },
+        {
+          caller: "signed_out" as Caller,
+          status: 401,
+          sees: false,
+          reason: "DT R2: no token",
+        },
+        {
+          caller: "customer" as Caller,
+          status: 401,
+          sees: false,
+          reason: "DT R3: signed in, wrong actor type (Customer)",
+        },
+        {
+          caller: "foreign_staff" as Caller,
+          status: 404,
+          sees: false,
+          reason: "DT R4: authorized staff of another Restaurant",
+        },
+        {
+          caller: "revoked_staff" as Caller,
+          status: 403,
+          sees: false,
+          reason:
+            "DT R5: staff of the owning Restaurant whose access was revoked",
+        },
+      ])("$reason", async ({ caller, status, sees }) => {
+        const order = await placePaidOrder(pizzeriaId)
+        const own = await signInAsStaffOf(pizzeriaId, "mette@pizzeria.example")
+        const headersOf: Record<Caller, () => Promise<Record<string, string>>> =
+          {
+            own_staff: async () => own.headers,
+            signed_out: async () => ({}),
+            customer: async () => ({ authorization: customer.authorization }),
+            foreign_staff: async () =>
+              (await signInAsStaffOf(burgerId, "bo@burger.example")).headers,
+            revoked_staff: async () => {
+              const { data } = await api.get("/admin/users/me", {
+                headers: admin,
+              })
+              await revokeRestaurantStaffWorkflow(getContainer()).run({
+                input: {
+                  restaurant_id: pizzeriaId,
+                  staff_id: own.staffId,
+                  revoked_by: data.user.id,
+                },
+              })
+              return own.headers
+            },
+          }
+        const headers = await headersOf[caller]()
+
+        const read = await detail(headers, order.id)
+        expect(read.status).toBe(status)
+        const list = await queue(headers)
+        const listed = (list.data.orders ?? []).map(({ id }: QueueOrder) => id)
+        expect(listed.includes(order.id)).toBe(sees)
+        if (sees) {
+          expect(read.data.order).toMatchObject({
+            id: order.id,
+            display_id: order.display_id,
+          })
+          return
+        }
+        // A refusal carries no Order details at all.
+        expect(read.data.order).toBeUndefined()
+        expect(JSON.stringify(read.data)).not.toContain(order.id)
+        if (caller === "foreign_staff") {
+          expect(list.status).toBe(200)
+          expect(read.data.code).toBe("order_not_found")
+        } else expect(list.status).toBe(status)
+        if (caller === "revoked_staff")
+          expect(read.data.code).toBe("staff_access_revoked")
+      })
+
+      it("answers an unknown Order id exactly like another Restaurant's Order", async () => {
+        const { headers } = await signInAsStaffOf(
+          pizzeriaId,
+          "mette@pizzeria.example",
+        )
+        const missing = await detail(headers, "order_missing")
+        expect(missing.status).toBe(404)
+        expect(missing.data.code).toBe("order_not_found")
+      })
+
+      it.each([
+        { query: "?view=awaiting", status: 200, reason: "EP: a known view" },
+        {
+          query: "?view=everything",
+          status: 400,
+          reason: "EP: an unknown view",
+        },
+        { query: "?limit=0", status: 400, reason: "BVA: limit just below 1" },
+        { query: "?limit=1", status: 200, reason: "BVA: limit at the minimum" },
+        {
+          query: "?limit=50",
+          status: 200,
+          reason: "BVA: limit at the maximum",
+        },
+        { query: "?limit=51", status: 400, reason: "BVA: limit just above 50" },
+        {
+          query: "?offset=-1",
+          status: 400,
+          reason: "BVA: offset just below 0",
+        },
+        {
+          query: "?offset=0",
+          status: 200,
+          reason: "BVA: offset at the minimum",
+        },
+      ])("$reason", async ({ query, status }) => {
+        const { headers } = await signInAsStaffOf(
+          pizzeriaId,
+          "mette@pizzeria.example",
+        )
+        expect((await queue(headers, query)).status).toBe(status)
+      })
+    })
+  },
+})

@@ -2,6 +2,7 @@ import { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { getOrdersListWorkflow } from "@medusajs/medusa/core-flows"
 import { isVisiblePlacedOrder } from "./placed-order-visibility"
+import { withOrderOperations } from "./order-operations-of"
 
 type Pagination = {
   skip?: number
@@ -53,8 +54,10 @@ export async function listVisibleOrders(
   input: Input,
 ) {
   const page = await listPage(container, input, input.filters, input.pagination)
-  const visible = page.rows.filter(isVisiblePlacedOrder)
-  if (visible.length === page.rows.length)
+  // Each row carries its operational state, so Order history can label it.
+  const rows = await withOrderOperations(container, page.rows)
+  const visible = rows.filter(isVisiblePlacedOrder)
+  if (visible.length === rows.length)
     return {
       orders: visible,
       count: page.metadata.count,
@@ -70,8 +73,20 @@ export async function listVisibleOrders(
       filters: { ...input.filters, is_draft_order: false } as never,
       pagination: { order: input.pagination.order } as never,
     })
-  const visibleIds = (data as Row[])
-    .filter(isVisiblePlacedOrder)
+  // Only reviewed checkouts can be provisional, so only they need a lookup.
+  const all = data as Row[]
+  const placed = new Set(
+    (
+      await withOrderOperations(
+        container,
+        all.filter((order) => !isVisiblePlacedOrder(order)),
+      )
+    )
+      .filter(isVisiblePlacedOrder)
+      .map(({ id }) => id),
+  )
+  const visibleIds = all
+    .filter((order) => isVisiblePlacedOrder(order) || placed.has(order.id))
     .map((o) => o.id)
   const skip = page.metadata.skip
   const take = page.metadata.take
@@ -85,7 +100,7 @@ export async function listVisibleOrders(
       )
     : { rows: [] as Row[] }
   return {
-    orders: rebuilt.rows,
+    orders: await withOrderOperations(container, rebuilt.rows),
     count: visibleIds.length,
     offset: skip,
     limit: take,

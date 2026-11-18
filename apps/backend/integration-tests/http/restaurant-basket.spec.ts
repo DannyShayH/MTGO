@@ -537,9 +537,8 @@ medusaIntegrationTestRunner({
         expect(order.currency_code).toBe("dkk")
         expect(Number(order.total)).toBe(dish.price.amount * 2)
         expect(Number(order.shipping_total)).toBe(0)
-        expect(order.metadata.mtogo_order_state).toBe(
-          "awaiting_restaurant_acceptance",
-        )
+        expect(order.metadata.mtogo_order_state).toBeUndefined()
+        expect(order.order_operation.placed_at).toBeTruthy()
         expect(order.metadata.mtogo_checkout_review).toMatchObject({
           destination: address,
           order_language: "da",

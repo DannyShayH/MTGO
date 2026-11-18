@@ -73,6 +73,32 @@ English text comes from `@dtc/i18n`.
   to it; any other failure shows the retry message. A revoked or expired
   session ends as on any other page.
 
+## Orders (#140)
+
+`/orders` is the Restaurant's paid-Order queue, with three views as links
+(`?view=awaiting`, `active`, `history`) and 20 Orders per page (`&page=N`).
+Awaiting acceptance is ordered by the backend: earliest acceptance deadline
+first, with a stable tie-breaker, and Orders without recorded timing last. The
+list is one column, so that order reads the same at every width. Each card is
+one link to `/orders/{id}` and shows the Order reference (`#display_id`), its
+operational state, the deadline line, the placement time and the purchased
+dishes with quantities. The detail page adds unit prices, line totals and the
+Order total including VAT.
+
+The deadline line only reports the backend's `acceptance_window`: "Accept by
+13:05" while open, "Acceptance window ended 13:05" once elapsed, and "Timing
+unknown" for an Order placed before timings were recorded. The page never uses
+the browser clock to decide it, and nothing on it accepts or cancels. Times are
+shown on the Copenhagen clock. A "Loaded 13:01" line and the Refresh link make
+the data's age visible; live updates arrive with the kitchen stream slice.
+
+Empty views have their own sentence, a backend failure shows a retry message,
+and an Order of another Restaurant (or an unknown id) shows "Order not found"
+without any of its details. `src/lib/data/orders.ts` calls `GET /partner/orders`
+and `GET /partner/orders/{id}` from the server with the cookie token, as the
+other data calls do; a revoked or expired session redirects through
+`/session-ended`.
+
 ## Run it
 
 Start the backend first, then seed a staff member (see the `restaurant` module

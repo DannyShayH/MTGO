@@ -13,6 +13,11 @@ Other storefront surfaces can move their text here later (ADR-0017).
   `staff_access_revoked`. The API returns codes, never sentences (ADR-0018), so a
   new code gets a Danish and an English text here.
 
+`ORDER_TEXT[locale]` supplies the partner Orders workspace (#140): views,
+states, deadline lines, empty, failure and not-found text.
+`formatOrderTime(iso, locale)` shows a backend timestamp on the Copenhagen
+clock (`13.05`, `13:05`), whatever the server's time zone.
+
 `MENU_TEXT[locale]` supplies the partner Menu reference workspace, including
 loading and recovery messages. Allergen and food-label names/descriptions come
 from the backend catalogue in both languages; this package does not duplicate

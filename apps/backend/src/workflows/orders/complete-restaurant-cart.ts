@@ -28,6 +28,8 @@ const PLACED_ORDER_FIELDS = [
   "items.*",
   "payment_collections.payments.*",
   "restaurant.id",
+  "order_operation.placed_at",
+  "order_operation.acceptance_deadline",
 ]
 
 type PaymentState = {

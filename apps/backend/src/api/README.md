@@ -69,24 +69,34 @@ amount is then verified again under the cart lock. Without any payment
 collection the Customer must start payment first.
 
 On successful core authorization, the Store completion route captures the mock
-payment, links exactly one Restaurant to the Order, and records
-`metadata.mtogo_order_state = awaiting_restaurant_acceptance`. Its response is
-`{ type: "order", order }` only after those steps finish. The Order retains the
-cart's `mtogo_checkout_review` metadata, including destination, contact and
-Order language. A repeated completion returns the same Order ID without
-capturing again, even if the Restaurant later closes. If post-completion work
-fails, the unmarked Order remains hidden from Customer and operator list and
-direct reads; retrying the same cart resumes capture or linking. Placement
-failures use `order_not_found`, `order_placement_incomplete` (no single
-Restaurant or payment) and `order_restaurant_mismatch` (a different Restaurant
-is already linked), all returned as the error `code`.
+payment, links exactly one Restaurant to the Order, and records the Order's
+paid placement in the Order Operations module (#140): one record with the paid
+placement time, the acceptance deadline (placement plus five minutes) and the
+Restaurant that owns it. Its response is `{ type: "order", order }` only after
+those steps finish, with `order_operation.placed_at` and
+`order_operation.acceptance_deadline`. The Order retains the cart's
+`mtogo_checkout_review` metadata, including destination, contact and Order
+language. A repeated completion returns the same Order ID, placement time and
+deadline without capturing again, even if the Restaurant later closes. If
+post-completion work fails, the Order without a placement record remains
+hidden from Customer and operator list and direct reads; retrying the same
+cart resumes capture, linking or recording. Order list rows carry
+`order_operation.state`, so Order history can label an awaiting Order. Placement failures use
+`order_not_found`, `order_placement_incomplete` (no single Restaurant or
+payment) and `order_restaurant_mismatch` (a different Restaurant is already
+linked), all returned as the error `code`.
+
+Orders placed before #140 carry `metadata.mtogo_order_state =
+awaiting_restaurant_acceptance` instead and stay placed. New placements no
+longer write that marker.
 
 The Order-to-Restaurant link table is created by `db:migrate` (it runs
 `db:sync-links`); no separate step is needed.
 
 `GET /store/orders` and `GET /store/orders/:id` keep the existing Customer
-ownership protection and suppress provisional Restaurant Orders before the
-placed marker. Admin list and detail reads apply the same visibility rule.
+ownership protection and suppress provisional Restaurant Orders until their
+paid placement is recorded. Placement is an immutable fact, so an Order stays
+visible whatever its later operational state (accepted, cancelled and so on). Admin list and detail reads apply the same visibility rule.
 The built-in Admin Orders export returns `400 order_export_unavailable`
 because it cannot apply the provisional-row filter; a filtered export can
 restore that capability.
@@ -947,6 +957,91 @@ curl http://localhost:9000/partner/restaurants/$RESTAURANT_ID \
 | `401`  | As for `GET /partner/me`                                                                   |
 | `403`  | `code: "staff_access_revoked"`: as for `GET /partner/me`                                   |
 | `404`  | `code: "restaurant_not_found"`: another Restaurant or an unknown one, answered identically |
+
+### GET /partner/orders
+
+**Actor:** Restaurant staff (`restaurant_staff`, bearer token only). Returns one
+page of the staff member's own Restaurant's paid Orders (#140). The Restaurant
+comes from the staff record, never from the request. Ownership is the
+Restaurant recorded at placement, so a closed or deactivated Restaurant's staff
+still see its existing Orders.
+
+| Query    | Values                                      |
+| -------- | ------------------------------------------- |
+| `view`   | `awaiting` (default), `active` or `history` |
+| `limit`  | 1 to 50, default 20                         |
+| `offset` | 0 or more, default 0                        |
+
+| View       | Operational states               | Order                                                                      |
+| ---------- | -------------------------------- | -------------------------------------------------------------------------- |
+| `awaiting` | `awaiting_acceptance`            | Earliest `acceptance_deadline` first, then `id`; no deadline (legacy) last |
+| `active`   | `accepted`, `preparing`, `ready` | Oldest `placed_at` first, then `id`                                        |
+| `history`  | `cancelled`                      | Newest `placed_at` first, then `id`                                        |
+
+```bash
+curl "http://localhost:9000/partner/orders?view=awaiting&limit=20" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Success:** `200` with
+
+```json
+{
+  "orders": [
+    {
+      "id": "order_01...",
+      "display_id": 42,
+      "state": "awaiting_acceptance",
+      "placed_at": "2026-11-18T12:00:00.000Z",
+      "acceptance_deadline": "2026-11-18T12:05:00.000Z",
+      "acceptance_window": "open",
+      "currency_code": "dkk",
+      "total_including_vat": 218,
+      "items": [
+        {
+          "id": "ordli_01...",
+          "name": "Margherita",
+          "quantity": 2,
+          "unit_price_including_vat": 109,
+          "total_including_vat": 218
+        }
+      ]
+    }
+  ],
+  "count": 1,
+  "offset": 0,
+  "limit": 20,
+  "server_time": "2026-11-18T12:01:00.000Z"
+}
+```
+
+`acceptance_window` is the backend's decision at `server_time`: `open` before
+the deadline, `elapsed` at or after it, and `unavailable` when the Order has no
+recorded placement time (placed before #140) or is no longer awaiting
+acceptance. It is a display fact only: reading never accepts, cancels or
+expires an Order. Amounts include VAT, as menu prices do (ADR-0012). Item
+names, quantities and prices are Medusa's purchase
+snapshot; bilingual kitchen names and declarations arrive with #141. The
+response carries no Customer account or contact details.
+
+| Status | When                                                         |
+| ------ | ------------------------------------------------------------ |
+| `400`  | An unknown `view`, a `limit` above 50 or a negative `offset` |
+| `401`  | As for `GET /partner/me`                                     |
+| `403`  | `code: "staff_access_revoked"`: as for `GET /partner/me`     |
+
+### GET /partner/orders/{id}
+
+**Actor:** Restaurant staff (`restaurant_staff`, bearer token only). One Order of
+the staff member's own Restaurant, `{ "order": { ... }, "server_time": "..." }`
+with the same Order fields as the list. Permitted actions arrive with the
+acceptance and preparation slices (#142, #143).
+
+| Status | When                                                                                                  |
+| ------ | ----------------------------------------------------------------------------------------------------- |
+| `401`  | As for `GET /partner/me`                                                                              |
+| `403`  | `code: "staff_access_revoked"`: as for `GET /partner/me`                                              |
+| `404`  | `code: "order_not_found"`: another Restaurant's Order, an unpaid or unknown one, answered identically |
 
 ### POST /partner/restaurants/{id}/open and POST /partner/restaurants/{id}/close
 

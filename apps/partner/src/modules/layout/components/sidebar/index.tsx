@@ -4,7 +4,13 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import type { Locale, Messages } from "@dtc/i18n"
 import { Button, Text, clx } from "@medusajs/ui"
-import { House, ListBullet, Tag, InformationCircle } from "@medusajs/icons"
+import {
+  House,
+  ListBullet,
+  Receipt,
+  Tag,
+  InformationCircle,
+} from "@medusajs/icons"
 import { signOut } from "@lib/data/session"
 import { BrandMark } from "../brand-mark"
 import { LanguageSwitch } from "../language-switch"
@@ -12,6 +18,7 @@ import { LanguageSwitch } from "../language-switch"
 /** Restaurant staff tools, with the current page announced by the navigation. */
 const NAVIGATION = [
   { href: "/overview", label: "overview", Icon: House },
+  { href: "/orders", label: "orders", Icon: Receipt },
   { href: "/menu", label: "menu", Icon: ListBullet },
   { href: "/categories", label: "categories", Icon: Tag },
   { href: "/allergens", label: "allergens", Icon: InformationCircle },

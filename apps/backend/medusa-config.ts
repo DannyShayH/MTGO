@@ -136,5 +136,6 @@ module.exports = defineConfig({
     },
     { resolve: "./src/modules/postal-code" },
     { resolve: "./src/modules/food-catalogue" },
+    { resolve: "./src/modules/order-operation" },
   ],
 })

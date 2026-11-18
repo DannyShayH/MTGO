@@ -111,7 +111,8 @@ old-address notice for an operator to retry.
 `integration-tests/http/customer-auth.spec.ts` exercises real registration/login,
 duplicate refusal, invalid credentials, role restrictions, same-email isolation,
 and migration with legacy-token rejection. The storefront's
-`e2e/customer-auth.spec.ts` exercises email/password-only registration, wrong
-credentials, duplicates and subsequent sign-in with keyboard submission in Danish
-and English, with same-email staff credentials still usable. Authentication traces
-and screenshots are disabled in that suite.
+`e2e/customer-auth.spec.ts` covers verification delivery failure and Customer
+language; its keyboard registration journey was removed during #140 delivery
+because its address-editing step was intermittently failing, so the browser
+registration path is currently checked manually. Authentication traces and
+screenshots are disabled in that suite.

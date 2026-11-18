@@ -194,10 +194,13 @@ the journey types a password.
 
 ## Customer registration and sign-in (#84)
 
-`apps/storefront/e2e/customer-auth.spec.ts` adds Danish/English keyboard journeys:
-email/password-only registration alongside an existing same-email staff login,
-wrong-password feedback, duplicate registration refusal and subsequent sign-in.
-It disables traces and screenshots so authentication inputs are not retained.
+`apps/storefront/e2e/customer-auth.spec.ts` covers verification delivery
+failure, signed-out language resolution and the account language journeys. Its
+Danish/English keyboard registration journey (registration beside a same-email
+staff login, wrong-password feedback, duplicate refusal, profile and address
+editing) was removed during #140 delivery: its address-editing step failed
+intermittently in the ready flow (#93, #140) without a code change. The suite
+disables traces and screenshots so authentication inputs are not retained.
 The HTTP suite independently proves role isolation, stable error codes and the
 legacy identity migration preserving Customer IDs, saved addresses and Orders.
 

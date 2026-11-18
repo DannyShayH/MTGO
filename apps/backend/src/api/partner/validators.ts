@@ -1,4 +1,5 @@
 import { z } from "@medusajs/framework/zod"
+import { QUEUE_VIEWS } from "../../workflows/order-operations/rules"
 
 export const PostPartnerAcceptStaffInvitationSchema = z.strictObject({
   token: z.string().min(1, "token:field_required"),
@@ -20,3 +21,11 @@ import {
 export type PostPartnerCreateCategoryBody = z.infer<typeof categoryCreateSchema>
 export type PostPartnerRenameCategoryBody = z.infer<typeof categoryRenameSchema>
 export type DeletePartnerCategoryBody = z.infer<typeof categoryDeleteSchema>
+
+/** One bounded page of one queue view; awaiting is the kitchen's default. */
+export const GetPartnerOrdersSchema = z.strictObject({
+  view: z.enum(QUEUE_VIEWS).default("awaiting"),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+  offset: z.coerce.number().int().min(0).default(0),
+})
+export type GetPartnerOrdersQuery = z.infer<typeof GetPartnerOrdersSchema>
