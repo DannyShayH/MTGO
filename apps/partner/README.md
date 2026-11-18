@@ -5,6 +5,16 @@ The Next.js app where Restaurant staff operate their Restaurant (ADR-0017), at
 components with the MTOGO tokens from `@dtc/ui`, and all of its Danish and
 English text comes from `@dtc/i18n`.
 
+## Delivery agent access
+
+Operators invite Delivery agents and approve Danish postal codes in Admin. The
+`/delivery-invite` page lets the invitee choose a password; `/delivery-sign-in`
+uses a distinct `delivery_agent` identity. `/delivery` checks authorization on
+each request, displays approved areas and saves a filter restricted to those
+areas. The bearer stays in the same server-side httpOnly partner cookie used by
+the staff flow. The workspace explicitly states that delivery work is not yet
+available; claiming and delivery progress belong to later Feature #48 slices.
+
 ## What it does
 
 - **Sign in and out.** Staff sign in with email and password through Medusa's

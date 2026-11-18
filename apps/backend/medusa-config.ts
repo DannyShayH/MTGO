@@ -87,6 +87,7 @@ module.exports = defineConfig({
       authMethodsPerActor: {
         customer: ["customer-emailpass"],
         restaurant_staff: ["emailpass"],
+        delivery_agent: ["delivery-agent-emailpass"],
         user: ["emailpass"],
       },
       authVerificationsPerActor: {
@@ -107,6 +108,10 @@ module.exports = defineConfig({
       options: {
         providers: [
           { resolve: "@medusajs/medusa/auth-emailpass", id: "emailpass" },
+          {
+            resolve: "./src/modules/delivery-agent-emailpass",
+            id: "delivery-agent-emailpass",
+          },
           {
             resolve: "./src/modules/customer-emailpass",
             id: "customer-emailpass",
@@ -137,5 +142,6 @@ module.exports = defineConfig({
     { resolve: "./src/modules/postal-code" },
     { resolve: "./src/modules/food-catalogue" },
     { resolve: "./src/modules/order-operation" },
+    { resolve: "./src/modules/delivery" },
   ],
 })

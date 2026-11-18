@@ -23,6 +23,24 @@ const notification = (language: string) =>
 describe("ResendNotificationProviderService", () => {
   beforeEach(() => jest.clearAllMocks())
 
+  it("sends a bilingual delivery invitation without logging its link", async () => {
+    send.mockResolvedValue({ data: { id: "re_invite" }, error: null })
+    const service = new ResendNotificationProviderService(
+      { logger },
+      { api_key: "key" },
+    )
+    await service.send({
+      ...notification("da"),
+      template: "delivery-agent-invitation",
+      data: { invitation_url: url },
+    })
+    const sent = send.mock.calls[0][0]
+    expect(sent.text).toContain("leveringspartner")
+    expect(sent.text).toContain("delivery agent")
+    expect(sent.text).toContain(url)
+    expect(logger.error).not.toHaveBeenCalled()
+  })
+
   it("sends a localized password reset link without logging it", async () => {
     send.mockResolvedValue({ data: { id: "re_reset" }, error: null })
     const service = new ResendNotificationProviderService(

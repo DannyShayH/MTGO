@@ -1,3 +1,5 @@
+import Link from "next/link"
+import { DELIVERY_AGENT_TEXT } from "@dtc/i18n"
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { accessEndedMessage, isMessageCode } from "@dtc/i18n"
@@ -40,6 +42,9 @@ export default async function SignInPage({
           isWarning={message === "staff_access_revoked"}
         />
         <SignInForm messages={messages} />
+        <Link href="/delivery-sign-in" className="text-ui-fg-interactive">
+          {DELIVERY_AGENT_TEXT[locale].agent}
+        </Link>
       </div>
       <LanguageSwitch locale={locale} label={messages.text.language} />
     </main>

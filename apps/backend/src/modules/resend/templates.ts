@@ -35,11 +35,34 @@ const copy = {
 } as const
 
 export const supportedTemplates = [
+  "delivery-agent-invitation",
   "customer-verification",
   "customer-password-reset",
   "customer-email-change",
   "customer-email-change-completed",
 ] as const
+
+export function renderDeliveryAgentInvitation(
+  data: { invitation_url?: unknown } | null | undefined,
+): EmailContent {
+  const url =
+    typeof data?.invitation_url === "string" ? data.invitation_url : ""
+  if (!url)
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "invitation_url is required",
+    )
+  const subject = "Invitation til MTogo / MTogo invitation"
+  const danish =
+    "Du er inviteret som leveringspartner hos MTogo. Åbn linket inden 24 timer for at vælge din adgangskode."
+  const english =
+    "You have been invited to join MTogo as a delivery agent. Open the link within 24 hours to set your password."
+  return {
+    subject,
+    text: `${danish}\n\n${english}\n\n${url}`,
+    html: `<p>${danish}</p><p>${english}</p><p><a href="${escapeHtml(url)}">Acceptér invitation / Accept invitation</a></p>`,
+  }
+}
 
 export function renderCustomerEmailChange(
   data:

@@ -75,6 +75,13 @@ import {
   photoRemovalSchema,
 } from "../workflows/photos/validation"
 import { correlateRequest } from "./request-logging"
+import { guardDeliveryAgentProvider } from "./delivery-agent-registration"
+import { DELIVERY_AGENT_ACTOR } from "../workflows/delivery/session"
+import {
+  ReplaceDeliveryAgentAreasSchema,
+  InviteDeliveryAgentSchema,
+  ListDeliveryAgentsSchema,
+} from "./admin/delivery-agents/validators"
 
 /** Medusa has no path-parameter validator, so the postal code in the path is checked here. */
 function validatePostalCodeParam(
@@ -97,6 +104,21 @@ export default defineMiddlewares({
   errorHandler: mtogoErrorHandler(),
   routes: [
     { matcher: "/*", middlewares: [correlateRequest] },
+    {
+      matcher: "/admin/delivery-agents",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(ListDeliveryAgentsSchema, {})],
+    },
+    {
+      matcher: "/admin/delivery-agents",
+      method: "POST",
+      middlewares: [validateAndTransformBody(InviteDeliveryAgentSchema)],
+    },
+    {
+      matcher: "/admin/delivery-agents/:id/areas",
+      method: "POST",
+      middlewares: [validateAndTransformBody(ReplaceDeliveryAgentAreasSchema)],
+    },
     {
       matcher: "/admin/products/:id/dish",
       method: "GET",
@@ -214,7 +236,7 @@ export default defineMiddlewares({
     },
     {
       matcher: "/auth/:actor_type/:auth_provider*",
-      middlewares: [restrictCustomerProvider],
+      middlewares: [restrictCustomerProvider, guardDeliveryAgentProvider],
     },
     {
       matcher: "/auth/customer-verification/request",
@@ -401,6 +423,27 @@ export default defineMiddlewares({
       matcher: "/admin/restaurants/:id/staff-invitations",
       method: "POST",
       middlewares: [validateAndTransformBody(PostAdminInviteStaffSchema)],
+    },
+    {
+      matcher: "/partner/delivery-agent/me",
+      middlewares: [authenticate(DELIVERY_AGENT_ACTOR, "bearer")],
+    },
+    {
+      matcher: "/partner/delivery-agent-invitations/open",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(PostPartnerAcceptStaffInvitationSchema),
+      ],
+    },
+    {
+      matcher: "/partner/delivery-agent-invitations/accept",
+      method: "POST",
+      middlewares: [
+        authenticate(DELIVERY_AGENT_ACTOR, "bearer", {
+          allowUnregistered: true,
+        }),
+        validateAndTransformBody(PostPartnerAcceptStaffInvitationSchema),
+      ],
     },
     // Partner routes get no default authentication from Medusa (ADR-0017).
     {

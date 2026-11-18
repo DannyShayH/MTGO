@@ -5,6 +5,7 @@ import {
 import type { Logger, NotificationTypes } from "@medusajs/framework/types"
 import { Resend } from "resend"
 import {
+  renderDeliveryAgentInvitation,
   renderCustomerEmailChange,
   renderCustomerEmailChangeCompleted,
   renderCustomerPasswordReset,
@@ -51,6 +52,7 @@ export default class ResendNotificationProviderService extends AbstractNotificat
     const recipientDomain = String(notification.to).split("@")[1] ?? "unknown"
 
     if (
+      notification.template !== "delivery-agent-invitation" &&
       notification.template !== "customer-verification" &&
       notification.template !== "customer-password-reset" &&
       notification.template !== "customer-email-change" &&
@@ -65,7 +67,9 @@ export default class ResendNotificationProviderService extends AbstractNotificat
       )
     }
     let content
-    if (notification.template === "customer-password-reset") {
+    if (notification.template === "delivery-agent-invitation") {
+      content = renderDeliveryAgentInvitation(notification.data)
+    } else if (notification.template === "customer-password-reset") {
       content = renderCustomerPasswordReset(notification.data)
     } else if (notification.template === "customer-email-change") {
       content = renderCustomerEmailChange(notification.data)

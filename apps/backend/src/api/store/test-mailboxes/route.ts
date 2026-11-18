@@ -27,6 +27,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
     {
       to: email,
       template: [
+        "delivery-agent-invitation",
         "customer-verification",
         "customer-password-reset",
         "customer-email-change",

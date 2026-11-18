@@ -1,5 +1,29 @@
 # Custom API Routes
 
+## Delivery agent access and approved areas (#155)
+
+Admin routes require an operator session or bearer. `GET /admin/delivery-agents`
+returns `{ agents, count, limit, offset }`, with bounded `limit` and `offset`.
+`POST /admin/delivery-agents` accepts `{ name, email }` and sends a 24-hour
+invitation to the private mailbox or configured email provider.
+`POST /admin/delivery-agents/:id/revoke` revokes an invitation or access while
+retaining the agent identity. `GET /admin/delivery-agents/:id/areas` returns
+`{ agent_id, authorization_revision, postal_codes }`; `POST` replaces the
+complete set with `{ postal_codes: string[] }`. Invalid or unregistered Danish
+codes return `400`. An empty list is permitted and grants no operating area.
+
+`POST /partner/delivery-agent-invitations/open` accepts `{ token }` and returns
+the pending invited identity; `POST /partner/delivery-agent-invitations/accept`
+requires a delivery-agent registration bearer and the same body. Expired,
+revoked, consumed and invalid invitations receive `400 invitation_invalid`.
+The token is sent in the body so it is not included in backend request paths.
+Registration at `/auth/delivery_agent/delivery-agent-emailpass/register` also
+requires `invitation_token` matching the invited email. `GET
+/partner/delivery-agent/me` requires a delivery-agent bearer and checks durable
+authorization on every request; revoked or missing agents receive `403`. Other
+actor types cannot use the route. The partner website holds the bearer in its
+httpOnly cookie and does not send it to browser JavaScript.
+
 ## Customer profile edits (#88)
 
 ### POST /store/customers/me
