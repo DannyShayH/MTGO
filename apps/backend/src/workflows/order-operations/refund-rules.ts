@@ -8,7 +8,11 @@ export type PaymentFacts = {
   id: string
   currency_code: string
   captures?: { raw_amount: MonetaryValue }[]
-  refunds?: { raw_amount: MonetaryValue }[]
+  refunds?: {
+    raw_amount: MonetaryValue
+    idempotency_key?: string | null
+    status?: string
+  }[]
 }
 
 const sumAmounts = (values: { raw_amount: MonetaryValue }[] = []) =>
@@ -51,6 +55,7 @@ export type RefundFailureCode =
   | "refund_rejected"
   | "refund_unverified"
   | "refund_provider_failed"
+  | "refund_exceeds_remaining"
 
 /**
  * Medusa answers a key whose attempt the provider still holds with
@@ -114,4 +119,43 @@ export function nativeCancellationPlan(order: NativeOrderFacts) {
       .map(({ id }) => id),
     payment_collection_ids: collections.map(({ id }) => id),
   }
+}
+
+export type RefundAttemptPlan =
+  | { action: "leave" }
+  | { action: "record_success" }
+  | { action: "attempt" }
+  | { action: "refuse"; failure_code: "refund_exceeds_remaining" }
+
+/**
+ * What an owed refund's next attempt does (#144), decided from the payment
+ * as it is now rather than as it was at cancellation. Only a pending
+ * obligation is attempted: a succeeded one is never repeated and an explicit
+ * failure stays owed for the operator (#49). A refund already persisted as
+ * succeeded under the obligation's key is recorded without contacting the
+ * provider, so a lost response moves no money twice. Money refunded under
+ * another key since cancellation would make the owed amount over-refund, so
+ * it is refused rather than sent.
+ */
+export function refundAttemptPlan(
+  obligation: {
+    status: RefundOutcome
+    amount: string
+    idempotency_key: string
+  },
+  payment: PaymentFacts,
+): RefundAttemptPlan {
+  if (obligation.status !== "pending") return { action: "leave" }
+  const ours = (payment.refunds ?? []).filter(
+    (refund) => refund.idempotency_key === obligation.idempotency_key,
+  )
+  if (ours.some((refund) => refund.status === "succeeded"))
+    return { action: "record_success" }
+  const others = (payment.refunds ?? []).filter(
+    (refund) => refund.idempotency_key !== obligation.idempotency_key,
+  )
+  const remaining = MathBN.sub(sumAmounts(payment.captures), sumAmounts(others))
+  if (MathBN.lt(remaining, obligation.amount))
+    return { action: "refuse", failure_code: "refund_exceeds_remaining" }
+  return { action: "attempt" }
 }

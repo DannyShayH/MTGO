@@ -21,6 +21,7 @@ type Row = {
   accepted_at: Date | string | null
   cancelled_at: Date | string | null
   cancellation_category: CancellationCategory | null
+  acceptance_deadline: Date | string | null
 }
 
 /**
@@ -52,6 +53,7 @@ export const readOrderProgressStep = createStep(
             "accepted_at",
             "cancelled_at",
             "cancellation_category",
+            "acceptance_deadline",
           ],
           take: 1,
         },

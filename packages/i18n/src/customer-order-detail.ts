@@ -11,7 +11,7 @@ export const CUSTOMER_ORDER_DETAIL_TEXT = {
     cancelled_restaurant_rejected:
       "Restauranten kunne ikke lave din ordre og annullerede den {time}.",
     cancelled_acceptance_timeout:
-      "Restauranten nåede ikke at acceptere din ordre i tide, så den blev annulleret {time}.",
+      "Restauranten nåede ikke at acceptere din ordre inden fristen {time}, så den blev annulleret.",
     cancelled_customer_cancelled: "Du annullerede ordren {time}.",
     refund_pending: "Vi er ved at refundere {amount}. Det kan tage et øjeblik.",
     refund_failed:
@@ -30,7 +30,7 @@ export const CUSTOMER_ORDER_DETAIL_TEXT = {
     cancelled_restaurant_rejected:
       "The Restaurant could not make your Order and cancelled it at {time}.",
     cancelled_acceptance_timeout:
-      "The Restaurant did not accept your Order in time, so it was cancelled at {time}.",
+      "The Restaurant did not accept your Order by the deadline at {time}, so it was cancelled.",
     cancelled_customer_cancelled: "You cancelled this Order at {time}.",
     refund_pending: "We are refunding {amount}. This may take a moment.",
     refund_failed:

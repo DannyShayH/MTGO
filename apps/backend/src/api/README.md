@@ -170,7 +170,8 @@ signed out is `401`.
     "accepted_at": null,
     "cancellation": {
       "category": "restaurant_rejected",
-      "cancelled_at": "2026-11-18T12:02:10.000Z"
+      "cancelled_at": "2026-11-18T12:02:10.000Z",
+      "effective_at": "2026-11-18T12:02:10.000Z"
     },
     "refund": {
       "status": "failed",
@@ -188,6 +189,10 @@ The Customer sees the cancellation's category (`restaurant_rejected`,
 `acceptance_timeout` or `customer_cancelled`), never the Restaurant's
 free-text reason or a staff identity. A `failed` refund is still owed.
 `cancellation` and `refund` are `null` while the Order is active.
+`cancelled_at` is when the server processed the cancellation and
+`effective_at` when it took effect. They differ only for an
+`acceptance_timeout` that recovery processed after downtime (#144):
+`effective_at` is then the acceptance deadline, which is never moved.
 
 ## Partner dish availability (#108)
 
@@ -1320,6 +1325,7 @@ as `GET /partner/orders/{id}` returns it, now with:
   "cancellation": {
     "category": "restaurant_rejected",
     "cancelled_at": "2026-11-18T12:02:10.000Z",
+    "effective_at": "2026-11-18T12:02:10.000Z",
     "note": "The oven is broken"
   },
   "refund": {
@@ -1334,6 +1340,8 @@ as `GET /partner/orders/{id}` returns it, now with:
 
 `cancellation` and `refund` are `null` until the Order is cancelled, on every
 partner Order read. `note` is shown to the Restaurant's own staff only.
+`effective_at` is the acceptance deadline for an `acceptance_timeout` and
+`cancelled_at` otherwise; `cancelled_at` is always the processing time (#144).
 
 | Status | When                                                                                                             |
 | ------ | ---------------------------------------------------------------------------------------------------------------- |

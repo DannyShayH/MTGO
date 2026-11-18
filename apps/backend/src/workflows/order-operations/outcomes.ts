@@ -11,23 +11,35 @@ export const iso = (value: Date | string | null | undefined) =>
 export type CancellationFacts = {
   cancelled_at?: Date | string | null
   cancellation_category?: CancellationCategory | null
+  acceptance_deadline?: Date | string | null
 }
 
-/** The cancellation as anyone authorized may see it: no free-text reason. */
+/**
+ * The cancellation as anyone authorized may see it: no free-text reason.
+ * `cancelled_at` is when the server processed it; `effective_at` is when it
+ * took effect. They differ for a timeout recovered after downtime (#144),
+ * which took effect at the acceptance deadline.
+ */
 export type CancellationOutcome = {
   category: CancellationCategory
   cancelled_at: string
+  effective_at: string
 } | null
 
 export const cancellationOutcome = (
   facts: CancellationFacts,
-): CancellationOutcome =>
-  facts.cancelled_at && facts.cancellation_category
-    ? {
-        category: facts.cancellation_category,
-        cancelled_at: iso(facts.cancelled_at)!,
-      }
-    : null
+): CancellationOutcome => {
+  if (!facts.cancelled_at || !facts.cancellation_category) return null
+  const cancelled_at = iso(facts.cancelled_at)!
+  return {
+    category: facts.cancellation_category,
+    cancelled_at,
+    effective_at:
+      (facts.cancellation_category === "acceptance_timeout" &&
+        iso(facts.acceptance_deadline)) ||
+      cancelled_at,
+  }
+}
 
 type ObligationRow = {
   order_id: string

@@ -19,6 +19,11 @@ import { cancelRestaurantOrderStep } from "./steps/cancel-restaurant-order"
 import { settleOrderCancellationStep } from "./steps/settle-order-cancellation"
 import { readOrderProgressStep } from "./steps/read-order-progress"
 import { QueueView } from "./rules"
+import { orderOperationLock } from "./locks"
+import {
+  recoverOrderOperationsStep,
+  type RecoveryInput,
+} from "./steps/recover-order-operations"
 
 export type { RestaurantOrder } from "./steps/read-restaurant-orders"
 export type { OrderProgress } from "./steps/read-order-progress"
@@ -57,13 +62,6 @@ export const retrievePartnerOrderWorkflow = createWorkflow(
     return new WorkflowResponse(retrieveRestaurantOrderStep(scope))
   },
 )
-
-/** Serializes transitions on one Order; the persisted revision guards the write. */
-export const orderOperationLock = (order_id: string) => ({
-  key: `order-operation:${order_id}`,
-  timeout: 5,
-  ttl: 30,
-})
 
 /**
  * Staff accept an awaiting Order strictly before its deadline (spec #47
@@ -153,10 +151,8 @@ export const rejectPartnerOrderWorkflow = createWorkflow(
       ({ cancellation }) => cancellation.cancelled,
     ).then(() => {
       settleOrderCancellationStep(
-        transform({ command, cancellation }, ({ command, cancellation }) => ({
+        transform({ command }, ({ command }) => ({
           order_id: command.order_id,
-          // The refund is credited to whoever the cancellation records.
-          created_by: cancellation.cancelled_by ?? command.staff_id,
         })),
       )
     })
@@ -188,5 +184,18 @@ export const recordLegacyPlacementsWorkflow = createWorkflow(
   "record-legacy-placements",
   function () {
     return new WorkflowResponse(recordLegacyPlacementsStep())
+  },
+)
+
+/**
+ * The one recovery capability (#144), run by the scheduled job on every
+ * worker tick and therefore first right after a worker starts: it expires
+ * due awaiting Orders and resumes unfinished cancellation and refund work
+ * from durable records. Safe to repeat and to run beside live requests.
+ */
+export const recoverOrderOperationsWorkflow = createWorkflow(
+  "recover-order-operations",
+  function (input: RecoveryInput) {
+    return new WorkflowResponse(recoverOrderOperationsStep(input))
   },
 )

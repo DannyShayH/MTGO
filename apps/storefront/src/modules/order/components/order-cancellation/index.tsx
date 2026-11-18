@@ -44,7 +44,9 @@ export default function OrderCancellation({
   const { cancellation, refund } = progress
   if (!cancellation) return null
   const text = CUSTOMER_ORDER_DETAIL_TEXT[locale]
-  const time = TIME_FORMAT[locale].format(new Date(cancellation.cancelled_at))
+  // When it took effect: a timeout at its deadline, however much later
+  // recovery processed it (#144).
+  const time = TIME_FORMAT[locale].format(new Date(cancellation.effective_at))
   return (
     <section
       aria-labelledby="order-cancellation-heading"

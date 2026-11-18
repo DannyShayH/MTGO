@@ -67,6 +67,8 @@ export type RestaurantOrder = {
   cancellation: {
     category: CancellationCategory
     cancelled_at: string
+    /** When it took effect: the deadline for a timeout, else `cancelled_at`. */
+    effective_at: string
     note: string | null
   } | null
   /** The owed full refund; `failed` means still owed, never money returned. */

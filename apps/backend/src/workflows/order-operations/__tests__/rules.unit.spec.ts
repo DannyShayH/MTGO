@@ -250,6 +250,63 @@ describe("Cancelling an Order before acceptance", () => {
   })
 })
 
+describe("The acceptance-timeout sweep's decision (#144)", () => {
+  const awaiting = {
+    state: "awaiting_acceptance" as const,
+    acceptance_deadline: deadline,
+    accepted_at: null,
+  }
+
+  it.each([
+    {
+      order: awaiting,
+      now: "2026-11-18T12:04:59.999Z",
+      expected: { outcome: "refused", code: "acceptance_window_open" },
+      reason: "BVA: 1 ms before the deadline the window is still the staff's",
+    },
+    {
+      order: awaiting,
+      now: "2026-11-18T12:05:00.000Z",
+      expected: { outcome: "cancel", category: "acceptance_timeout" },
+      reason: "BVA: exactly at the deadline the Order times out",
+    },
+    {
+      order: awaiting,
+      now: "2026-11-18T14:30:00.000Z",
+      expected: { outcome: "cancel", category: "acceptance_timeout" },
+      reason:
+        "EP: after downtime the Order times out, with no new window granted",
+    },
+    {
+      order: { ...awaiting, acceptance_deadline: null },
+      now: "2026-11-18T14:30:00.000Z",
+      expected: { outcome: "refused", code: "acceptance_timing_unavailable" },
+      reason:
+        "DT: a legacy Order without a deadline never times out on a guess",
+    },
+    {
+      order: {
+        ...awaiting,
+        state: "accepted" as const,
+        accepted_at: new Date("2026-11-18T12:04:00.000Z"),
+      },
+      now: "2026-11-18T12:10:00.000Z",
+      expected: { outcome: "refused", code: "order_not_awaiting_acceptance" },
+      reason: "DT: an accepted Order is never cancelled by the timeout",
+    },
+    {
+      order: { ...awaiting, state: "cancelled" as const },
+      now: "2026-11-18T12:10:00.000Z",
+      expected: { outcome: "already_cancelled" },
+      reason: "DT: a repeated sweep finds the recorded cancellation",
+    },
+  ])("$reason", ({ order, now, expected }) => {
+    expect(
+      decideCancellation(order, "acceptance_timeout", new Date(now)),
+    ).toEqual(expected)
+  })
+})
+
 describe("An optional rejection reason", () => {
   it.each([
     { raw: undefined, expected: null, reason: "EP: omitted" },

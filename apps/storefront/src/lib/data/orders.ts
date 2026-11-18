@@ -103,6 +103,8 @@ export type OrderProgress = {
     category:
       "restaurant_rejected" | "acceptance_timeout" | "customer_cancelled"
     cancelled_at: string
+    /** When it took effect: the deadline for a timeout, else `cancelled_at`. */
+    effective_at: string
   } | null
   refund: {
     status: "pending" | "failed" | "succeeded"

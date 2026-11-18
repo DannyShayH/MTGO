@@ -3,6 +3,7 @@ import {
   classifyRefundFailure,
   nativeCancellationPlan,
   owedFullRefund,
+  refundAttemptPlan,
   refundOutcomeAfterAttempt,
 } from "../refund-rules"
 
@@ -178,5 +179,83 @@ describe("Planning native cancellation", () => {
     expect(nativeCancellationPlan({ id: "order_1", ...order })).toEqual(
       expected,
     )
+  })
+})
+
+describe("What a refund attempt does with fresh payment facts (#144)", () => {
+  const key = "mtogo-full-refund:order_1"
+  const payment = (refunds: unknown[] = []) =>
+    ({
+      id: "pay_1",
+      currency_code: "dkk",
+      captures: [{ raw_amount: { value: "190" } }],
+      refunds,
+    }) as never
+  const owed = {
+    status: "pending" as const,
+    amount: "190",
+    idempotency_key: key,
+  }
+
+  it.each([
+    {
+      obligation: owed,
+      payment: payment(),
+      expected: { action: "attempt" },
+      reason: "EP: nothing refunded yet, so the owed amount is sent",
+    },
+    {
+      obligation: owed,
+      payment: payment([
+        {
+          raw_amount: { value: "190" },
+          idempotency_key: key,
+          status: "succeeded",
+        },
+      ]),
+      expected: { action: "record_success" },
+      reason:
+        "DT: a lost response whose refund persisted is recorded, never sent again",
+    },
+    {
+      obligation: owed,
+      payment: payment([
+        {
+          raw_amount: { value: "190" },
+          idempotency_key: key,
+          status: "pending",
+        },
+      ]),
+      expected: { action: "attempt" },
+      reason:
+        "DT: an interrupted attempt resumes with the same key; Medusa decides if it is stale",
+    },
+    {
+      obligation: owed,
+      payment: payment([
+        {
+          raw_amount: { value: "40" },
+          idempotency_key: "operator-partial",
+          status: "succeeded",
+        },
+      ]),
+      expected: { action: "refuse", failure_code: "refund_exceeds_remaining" },
+      reason:
+        "DT: money refunded elsewhere since cancellation is never sent on top",
+    },
+    {
+      obligation: { ...owed, status: "failed" as const },
+      payment: payment(),
+      expected: { action: "leave" },
+      reason: "DT: an explicit failure stays owed for the operator (#49)",
+    },
+    {
+      obligation: { ...owed, status: "succeeded" as const },
+      payment: payment(),
+      expected: { action: "leave" },
+      reason: "DT: a succeeded refund is never repeated",
+    },
+  ])("$reason", ({ obligation, payment, expected }) => {
+    expect(refundAttemptPlan(obligation, payment)).toEqual(expected)
   })
 })

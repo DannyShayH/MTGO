@@ -184,7 +184,7 @@ export const ORDER_TEXT: Record<Locale, OrderText> = {
     cancellation: "Annullering og refusion",
     cancelled_restaurant_rejected: "Afvist af jeres restaurant {time}",
     cancelled_acceptance_timeout:
-      "Annulleret automatisk {time}, fordi fristen for accept udløb",
+      "Annulleret automatisk, fordi fristen for accept udløb {time} (registreret {processed})",
     cancelled_customer_cancelled: "Annulleret af kunden {time}",
     cancellation_note: "Jeres begrundelse",
     refund: "Refusion",
@@ -288,7 +288,7 @@ export const ORDER_TEXT: Record<Locale, OrderText> = {
     cancellation: "Cancellation and refund",
     cancelled_restaurant_rejected: "Rejected by your Restaurant at {time}",
     cancelled_acceptance_timeout:
-      "Cancelled automatically at {time} because the acceptance deadline passed",
+      "Cancelled automatically because the acceptance deadline passed at {time} (recorded {processed})",
     cancelled_customer_cancelled: "Cancelled by the Customer at {time}",
     cancellation_note: "Your reason",
     refund: "Refund",

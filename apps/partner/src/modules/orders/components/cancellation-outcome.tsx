@@ -47,7 +47,10 @@ export function CancellationOutcome({
       </Heading>
       <Text size="small" weight="plus">
         {formatText(text[`cancelled_${cancellation.category}`], {
-          time: formatOrderTime(cancellation.cancelled_at, locale),
+          // When it took effect: a timeout at its deadline, however much
+          // later recovery processed it (#144).
+          time: formatOrderTime(cancellation.effective_at, locale),
+          processed: formatOrderTime(cancellation.cancelled_at, locale),
         })}
       </Text>
       {cancellation.note && (

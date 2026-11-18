@@ -4,7 +4,9 @@ import { ContainerRegistrationKeys, MathBN } from "@medusajs/framework/utils"
 import { refundPaymentWorkflow } from "@medusajs/medusa/core-flows"
 import {
   classifyRefundFailure,
+  refundAttemptPlan,
   refundOutcomeAfterAttempt,
+  type PaymentFacts,
   type RefundFailureCode,
 } from "./refund-rules"
 import { ORDER_OPERATION_MODULE } from "../../modules/order-operation"
@@ -30,19 +32,41 @@ type PersistedRefund = {
 /**
  * A refund provider or native cancellation step failed: one agreed
  * `upstream.request.failed` record carrying the Order, never the error text.
+ * Settlement runs from requests and from the recovery job (#144), so the
+ * record names no route.
  */
 export function logCancellationUpstreamFailure(
   container: MedusaContainer,
   order_id: string,
 ) {
   const record = createLogRecord("backend", "upstream.request.failed", {
-    route: "/partner/orders/:id/reject",
-    method: "POST",
     order_id,
   })
   container
     .resolve(ContainerRegistrationKeys.LOGGER)
     .log(record.level, record.msg, record)
+}
+
+/** The payment as it is now: captures and the refunds that count. */
+async function currentPayment(
+  container: MedusaContainer,
+  payment_id: string,
+): Promise<PaymentFacts> {
+  const { data } = await container
+    .resolve(ContainerRegistrationKeys.QUERY)
+    .graph({
+      entity: "payment",
+      fields: [
+        "id",
+        "currency_code",
+        "captures.raw_amount",
+        "refunds.raw_amount",
+        "refunds.idempotency_key",
+        "refunds.status",
+      ],
+      filters: { id: payment_id },
+    })
+  return data[0] as unknown as PaymentFacts
 }
 
 /**
@@ -73,13 +97,16 @@ async function verifiedRefund(
 }
 
 /**
- * Attempts an Order's owed full refund once (#143), never throwing: every
- * outcome is recorded on the obligation instead. A succeeded obligation is
- * left alone, so a repeat moves no money and creates no second credit line.
- * Each attempt sends the stored amount and idempotency key, which lets
- * Medusa resume or replay the same refund rather than start another.
+ * Attempts an Order's owed full refund once (#143, #144), never throwing:
+ * every outcome is recorded on the obligation instead. What the attempt does
+ * is decided from the payment as it is now (`refundAttemptPlan`): only a
+ * pending obligation is attempted, a refund already persisted under its key
+ * is recorded without contacting the provider, and money refunded elsewhere
+ * since cancellation is never sent on top. Each attempt sends the stored
+ * amount and idempotency key, which lets Medusa resume or replay the same
+ * refund rather than start another.
  *
- * Shared with the later timeout, Customer-cancellation and recovery work.
+ * Callers serialize it per Order through `settleCancellation`.
  */
 export async function attemptFullRefund(
   container: MedusaContainer,
@@ -94,28 +121,45 @@ export async function attemptFullRefund(
   )
   const obligation = found as unknown as Obligation | undefined
   if (!obligation) return null
-  if (obligation.status === "succeeded") return "succeeded"
-
-  await service.updateRefundObligations({
-    id: obligation.id,
-    status: "pending",
-    attempt_count: obligation.attempt_count + 1,
-    last_attempted_at: new Date(),
-    failure_code: null,
-  })
-  let failure: RefundFailureCode | undefined
-  try {
-    await refundPaymentWorkflow(container).run({
-      input: {
-        payment_id: obligation.payment_id,
-        amount: obligation.raw_amount.value,
-        idempotency_key: obligation.idempotency_key,
-        created_by: input.created_by,
-      },
+  const plan = refundAttemptPlan(
+    {
+      status: obligation.status,
+      amount: obligation.raw_amount.value,
+      idempotency_key: obligation.idempotency_key,
+    },
+    await currentPayment(container, obligation.payment_id),
+  )
+  if (plan.action === "leave") return obligation.status
+  if (plan.action === "refuse") {
+    await service.updateRefundObligations({
+      id: obligation.id,
+      status: "failed",
+      failure_code: plan.failure_code,
     })
-  } catch (error) {
-    failure = classifyRefundFailure(error)
-    logCancellationUpstreamFailure(container, input.order_id)
+    return "failed"
+  }
+  let failure: RefundFailureCode | undefined
+  if (plan.action === "attempt") {
+    await service.updateRefundObligations({
+      id: obligation.id,
+      status: "pending",
+      attempt_count: obligation.attempt_count + 1,
+      last_attempted_at: new Date(),
+      failure_code: null,
+    })
+    try {
+      await refundPaymentWorkflow(container).run({
+        input: {
+          payment_id: obligation.payment_id,
+          amount: obligation.raw_amount.value,
+          idempotency_key: obligation.idempotency_key,
+          created_by: input.created_by,
+        },
+      })
+    } catch (error) {
+      failure = classifyRefundFailure(error)
+      logCancellationUpstreamFailure(container, input.order_id)
+    }
   }
   const refund = await verifiedRefund(container, obligation)
   const outcome = refundOutcomeAfterAttempt(failure, !!refund)

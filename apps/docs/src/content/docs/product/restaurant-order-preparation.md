@@ -101,7 +101,9 @@ Read-only inspection found the following constraints for the later specification
 
 - [#143](https://github.com/DannyShayH/MTGO/issues/143): staff reject an awaiting Order with an optional reason. The cancellation and its full-refund obligation are recorded before the mocked provider is called. The refund is attempted automatically with a stored idempotency key, and a failed refund leaves the Order cancelled and the money visibly owed. A rejection at or after the deadline records the timeout outcome. Staff and the Customer's existing Order page show the cancellation and the refund's pending, failed or succeeded outcome. Accepted Orders have no Reject and point staff to an MTOGO operator.
 
-Deadline expiry without a staff action, Customer cancellation, recovery of interrupted refunds, preparation milestones, the Customer food-progress timeline and live updates remain open.
+- [#144](https://github.com/DannyShayH/MTGO/issues/144): an unanswered Order expires without a staff action. A recovery job runs every minute on the worker, the first time right after it starts, and reads only durable records. It cancels each awaiting Order whose deadline has passed with the timeout outcome by the system and attempts the full refund. It also resumes unfinished native cancellation and refunds that are still pending. After downtime the deadline is never extended: staff and the Customer see the deadline as when the cancellation took effect, and staff also see when it was recorded. Acceptance and rejection apply the same expiry rule before the job has run, and an accepted Order is never cancelled by it. A refund whose response was lost is recorded from Medusa's persisted refund instead of being sent again. A refund that failed explicitly stays visibly owed for the operator's retry under #49; recovery does not retry it.
+
+Customer cancellation, preparation milestones, the Customer food-progress timeline and live updates remain open.
 
 ## Evidence required during implementation
 

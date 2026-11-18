@@ -81,7 +81,10 @@ export type CancellationDecision =
   | { outcome: "already_cancelled" }
   | {
       outcome: "refused"
-      code: "acceptance_timing_unavailable" | "order_not_awaiting_acceptance"
+      code:
+        | "acceptance_timing_unavailable"
+        | "order_not_awaiting_acceptance"
+        | "acceptance_window_open"
     }
 
 /**
@@ -91,10 +94,13 @@ export type CancellationDecision =
  * A recorded cancellation is the current outcome for any repeat. Accepted
  * work is the operator's to cancel (#49), and a legacy Order without a
  * deadline is never refunded on a guessed one.
+ *
+ * The recovery sweep requests `acceptance_timeout` itself (#144): while the
+ * window is open the Order is still the staff's, so the sweep is refused.
  */
 export function decideCancellation(
   order: AcceptanceFacts,
-  requested: Exclude<CancellationCategory, "acceptance_timeout">,
+  requested: CancellationCategory,
   now: Date,
 ): CancellationDecision {
   if (order.state === "cancelled") return { outcome: "already_cancelled" }
@@ -103,6 +109,8 @@ export function decideCancellation(
   const window = acceptanceWindow(order.acceptance_deadline, now)
   if (window === "unavailable")
     return { outcome: "refused", code: "acceptance_timing_unavailable" }
+  if (window === "open" && requested === "acceptance_timeout")
+    return { outcome: "refused", code: "acceptance_window_open" }
   return {
     outcome: "cancel",
     category: window === "open" ? requested : "acceptance_timeout",

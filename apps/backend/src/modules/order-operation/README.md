@@ -82,20 +82,55 @@ based on a stale read matches nothing and is refused with `order_changed`.
   `decideCancellation` in `rules.ts`. While awaiting and before the deadline
   it records `restaurant_rejected`; at or after the deadline the same request
   records `acceptance_timeout` by `system`, the outcome the later timeout
-  sweep gives. Accepted work and legacy Orders without a deadline are refused.
-  `cancelWithRefundObligation` commits the cancellation and the Order's one
+  sweep gives (#144). Accepted work and legacy Orders without a deadline are refused.
+  The shared engine in `cancellation.ts` does the work for every
+  pre-acceptance cancellation: `commitPreAcceptanceCancellation` calls
+  `cancelWithRefundObligation`, which commits the cancellation and the Order's one
   `RefundObligation` in one transaction, guarded like acceptance, before any
-  provider call. The step has no compensation: a committed cancellation is
-  authoritative. `settleOrderCancellationStep` then runs `attemptFullRefund`
+  provider call. It has no compensation: a committed cancellation is
+  authoritative. `settleCancellation` then runs `attemptFullRefund`
   (`full-refund.ts`) and `syncNativeOrderCancellationWorkflow`
-  (`native-cancellation.ts`). Neither can throw past it, both are idempotent,
-  and the later timeout, Customer-cancellation and recovery slices reuse them.
+  (`native-cancellation.ts`) under the Order's settlement lock
+  (`order-settlement:{order_id}`). Neither can throw past it and both are
+  idempotent. Rejection and the timeout recovery use this engine, and the
+  Customer cancellation slice is to use it too; there is no second refund path.
   A refund is `succeeded` only when the payment's persisted refund with the
   obligation's key succeeded for its amount. The pure decisions (owed amount,
   failure class, the outcome an attempt records and the native cancellation
   plan) live in `refund-rules.ts`, covered by `refund-rules.unit.spec.ts`. The installed payment module
   soft-deletes a failed refund row, so the obligation is the lasting record.
   An unset `native_cancelled_at` marks native synchronization still to repair.
+  `attemptFullRefund` decides from the payment as it is now
+  (`refundAttemptPlan`). Only a `pending` obligation is attempted. A refund
+  already persisted as succeeded under the obligation's key is recorded
+  without calling the provider, which covers a lost response. A payment
+  refunded under another key since cancellation is marked `failed` with
+  `refund_exceeds_remaining` instead of being over-refunded. A `failed`
+  obligation stays owed until the operator's retry under #49 sets it back to
+  `pending`.
+
+- **Timeout and recovery** (`recoverOrderOperationsWorkflow`, #144): run by
+  the `recover-order-operations` job every minute on the worker, so the first
+  tick after a worker starts is the startup reconciliation. It uses only
+  durable records, never a browser timer or a surviving Redis event. Each
+  sweep takes at most `RECOVERY_BATCH_SIZE` (50) records of each kind:
+  - awaiting Orders with `acceptance_deadline <= now` are cancelled as
+    `acceptance_timeout` by `system`, under the Order's lock with the shared
+    `decideCancellation` rule (a timeout request while the window is open is
+    refused with `acceptance_window_open`, and accepted Orders are never
+    touched);
+  - cancelled Orders with `native_cancelled_at` unset, and every `pending`
+    obligation, are settled again.
+
+  `cancelled_at` records the processing time and the deadline is never moved,
+  so downtime grants no new acceptance window. Reads expose
+  `cancellation.effective_at`: the deadline for a timeout, else `cancelled_at`.
+  A provider or native-step failure is logged as `upstream.request.failed`;
+  any other failure on one Order (a lock held too long, an unexpected error)
+  as `request.failed` with the safe error (`recovery-log.ts`). Either way the
+  work stays in its durable record for the next sweep. Pending obligations are
+  taken least recently updated first, so one that stays in progress cannot
+  starve the rest.
 
 ## Link
 
