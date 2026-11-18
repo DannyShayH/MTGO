@@ -57,6 +57,9 @@ export type RestaurantOrder = {
   placed_at: string | null
   acceptance_deadline: string | null
   acceptance_window: AcceptanceWindow
+  accepted_at: string | null
+  /** What staff may do now, as the backend decided at `server_time`. */
+  available_actions: "accept"[]
   currency_code: string
   total_including_vat: number
   items: {

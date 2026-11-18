@@ -10,6 +10,8 @@ import type { OrderOperationState } from "../../../modules/order-operation/model
 import {
   AcceptanceWindow,
   acceptanceWindow,
+  availableActions,
+  OrderAction,
   queueView,
   QueueView,
 } from "../rules"
@@ -21,6 +23,7 @@ type OperationRow = {
   placed_at: Date | string | null
   acceptance_deadline: Date | string | null
   purchased_items?: unknown
+  accepted_at: Date | string | null
 }
 
 type OrderRow = {
@@ -47,6 +50,9 @@ export type RestaurantOrder = {
   placed_at: string | null
   acceptance_deadline: string | null
   acceptance_window: AcceptanceWindow
+  accepted_at: string | null
+  /** What staff may do now, decided at the server's time. */
+  available_actions: OrderAction[]
   currency_code: string
   /** Menu prices include VAT (ADR-0012), so purchased amounts do too. */
   total_including_vat: number
@@ -67,6 +73,7 @@ const OPERATION_FIELDS = [
   "placed_at",
   "acceptance_deadline",
   "purchased_items",
+  "accepted_at",
 ] as const
 
 const ORDER_FIELDS = [
@@ -105,6 +112,8 @@ function toRestaurantOrder(
       operation.state === "awaiting_acceptance"
         ? acceptanceWindow(operation.acceptance_deadline, now)
         : "unavailable",
+    accepted_at: iso(operation.accepted_at),
+    available_actions: availableActions(operation, now),
     currency_code: order.currency_code,
     total_including_vat: Number(order.total),
     items: (order.items ?? []).map((item) => ({
@@ -177,24 +186,39 @@ export const listRestaurantOrdersStep = createStep(
   },
 )
 
-/** Another Restaurant's Order is refused exactly like a missing one. */
+export const orderNotFound = () =>
+  new MedusaError(
+    MedusaError.Types.NOT_FOUND,
+    "order_not_found",
+    "order_not_found",
+  )
+
+/**
+ * One of the Restaurant's Orders as staff see it now. Another Restaurant's
+ * Order is refused exactly like a missing one.
+ */
+export async function readRestaurantOrder(
+  container: MedusaContainer,
+  input: { restaurant_id: string; order_id: string },
+) {
+  const [operation] = await container
+    .resolve<OrderOperationModuleService>(ORDER_OPERATION_MODULE)
+    .listOrderOperations(
+      { order_id: input.order_id, restaurant_id: input.restaurant_id },
+      { select: [...OPERATION_FIELDS], take: 1 },
+    )
+  const row = operation as unknown as OperationRow | undefined
+  const order = row && (await readOrders(container, [row])).get(row.order_id)
+  if (!row || !order) throw orderNotFound()
+  const now = new Date()
+  return {
+    order: toRestaurantOrder(row, order, now),
+    server_time: now.toISOString(),
+  }
+}
+
 export const retrieveRestaurantOrderStep = createStep(
   "retrieve-restaurant-order",
-  async (input: { restaurant_id: string; order_id: string }, { container }) => {
-    const [operation] = await container
-      .resolve<OrderOperationModuleService>(ORDER_OPERATION_MODULE)
-      .listOrderOperations(
-        { order_id: input.order_id, restaurant_id: input.restaurant_id },
-        { select: [...OPERATION_FIELDS], take: 1 },
-      )
-    const row = operation as unknown as OperationRow | undefined
-    const order = row && (await readOrders(container, [row])).get(row.order_id)
-    if (!row || !order)
-      throw new MedusaError(MedusaError.Types.NOT_FOUND, "order_not_found")
-    const now = new Date()
-    return new StepResponse({
-      order: toRestaurantOrder(row, order, now),
-      server_time: now.toISOString(),
-    })
-  },
+  async (input: { restaurant_id: string; order_id: string }, { container }) =>
+    new StepResponse(await readRestaurantOrder(container, input)),
 )

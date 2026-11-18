@@ -1001,6 +1001,8 @@ curl "http://localhost:9000/partner/orders?view=awaiting&limit=20" \
       "placed_at": "2026-11-18T12:00:00.000Z",
       "acceptance_deadline": "2026-11-18T12:05:00.000Z",
       "acceptance_window": "open",
+      "accepted_at": null,
+      "available_actions": ["accept"],
       "currency_code": "dkk",
       "total_including_vat": 218,
       "items": [
@@ -1061,7 +1063,10 @@ curl "http://localhost:9000/partner/orders?view=awaiting&limit=20" \
 the deadline, `elapsed` at or after it, and `unavailable` when the Order has no
 recorded placement time (placed before #140) or is no longer awaiting
 acceptance. It is a display fact only: reading never accepts, cancels or
-expires an Order. Amounts include VAT, as menu prices do (ADR-0012). Item
+expires an Order. `accepted_at` is the recorded acceptance time, `null` before
+acceptance. `available_actions` lists what staff may do at `server_time`:
+`["accept"]` while the window is open, otherwise `[]`. The action routes decide
+again when they receive the request. Amounts include VAT, as menu prices do (ADR-0012). Item
 `name`, quantities and prices are Medusa's purchase snapshot (`name` is the
 retained English title).
 
@@ -1090,14 +1095,60 @@ the Order's other well-formed lines keep their facts. The response carries no Cu
 
 **Actor:** Restaurant staff (`restaurant_staff`, bearer token only). One Order of
 the staff member's own Restaurant, `{ "order": { ... }, "server_time": "..." }`
-with the same Order fields as the list. Permitted actions arrive with the
-acceptance and preparation slices (#142, #143).
+with the same Order fields as the list, including `available_actions`.
+Preparation actions arrive with #143.
 
 | Status | When                                                                                                  |
 | ------ | ----------------------------------------------------------------------------------------------------- |
 | `401`  | As for `GET /partner/me`                                                                              |
 | `403`  | `code: "staff_access_revoked"`: as for `GET /partner/me`                                              |
 | `404`  | `code: "order_not_found"`: another Restaurant's Order, an unpaid or unknown one, answered identically |
+
+### POST /partner/orders/{id}/accept
+
+**Actor:** Restaurant staff (`restaurant_staff`, bearer token only). Accepts an
+awaiting Order of the staff member's own Restaurant (#142, spec #47 stories 9,
+10, 12-14). The body is empty (`{}`). Any field, such as a time or an actor, is
+refused with `400`. The time is the server's when it decides, and the actor is
+the authenticated staff member.
+
+```bash
+curl -X POST http://localhost:9000/partner/orders/$ORDER_ID/accept \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{}'
+```
+
+The workflow checks the staff record, takes the Order's lock
+(`order-operation:{order_id}`), reads the record again and decides with
+the current server time. It writes `state: accepted`, `accepted_at`,
+`accepted_by` (the staff id) and `revision + 1` in one update that only matches
+the revision it read. Acceptance is allowed strictly before
+`acceptance_deadline`. An Order placed at 18:00:00 cannot be accepted at
+18:05:00, whatever the browser's clock or a later background job. Acceptance
+starts no preparation, assigns no Delivery agent, creates no pickup milestone
+and leaves the native Order `pending`. A closed or deactivated Restaurant's
+staff can still accept its existing paid Orders.
+
+**Success:** `200` with `{ "order": { ... }, "server_time": "..." }`, the Order
+as `GET /partner/orders/{id}` returns it. A repeated or competing acceptance
+of an Order that is already accepted (or further along) also returns `200`
+with the original `accepted_at` and actor. The milestone is never recorded
+twice.
+
+| Status | When                                                                                                         |
+| ------ | ------------------------------------------------------------------------------------------------------------ |
+| `400`  | A non-empty body (`invalid_data`)                                                                            |
+| `401`  | As for `GET /partner/me`                                                                                     |
+| `403`  | `code: "staff_access_revoked"`: as for `GET /partner/me`                                                     |
+| `404`  | `code: "order_not_found"`: another Restaurant's Order or an unknown one, answered identically                |
+| `400`  | `code: "acceptance_window_elapsed"`: at or after the deadline                                                |
+| `400`  | `code: "acceptance_timing_unavailable"`: a legacy Order without a recorded deadline; none is invented        |
+| `400`  | `code: "order_not_awaiting_acceptance"`: the Order is cancelled                                              |
+| `409`  | `code: "order_changed"`: the record changed between the guarded read and the write; read the Order and retry |
+
+The `400` refusals come from the Order's current state (`not_allowed`), and the
+`409` from a concurrent change (`conflict`), as the coding standard maps them.
+Each also carries `order` and `server_time`, the Order as it is now, so the
+screen can show the current outcome.
 
 ### POST /partner/restaurants/{id}/open and POST /partner/restaurants/{id}/close
 

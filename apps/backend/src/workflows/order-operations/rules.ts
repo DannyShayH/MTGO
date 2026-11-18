@@ -20,6 +20,64 @@ export function acceptanceWindow(
   return now.getTime() < new Date(deadline).getTime() ? "open" : "elapsed"
 }
 
+/** Refusals because of the Order's current state (`NOT_ALLOWED`, 400). */
+export const ACCEPTANCE_REFUSALS = [
+  "acceptance_window_elapsed",
+  "acceptance_timing_unavailable",
+  "order_not_awaiting_acceptance",
+] as const
+export type AcceptanceRefusal = (typeof ACCEPTANCE_REFUSALS)[number]
+
+/** A guarded write found the record changed after it was read (`CONFLICT`, 409). */
+export const ORDER_CHANGED = "order_changed"
+
+export type AcceptanceDecision =
+  | { outcome: "accept" }
+  | { outcome: "already_accepted" }
+  | { outcome: "refused"; code: AcceptanceRefusal }
+
+type AcceptanceFacts = {
+  state: OrderOperationState
+  acceptance_deadline: Date | string | null | undefined
+  accepted_at: Date | string | null | undefined
+}
+
+/**
+ * Whether staff may accept now (spec #47 stories 9, 12-14). `now` is the
+ * server's time at the guarded transition, never the browser's. A recorded
+ * acceptance is the current outcome for a repeat, even after the deadline or a
+ * later milestone, so it is never duplicated or undone. A cancellation is the
+ * current outcome even when it followed an acceptance.
+ */
+export function decideAcceptance(
+  order: AcceptanceFacts,
+  now: Date,
+): AcceptanceDecision {
+  if (order.state === "cancelled")
+    return { outcome: "refused", code: "order_not_awaiting_acceptance" }
+  if (order.accepted_at) return { outcome: "already_accepted" }
+  if (order.state !== "awaiting_acceptance")
+    return { outcome: "refused", code: "order_not_awaiting_acceptance" }
+  const window = acceptanceWindow(order.acceptance_deadline, now)
+  if (window === "open") return { outcome: "accept" }
+  return {
+    outcome: "refused",
+    code:
+      window === "elapsed"
+        ? "acceptance_window_elapsed"
+        : "acceptance_timing_unavailable",
+  }
+}
+
+export type OrderAction = "accept"
+
+/** The actions staff may take now; later slices add reject and preparation. */
+export const availableActions = (
+  order: AcceptanceFacts,
+  now: Date,
+): OrderAction[] =>
+  decideAcceptance(order, now).outcome === "accept" ? ["accept"] : []
+
 export const QUEUE_VIEWS = ["awaiting", "active", "history"] as const
 export type QueueView = (typeof QUEUE_VIEWS)[number]
 

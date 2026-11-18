@@ -37,6 +37,7 @@ import {
   DeletePartnerCategorySchema,
   PostPartnerAcceptStaffInvitationSchema,
   GetPartnerOrdersSchema,
+  PostPartnerAcceptOrderSchema,
 } from "./partner/validators"
 import { isDanishPostalCode } from "../workflows/restaurants/postal-code"
 import { RESTAURANT_STAFF_ACTOR } from "../workflows/restaurant-staff"
@@ -418,6 +419,11 @@ export default defineMiddlewares({
       matcher: "/partner/orders",
       method: "GET",
       middlewares: [validateAndTransformQuery(GetPartnerOrdersSchema, {})],
+    },
+    {
+      matcher: "/partner/orders/:id/accept",
+      method: "POST",
+      middlewares: [validateAndTransformBody(PostPartnerAcceptOrderSchema)],
     },
     {
       matcher: "/partner/restaurants*",

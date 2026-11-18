@@ -1,3 +1,4 @@
+import { acquireLockStep, releaseLockStep } from "@medusajs/medusa/core-flows"
 import {
   createWorkflow,
   transform,
@@ -8,6 +9,7 @@ import {
   listRestaurantOrdersStep,
   retrieveRestaurantOrderStep,
 } from "./steps/read-restaurant-orders"
+import { acceptRestaurantOrderStep } from "./steps/accept-restaurant-order"
 import { recordLegacyPlacementsStep } from "./steps/record-legacy-placements"
 import { QueueView } from "./rules"
 
@@ -45,6 +47,46 @@ export const retrievePartnerOrderWorkflow = createWorkflow(
       order_id: input.order_id,
     }))
     return new WorkflowResponse(retrieveRestaurantOrderStep(scope))
+  },
+)
+
+/** Serializes transitions on one Order; the persisted revision guards the write. */
+export const orderOperationLock = (order_id: string) => ({
+  key: `order-operation:${order_id}`,
+  timeout: 5,
+  ttl: 30,
+})
+
+/**
+ * Staff accept an awaiting Order strictly before its deadline (spec #47
+ * stories 9, 10, 12-14). Actor, Restaurant and time come from the server.
+ * Acceptance only records the commitment: it starts no preparation, assigns
+ * no Delivery agent and leaves the native Order as it is.
+ */
+export const acceptPartnerOrderWorkflow = createWorkflow(
+  "accept-partner-order",
+  function (input: { staff_id: string; order_id: string }) {
+    const current = retrieveAuthorizedStaffStep({ staff_id: input.staff_id })
+    const lock = transform({ input }, ({ input }) =>
+      orderOperationLock(input.order_id),
+    )
+    acquireLockStep(lock)
+    const command = transform({ input, current }, ({ input, current }) => ({
+      restaurant_id: current.restaurant.id,
+      order_id: input.order_id,
+      staff_id: current.staff.id,
+    }))
+    acceptRestaurantOrderStep(command)
+    releaseLockStep(lock)
+    const scope = transform({ command }, ({ command }) => ({
+      restaurant_id: command.restaurant_id,
+      order_id: command.order_id,
+    }))
+    return new WorkflowResponse(
+      retrieveRestaurantOrderStep(scope).config({
+        name: "read-accepted-order",
+      }),
+    )
   },
 )
 

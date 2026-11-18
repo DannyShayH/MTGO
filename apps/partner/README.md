@@ -98,7 +98,7 @@ unavailable.
 The deadline line only reports the backend's `acceptance_window`: "Accept by
 13:05" while open, "Acceptance window ended 13:05" once elapsed, and "Timing
 unknown" for an Order placed before timings were recorded. The page never uses
-the browser clock to decide it, and nothing on it accepts or cancels. Times are
+the browser clock to decide it, and the queue itself accepts or cancels nothing. Times are
 shown on the Copenhagen clock. A "Loaded 13:01" line and the Refresh link make
 the data's age visible; live updates arrive with the kitchen stream slice.
 
@@ -108,6 +108,24 @@ without any of its details. `src/lib/data/orders.ts` calls `GET /partner/orders`
 and `GET /partner/orders/{id}` from the server with the cookie token, as the
 other data calls do; a revoked or expired session redirects through
 `/session-ended`.
+
+### Accept an Order (#142)
+
+The Order details page shows a large **Accept Order** button only when the
+backend lists `accept` in `available_actions`. A short line under it explains
+that acceptance is a commitment to make the food, and that preparation is
+recorded separately. The server action `acceptOrder` in
+`src/lib/data/order-actions.ts` posts an empty body to
+`POST /partner/orders/{id}/accept`. The backend decides the time and the actor.
+
+While the request is pending, the button is disabled and reads "Accepting…",
+so a double tap sends one request. Every outcome revalidates the Orders pages
+and refreshes the screen. A success replaces the button with "Order #N is
+accepted." and the "Accepted 13:02" line. A refusal (deadline passed, no
+recorded deadline, no longer awaiting, changed at the same time, or an
+uncertain failure) shows its Danish or English text from `ORDER_ACTION_ERRORS`
+next to the Order's current state. Focus moves to the outcome message, so
+keyboard users do not lose their place when the button disappears.
 
 ## Run it
 

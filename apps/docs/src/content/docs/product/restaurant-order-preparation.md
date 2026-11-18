@@ -67,7 +67,7 @@ Read-only inspection found the following constraints for the later specification
 
 - Paid placement already captures payment, links the Order to one Restaurant and marks it awaiting acceptance. It does not yet record an explicit paid placement time or preparation milestones.
 - Existing placed-Order visibility and placement retry logic recognize the awaiting-acceptance state. They must continue recognizing a paid Order after acceptance, preparation or cancellation, without re-placing it or hiding its history.
-- Restaurant staff authorization and Restaurant ownership checks are reusable and independent of Restaurant open/active status. The partner app has no Orders queue or acceptance/preparation actions yet.
+- Restaurant staff authorization and Restaurant ownership checks are reusable and independent of Restaurant open/active status. At discovery the partner app had no Orders queue or acceptance/preparation actions; see [Delivered so far](#delivered-so-far).
 - Native Order lines preserve the English dish title, quantity and unit price. Both language names and the Restaurant's allergen and food-label declarations are only available from the current menu; the agreed historical kitchen view therefore needs additional capture during the ordering journey. Since #141, completion freezes the reviewed names and declarations before payment and placement copies them onto the Order; Orders placed earlier show them as unavailable.
 - Customer Order details show generic Medusa status, with no Customer cancellation action. Feature #47 must add the agreed current progress, refund outcome and pre-acceptance cancellation display, while #50 retains the complete event timeline and live delivery map.
 - The installed Medusa 2.22.4 SDK supports `client.fetchStream`. The recipe's per-delivery workflow stream does not itself supply a new-Order feed for the Restaurant. The later specification must preserve staff authorization, disconnect cleanup and reconciliation with durable Order facts.
@@ -92,6 +92,14 @@ Read-only inspection found the following constraints for the later specification
 | A Customer asks to cancel after acceptance                            | Require an operator: full refund before preparation, no automatic change-of-mind refund afterward, with reasoned exceptions retained. |
 | The Restaurant cannot fulfil an accepted Order                        | Staff contact the operator using the Order reference; operator cancellation requires a full Customer refund.                          |
 | Notification delivery fails                                           | Preserve the milestone and let preparation continue; keep unresolved notification handling within #50.                                |
+
+## Delivered so far
+
+- [#140](https://github.com/DannyShayH/MTGO/issues/140): Restaurant staff see their Restaurant's paid Orders in the partner app's Orders queue and Order details.
+- [#141](https://github.com/DannyShayH/MTGO/issues/141): the kitchen view shows the bilingual dish names, allergen declarations and food labels frozen at purchase.
+- [#142](https://github.com/DannyShayH/MTGO/issues/142): staff accept an awaiting Order from its details page strictly before its placement time plus five minutes, checked at the server's time. Acceptance records its time and actor once, a repeated acceptance returns the recorded one, and a late or conflicting attempt is refused with the Order's current outcome. Acceptance starts no preparation and assigns no Delivery agent. The endpoint is documented in the backend [API README](https://github.com/DannyShayH/MTGO/blob/main/apps/backend/src/api/README.md).
+
+Rejection, deadline expiry, Customer cancellation, preparation milestones, Customer progress and live updates remain open.
 
 ## Evidence required during implementation
 

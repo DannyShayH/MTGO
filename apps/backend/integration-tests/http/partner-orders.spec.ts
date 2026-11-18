@@ -264,6 +264,13 @@ medusaIntegrationTestRunner({
       })
     const detail = (headers: Record<string, string>, id: string) =>
       api.get(`/partner/orders/${id}`, { headers, validateStatus: () => true })
+    const accept = (headers: Record<string, string>, id: string, body = {}) =>
+      api.post(`/partner/orders/${id}/accept`, body, {
+        headers,
+        validateStatus: () => true,
+      })
+    const recordOf = async (order_id: string) =>
+      (await operations().listOrderOperations({ order_id }))[0]
 
     beforeEach(async () => {
       const container = getContainer()
@@ -920,6 +927,257 @@ medusaIntegrationTestRunner({
         expect(
           durations.filter((d) => d <= 2000).length / durations.length,
         ).toBeGreaterThanOrEqual(0.95)
+      })
+    })
+
+    describe("POST /partner/orders/:id/accept", () => {
+      it("records the acceptance time, actor and revision without starting preparation or touching the native Order", async () => {
+        const { cartId } = await reviewedCartOf(pizzeriaId)
+        const order = (await complete(cartId)).data.order
+        const { headers, staffId } = await signInAsStaffOf(
+          pizzeriaId,
+          "mette@pizzeria.example",
+        )
+        expect((await detail(headers, order.id)).data.order).toMatchObject({
+          available_actions: ["accept"],
+          accepted_at: null,
+        })
+
+        const before = Date.now()
+        const accepted = await accept(headers, order.id)
+        expect(accepted.status).toBe(200)
+        expect(accepted.data.order).toMatchObject({
+          id: order.id,
+          state: "accepted",
+          acceptance_window: "unavailable",
+          available_actions: [],
+          placed_at: order.order_operation.placed_at,
+          acceptance_deadline: order.order_operation.acceptance_deadline,
+        })
+        const acceptedAt = Date.parse(accepted.data.order.accepted_at)
+        expect(acceptedAt).toBeGreaterThanOrEqual(before - 1000)
+        expect(acceptedAt).toBeLessThanOrEqual(Date.now())
+        const record = await recordOf(order.id)
+        expect(record).toMatchObject({
+          state: "accepted",
+          accepted_by: staffId,
+          revision: 2,
+        })
+
+        // Accepted is active kitchen work, still visible to every reader.
+        const active = await queue(headers, "?view=active")
+        expect(active.data.orders.map(({ id }: QueueOrder) => id)).toEqual([
+          order.id,
+        ])
+        expect((await queue(headers)).data.orders).toEqual([])
+        const history = await api.get("/store/orders", { headers: customer })
+        expect(history.data.orders).toEqual([
+          expect.objectContaining({
+            id: order.id,
+            order_operation: expect.objectContaining({ state: "accepted" }),
+          }),
+        ])
+        const native = await api.get(
+          `/admin/orders/${order.id}?fields=status,fulfillment_status,*fulfillments`,
+          { headers: admin },
+        )
+        expect(native.status).toBe(200)
+        expect(native.data.order).toMatchObject({
+          status: "pending",
+          fulfillment_status: "not_fulfilled",
+          fulfillments: [],
+        })
+
+        // A retried placement finds the placed Order and leaves it as it is.
+        const retried = (await complete(cartId)).data.order
+        expect(retried.id).toBe(order.id)
+        expect(retried.payment_collections[0].payments).toHaveLength(1)
+        expect(await recordOf(order.id)).toMatchObject({
+          state: "accepted",
+          revision: 2,
+          placed_at: record.placed_at,
+        })
+      })
+
+      it("keeps the original acceptance for a repeat and for a competing staff member", async () => {
+        const order = await placePaidOrder(pizzeriaId)
+        const mette = await signInAsStaffOf(
+          pizzeriaId,
+          "mette@pizzeria.example",
+        )
+        const jonas = await signInAsStaffOf(
+          pizzeriaId,
+          "jonas@pizzeria.example",
+        )
+
+        const competing = await Promise.all([
+          accept(mette.headers, order.id),
+          accept(jonas.headers, order.id),
+        ])
+        expect(competing.map(({ status }) => status)).toEqual([200, 200])
+        const record = await recordOf(order.id)
+        expect(record.revision).toBe(2)
+        expect([mette.staffId, jonas.staffId]).toContain(record.accepted_by)
+        for (const { data } of competing)
+          expect(Date.parse(data.order.accepted_at)).toBe(
+            new Date(record.accepted_at!).getTime(),
+          )
+
+        const repeated = await accept(mette.headers, order.id)
+        expect(repeated.status).toBe(200)
+        expect(repeated.data.order.accepted_at).toBe(
+          competing[0].data.order.accepted_at,
+        )
+        expect(await recordOf(order.id)).toMatchObject({
+          revision: 2,
+          accepted_by: record.accepted_by,
+        })
+      })
+
+      it.each([
+        {
+          change: () => ({ acceptance_deadline: new Date() }),
+          code: "acceptance_window_elapsed",
+          state: "awaiting_acceptance",
+          reason: "BVA: the deadline is now, so the server finds it too late",
+        },
+        {
+          change: () => ({ state: "cancelled" as const }),
+          code: "order_not_awaiting_acceptance",
+          state: "cancelled",
+          reason: "DT: a cancelled Order",
+        },
+        {
+          change: () => ({ acceptance_deadline: null, placed_at: null }),
+          code: "acceptance_timing_unavailable",
+          state: "awaiting_acceptance",
+          reason: "DT: a legacy Order without a recorded deadline",
+        },
+      ])(
+        "refuses with the current outcome: $reason",
+        async ({ change, code, state }) => {
+          const order = await placePaidOrder(pizzeriaId)
+          const { headers } = await signInAsStaffOf(
+            pizzeriaId,
+            "mette@pizzeria.example",
+          )
+          const record = await recordOf(order.id)
+          await operations().updateOrderOperations({
+            id: record.id,
+            ...change(),
+          })
+
+          const refused = await accept(headers, order.id)
+          expect(refused.status).toBe(400)
+          expect(refused.data).toMatchObject({
+            code,
+            order: {
+              id: order.id,
+              state,
+              accepted_at: null,
+              available_actions: [],
+            },
+          })
+          expect(Date.parse(refused.data.server_time)).not.toBeNaN()
+          expect(await recordOf(order.id)).toMatchObject({
+            state,
+            revision: 1,
+            accepted_at: null,
+            accepted_by: null,
+          })
+        },
+      )
+
+      it("lets staff accept a closed or deactivated Restaurant's existing paid Orders", async () => {
+        const closed = await placePaidOrder(pizzeriaId)
+        const inactive = await placePaidOrder(pizzeriaId)
+        const { headers } = await signInAsStaffOf(
+          pizzeriaId,
+          "mette@pizzeria.example",
+        )
+        await restaurants().updateRestaurants({
+          id: pizzeriaId,
+          is_open: false,
+        })
+        expect((await accept(headers, closed.id)).status).toBe(200)
+        await restaurants().updateRestaurants({
+          id: pizzeriaId,
+          is_active: false,
+        })
+        expect((await accept(headers, inactive.id)).status).toBe(200)
+      })
+
+      it("refuses a client-supplied time or actor", async () => {
+        const order = await placePaidOrder(pizzeriaId)
+        const { headers } = await signInAsStaffOf(
+          pizzeriaId,
+          "mette@pizzeria.example",
+        )
+        const refused = await accept(headers, order.id, {
+          accepted_at: "2026-11-18T12:00:00.000Z",
+          accepted_by: "someone_else",
+        })
+        expect(refused.status).toBe(400)
+        expect((await recordOf(order.id)).state).toBe("awaiting_acceptance")
+      })
+
+      type Caller =
+        "signed_out" | "customer" | "foreign_staff" | "revoked_staff"
+      it.each([
+        {
+          caller: "signed_out" as Caller,
+          status: 401,
+          reason: "DT R2: no token",
+        },
+        {
+          caller: "customer" as Caller,
+          status: 401,
+          reason: "DT R3: wrong actor type (Customer)",
+        },
+        {
+          caller: "foreign_staff" as Caller,
+          status: 404,
+          code: "order_not_found",
+          reason: "DT R4: staff of another Restaurant, answered as missing",
+        },
+        {
+          caller: "revoked_staff" as Caller,
+          status: 403,
+          code: "staff_access_revoked",
+          reason: "DT R5: the owning Restaurant's staff after revocation",
+        },
+      ])("refuses $reason", async ({ caller, status, code }) => {
+        const order = await placePaidOrder(pizzeriaId)
+        const own = await signInAsStaffOf(pizzeriaId, "mette@pizzeria.example")
+        const headersOf: Record<Caller, () => Promise<Record<string, string>>> =
+          {
+            signed_out: async () => ({}),
+            customer: async () => ({ authorization: customer.authorization }),
+            foreign_staff: async () =>
+              (await signInAsStaffOf(burgerId, "bo@burger.example")).headers,
+            revoked_staff: async () => {
+              const { data } = await api.get("/admin/users/me", {
+                headers: admin,
+              })
+              await revokeRestaurantStaffWorkflow(getContainer()).run({
+                input: {
+                  restaurant_id: pizzeriaId,
+                  staff_id: own.staffId,
+                  revoked_by: data.user.id,
+                },
+              })
+              return own.headers
+            },
+          }
+
+        const refused = await accept(await headersOf[caller](), order.id)
+        expect(refused.status).toBe(status)
+        if (code) expect(refused.data.code).toBe(code)
+        expect(JSON.stringify(refused.data)).not.toContain(order.id)
+        expect(await recordOf(order.id)).toMatchObject({
+          state: "awaiting_acceptance",
+          revision: 1,
+        })
       })
     })
 

@@ -223,22 +223,31 @@ medusaIntegrationTestRunner({
         address_1: "Testvej 12",
         phone: "+4512345678",
       })
-      const timings = await Promise.all(
-        Array.from({ length: 20 }, async () => {
-          const start = performance.now()
-          await api.get(
-            "/store/orders?limit=10&offset=0&order=-created_at",
-            options,
-          )
-          await api.get(`/store/orders/${ids[0]}`, options)
-          return performance.now() - start
-        }),
+      // ADR-0014: 95% of requests (not journeys) within two seconds.
+      const timed = async (path: string) => {
+        const start = performance.now()
+        await api.get(path, options)
+        return performance.now() - start
+      }
+      const timings = (
+        await Promise.all(
+          Array.from({ length: 20 }, async () => [
+            await timed("/store/orders?limit=10&offset=0&order=-created_at"),
+            await timed(`/store/orders/${ids[0]}`),
+          ]),
+        )
       )
-      timings.sort((a, b) => a - b)
+        .flat()
+        .sort((a, b) => a - b)
+      const percentile = (share: number) =>
+        timings[Math.ceil(share * timings.length) - 1]
       console.log(
-        `History 20 concurrent journeys, 12 orders: p95 ${timings[18].toFixed(0)} ms`,
+        `History 20 concurrent journeys (list + detail), 12 orders: ` +
+          `p50 ${Math.round(percentile(0.5))} ms, p95 ${Math.round(percentile(0.95))} ms`,
       )
-      expect(timings[18]).toBeLessThan(2000)
+      expect(
+        timings.filter((ms) => ms <= 2000).length / timings.length,
+      ).toBeGreaterThanOrEqual(0.95)
     })
 
     it("protects Order details and disables Customer transfers", async () => {

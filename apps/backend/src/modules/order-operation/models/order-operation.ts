@@ -32,6 +32,9 @@ const OrderOperation = model
      * them, so the kitchen shows them as unavailable instead of today's menu.
      */
     purchased_items: model.json().nullable(),
+    /** The acceptance milestone: actual server time and the accepting staff member. */
+    accepted_at: model.dateTime().nullable(),
+    accepted_by: model.text().nullable(),
   })
   .indexes([
     { on: ["order_id"], unique: true },

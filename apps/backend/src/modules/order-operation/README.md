@@ -2,15 +2,16 @@
 
 Registered as `orderOperations` (spec #47). Owns the operational side of a paid
 Order, separate from Medusa's payment, fulfillment and Order status. Issue #140
-adds the first part: one durable record per paid Order. Acceptance,
-preparation, cancellation and refund facts arrive in later slices.
+adds the first part: one durable record per paid Order. Issue #142 adds the
+acceptance milestone. Preparation, cancellation and refund facts arrive in
+later slices.
 
 ## Data model
 
-| Model            | Owns                                                                                                                                                                                                                                                     |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `OrderOperation` | `order_id` (unique), `restaurant_id`, `placed_at`, `acceptance_deadline`, `state` (`awaiting_acceptance`, `accepted`, `preparing`, `ready` or `cancelled`, default `awaiting_acceptance`), `revision` (default 1) and `purchased_items` (JSON, nullable) |
-| `PurchaseReview` | `cart_id` (unique), `items` (JSON) and `reviewed_at`: the kitchen facts of the cart's last server-validated review                                                                                                                                       |
+| Model            | Owns                                                                                                                                                                                                                                                                                                                |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OrderOperation` | `order_id` (unique), `restaurant_id`, `placed_at`, `acceptance_deadline`, `state` (`awaiting_acceptance`, `accepted`, `preparing`, `ready` or `cancelled`, default `awaiting_acceptance`), `revision` (default 1), `purchased_items` (JSON, nullable), `accepted_at` and `accepted_by` (both `null` until accepted) |
+| `PurchaseReview` | `cart_id` (unique), `items` (JSON) and `reviewed_at`: the kitchen facts of the cart's last server-validated review                                                                                                                                                                                                  |
 
 - **The record is the paid-placement fact.** The placement workflow creates it
   last, after capture and the Restaurant link, so an Order is placed exactly
@@ -55,6 +56,23 @@ for the awaiting queue and `(restaurant_id, state, placed_at, id)` for the
 active and history views. The queue filters, orders and paginates in the
 module (`listAndCountOrderOperations`).
 
+## Transitions
+
+Every transition takes the Order's lock (`orderOperationLock`, key
+`order-operation:{order_id}`) through Medusa's locking module, re-reads the
+record and writes the new state with `revision + 1` in one update whose
+selector includes the revision it read. That is the persisted guard: a write
+based on a stale read matches nothing and is refused with `order_changed`.
+
+- **Accept** (`acceptPartnerOrderWorkflow`, #142): allowed while
+  `awaiting_acceptance` and strictly before `acceptance_deadline`, decided by
+  `decideAcceptance` in `src/workflows/order-operations/rules.ts` with the
+  server's time at the transition. It records `accepted_at` (that time) and
+  `accepted_by` (the staff id). An Order with `accepted_at` already set returns
+  its current outcome unchanged, so repeats and competing staff never record a
+  second acceptance. Acceptance does not touch the native Order, preparation,
+  assignment or pickup.
+
 ## Link
 
 `src/links/order-order-operation.ts` is a read-only, one-to-one link from the Order
@@ -80,8 +98,12 @@ refused), then read the Restaurant's records and the Orders' purchase snapshot
 removal and an interrupted placement, unknown versus empty declarations,
 Customer/Admin visibility by state, queue order and pagination, views, closed
 and deactivated Restaurants, legacy timing, refusals and the twenty-journey
-queue-read target. `src/workflows/order-operations/__tests__/rules.unit.spec.ts`
-covers the deadline boundary and the view definitions.
+queue-read target, and acceptance: recorded facts, visibility after acceptance,
+retried placement, repeated and competing acceptance, refusals with the
+current outcome, closed and deactivated Restaurants, and own, foreign and
+revoked access. `src/workflows/order-operations/__tests__/rules.unit.spec.ts`
+covers the deadline boundary, the view definitions and the acceptance decision
+table (before, at and after the deadline; repeat; cancelled; legacy).
 
 Measured locally in the devcontainer (in-process HTTP runner, disposable
 PostgreSQL, one Restaurant with five awaiting Orders, twenty simultaneous

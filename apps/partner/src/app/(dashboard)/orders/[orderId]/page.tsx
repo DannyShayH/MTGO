@@ -19,6 +19,7 @@ import {
   PurchasedFood,
   pickPurchasedName,
 } from "@modules/orders/components/purchased-food"
+import { AcceptOrder } from "@modules/orders/components/accept-order"
 
 const LINK_CLASS =
   "focus-visible:ring-mtogo-focus-ring inline-flex min-h-11 items-center rounded border border-mtogo-border-control px-4 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
@@ -87,6 +88,13 @@ export default async function OrderPage({
       </header>
       <Container className="rounded-card flex flex-col gap-y-2 px-4 py-4 sm:px-6 sm:py-5">
         <AcceptanceDeadline order={order} locale={locale} detailed />
+        {order.accepted_at && (
+          <Text size="small" weight="plus">
+            {formatText(text.accepted_at, {
+              time: formatOrderTime(order.accepted_at, locale),
+            })}
+          </Text>
+        )}
         {order.placed_at && (
           <Text size="small" className="text-ui-fg-subtle">
             {formatText(text.placed, {
@@ -99,6 +107,9 @@ export default async function OrderPage({
             time: formatOrderTime(result.server_time, locale),
           })}
         </Text>
+        <div className="mt-2 empty:hidden">
+          <AcceptOrder key={order.id} order={order} locale={locale} />
+        </div>
       </Container>
       <Container className="rounded-card px-4 py-4 sm:px-6 sm:py-5">
         <Heading level="h2">{text.items}</Heading>

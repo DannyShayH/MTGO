@@ -53,7 +53,13 @@ type OrderText = Record<
   | "label_no"
   | "label_unknown"
   | "facts_unavailable"
-  | "retained_title",
+  | "retained_title"
+  | "accept"
+  | "accepting"
+  | "accept_hint"
+  | "accepted_notice"
+  | "accepted_at"
+  | "refreshed_hint",
   string
 >
 
@@ -117,6 +123,13 @@ export const ORDER_TEXT: Record<Locale, OrderText> = {
     retained_title: "{name} (engelsk navn)",
     facts_unavailable:
       "Dansk navn og madoplysninger blev ikke gemt, da ordren blev afgivet. Tjek med en MTOGO-operatør, hvis du er i tvivl.",
+    accept: "Accepter ordre",
+    accepting: "Accepterer…",
+    accept_hint:
+      "Når I accepterer, lover I at lave maden. Tilberedning registreres bagefter for sig.",
+    accepted_notice: "Ordre #{number} er accepteret.",
+    accepted_at: "Accepteret {time}",
+    refreshed_hint: "Ordren er hentet igen og viser nu, hvordan den står.",
   },
   en: {
     title: "Orders",
@@ -176,6 +189,60 @@ export const ORDER_TEXT: Record<Locale, OrderText> = {
     retained_title: "{name}",
     facts_unavailable:
       "Danish name and food information were not recorded when this Order was placed. Check with an MTOGO operator if in doubt.",
+    accept: "Accept Order",
+    accepting: "Accepting…",
+    accept_hint:
+      "Accepting commits you to making the food. Preparation is recorded separately afterwards.",
+    accepted_notice: "Order #{number} is accepted.",
+    accepted_at: "Accepted {time}",
+    refreshed_hint: "The Order was loaded again and now shows where it stands.",
+  },
+}
+
+/** Codes an Order action can be refused with; `unknown_error` covers the rest. */
+export const ORDER_ACTION_ERROR_CODES = [
+  "acceptance_window_elapsed",
+  "acceptance_timing_unavailable",
+  "order_not_awaiting_acceptance",
+  "order_changed",
+  "order_not_found",
+  "unknown_error",
+] as const
+export type OrderActionErrorCode = (typeof ORDER_ACTION_ERROR_CODES)[number]
+
+export function isOrderActionErrorCode(
+  value: unknown,
+): value is OrderActionErrorCode {
+  return ORDER_ACTION_ERROR_CODES.some((code) => code === value)
+}
+
+export const ORDER_ACTION_ERRORS: Record<
+  Locale,
+  Record<OrderActionErrorCode, string>
+> = {
+  da: {
+    acceptance_window_elapsed:
+      "Fristen for accept er udløbet, så ordren kan ikke længere accepteres.",
+    acceptance_timing_unavailable:
+      "Ordren har ingen registreret frist og kan ikke accepteres her. Kontakt MTOGO med ordrenummeret.",
+    order_not_awaiting_acceptance: "Ordren afventer ikke længere accept.",
+    order_changed: "Ordren blev ændret samtidig. Se, hvordan den står nu.",
+    order_not_found: "Ordren findes ikke for din restaurant.",
+    unknown_error:
+      "Vi ved ikke, om ordren blev accepteret. Se ordrens status, og prøv igen. En ordre accepteres kun én gang.",
+  },
+  en: {
+    acceptance_window_elapsed:
+      "The acceptance deadline has passed, so this Order can no longer be accepted.",
+    acceptance_timing_unavailable:
+      "This Order has no recorded deadline and cannot be accepted here. Contact MTOGO with the Order number.",
+    order_not_awaiting_acceptance:
+      "This Order is no longer awaiting acceptance.",
+    order_changed:
+      "The Order changed at the same time. Check where it stands now.",
+    order_not_found: "This Order was not found for your Restaurant.",
+    unknown_error:
+      "We could not confirm whether the Order was accepted. Check its status and try again. An Order is only ever accepted once.",
   },
 }
 

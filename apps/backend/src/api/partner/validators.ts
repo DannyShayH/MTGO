@@ -29,3 +29,9 @@ export const GetPartnerOrdersSchema = z.strictObject({
   offset: z.coerce.number().int().min(0).default(0),
 })
 export type GetPartnerOrdersQuery = z.infer<typeof GetPartnerOrdersSchema>
+
+/** Acceptance takes no input: clients cannot set its time, actor or Restaurant. */
+export const PostPartnerAcceptOrderSchema = z.strictObject({})
+export type PostPartnerAcceptOrderBody = z.infer<
+  typeof PostPartnerAcceptOrderSchema
+>

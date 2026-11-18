@@ -15,6 +15,10 @@ import {
   ErrorResponseFields,
   responseFieldsOf,
 } from "../workflows/common/response-fields"
+import {
+  ACCEPTANCE_REFUSALS,
+  ORDER_CHANGED,
+} from "../workflows/order-operations/rules"
 
 const CATEGORY_ROUTE =
   /^\/partner\/restaurants\/[^/]+\/categories(?:\/[^/]+)?\/?$/
@@ -194,6 +198,8 @@ export function mtogoErrorHandler(): MedusaErrorHandlerFunction {
     "order_export_unavailable",
     "order_not_found",
     "order_placement_incomplete",
+    ...ACCEPTANCE_REFUSALS,
+    ORDER_CHANGED,
     "order_restaurant_mismatch",
   ])
   return (error, req, res, next) => {
