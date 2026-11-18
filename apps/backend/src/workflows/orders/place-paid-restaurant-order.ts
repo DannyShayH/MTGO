@@ -24,6 +24,11 @@ import {
   ReviewedCart,
 } from "../carts/review-basket"
 import { recordPaidPlacementStep } from "../order-operations/steps/record-paid-placement"
+import {
+  readFrozenPurchase,
+  PurchasedItem,
+} from "../order-operations/purchased-items"
+import { consumePurchaseReviewStep } from "../order-operations/steps/consume-purchase-review"
 import { hasPaidPlacement } from "./placed-order-visibility"
 
 type Input = { order_id: string; cart_id: string }
@@ -34,6 +39,8 @@ type PlacementFacts = {
   payment_id: string
   captured: boolean
   linked: boolean
+  purchased_items: PurchasedItem[] | null
+  purchase_review_id: string | null
 }
 
 /** Read-only: decides what is still missing, so each write below is a compensable core step. */
@@ -94,12 +101,16 @@ const loadPlacementFactsStep = createStep(
         MedusaError.Types.NOT_ALLOWED,
         "order_restaurant_mismatch",
       )
+    // Frozen when completion reviewed the basket; never reread from the menu.
+    const frozen = await readFrozenPurchase(container, cart_id)
     return new StepResponse({
       placed: false,
       restaurant_id: restaurantId,
       payment_id: payment.id,
       captured: !!payment.captured_at,
       linked: !!order.restaurant,
+      purchased_items: frozen?.items ?? null,
+      purchase_review_id: frozen?.id ?? null,
     })
   },
 )
@@ -149,8 +160,13 @@ export const placePaidRestaurantOrderWorkflow = createWorkflow(
       const placement = transform({ facts, input }, ({ facts, input }) => ({
         order_id: input.order_id,
         restaurant_id: (facts as PlacementFacts).restaurant_id,
+        purchased_items: (facts as PlacementFacts).purchased_items,
       }))
       recordPaidPlacementStep(placement)
+      const review = transform({ facts }, ({ facts }) => ({
+        id: (facts as PlacementFacts).purchase_review_id,
+      }))
+      consumePurchaseReviewStep(review)
     })
 
     releaseLockStep({ key: input.cart_id })

@@ -19,6 +19,7 @@ import {
   reviewBasketAmount,
 } from "./basket-rules"
 import { readRestaurantWithMenu } from "../menu/steps/read-menu"
+import type { PublishedDish } from "../menu/published-menu"
 import { withResponseFields } from "../common/response-fields"
 
 type CartItem = {
@@ -73,7 +74,12 @@ export const REVIEWED_CART_FIELDS = [
   "payment_collection.payment_sessions.status",
 ]
 
-export type BasketReview = { restaurant_id: string; issues: BasketIssue[] }
+export type BasketReview = {
+  restaurant_id: string
+  issues: BasketIssue[]
+  /** The current published dish of each basket variant; what was reviewed when there are no issues. */
+  dishes: PublishedDish[]
+}
 
 const variantIdsOf = (items: { variant_id?: string | null }[]) =>
   items.flatMap(({ variant_id }) => (variant_id ? [variant_id] : []))
@@ -114,18 +120,18 @@ export const basketRefusal = (
   return fields ? withResponseFields(error, fields) : error
 }
 
-const currentDishesOf = (
+const publishedDishesOf = (
   found: Awaited<ReturnType<typeof readRestaurantWithMenu>>,
-): CurrentDish[] =>
-  (found?.menu ?? []).flatMap(({ dishes }) =>
-    dishes.map((dish) => ({
-      id: dish.id,
-      variant_id: dish.variant_id,
-      revision: dish.revision,
-      price: dish.price.amount,
-      is_sold_out: dish.is_sold_out,
-    })),
-  )
+) => (found?.menu ?? []).flatMap(({ dishes }) => dishes)
+
+const currentDishesOf = (dishes: PublishedDish[]): CurrentDish[] =>
+  dishes.map((dish) => ({
+    id: dish.id,
+    variant_id: dish.variant_id,
+    revision: dish.revision,
+    price: dish.price.amount,
+    is_sold_out: dish.is_sold_out,
+  }))
 
 /**
  * Rechecks the whole basket against the Restaurant's current published menu,
@@ -156,6 +162,7 @@ export async function reviewCartBasket(
     )
   const [restaurantId] = [...restaurantIds] as string[]
   const found = await readRestaurantWithMenu(container, restaurantId)
+  const published = publishedDishesOf(found)
   const lines: BasketLine[] = items.map((item) => ({
     variant_id: item.variant_id,
     quantity: Number(item.quantity.toString()),
@@ -165,7 +172,7 @@ export async function reviewCartBasket(
   const issues = [
     ...reviewBasket(
       lines,
-      currentDishesOf(found),
+      currentDishesOf(published),
       {
         is_active: found?.restaurant.is_active ?? false,
         is_open: found?.restaurant.is_open ?? false,
@@ -193,7 +200,11 @@ export async function reviewCartBasket(
       require_payment: requirePayment,
     }),
   ]
-  return { restaurant_id: restaurantId, issues }
+  const basketVariantIds = new Set(lines.map(({ variant_id }) => variant_id))
+  const dishes = published.filter(({ variant_id }) =>
+    basketVariantIds.has(variant_id),
+  )
+  return { restaurant_id: restaurantId, issues, dishes }
 }
 
 const reviewBasketStep = createStep(
@@ -212,7 +223,11 @@ const reviewBasketStep = createStep(
       container,
       data[0] as unknown as ReviewedCart,
     )
-    return new StepResponse(review ?? { restaurant_id: null, issues: [] })
+    return new StepResponse(
+      review
+        ? { restaurant_id: review.restaurant_id, issues: review.issues }
+        : { restaurant_id: null, issues: [] },
+    )
   },
 )
 

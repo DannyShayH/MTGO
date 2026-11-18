@@ -16,6 +16,40 @@ export type OrderState =
 /** What the backend decided about the acceptance window at `server_time`. */
 export type AcceptanceWindow = "open" | "elapsed" | "unavailable"
 
+type Bilingual = { da: string; en: string }
+
+export type DeclaredAllergen = {
+  number: number
+  code: string
+  name: Bilingual
+  details: { code: string; name: Bilingual }[]
+}
+
+/**
+ * A dish as purchased, in both languages. `unavailable` for an Order placed
+ * before these facts were recorded; never filled from today's menu.
+ */
+export type KitchenFacts =
+  | {
+      status: "preserved"
+      name: Bilingual
+      allergens:
+        | { status: "unknown" }
+        | {
+            status: "supplied"
+            contains: DeclaredAllergen[]
+            may_contain: DeclaredAllergen[]
+            none_declared: boolean
+          }
+      labels: {
+        code: string
+        name: Bilingual
+        description: Bilingual
+        state: "yes" | "no" | "unknown"
+      }[]
+    }
+  | { status: "unavailable" }
+
 export type RestaurantOrder = {
   id: string
   display_id: number
@@ -31,6 +65,7 @@ export type RestaurantOrder = {
     quantity: number
     unit_price_including_vat: number
     total_including_vat: number
+    purchased: KitchenFacts
   }[]
 }
 

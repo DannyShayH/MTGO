@@ -15,6 +15,10 @@ import {
   AcceptanceDeadline,
   OrderStateBadge,
 } from "@modules/orders/components/order-status"
+import {
+  PurchasedFood,
+  pickPurchasedName,
+} from "@modules/orders/components/purchased-food"
 
 const LINK_CLASS =
   "focus-visible:ring-mtogo-focus-ring inline-flex min-h-11 items-center rounded border border-mtogo-border-control px-4 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
@@ -125,7 +129,8 @@ export default async function OrderPage({
                 className="border-ui-border-base txt-compact-small border-b align-top"
               >
                 <td className="break-words py-3 pr-2 font-medium">
-                  {item.name}
+                  {pickPurchasedName(item, locale)}
+                  <PurchasedFood item={item} locale={locale} />
                 </td>
                 <td className="py-3 pr-2 text-right tabular-nums">
                   {item.quantity}

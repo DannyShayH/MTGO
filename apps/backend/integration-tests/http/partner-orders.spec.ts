@@ -30,6 +30,9 @@ import {
 import seedDemoMenu from "../../src/scripts/seed-demo-menu"
 import menuDelivery from "../../src/migration-scripts/menu-delivery"
 import legacyOrderPlacements from "../../src/migration-scripts/legacy-order-placements"
+import seedFoodCatalogue from "../../src/migration-scripts/food-catalogue"
+import { FOOD_CATALOGUE_MODULE } from "../../src/modules/food-catalogue"
+import type FoodCatalogueModuleService from "../../src/modules/food-catalogue/service"
 
 jest.setTimeout(240000)
 
@@ -446,6 +449,269 @@ medusaIntegrationTestRunner({
       })
     })
 
+    describe("purchased kitchen details", () => {
+      type Staff = Awaited<ReturnType<typeof signInAsStaffOf>>
+      const catalogue = async () => {
+        await seedFoodCatalogue({ container: getContainer() })
+        const service = getContainer().resolve<FoodCatalogueModuleService>(
+          FOOD_CATALOGUE_MODULE,
+        )
+        const [allergens, details, labels] = await Promise.all([
+          service.listAllergens({}, { take: null }),
+          service.listAllergenDetails({}, { take: null }),
+          service.listFoodLabels({}, { take: null }),
+        ])
+        return {
+          allergen: (number: number) =>
+            allergens.find((row) => row.number === number)!,
+          detail: (code: string) => details.find((row) => row.code === code)!,
+          label: (code: string) => labels.find((row) => row.code === code)!,
+          labels,
+        }
+      }
+      const editDish = async (
+        staff: Staff,
+        restaurantId: string,
+        changes: {
+          name: { da: string; en: string }
+          price?: string
+          allergens: Record<string, unknown>
+          food_labels: { food_label_id: string; state: string }[]
+        },
+      ) => {
+        const [{ dishes }] = await readPublishedMenu(
+          getContainer(),
+          restaurantId,
+        )
+        const dish = dishes[0]
+        const response = await api.post(
+          `/partner/restaurants/${restaurantId}/dishes/${dish.id}`,
+          {
+            request_id: `edit-${dish.revision}-${Date.now()}`,
+            revision: dish.revision,
+            description: null,
+            price: changes.price ?? String(dish.price.amount),
+            ...changes,
+          },
+          { headers: staff.headers, validateStatus: () => true },
+        )
+        expect(response.status).toBe(200)
+      }
+
+      /** Gluten (wheat) contained, milk possibly; halal yes, chili no, garlic unknown. */
+      const declare = async (
+        staff: Staff,
+        c: Awaited<ReturnType<typeof catalogue>>,
+      ) =>
+        editDish(staff, pizzeriaId, {
+          name: {
+            da: "Pizza med en meget lang dansk ret-betegnelse, der skal kunne læses i køkkenet",
+            en: "Pizza with a very long English dish name that the kitchen must still read",
+          },
+          allergens: {
+            status: "supplied",
+            contains: [
+              {
+                allergen_id: c.allergen(1).id,
+                detail_ids: [c.detail("wheat").id],
+              },
+            ],
+            may_contain: [{ allergen_id: c.allergen(7).id, detail_ids: [] }],
+            none_declared: false,
+          },
+          food_labels: [
+            { food_label_id: c.label("halal").id, state: "yes" },
+            { food_label_id: c.label("chili").id, state: "no" },
+            { food_label_id: c.label("garlic").id, state: "unknown" },
+          ],
+        })
+      const changeEverything = async (
+        staff: Staff,
+        c: Awaited<ReturnType<typeof catalogue>>,
+      ) =>
+        editDish(staff, pizzeriaId, {
+          name: { da: "Ny pizza", en: "New pizza" },
+          price: "120",
+          allergens: {
+            status: "supplied",
+            contains: [],
+            may_contain: [],
+            none_declared: true,
+          },
+          food_labels: c.labels.map(({ id }) => ({
+            food_label_id: id,
+            state: "no",
+          })),
+        })
+      const purchasedFacts = {
+        status: "preserved",
+        name: {
+          da: "Pizza med en meget lang dansk ret-betegnelse, der skal kunne læses i køkkenet",
+          en: "Pizza with a very long English dish name that the kitchen must still read",
+        },
+        allergens: {
+          status: "supplied",
+          contains: [
+            expect.objectContaining({
+              number: 1,
+              code: "cereals",
+              name: expect.objectContaining({ da: expect.any(String) }),
+              details: [expect.objectContaining({ code: "wheat" })],
+            }),
+          ],
+          may_contain: [
+            expect.objectContaining({ number: 7, code: "milk", details: [] }),
+          ],
+          none_declared: false,
+        },
+        labels: expect.arrayContaining([
+          expect.objectContaining({ code: "halal", state: "yes" }),
+          expect.objectContaining({ code: "chili", state: "no" }),
+          expect.objectContaining({ code: "garlic", state: "unknown" }),
+        ]),
+      }
+
+      it("keeps the purchased bilingual names and declarations on the ticket after menu edits and removal", async () => {
+        const c = await catalogue()
+        const staff = await signInAsStaffOf(
+          pizzeriaId,
+          "mette@pizzeria.example",
+        )
+        await declare(staff, c)
+        const order = await placePaidOrder(pizzeriaId, 2)
+
+        await changeEverything(staff, c)
+        await restaurants().updateRestaurants({
+          id: pizzeriaId,
+          is_active: false,
+        })
+        const [{ dishes }] = await readPublishedMenu(getContainer(), pizzeriaId)
+        const removal = await api.delete(
+          `/partner/restaurants/${pizzeriaId}/dishes/${dishes[0].id}`,
+          {
+            headers: staff.headers,
+            data: { revision: dishes[0].revision },
+            validateStatus: () => true,
+          },
+        )
+        expect(removal.status).toBe(200)
+
+        const { data } = await detail(staff.headers, order.id)
+        expect(data.order.items).toEqual([
+          expect.objectContaining({
+            quantity: 2,
+            unit_price_including_vat: 95,
+            total_including_vat: 190,
+            purchased: purchasedFacts,
+          }),
+        ])
+        const { data: page } = await queue(staff.headers)
+        expect(page.orders[0].items[0].purchased).toEqual(purchasedFacts)
+      })
+
+      it("places an interrupted completion from the frozen review, not the menu changed meanwhile", async () => {
+        const c = await catalogue()
+        const staff = await signInAsStaffOf(
+          pizzeriaId,
+          "mette@pizzeria.example",
+        )
+        await declare(staff, c)
+        const { cartId } = await reviewedCartOf(pizzeriaId)
+        const first = (await complete(cartId)).data.order
+        // Payment succeeded, but the process stopped before placement was
+        // recorded, so the cart's frozen review was not consumed either.
+        const [record] = await operations().listOrderOperations({
+          order_id: first.id,
+        })
+        await operations().deleteOrderOperations(record.id)
+        const [review] = await operations().listPurchaseReviews(
+          { cart_id: cartId },
+          { withDeleted: true },
+        )
+        await operations().restorePurchaseReviews(review.id)
+        await changeEverything(staff, c)
+
+        const retried = (await complete(cartId)).data.order
+        expect(retried.id).toBe(first.id)
+        const { data } = await detail(staff.headers, first.id)
+        expect(data.order.items[0].purchased).toEqual(purchasedFacts)
+        // A further retry keeps the placed snapshot.
+        await complete(cartId)
+        expect(
+          (await detail(staff.headers, first.id)).data.order.items[0].purchased,
+        ).toEqual(purchasedFacts)
+      })
+
+      it("refuses a basket whose price changed after review without freezing its facts", async () => {
+        const c = await catalogue()
+        const staff = await signInAsStaffOf(
+          pizzeriaId,
+          "mette@pizzeria.example",
+        )
+        await declare(staff, c)
+        const { cartId } = await reviewedCartOf(pizzeriaId)
+        await changeEverything(staff, c)
+
+        const refused = await api.post(
+          `/store/carts/${cartId}/complete`,
+          {},
+          { headers: customer, validateStatus: () => true },
+        )
+        expect(refused.status).toBe(400)
+        expect(refused.data.code).toBe("basket_review_required")
+        expect(
+          await operations().listPurchaseReviews(
+            { cart_id: cartId },
+            { withDeleted: true },
+          ),
+        ).toHaveLength(0)
+      })
+
+      it("keeps unknown declarations unknown and distinct from an explicitly empty one", async () => {
+        const c = await catalogue()
+        const staff = await signInAsStaffOf(
+          pizzeriaId,
+          "mette@pizzeria.example",
+        )
+        const unknown = await placePaidOrder(pizzeriaId)
+        await changeEverything(staff, c)
+        const empty = await placePaidOrder(pizzeriaId)
+
+        const unknownItem = (await detail(staff.headers, unknown.id)).data.order
+          .items[0]
+        expect(unknownItem.purchased).toMatchObject({
+          status: "preserved",
+          name: {
+            da: "Pizza Margherita (syntetisk)",
+            en: "Pizza Margherita (synthetic)",
+          },
+          allergens: { status: "unknown" },
+        })
+        expect(
+          unknownItem.purchased.labels.map(
+            ({ state }: { state: string }) => state,
+          ),
+        ).toEqual(["unknown", "unknown", "unknown"])
+        expect(
+          (await detail(staff.headers, empty.id)).data.order.items[0].purchased,
+        ).toMatchObject({
+          status: "preserved",
+          name: { da: "Ny pizza", en: "New pizza" },
+          allergens: {
+            status: "supplied",
+            contains: [],
+            may_contain: [],
+            none_declared: true,
+          },
+          labels: [
+            expect.objectContaining({ state: "no" }),
+            expect.objectContaining({ state: "no" }),
+            expect.objectContaining({ state: "no" }),
+          ],
+        })
+      })
+    })
+
     describe("GET /partner/orders", () => {
       it("shows staff their Restaurant's awaiting Orders by earliest deadline, paginated", async () => {
         const first = await placePaidOrder(pizzeriaId, 2)
@@ -611,6 +877,13 @@ medusaIntegrationTestRunner({
           acceptance_window: "unavailable",
           state: "awaiting_acceptance",
         })
+        // No kitchen facts are invented from today's menu for a legacy Order.
+        expect(data.orders[1].items[0]).toMatchObject({
+          name: "Pizza Margherita (synthetic)",
+          quantity: 1,
+          purchased: { status: "unavailable" },
+        })
+        expect(data.orders[0].items[0].purchased.status).toBe("preserved")
       })
 
       it("serves twenty simultaneous queue journeys with at least 95% within two seconds", async () => {

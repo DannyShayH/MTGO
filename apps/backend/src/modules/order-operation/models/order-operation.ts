@@ -26,6 +26,12 @@ const OrderOperation = model
       .enum([...ORDER_OPERATION_STATES])
       .default("awaiting_acceptance"),
     revision: model.number().default(1),
+    /**
+     * The purchased kitchen facts copied from the cart's frozen purchase
+     * review at placement and never changed. Null when placement predates
+     * them, so the kitchen shows them as unavailable instead of today's menu.
+     */
+    purchased_items: model.json().nullable(),
   })
   .indexes([
     { on: ["order_id"], unique: true },

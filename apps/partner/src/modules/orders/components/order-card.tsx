@@ -3,6 +3,7 @@ import { formatOrderTime, formatText, ORDER_TEXT, type Locale } from "@dtc/i18n"
 import { Text } from "@medusajs/ui"
 import type { RestaurantOrder } from "@lib/data/orders"
 import { AcceptanceDeadline, OrderStateBadge } from "./order-status"
+import { pickPurchasedName } from "./purchased-food"
 
 /**
  * One scannable queue entry: reference, state, deadline and purchased dishes,
@@ -51,7 +52,7 @@ export function OrderCard({
                 {formatText(text.item_count, { count: item.quantity })}
               </Text>
               <Text size="small" className="min-w-0 break-words">
-                {item.name}
+                {pickPurchasedName(item, locale)}
               </Text>
             </li>
           ))}

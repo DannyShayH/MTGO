@@ -40,6 +40,12 @@ basket_review_required` with `restaurant_id` and `issues` when the basket no
 longer matches the current menu, the Restaurant cannot take the Order, or the
 amount is not the plain DKK menu total.
 
+When the review passes, completion freezes the purchased kitchen facts under
+the cart lock (#141): for each dish, its Danish and English names, allergen
+declaration and food labels at the revision the Customer reviewed. Placement,
+including a retried or delayed one, copies them onto the Order and never
+rereads the menu. See `GET /partner/orders`.
+
 ### GET /store/carts/:id/basket-review
 
 Runs the same review read-only for the signed-in Customer who owns the cart
@@ -1003,7 +1009,43 @@ curl "http://localhost:9000/partner/orders?view=awaiting&limit=20" \
           "name": "Margherita",
           "quantity": 2,
           "unit_price_including_vat": 109,
-          "total_including_vat": 218
+          "total_including_vat": 218,
+          "purchased": {
+            "status": "preserved",
+            "name": { "da": "Margherita", "en": "Margherita" },
+            "allergens": {
+              "status": "supplied",
+              "contains": [
+                {
+                  "number": 1,
+                  "code": "cereals",
+                  "name": {
+                    "da": "Korn, der indeholder gluten",
+                    "en": "Cereals containing gluten"
+                  },
+                  "details": [
+                    {
+                      "code": "wheat",
+                      "name": { "da": "Hvede", "en": "Wheat" }
+                    }
+                  ]
+                }
+              ],
+              "may_contain": [],
+              "none_declared": false
+            },
+            "labels": [
+              {
+                "code": "halal",
+                "name": { "da": "Halal", "en": "Halal" },
+                "description": {
+                  "da": "Restaurantens egen angivelse af halal. MTOGO certificerer ikke maden.",
+                  "en": "Halal as declared by the Restaurant. MTOGO does not certify the food."
+                },
+                "state": "unknown"
+              }
+            ]
+          }
         }
       ]
     }
@@ -1020,9 +1062,23 @@ the deadline, `elapsed` at or after it, and `unavailable` when the Order has no
 recorded placement time (placed before #140) or is no longer awaiting
 acceptance. It is a display fact only: reading never accepts, cancels or
 expires an Order. Amounts include VAT, as menu prices do (ADR-0012). Item
-names, quantities and prices are Medusa's purchase
-snapshot; bilingual kitchen names and declarations arrive with #141. The
-response carries no Customer account or contact details.
+`name`, quantities and prices are Medusa's purchase snapshot (`name` is the
+retained English title).
+
+`purchased` holds the kitchen facts frozen when the Customer's basket passed
+its last review before payment (#141); later menu edits, removals and
+declaration changes never alter them. Both languages are returned, and the
+partner app shows the staff member's language, not the Customer's Order
+language. `allergens` is `{ "status": "unknown" }` when the Restaurant gave no
+declaration, which is different from a `supplied` declaration with
+`none_declared: true`. Only `none_declared: true` means allergen-free: the
+partner app shows a `supplied` declaration with empty lists but no
+`none_declared` as unknown, never as safe. Allergens keep their Annex II `number`
+and `code` and any specific types (`details`); each food label keeps its
+`code`, names and description and is `yes`, `no` or `unknown`. An Order placed before these facts were
+recorded, or whose stored entry for that line is damaged, has
+`{ "status": "unavailable" }`: nothing is filled in from today's menu, and
+the Order's other well-formed lines keep their facts. The response carries no Customer account or contact details.
 
 | Status | When                                                         |
 | ------ | ------------------------------------------------------------ |

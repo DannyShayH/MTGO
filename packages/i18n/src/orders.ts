@@ -42,7 +42,18 @@ type OrderText = Record<
   | "previous"
   | "next"
   | "page_of"
-  | "checked_at",
+  | "checked_at"
+  | "allergens"
+  | "allergens_unknown"
+  | "allergens_contains"
+  | "allergens_may_contain"
+  | "allergens_none"
+  | "food_labels"
+  | "label_yes"
+  | "label_no"
+  | "label_unknown"
+  | "facts_unavailable"
+  | "retained_title",
   string
 >
 
@@ -94,6 +105,18 @@ export const ORDER_TEXT: Record<Locale, OrderText> = {
     next: "Næste",
     page_of: "Side {page} af {pages}",
     checked_at: "Hentet {time}",
+    allergens: "Allergener",
+    allergens_unknown: "Allergener: ukendt. Ukendt betyder aldrig allergenfri.",
+    allergens_contains: "Indeholder",
+    allergens_may_contain: "Kan indeholde",
+    allergens_none: "Ingen allergener deklareret",
+    food_labels: "Øvrige madoplysninger",
+    label_yes: "ja",
+    label_no: "nej",
+    label_unknown: "ukendt",
+    retained_title: "{name} (engelsk navn)",
+    facts_unavailable:
+      "Dansk navn og madoplysninger blev ikke gemt, da ordren blev afgivet. Tjek med en MTOGO-operatør, hvis du er i tvivl.",
   },
   en: {
     title: "Orders",
@@ -141,6 +164,18 @@ export const ORDER_TEXT: Record<Locale, OrderText> = {
     next: "Next",
     page_of: "Page {page} of {pages}",
     checked_at: "Loaded {time}",
+    allergens: "Allergens",
+    allergens_unknown: "Allergens: unknown. Unknown never means allergen-free.",
+    allergens_contains: "Contains",
+    allergens_may_contain: "May contain",
+    allergens_none: "No allergens declared",
+    food_labels: "Additional food information",
+    label_yes: "yes",
+    label_no: "no",
+    label_unknown: "unknown",
+    retained_title: "{name}",
+    facts_unavailable:
+      "Danish name and food information were not recorded when this Order was placed. Check with an MTOGO operator if in doubt.",
   },
 }
 

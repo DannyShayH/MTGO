@@ -7,11 +7,10 @@ import {
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
 import { evaluateNewOrderEligibility } from "../../restaurants/eligibility"
 import { restaurantNotFound } from "../../restaurants/steps/restaurant-exists"
-import { FOOD_CATALOGUE_MODULE } from "../../../modules/food-catalogue"
 import { RESTAURANT_MODULE } from "../../../modules/restaurant"
 import type RestaurantModuleService from "../../../modules/restaurant/service"
 import { signedPhotoUrl } from "../../photos/signed-url"
-import FoodCatalogueModuleService from "../../../modules/food-catalogue/service"
+import { loadFoodInformationTranslator } from "../food-information"
 import {
   MENU_CURRENCY,
   MenuCategoryRecord,
@@ -151,44 +150,8 @@ export const readRestaurantMenuStep = createStep(
           .then((url) => ({ url }))
           .catch(() => null)
       : null
-    const service = container.resolve<FoodCatalogueModuleService>(
-      FOOD_CATALOGUE_MODULE,
-    )
-    const [allergens, details, labels] = await Promise.all([
-      service.listAllergens({}, { take: null, order: { number: "ASC" } }),
-      service.listAllergenDetails({}, { take: null }),
-      service.listFoodLabels({}, { take: null }),
-    ])
-    const byId = new Map(allergens.map((row) => [row.id, row]))
-    const detailById = new Map(details.map((row) => [row.id, row]))
-    const translate = (
-      entries: { allergen_id: string; detail_ids: string[] }[],
-    ) =>
-      entries
-        .flatMap(({ allergen_id, detail_ids }) => {
-          const row = byId.get(allergen_id)
-          return row
-            ? [
-                {
-                  number: row.number,
-                  code: row.code,
-                  name: { da: row.name_da, en: row.name_en },
-                  details: detail_ids.flatMap((id) => {
-                    const detail = detailById.get(id)
-                    return detail
-                      ? [
-                          {
-                            code: detail.code,
-                            name: { da: detail.name_da, en: detail.name_en },
-                          },
-                        ]
-                      : []
-                  }),
-                },
-              ]
-            : []
-        })
-        .sort((a, b) => a.number - b.number)
+    const translateFoodInformation =
+      await loadFoodInformationTranslator(container)
     return new StepResponse({
       restaurant: {
         id: restaurant.id,
@@ -205,37 +168,14 @@ export const readRestaurantMenuStep = createStep(
       },
       categories: menuWithPhotos.map((category) => ({
         ...category,
-        dishes: category.dishes.map(
-          ({ allergens: declaration, food_labels, ...dish }) => ({
-            ...dish,
-            photo: dish.photo ?? null,
-            food_information: {
-              allergens:
-                declaration.status === "unknown"
-                  ? { status: "unknown" as const }
-                  : {
-                      status: "supplied" as const,
-                      contains: translate(declaration.contains),
-                      may_contain: translate(declaration.may_contain),
-                      none_declared: declaration.none_declared,
-                    },
-              labels: labels.map((label) => {
-                const declaration = (food_labels ?? []).find(
-                  ({ food_label_id }) => food_label_id === label.id,
-                )
-                return {
-                  code: label.code,
-                  name: { da: label.name_da, en: label.name_en },
-                  description: {
-                    da: label.description_da,
-                    en: label.description_en,
-                  },
-                  state: declaration?.state ?? ("unknown" as const),
-                }
-              }),
-            },
+        dishes: category.dishes.map(({ allergens, food_labels, ...dish }) => ({
+          ...dish,
+          photo: dish.photo ?? null,
+          food_information: translateFoodInformation({
+            allergens,
+            food_labels,
           }),
-        ),
+        })),
       })),
     })
   },

@@ -13,12 +13,14 @@ import {
   queueView,
   QueueView,
 } from "../rules"
+import { KitchenFacts, toKitchenFacts } from "../purchased-items"
 
 type OperationRow = {
   order_id: string
   state: OrderOperationState
   placed_at: Date | string | null
   acceptance_deadline: Date | string | null
+  purchased_items?: unknown
 }
 
 type OrderRow = {
@@ -30,6 +32,7 @@ type OrderRow = {
     id: string
     title: string
     product_title?: string | null
+    variant_id?: string | null
     quantity: unknown
     unit_price: unknown
     total: unknown
@@ -53,6 +56,8 @@ export type RestaurantOrder = {
     quantity: number
     unit_price_including_vat: number
     total_including_vat: number
+    /** Bilingual name and declarations as purchased; staff choose the language. */
+    purchased: KitchenFacts
   }[]
 }
 
@@ -61,6 +66,7 @@ const OPERATION_FIELDS = [
   "state",
   "placed_at",
   "acceptance_deadline",
+  "purchased_items",
 ] as const
 
 const ORDER_FIELDS = [
@@ -71,6 +77,7 @@ const ORDER_FIELDS = [
   "items.id",
   "items.title",
   "items.product_title",
+  "items.variant_id",
   "items.quantity",
   "items.unit_price",
   "items.total",
@@ -79,7 +86,10 @@ const ORDER_FIELDS = [
 const iso = (value: Date | string | null) =>
   value ? new Date(value).toISOString() : null
 
-/** The line items are Medusa's purchase snapshot, so later menu edits do not change them. */
+/**
+ * The line items are Medusa's purchase snapshot and the kitchen facts were
+ * frozen at review, so later menu edits change neither.
+ */
 function toRestaurantOrder(
   operation: OperationRow,
   order: OrderRow,
@@ -103,6 +113,7 @@ function toRestaurantOrder(
       quantity: Number(item.quantity),
       unit_price_including_vat: Number(item.unit_price),
       total_including_vat: Number(item.total),
+      purchased: toKitchenFacts(operation.purchased_items, item.variant_id),
     })),
   }
 }

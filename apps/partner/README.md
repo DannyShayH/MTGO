@@ -85,6 +85,16 @@ operational state, the deadline line, the placement time and the purchased
 dishes with quantities. The detail page adds unit prices, line totals and the
 Order total including VAT.
 
+Dish names and food information are the ones purchased (#141), shown in the
+staff member's language whatever the Customer's Order language. Under each
+dish the detail page lists "Contains" and "May contain" allergens with their
+numbers and specific types, "No allergens declared" only for an explicit
+empty declaration, a warning "Allergens: unknown" when none was given (or
+when nothing is listed without that explicit "none"), and each
+additional food label as yes, no or unknown. An Order placed before these
+facts were recorded shows its retained title and says the information is
+unavailable.
+
 The deadline line only reports the backend's `acceptance_window`: "Accept by
 13:05" while open, "Acceptance window ended 13:05" once elapsed, and "Timing
 unknown" for an Order placed before timings were recorded. The page never uses

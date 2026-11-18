@@ -7,6 +7,7 @@ import {
   addToCartWorkflow,
   completeCartWorkflow,
 } from "@medusajs/medusa/core-flows"
+import { StepResponse } from "@medusajs/framework/workflows-sdk"
 import { decideBasketAddition } from "../carts/basket-rules"
 import {
   basketRefusal,
@@ -15,6 +16,10 @@ import {
   ReviewedCart,
   reviewCartBasket,
 } from "../carts/review-basket"
+import {
+  freezePurchaseReview,
+  restorePurchaseReview,
+} from "../order-operations/purchased-items"
 
 /**
  * Direct Store API calls reach the same rule as the menu: a cart line must be
@@ -76,8 +81,26 @@ export async function validateReviewedBasket(
         issues: review.issues,
       },
     )
+  return review
 }
 
-completeCartWorkflow.hooks.validate(({ cart }, { container }) =>
-  validateReviewedBasket(container, cart, true),
+/**
+ * Completion reviews the basket under the cart lock, then freezes the reviewed
+ * kitchen facts so placement, even a delayed one, never rereads the menu. A
+ * completed cart is not reviewed again and keeps its frozen review.
+ */
+completeCartWorkflow.hooks.validate(
+  async ({ cart }, { container }) => {
+    const review = await validateReviewedBasket(container, cart, true)
+    if (!review) return new StepResponse(undefined)
+    const change = await freezePurchaseReview(
+      container,
+      (cart as { id: string }).id,
+      review.dishes,
+    )
+    return new StepResponse(undefined, change)
+  },
+  async (change, { container }) => {
+    if (change) await restorePurchaseReview(container, change)
+  },
 )
