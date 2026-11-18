@@ -82,6 +82,7 @@ import {
   InviteDeliveryAgentSchema,
   ListDeliveryAgentsSchema,
 } from "./admin/delivery-agents/validators"
+import { recordSessionExpiry } from "./session-expiry"
 
 /** Medusa has no path-parameter validator, so the postal code in the path is checked here. */
 function validatePostalCodeParam(
@@ -462,6 +463,11 @@ export default defineMiddlewares({
       matcher: "/partner/orders",
       method: "GET",
       middlewares: [validateAndTransformQuery(GetPartnerOrdersSchema, {})],
+    },
+    {
+      matcher: "/partner/orders/stream",
+      method: "GET",
+      middlewares: [recordSessionExpiry],
     },
     {
       matcher: "/partner/orders/:id/accept",

@@ -20,6 +20,7 @@ import {
   pickPurchasedName,
 } from "@modules/orders/components/purchased-food"
 import { AcceptOrder } from "@modules/orders/components/accept-order"
+import { LiveOrders } from "@modules/orders/components/live-orders"
 
 const LINK_CLASS =
   "focus-visible:ring-mtogo-focus-ring inline-flex min-h-11 items-center rounded border border-mtogo-border-control px-4 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
@@ -86,6 +87,7 @@ export default async function OrderPage({
         </Heading>
         <OrderStateBadge state={order.state} locale={locale} />
       </header>
+      <LiveOrders locale={locale} />
       <Container className="rounded-card flex flex-col gap-y-2 px-4 py-4 sm:px-6 sm:py-5">
         <AcceptanceDeadline order={order} locale={locale} detailed />
         {order.accepted_at && (

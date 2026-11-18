@@ -1174,6 +1174,54 @@ The `400` refusals come from the Order's current state (`not_allowed`), and the
 Each also carries `order` and `server_time`, the Order as it is now, so the
 screen can show the current outcome.
 
+### GET /partner/orders/stream
+
+**Actor:** Restaurant staff (`restaurant_staff`, bearer token only). The kitchen
+feed (#148): a Server-Sent Events stream of small invalidation hints for the
+staff member's own Restaurant. It carries no Order details; on a hint, staff
+reread `GET /partner/orders` or `GET /partner/orders/{id}`. Hints are not proof
+of anything: the durable records stay authoritative, and the partner app also
+reloads on connect, on focus and every minute.
+
+Access is checked before the stream opens, so a refusal is an ordinary JSON
+error response. Once open, the response is `200` with
+`Content-Type: text/event-stream` and `Cache-Control: no-cache, no-transform`
+(proxies such as Caddy then neither compress nor buffer it).
+
+| Event       | Data                                                      | When                                                                                  |
+| ----------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `ready`     | `{ "server_time": "..." }`                                | Once, when the feed opens; the screen then rereads its Orders                         |
+| `orders`    | `{ "orders": [{ "id": "order_...", "revision": 2 }] }`    | A paid Order was placed, or a persisted operational change raised an Order's revision |
+| `heartbeat` | `{ "server_time": "..." }`                                | After the first read once open, then after 15 seconds without another event           |
+| `ended`     | `{ "code": "staff_access_revoked" \| "session_expired" }` | Access was revoked or the token expired; the stream then closes                       |
+
+The first heartbeat (or hint) proves that a read after `ready` went through,
+so the partner app shows "Live" only then. Every second the feed rechecks the
+staff record and the token's expiry (kept by the `recordSessionExpiry`
+middleware in `src/api/session-expiry.ts`), then
+reads the Restaurant's records changed in the last 30 seconds (at most 200,
+indexed on `restaurant_id, updated_at`). Each Order revision is announced once
+per connection. More than 200 changes in 30 seconds, or server and worker
+clocks more than 30 seconds apart, can drop a hint; the partner app's
+reconciliation every minute covers that. Because it reads durable records, writes from the Medusa
+server and from a separate worker process both appear, without pub/sub. A
+failed read closes the stream without `ended`, so the client reconnects or
+falls back to polling. Closing the connection stops the reads. On `SIGTERM`
+or `SIGINT` every open feed closes (without `ended`): Medusa's graceful
+shutdown waits for open connections, so otherwise a deploy would hang while
+the old process kept streaming and refusing every other request. Screens
+reconnect to the new process.
+
+```bash
+curl -N http://localhost:9000/partner/orders/stream \
+  -H "Authorization: Bearer <token>"
+```
+
+| Status | When                                                            |
+| ------ | --------------------------------------------------------------- |
+| `401`  | As for `GET /partner/me`                                        |
+| `403`  | `code: "staff_access_revoked"`: revoked before the stream opens |
+
 ### POST /partner/restaurants/{id}/open and POST /partner/restaurants/{id}/close
 
 **Actor:** Restaurant staff (`restaurant_staff`, bearer token only). Opens or

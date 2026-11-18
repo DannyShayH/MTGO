@@ -10,6 +10,7 @@ import { BrandMark } from "@modules/layout/components/brand-mark"
 import { LanguageSwitch } from "@modules/layout/components/language-switch"
 import { SignInForm } from "@modules/sign-in/components/sign-in-form"
 import { SignInNotice } from "@modules/sign-in/components/sign-in-notice"
+import { AnnounceSignOut } from "@modules/sign-in/components/announce-sign-out"
 
 export default async function SignInPage({
   searchParams,
@@ -33,6 +34,7 @@ export default async function SignInPage({
         : undefined
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-y-6 px-4 py-12">
+      {message === "signed_out" && <AnnounceSignOut />}
       <div className="bg-ui-bg-base shadow-elevation-card-rest rounded-card flex w-full max-w-sm flex-col gap-y-6 p-6 motion-safe:animate-fade-up sm:p-8">
         <BrandMark name={messages.text.app_name} />
         <SignInNotice

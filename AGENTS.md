@@ -122,6 +122,7 @@ cd apps/storefront && <pm> run lint    # eslint (flat config)
 cd apps/partner && <pm> run lint       # eslint (flat config)
 cd packages/i18n && <pm> test          # Node's test runner, src/**/__tests__/*.unit.spec.ts
 cd packages/next-react && <pm> test    # Node's test runner, src/**/__tests__/*.unit.spec.ts
+cd apps/partner && <pm> test           # Node's test runner, src/**/__tests__/*.unit.spec.ts
 <pm> run check:react                   # each Next.js app resolves only its own React copy
 ```
 
@@ -154,7 +155,7 @@ Run the suites from `apps/backend` — it defines no plain `test` script, so the
 
 **Local checks and the ready flow.** Before `gh wrapup`, run `<pm> run lint`,
 `cd apps/backend && <pm> run test:affected`, and `npm test` in each changed
-`packages/*`. `test:affected` runs the unit, module and HTTP specs that import
+`packages/*` and in `apps/partner` when it changed. `test:affected` runs the unit, module and HTTP specs that import
 something changed since `origin/main`, plus changed spec files; a change under
 `src/api/`, `src/links/` or `medusa-config` runs every HTTP spec. After
 `gh deliver`, the ready flow runs the full backend suites and affected browser journeys on

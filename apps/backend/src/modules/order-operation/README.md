@@ -53,7 +53,11 @@ later slices.
 
 Indexes: unique `order_id`; unique `PurchaseReview.cart_id`; `(restaurant_id, state, acceptance_deadline, id)`
 for the awaiting queue and `(restaurant_id, state, placed_at, id)` for the
-active and history views. The queue filters, orders and paginates in the
+active and history views. `(restaurant_id, updated_at)` serves the kitchen
+feed's bounded read of recently changed records (#148). Any persisted
+operational change must raise `revision`, an undo included (the acceptance
+compensation writes a newer revision, not the old one): the feed announces
+each Order revision once. The queue filters, orders and paginates in the
 module (`listAndCountOrderOperations`).
 
 ## Transitions
@@ -92,6 +96,18 @@ refused), then read the Restaurant's records and the Orders' purchase snapshot
 (reference, items, quantities, prices) with each line's purchased kitchen facts. See `GET /partner/orders` in
 [the API documentation](../../api/README.md).
 
+`readPartnerOrderFeedWorkflow` is one tick of the kitchen feed
+(`GET /partner/orders/stream`): it checks the staff record, then
+`readOrderFeedStep` reads the `order_id` and `revision` of the Restaurant's
+records updated in the last 30 seconds and `advanceOrderFeed` in
+`order-feed.ts` turns the revisions the connection has not announced yet into
+hints. The route keeps only the announced revisions (by Order id) between ticks.
+
+The feed's limits are deliberate: a read takes at most 200 records, newest
+first, and the window assumes the server and worker clocks agree within 30
+seconds (they stamp `updated_at`). A change outside either limit is not
+hinted, and the partner app's reload every minute picks it up.
+
 ## Verification
 
 `integration-tests/http/partner-orders.spec.ts` covers placement and retries, purchased kitchen facts across menu edits,
@@ -103,10 +119,24 @@ retried placement, repeated and competing acceptance, refusals with the
 current outcome, closed and deactivated Restaurants, and own, foreign and
 revoked access. `src/workflows/order-operations/__tests__/rules.unit.spec.ts`
 covers the deadline boundary, the view definitions and the acceptance decision
-table (before, at and after the deadline; repeat; cancelled; legacy).
+table (before, at and after the deadline; repeat; cancelled; legacy). The same HTTP suite
+covers the kitchen feed: new Orders, a persisted change, Restaurant isolation,
+reconnection, refusals, revocation and token expiry during a connection, the
+first heartbeat, a failed read closing the stream without `ended`, and that a
+closed connection stops reading. `order-feed.unit.spec.ts` covers
+duplicate and out-of-order revisions.
 
 Measured locally in the devcontainer (in-process HTTP runner, disposable
 PostgreSQL, one Restaurant with five awaiting Orders, twenty simultaneous
 journeys of one queue read plus one detail read), two runs on 18 November
 2026: p50 275 and 347 ms, p95 590 and 748 ms,
 against the agreed 95% within two seconds.
+
+The kitchen feed's cost per open screen was measured the same day against
+`medusa develop` in split mode (separate server and worker processes on
+Redis, disposable PostgreSQL), with 0, 10, 25 and 50 feeds open on one
+Restaurant. The server process used about 3, 16, 14 and 26% of one CPU with no
+other traffic, and 20 simultaneous queue-plus-detail journeys (three rounds)
+stayed at p95 1113, 1055, 848 and 837 ms: open feeds did not slow the reads.
+The same run confirmed that a change written by a separate Medusa process
+reaches an open feed within the one-second tick.

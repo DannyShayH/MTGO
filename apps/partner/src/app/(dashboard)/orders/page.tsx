@@ -11,6 +11,7 @@ import {
 } from "@lib/data/orders"
 import { OrderCard } from "@modules/orders/components/order-card"
 import { QueueViews } from "@modules/orders/components/queue-views"
+import { LiveOrders } from "@modules/orders/components/live-orders"
 
 const LINK_CLASS =
   "focus-visible:ring-mtogo-focus-ring inline-flex min-h-11 items-center rounded border border-mtogo-border-control px-4 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
@@ -52,7 +53,8 @@ export default async function OrdersPage({
             {text.intro}
           </Text>
         </div>
-        <div className="flex items-center gap-x-3">
+        <div className="flex flex-col items-start gap-y-2">
+          <LiveOrders locale={locale} />
           {result && (
             <Text size="small" className="text-ui-fg-subtle">
               {formatText(text.checked_at, {
@@ -60,9 +62,6 @@ export default async function OrdersPage({
               })}
             </Text>
           )}
-          <Link href={here} className={LINK_CLASS}>
-            {text.refresh}
-          </Link>
         </div>
       </header>
       <QueueViews current={view} locale={locale} />

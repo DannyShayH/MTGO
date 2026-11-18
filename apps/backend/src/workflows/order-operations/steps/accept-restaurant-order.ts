@@ -47,7 +47,7 @@ async function refuseWithCurrent(
  * returned unchanged rather than repeated.
  *
  * Compensation undoes only the write this step made: it restores the
- * awaiting state and the revision it read, guarded by the revision and actor
+ * awaiting state under a newer revision, guarded by the revision and actor
  * it wrote, so it never reverts a later transition or a repeated acceptance.
  */
 export const acceptRestaurantOrderStep = createStep(
@@ -109,11 +109,13 @@ export const acceptRestaurantOrderStep = createStep(
         state: "accepted",
         accepted_by: written.staff_id,
       },
+      // Undoing is a persisted change too: a newer revision, so the kitchen
+      // feed (#148) announces it instead of leaving screens on "accepted".
       data: {
         state: "awaiting_acceptance",
         accepted_at: null,
         accepted_by: null,
-        revision: written.revision,
+        revision: written.revision + 2,
       },
     })
   },

@@ -40,6 +40,8 @@ const OrderOperation = model
     { on: ["order_id"], unique: true },
     { on: ["restaurant_id", "state", "acceptance_deadline", "id"] },
     { on: ["restaurant_id", "state", "placed_at", "id"] },
+    // The kitchen feed's bounded read of recently changed records (#148).
+    { on: ["restaurant_id", "updated_at"] },
   ])
 
 export default OrderOperation

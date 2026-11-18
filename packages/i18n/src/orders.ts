@@ -59,7 +59,13 @@ type OrderText = Record<
   | "accept_hint"
   | "accepted_notice"
   | "accepted_at"
-  | "refreshed_hint",
+  | "refreshed_hint"
+  | "connection_connecting"
+  | "connection_live"
+  | "connection_reconnecting"
+  | "connection_fallback"
+  | "connection_offline"
+  | "try_again",
   string
 >
 
@@ -130,6 +136,14 @@ export const ORDER_TEXT: Record<Locale, OrderText> = {
     accepted_notice: "Ordre #{number} er accepteret.",
     accepted_at: "Accepteret {time}",
     refreshed_hint: "Ordren er hentet igen og viser nu, hvordan den står.",
+    connection_connecting: "Opretter forbindelse …",
+    connection_live: "Live: nye ordrer vises automatisk",
+    connection_reconnecting: "Forbindelsen blev afbrudt. Forbinder igen …",
+    connection_fallback:
+      "Live-opdatering er ikke tilgængelig. Ordrerne hentes automatisk hvert {seconds}. sekund.",
+    connection_offline:
+      "Ingen forbindelse. Ordrerne er måske ikke aktuelle. Prøver igen automatisk.",
+    try_again: "Prøv igen",
   },
   en: {
     title: "Orders",
@@ -196,6 +210,14 @@ export const ORDER_TEXT: Record<Locale, OrderText> = {
     accepted_notice: "Order #{number} is accepted.",
     accepted_at: "Accepted {time}",
     refreshed_hint: "The Order was loaded again and now shows where it stands.",
+    connection_connecting: "Connecting …",
+    connection_live: "Live: new Orders appear automatically",
+    connection_reconnecting: "Connection lost. Reconnecting …",
+    connection_fallback:
+      "Live updates are unavailable. Orders are reloaded every {seconds} seconds.",
+    connection_offline:
+      "No connection. Orders may be out of date. Retrying automatically.",
+    try_again: "Try again",
   },
 }
 

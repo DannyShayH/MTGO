@@ -1312,5 +1312,321 @@ medusaIntegrationTestRunner({
         expect((await queue(headers, query)).status).toBe(status)
       })
     })
+
+    describe("GET /partner/orders/stream", () => {
+      type FeedEvent = { event: string; data: Record<string, unknown> }
+      /** A bounded wait: every expectation on the stream fails after this. */
+      const WAIT = 8000
+
+      /**
+       * Opens the kitchen feed like the partner relay does and collects its
+       * Server-Sent Events, so a test can wait for one with a bounded timeout.
+       */
+      const openStream = async (headers: Record<string, string>) => {
+        const controller = new AbortController()
+        const response = await fetch(
+          `${api.defaults.baseURL}/partner/orders/stream`,
+          {
+            headers: { ...headers, accept: "text/event-stream" },
+            signal: controller.signal,
+          },
+        )
+        const events: FeedEvent[] = []
+        let waiting: (() => void) | undefined
+        let closed = false
+        const pump = (async () => {
+          if (!response.ok || !response.body) return
+          const decoder = new TextDecoder()
+          let buffer = ""
+          try {
+            for await (const chunk of response.body) {
+              buffer += decoder.decode(chunk as Uint8Array, { stream: true })
+              let end: number
+              while ((end = buffer.indexOf("\n\n")) >= 0) {
+                const raw = buffer.slice(0, end)
+                buffer = buffer.slice(end + 2)
+                const field = (name: string) =>
+                  raw
+                    .split("\n")
+                    .find((line) => line.startsWith(`${name}: `))
+                    ?.slice(name.length + 2)
+                const event = field("event")
+                if (event)
+                  events.push({
+                    event,
+                    data: JSON.parse(field("data") ?? "{}"),
+                  })
+                waiting?.()
+              }
+            }
+          } catch {
+            // Aborted by the test.
+          } finally {
+            closed = true
+            waiting?.()
+          }
+        })()
+        const next = async (
+          event: string,
+          matches: (data: Record<string, unknown>) => boolean = () => true,
+        ) => {
+          const deadline = Date.now() + WAIT
+          for (;;) {
+            const index = events.findIndex(
+              (entry) => entry.event === event && matches(entry.data),
+            )
+            if (index >= 0) return events.splice(index, 1)[0].data
+            if (closed) throw new Error(`stream closed before "${event}"`)
+            const left = deadline - Date.now()
+            if (left <= 0) throw new Error(`no "${event}" within ${WAIT} ms`)
+            await new Promise<void>((resolve) => {
+              waiting = resolve
+              setTimeout(resolve, left)
+            })
+          }
+        }
+        return {
+          response,
+          events,
+          next,
+          /** Resolves when the server ends the stream, within the bounded wait. */
+          ended: () =>
+            Promise.race([
+              pump.then(() => true),
+              new Promise((resolve) => setTimeout(() => resolve(false), WAIT)),
+            ]),
+          close: () => controller.abort(),
+        }
+      }
+      type Stream = Awaited<ReturnType<typeof openStream>>
+      const invalidated = (stream: Stream, orderId: string, revision = 1) =>
+        stream.next("orders", (data) =>
+          (data.orders as { id: string; revision: number }[]).some(
+            (order) => order.id === orderId && order.revision === revision,
+          ),
+        )
+      const streams: Stream[] = []
+      afterEach(() => streams.splice(0).forEach((stream) => stream.close()))
+      const open = async (headers: Record<string, string>) => {
+        const stream = await openStream(headers)
+        streams.push(stream)
+        return stream
+      }
+
+      it("announces new paid Orders and persisted changes of its own Restaurant only", async () => {
+        const staff = await signInAsStaffOf(
+          pizzeriaId,
+          "mette@pizzeria.example",
+        )
+        const stream = await open(staff.headers)
+        expect(stream.response.status).toBe(200)
+        expect(stream.response.headers.get("content-type")).toContain(
+          "text/event-stream",
+        )
+        // Proxies such as Caddy must neither compress nor buffer the feed.
+        expect(stream.response.headers.get("cache-control")).toContain(
+          "no-transform",
+        )
+        await stream.next("ready")
+
+        const foreign = await placePaidOrder(burgerId)
+        const order = await placePaidOrder(pizzeriaId)
+        await invalidated(stream, order.id)
+
+        // A later transition persisted by another process, such as the worker.
+        const [record] = await operations().listOrderOperations({
+          order_id: order.id,
+        })
+        await operations().updateOrderOperations({
+          id: record.id,
+          state: "accepted",
+          revision: 2,
+        })
+        await invalidated(stream, order.id, 2)
+        // The hint carries no Order details; staff read them through the API.
+        const { data } = await detail(staff.headers, order.id)
+        expect(data.order.state).toBe("accepted")
+
+        const hinted = stream.events
+          .filter(({ event }) => event === "orders")
+          .flatMap(({ data }) => data.orders as { id: string }[])
+        expect(hinted.map(({ id }) => id)).not.toContain(foreign.id)
+        expect(JSON.stringify(stream.events)).not.toContain(foreign.id)
+        // Each revision is announced once: the two awaited hints were taken
+        // from the collected events, so no duplicate may remain.
+        expect(hinted.filter(({ id }) => id === order.id)).toHaveLength(0)
+      })
+
+      it("announces an acceptance made through the accept action", async () => {
+        const staff = await signInAsStaffOf(
+          pizzeriaId,
+          "mette@pizzeria.example",
+        )
+        const order = await placePaidOrder(pizzeriaId)
+        const stream = await open(staff.headers)
+        await stream.next("ready")
+
+        const accepted = await api.post(
+          `/partner/orders/${order.id}/accept`,
+          {},
+          { headers: staff.headers, validateStatus: () => true },
+        )
+        expect(accepted.status).toBe(200)
+        await invalidated(stream, order.id, 2)
+      })
+
+      it("starts a reconnected screen from a fresh ready event, so Orders placed meanwhile are read", async () => {
+        const staff = await signInAsStaffOf(
+          pizzeriaId,
+          "mette@pizzeria.example",
+        )
+        const first = await open(staff.headers)
+        await first.next("ready")
+        first.close()
+        const missed = await placePaidOrder(pizzeriaId)
+
+        const again = await open(staff.headers)
+        const ready = await again.next("ready")
+        expect(typeof ready.server_time).toBe("string")
+        const { data } = await queue(staff.headers)
+        expect(data.orders.map(({ id }: QueueOrder) => id)).toContain(missed.id)
+      })
+
+      it.each([
+        { caller: "signed_out", status: 401, reason: "DT R2: no token" },
+        {
+          caller: "customer",
+          status: 401,
+          reason: "DT R3: signed in, wrong actor type (Customer)",
+        },
+        {
+          caller: "revoked_staff",
+          status: 403,
+          reason: "DT R5: revoked before the stream opens",
+        },
+      ])("refuses to open: $reason", async ({ caller, status }) => {
+        const own = await signInAsStaffOf(pizzeriaId, "mette@pizzeria.example")
+        let headers: Record<string, string> = {}
+        if (caller === "customer")
+          headers = { authorization: customer.authorization }
+        if (caller === "revoked_staff") {
+          const { data } = await api.get("/admin/users/me", { headers: admin })
+          await revokeRestaurantStaffWorkflow(getContainer()).run({
+            input: {
+              restaurant_id: pizzeriaId,
+              staff_id: own.staffId,
+              revoked_by: data.user.id,
+            },
+          })
+          headers = own.headers
+        }
+        const stream = await open(headers)
+        expect(stream.response.status).toBe(status)
+        expect(stream.response.headers.get("content-type")).not.toContain(
+          "text/event-stream",
+        )
+        if (caller === "revoked_staff")
+          expect((await stream.response.json()).code).toBe(
+            "staff_access_revoked",
+          )
+      })
+
+      it("ends an open stream when access is revoked, before publishing further Orders", async () => {
+        const own = await signInAsStaffOf(pizzeriaId, "mette@pizzeria.example")
+        const stream = await open(own.headers)
+        await stream.next("ready")
+        const { data } = await api.get("/admin/users/me", { headers: admin })
+        await revokeRestaurantStaffWorkflow(getContainer()).run({
+          input: {
+            restaurant_id: pizzeriaId,
+            staff_id: own.staffId,
+            revoked_by: data.user.id,
+          },
+        })
+        const order = await placePaidOrder(pizzeriaId)
+
+        expect(await stream.next("ended")).toEqual({
+          code: "staff_access_revoked",
+        })
+        expect(await stream.ended()).toBe(true)
+        expect(JSON.stringify(stream.events)).not.toContain(order.id)
+      })
+
+      it("ends an open stream when the session token expires", async () => {
+        const own = await signInAsStaffOf(pizzeriaId, "mette@pizzeria.example")
+        const { auth_identity_id } = JSON.parse(
+          Buffer.from(
+            own.headers.authorization.split(".")[1],
+            "base64url",
+          ).toString(),
+        )
+        const shortLived = generateJwtToken(
+          {
+            actor_id: own.staffId,
+            actor_type: "restaurant_staff",
+            auth_identity_id,
+          },
+          {
+            secret: getContainer().resolve(
+              ContainerRegistrationKeys.CONFIG_MODULE,
+            ).projectConfig.http.jwtSecret,
+            expiresIn: "2s",
+          },
+        )
+        const stream = await open({ authorization: `Bearer ${shortLived}` })
+        await stream.next("ready")
+        expect(await stream.next("ended")).toEqual({ code: "session_expired" })
+        expect(await stream.ended()).toBe(true)
+      })
+
+      it("stops reading Orders once the kitchen screen disconnects", async () => {
+        const staff = await signInAsStaffOf(
+          pizzeriaId,
+          "mette@pizzeria.example",
+        )
+        const stream = await open(staff.headers)
+        await stream.next("ready")
+        await new Promise((resolve) => setTimeout(resolve, 1500))
+        const reads = jest.spyOn(operations(), "listOrderOperations")
+        stream.close()
+        // Let an in-flight read finish, then expect no further reads.
+        await new Promise((resolve) => setTimeout(resolve, 1500))
+        const settled = reads.mock.calls.length
+        await new Promise((resolve) => setTimeout(resolve, 3000))
+        expect(reads.mock.calls.length).toBe(settled)
+        reads.mockRestore()
+      })
+
+      it("proves the open feed works with a heartbeat after its first read", async () => {
+        const staff = await signInAsStaffOf(
+          pizzeriaId,
+          "mette@pizzeria.example",
+        )
+        const stream = await open(staff.headers)
+        await stream.next("ready")
+        // Well before the 15 s quiet-feed heartbeat (bounded by WAIT).
+        expect(typeof (await stream.next("heartbeat")).server_time).toBe(
+          "string",
+        )
+      })
+
+      it("closes without ending the session when a read fails, so the screen reconnects or polls", async () => {
+        const staff = await signInAsStaffOf(
+          pizzeriaId,
+          "mette@pizzeria.example",
+        )
+        const stream = await open(staff.headers)
+        await stream.next("ready")
+        const reads = jest
+          .spyOn(operations(), "listOrderOperations")
+          .mockRejectedValueOnce(new Error("database unavailable"))
+        try {
+          expect(await stream.ended()).toBe(true)
+        } finally {
+          reads.mockRestore()
+        }
+        expect(stream.events.map(({ event }) => event)).not.toContain("ended")
+      })
+    })
   },
 })

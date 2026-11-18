@@ -6,6 +6,11 @@ import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { FetchError } from "@medusajs/js-sdk"
 import { BACKEND_URL, PARTNER_TOKEN_COOKIE } from "@lib/config"
+import {
+  SESSION_ENDED_CODES,
+  sessionEndedCodeForStatus,
+  type SessionEndedCode,
+} from "@lib/session-ended"
 
 export type CurrentStaff = {
   staff: {
@@ -18,12 +23,7 @@ export type CurrentStaff = {
   restaurant: { id: string; name: string }
 }
 
-/** Why a signed-in staff member was signed out; each has a text in @dtc/i18n. */
-export const SESSION_ENDED_CODES = [
-  "staff_access_revoked",
-  "session_expired",
-] as const
-export type SessionEndedCode = (typeof SESSION_ENDED_CODES)[number]
+export { SESSION_ENDED_CODES, type SessionEndedCode }
 
 export type StaffSession =
   | { status: "authorized"; current: CurrentStaff }
@@ -76,19 +76,6 @@ async function refusedRestaurantName(response: Response) {
   const name = (body as { restaurant?: { name?: unknown } } | undefined)
     ?.restaurant?.name
   return typeof name === "string" && name.trim() ? name : undefined
-}
-
-/**
- * Branch on the status only (coding standard 7.2): 403 is the one refusal
- * partner routes have for a valid token, staff_access_revoked, and 401 means
- * the token stopped working.
- */
-function sessionEndedCodeForStatus(
-  status: number | undefined,
-): SessionEndedCode | undefined {
-  if (status === 403) return "staff_access_revoked"
-  if (status === 401) return "session_expired"
-  return undefined
 }
 
 /** Why a partner request through the js-sdk ended the session, if it did. */

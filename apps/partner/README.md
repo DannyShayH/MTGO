@@ -109,8 +109,67 @@ The deadline line only reports the backend's `acceptance_window`: "Accept by
 13:05" while open, "Acceptance window ended 13:05" once elapsed, and "Timing
 unknown" for an Order placed before timings were recorded. The page never uses
 the browser clock to decide it, and the queue itself accepts or cancels nothing. Times are
-shown on the Copenhagen clock. A "Loaded 13:01" line and the Refresh link make
-the data's age visible; live updates arrive with the kitchen stream slice.
+shown on the Copenhagen clock. A "Loaded 13:01" line shows the server time of
+the last read, so the data's age stays visible.
+
+### Live updates and connection recovery (#148)
+
+The Orders queue and Order details stay current while open. The browser opens
+the same-origin relay `GET /api/orders/stream`
+(`src/app/api/orders/stream/route.ts`), which uses the js-sdk's `fetchStream`
+on the server with the bearer from this request's httpOnly cookie, passed per
+call. The token never reaches browser code or a URL. Closing the browser
+connection aborts the backend stream. A hint, or the `ready` that follows
+every (re)connection, rereads the page's projections with `router.refresh()`,
+which keeps keyboard focus and scroll position.
+
+A status line with a dot shows the connection, in Danish and English, as a
+`role="status"` region:
+
+| Status       | Meaning                                                                                                         |
+| ------------ | --------------------------------------------------------------------------------------------------------------- |
+| Connecting   | The first feed has not opened yet                                                                               |
+| Live         | The feed proved itself (a heartbeat or hint after `ready`) and has sent an event in the last 40 seconds         |
+| Reconnecting | The feed dropped; it is retried after 1 s and 2 s                                                               |
+| Fallback     | Three attempts failed but `GET /api/orders/check` works: Orders reload every 15 s, streaming retried every 60 s |
+| Offline      | The check fails too; it is retried after 5, 10, 20 and 40 s, then every 60 s                                    |
+
+A silent feed (for example behind a buffering proxy) counts as failed, so a
+quiet screen never claims to be live. `ready` alone is not proof: the screen
+shows Live only after a heartbeat or hint follows it (the backend sends the
+first heartbeat after its first read, about a second later), and while
+polling it keeps polling until then. A feed that opens and drops at once
+still backs off and falls back. A failed check before a reread leaves the
+feed's own attempts alone; only while polling does it count as a failed poll. Focus, returning to the tab and the
+browser's `online` event try the failed transports at once; the Refresh
+button also rereads the Orders immediately.
+A live screen also rereads every minute, so a missed hint cannot strand an
+Order. When the backend ends the feed or the check because access was
+revoked or the token expired, the screen goes through `/session-ended` like
+any other partner page. Signing out deletes the cookie but cannot revoke the
+stateless token, so once the cookie is gone the signed-out sign-in page tells
+this browser's other partner tabs (`BroadcastChannel`,
+`src/lib/session-ended.ts`), and their open feeds end at once. A tab in another browser stops at its next reread (within
+a minute, or on focus), which redirects to sign-in. The rules are in
+`src/modules/orders/connection.ts`, tested by `npm test`
+(`src/modules/orders/__tests__/connection.unit.spec.ts`). The relay and the
+check are in `src/lib/data/order-feed-relay.ts`, free of Next.js and the SDK,
+and `src/lib/data/__tests__/order-feed-relay.unit.spec.ts` covers relayed
+events, refusals that end the session, failures that only close, and that a
+browser disconnect aborts the backend stream.
+Every automatic reread first asks `GET /api/orders/check`: a server render
+while the backend is down would otherwise replace the whole screen with an
+error. When the check fails, the last Orders stay with their "Loaded" time.
+If an Orders page itself still fails to render (the backend went down
+between check and render), `src/app/(dashboard)/orders/error.tsx` shows
+"Something went wrong" with Try again, probes the same check after 5, 10, 20
+and 40 s and then every 60 s, and renders the page again once the backend
+answers. It is deliberately limited to the Orders workspace: a failure in the
+dashboard layout, such as opening any partner page while the backend is down,
+still shows Next.js's default error page.
+Deadlines stay the backend's: a stale or offline screen still shows the
+`acceptance_window` from its last read, never a deadline worked out in the
+browser.
 
 Empty views have their own sentence, a backend failure shows a retry message,
 and an Order of another Restaurant (or an unknown id) shows "Order not found"

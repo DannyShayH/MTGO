@@ -11,6 +11,8 @@ import {
 } from "./steps/read-restaurant-orders"
 import { acceptRestaurantOrderStep } from "./steps/accept-restaurant-order"
 import { recordLegacyPlacementsStep } from "./steps/record-legacy-placements"
+import { readOrderFeedStep } from "./steps/read-order-feed"
+import type { AnnouncedRevisions } from "./order-feed"
 import { QueueView } from "./rules"
 
 export type { RestaurantOrder } from "./steps/read-restaurant-orders"
@@ -87,6 +89,24 @@ export const acceptPartnerOrderWorkflow = createWorkflow(
         name: "read-accepted-order",
       }),
     )
+  },
+)
+
+/**
+ * One tick of the kitchen feed (#148): staff authorization is checked against
+ * the staff record before anything is published, then the Restaurant's
+ * recently changed Order revisions are read from durable records and the
+ * ones this connection has not announced yet become hints.
+ */
+export const readPartnerOrderFeedWorkflow = createWorkflow(
+  "read-partner-order-feed",
+  function (input: { staff_id: string; announced: AnnouncedRevisions }) {
+    const current = retrieveAuthorizedStaffStep({ staff_id: input.staff_id })
+    const feedInput = transform({ input, current }, ({ input, current }) => ({
+      restaurant_id: current.restaurant.id,
+      announced: input.announced,
+    }))
+    return new WorkflowResponse(readOrderFeedStep(feedInput))
   },
 )
 
