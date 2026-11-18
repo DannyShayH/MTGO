@@ -14,6 +14,55 @@ type CurrentAgent = {
 }
 type Invite = { id: string; name: string; email: string }
 export type AgentActionState = { error?: "failed" | "invalid" }
+export type AvailableDelivery = {
+  id: string
+  order_id: string
+  order_reference: number
+  restaurant_name: string
+  pickup_address: string
+  destination_postal_code: string
+  preparation_status: "accepted" | "preparing" | "ready"
+  accepted_at: string
+  claim_deadline: string
+}
+
+export async function getAvailableDeliveries(
+  postalCodes: string[],
+  offset: number,
+) {
+  const bearer = (await cookies()).get(PARTNER_TOKEN_COOKIE)?.value
+  if (!bearer) redirect("/delivery-sign-in")
+  const query = new URLSearchParams({
+    limit: "20",
+    offset: String(offset),
+    postal_codes: postalCodes.join(","),
+  })
+  return createPartnerSdk().client.fetch<{
+    deliveries: AvailableDelivery[]
+    has_more: boolean
+    server_time: string
+  }>(`/partner/delivery-agent/available?${query}`, {
+    headers: { authorization: `Bearer ${bearer}` },
+    cache: "no-store",
+  })
+}
+
+export async function getAvailableDelivery(orderId: string) {
+  const bearer = (await cookies()).get(PARTNER_TOKEN_COOKIE)?.value
+  if (!bearer) redirect("/delivery-sign-in")
+  try {
+    return await createPartnerSdk().client.fetch<{
+      delivery: AvailableDelivery
+      server_time: string
+    }>(`/partner/delivery-agent/available/${encodeURIComponent(orderId)}`, {
+      headers: { authorization: `Bearer ${bearer}` },
+      cache: "no-store",
+    })
+  } catch (error) {
+    if (error instanceof FetchError && error.status === 404) return null
+    throw error
+  }
+}
 
 export async function getDeliveryInvitation(
   token?: string,

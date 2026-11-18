@@ -37,6 +37,7 @@ import {
   DeletePartnerCategorySchema,
   PostPartnerAcceptStaffInvitationSchema,
   GetPartnerOrdersSchema,
+  GetAvailableDeliveriesSchema,
   PostPartnerAcceptOrderSchema,
   PostPartnerRejectOrderSchema,
 } from "./partner/validators"
@@ -438,6 +439,17 @@ export default defineMiddlewares({
     {
       matcher: "/partner/delivery-agent/me",
       middlewares: [authenticate(DELIVERY_AGENT_ACTOR, "bearer")],
+    },
+    {
+      matcher: "/partner/delivery-agent/available*",
+      middlewares: [authenticate(DELIVERY_AGENT_ACTOR, "bearer")],
+    },
+    {
+      matcher: "/partner/delivery-agent/available",
+      method: "GET",
+      middlewares: [
+        validateAndTransformQuery(GetAvailableDeliveriesSchema, {}),
+      ],
     },
     {
       matcher: "/partner/delivery-agent-invitations/open",

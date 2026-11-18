@@ -12,11 +12,13 @@ import DeliveryAgent, {
   DeliveryAgentArea,
   DeliveryAgentInvitation,
 } from "./models/delivery-agent"
+import IntendedDelivery from "./models/intended-delivery"
 
 class DeliveryModuleService extends MedusaService({
   DeliveryAgent,
   DeliveryAgentArea,
   DeliveryAgentInvitation,
+  IntendedDelivery,
 }) {
   /** Fence credential creation against consumption and revocation, even if a lease is lost. */
   @InjectManager()

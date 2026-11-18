@@ -5,6 +5,8 @@ import {
   Modules,
 } from "@medusajs/framework/utils"
 import { revokeRestaurantStaffWorkflow } from "../../src/workflows/restaurant-staff"
+import { DELIVERY_MODULE } from "../../src/modules/delivery"
+import type DeliveryModuleService from "../../src/modules/delivery/service"
 import legacyOrderPlacements from "../../src/migration-scripts/legacy-order-placements"
 import {
   restaurantOrdersHarness,
@@ -254,6 +256,133 @@ medusaIntegrationTestRunner({
     })
 
     describe("POST /partner/orders/:id/accept", () => {
+      it("offers an accepted Order only to agents approved for both ends and never returns Customer contact", async () => {
+        const order = await placePaidOrder(pizzeriaId)
+        const { headers } = await signInAsStaffOf(
+          pizzeriaId,
+          "delivery-list-staff@example.test",
+        )
+        expect((await accept(headers, order.id)).status).toBe(200)
+        const delivery =
+          getContainer().resolve<DeliveryModuleService>(DELIVERY_MODULE)
+        const agent = await delivery.createDeliveryAgents({
+          name: "Delivery Agent",
+          email: "delivery-list-agent@example.test",
+          status: "authorized",
+          invited_by: "operator",
+        })
+        await delivery.createDeliveryAgentAreas({
+          agent_id: agent.id,
+          postal_code: "2200",
+        })
+        const secret = getContainer().resolve(
+          ContainerRegistrationKeys.CONFIG_MODULE,
+        ).projectConfig.http.jwtSecret
+        const authorization = `Bearer ${generateJwtToken({ actor_id: agent.id, actor_type: "delivery_agent", auth_identity_id: "auth_test" }, { secret, expiresIn: "1h" })}`
+        const read = () =>
+          api.get("/partner/delivery-agent/available", {
+            headers: { authorization },
+            validateStatus: () => true,
+          })
+        const listed = await read()
+        expect(listed.status).toBe(200)
+        const filtered = (query: string) =>
+          api.get(`/partner/delivery-agent/available${query}`, {
+            headers: { authorization },
+            validateStatus: () => true,
+          })
+        expect((await filtered("?postal_codes=")).data).toMatchObject({
+          deliveries: [],
+          has_more: false,
+        })
+        expect((await filtered("?postal_codes=2100")).data.deliveries).toEqual(
+          [],
+        )
+        expect((await filtered("?offset=1")).data.deliveries).toEqual([])
+        const samples = await Promise.all(
+          Array.from({ length: 20 }, async () => {
+            const started = performance.now()
+            const response = await read()
+            expect(response.status).toBe(200)
+            return performance.now() - started
+          }),
+        )
+        const p95 = samples.sort((a, b) => a - b)[18]
+        expect(p95).toBeLessThan(2000)
+        expect(
+          (
+            await api.get("/partner/delivery-agent/available", {
+              validateStatus: () => true,
+            })
+          ).status,
+        ).toBe(401)
+        expect(
+          (
+            await api.get("/partner/delivery-agent/available?limit=51", {
+              headers: { authorization },
+              validateStatus: () => true,
+            })
+          ).status,
+        ).toBe(400)
+        expect(
+          (
+            await api.get(
+              "/partner/delivery-agent/available?postal_codes=2200,bad",
+              { headers: { authorization }, validateStatus: () => true },
+            )
+          ).status,
+        ).toBe(400)
+        expect(listed.data.deliveries).toEqual([
+          expect.objectContaining({
+            order_id: order.id,
+            destination_postal_code: "2200",
+          }),
+        ])
+        expect(JSON.stringify(listed.data)).not.toMatch(
+          /Ada|Lovelace|Testvej|12 34 56 78/,
+        )
+        const detail = await api.get(
+          `/partner/delivery-agent/available/${order.id}`,
+          { headers: { authorization } },
+        )
+        expect(JSON.stringify(detail.data)).not.toMatch(
+          /Ada|Lovelace|Testvej|12 34 56 78/,
+        )
+        await delivery.updateIntendedDeliveries({
+          id: listed.data.deliveries[0].id,
+          destination_postal_code: "2100",
+        })
+        expect((await read()).data.deliveries).toEqual([])
+        await delivery.updateIntendedDeliveries({
+          id: listed.data.deliveries[0].id,
+          destination_postal_code: "2200",
+          pickup_postal_code: "2100",
+        })
+        expect((await read()).data.deliveries).toEqual([])
+        await delivery.updateIntendedDeliveries({
+          id: listed.data.deliveries[0].id,
+          pickup_postal_code: "2200",
+        })
+        expect((await read()).data.deliveries).toHaveLength(1)
+        await delivery.updateIntendedDeliveries({
+          id: listed.data.deliveries[0].id,
+          claim_deadline: new Date(),
+        })
+        expect((await read()).data.deliveries).toEqual([])
+        expect(
+          (
+            await api.get(`/partner/delivery-agent/available/${order.id}`, {
+              headers: { authorization },
+              validateStatus: () => true,
+            })
+          ).status,
+        ).toBe(404)
+        await delivery.revokeAgent({
+          agent_id: agent.id,
+          revoked_by: "operator",
+        })
+        expect((await read()).status).toBe(403)
+      })
       it("records the acceptance time, actor and revision without starting preparation or touching the native Order", async () => {
         const { cartId } = await reviewedCartOf(pizzeriaId)
         const order = (await complete(cartId)).data.order
@@ -355,6 +484,16 @@ medusaIntegrationTestRunner({
           revision: 2,
           accepted_by: record.accepted_by,
         })
+        const intended = await getContainer()
+          .resolve<DeliveryModuleService>(DELIVERY_MODULE)
+          .listIntendedDeliveries({ order_id: order.id }, { take: null })
+        expect(intended).toHaveLength(1)
+        expect(new Date(intended[0].accepted_at).getTime()).toBe(
+          new Date(record.accepted_at!).getTime(),
+        )
+        expect(new Date(intended[0].claim_deadline).getTime()).toBe(
+          new Date(record.accepted_at!).getTime() + 30 * 60 * 1000,
+        )
       })
 
       it.each([

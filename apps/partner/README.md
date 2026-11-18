@@ -85,6 +85,12 @@ available; claiming and delivery progress belong to later Feature #48 slices.
 
 ## Orders (#140)
 
+The Delivery agent `/delivery` workspace lists accepted work in approved pickup
+and destination postal codes. It shows the Restaurant, pickup, destination postal
+code, Order reference, preparation state, acceptance time and claim deadline in
+Danish or English. Refresh reloads the server result; empty and failed reads
+have separate messages. The bearer stays in the httpOnly cookie.
+
 `/orders` is the Restaurant's paid-Order queue, with three views as links
 (`?view=awaiting`, `active`, `history`) and 20 Orders per page (`&page=N`).
 Awaiting acceptance is ordered by the backend: earliest acceptance deadline

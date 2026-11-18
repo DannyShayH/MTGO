@@ -34,6 +34,27 @@ export const GetPartnerOrdersSchema = z.strictObject({
 })
 export type GetPartnerOrdersQuery = z.infer<typeof GetPartnerOrdersSchema>
 
+export const GetAvailableDeliveriesSchema = z.strictObject({
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+  offset: z.coerce.number().int().min(0).default(0),
+  postal_codes: z
+    .string()
+    .optional()
+    .transform((value, context) => {
+      if (value === undefined) return undefined
+      if (value === "") return []
+      const codes = value.split(",")
+      if (codes.some((code) => !/^\d{4}$/.test(code))) {
+        context.addIssue({ code: "custom", message: "postal_code_invalid" })
+        return z.NEVER
+      }
+      return codes
+    }),
+})
+export type GetAvailableDeliveriesQuery = z.infer<
+  typeof GetAvailableDeliveriesSchema
+>
+
 /** Acceptance takes no input: clients cannot set its time, actor or Restaurant. */
 export const PostPartnerAcceptOrderSchema = z.strictObject({})
 export type PostPartnerAcceptOrderBody = z.infer<

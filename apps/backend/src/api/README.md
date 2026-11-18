@@ -1,5 +1,20 @@
 # Custom API Routes
 
+## Available deliveries (#156)
+
+`GET /partner/delivery-agent/available?limit=20&offset=0&postal_codes=2200`
+requires an authorized `delivery_agent` bearer. It returns `{ deliveries,
+has_more, limit, offset, server_time }`. Each entry contains the intended delivery
+ID, Order ID/reference, Restaurant name, pickup address, destination postal
+code, preparation state, acceptance time and claim deadline. The optional
+postal-code filter only narrows the agent's approved areas. Limits are 1–50;
+offset is nonnegative. Malformed parameters return 400. Missing/wrong actor
+tokens receive 401; revoked agents receive 403. Expired, unassigned and
+ineligible Orders are excluded before pagination. `GET
+/partner/delivery-agent/available/{order_id}` returns `{ delivery,
+server_time }` with the same safe fields or a generic 404. Customer name,
+full address, phone and instructions never appear in either projection.
+
 ## Delivery agent access and approved areas (#155)
 
 Admin routes require an operator session or bearer. `GET /admin/delivery-agents`

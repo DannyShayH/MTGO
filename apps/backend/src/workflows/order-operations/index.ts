@@ -11,6 +11,7 @@ import {
   retrieveRestaurantOrderStep,
 } from "./steps/read-restaurant-orders"
 import { acceptRestaurantOrderStep } from "./steps/accept-restaurant-order"
+import { establishIntendedDeliveryStep } from "../delivery/available"
 import { recordLegacyPlacementsStep } from "./steps/record-legacy-placements"
 import { readOrderFeedStep } from "./steps/read-order-feed"
 import type { AnnouncedRevisions } from "./order-feed"
@@ -84,6 +85,9 @@ export const acceptPartnerOrderWorkflow = createWorkflow(
       staff_id: current.staff.id,
     }))
     acceptRestaurantOrderStep(command)
+    establishIntendedDeliveryStep(
+      transform({ input }, ({ input }) => ({ order_id: input.order_id })),
+    )
     releaseLockStep(lock)
     const scope = transform({ command }, ({ command }) => ({
       restaurant_id: command.restaurant_id,

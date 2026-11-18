@@ -1,5 +1,20 @@
 # Delivery module
 
+`IntendedDelivery` stores one record per accepted paid Order. Its unique Order
+identity preserves the original acceptance time and thirty-minute claim
+deadline across retries. It retains the pickup address and historical destination
+postal code, but no Customer name, street, phone or instructions. The available
+read checks agent authorization, both approved postal codes and the deadline.
+Unrecorded legacy acceptance stays unavailable.
+
+The accepted-order backfill runs during `db:migrate`; fresh acceptance establishes
+the record in the same workflow. Available reads traverse bounded candidate
+batches and check current Order operation state before returning each page.
+
+`GET /partner/delivery-agent/available` returns a bounded page with `limit`,
+`offset`, optional comma-separated `postal_codes`, `has_more` and `server_time`.
+The detail route accepts an Order ID and returns the same protected projection.
+
 Owns Delivery agent identity and authorization, the current invitation, and the
 operator-approved Danish postal codes. The generated migration creates these
 records without changing Restaurant staff identities. Revocation keeps the agent
