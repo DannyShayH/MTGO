@@ -402,7 +402,8 @@ medusaIntegrationTestRunner({
           id: order.id,
           state: "accepted",
           acceptance_window: "unavailable",
-          available_actions: [],
+          // Acceptance starts no preparation: that is the next, separate step.
+          available_actions: ["start_preparation"],
           placed_at: order.order_operation.placed_at,
           acceptance_deadline: order.order_operation.acceptance_deadline,
         })

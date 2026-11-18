@@ -32,6 +32,8 @@ type OperationRow = {
   acceptance_deadline: Date | string | null
   purchased_items?: unknown
   accepted_at: Date | string | null
+  preparation_started_at: Date | string | null
+  ready_at: Date | string | null
   cancelled_at: Date | string | null
   cancellation_category: CancellationCategory | null
   cancellation_note: string | null
@@ -62,6 +64,9 @@ export type RestaurantOrder = {
   acceptance_deadline: string | null
   acceptance_window: AcceptanceWindow
   accepted_at: string | null
+  /** The kitchen milestones (#146); actors stay in the record. */
+  preparation_started_at: string | null
+  ready_at: string | null
   /** What staff may do now, decided at the server's time. */
   available_actions: OrderAction[]
   /** Null until cancelled; then the category and actual server time. */
@@ -94,6 +99,8 @@ const OPERATION_FIELDS = [
   "acceptance_deadline",
   "purchased_items",
   "accepted_at",
+  "preparation_started_at",
+  "ready_at",
   "cancelled_at",
   "cancellation_category",
   "cancellation_note",
@@ -135,6 +142,8 @@ function toRestaurantOrder(
         ? acceptanceWindow(operation.acceptance_deadline, now)
         : "unavailable",
     accepted_at: iso(operation.accepted_at),
+    preparation_started_at: iso(operation.preparation_started_at),
+    ready_at: iso(operation.ready_at),
     available_actions: availableActions(operation, now),
     cancellation: cancellation && {
       ...cancellation,

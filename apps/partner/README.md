@@ -184,23 +184,30 @@ and `GET /partner/orders/{id}` from the server with the cookie token, as the
 other data calls do; a revoked or expired session redirects through
 `/session-ended`.
 
-### Accept an Order (#142)
+### Accept, start preparing and mark food ready (#142, #146)
 
-The Order details page shows a large **Accept Order** button only when the
-backend lists `accept` in `available_actions`. A short line under it explains
-that acceptance is a commitment to make the food, and that preparation is
-recorded separately. The server action `acceptOrder` in
-`src/lib/data/order-actions.ts` posts an empty body to
-`POST /partner/orders/{id}/accept`. The backend decides the time and the actor.
+The Order details page shows the one obvious next kitchen step as a large
+button, only when the backend lists it in `available_actions`: **Accept
+Order** while awaiting, **Start preparing** once accepted and **Ready for
+pickup** while preparing. A short line under each explains it: acceptance is
+a commitment and preparation is recorded separately; starting needs no
+Delivery agent; readiness does not mean the food was picked up or delivered.
+The server action `runOrderAction` in `src/lib/data/order-actions.ts` posts an
+empty body to `POST /partner/orders/{id}/accept`, `/start-preparation` or
+`/ready`. The backend decides the time and the actor.
 
-While the request is pending, the button is disabled and reads "Accepting…",
-so a double tap sends one request. Every outcome revalidates the Orders pages
-and refreshes the screen. A success replaces the button with "Order #N is
-accepted." and the "Accepted 13:02" line. A refusal (deadline passed, no
-recorded deadline, no longer awaiting, changed at the same time, or an
-uncertain failure) shows its Danish or English text from `ORDER_ACTION_ERRORS`
-next to the Order's current state. Focus moves to the outcome message, so
-keyboard users do not lose their place when the button disappears.
+While a request is pending, the button is disabled and reads "Accepting…",
+"Starting preparation…" or "Recording…", so a double tap sends one request.
+Every outcome revalidates the Orders pages and refreshes the screen. A success
+shows a notice such as "Preparation of Order #N has started." followed by the
+next step's button, and the recorded "Accepted 13:02", "Preparation started
+13:04" and "Ready 13:20" lines. A refusal (deadline passed, no recorded
+deadline, not accepted yet, preparation not started, cancelled, changed at the
+same time, or an uncertain failure) shows its Danish or English text from
+`ORDER_ACTION_ERRORS` next to the Order's current state. Focus moves to the
+outcome message, so keyboard users keep their place, and Tab continues to the
+next step. Nothing undoes a step. Once accepted, the page tells staff to
+contact an MTOGO operator with the Order number if they cannot fulfil it.
 
 ### Reject an Order (#143)
 

@@ -38,7 +38,7 @@ import {
   PostPartnerAcceptStaffInvitationSchema,
   GetPartnerOrdersSchema,
   GetAvailableDeliveriesSchema,
-  PostPartnerAcceptOrderSchema,
+  PostPartnerOrderActionSchema,
   PostPartnerRejectOrderSchema,
 } from "./partner/validators"
 import { isDanishPostalCode } from "../workflows/restaurants/postal-code"
@@ -494,7 +494,17 @@ export default defineMiddlewares({
     {
       matcher: "/partner/orders/:id/accept",
       method: "POST",
-      middlewares: [validateAndTransformBody(PostPartnerAcceptOrderSchema)],
+      middlewares: [validateAndTransformBody(PostPartnerOrderActionSchema)],
+    },
+    {
+      matcher: "/partner/orders/:id/start-preparation",
+      method: "POST",
+      middlewares: [validateAndTransformBody(PostPartnerOrderActionSchema)],
+    },
+    {
+      matcher: "/partner/orders/:id/ready",
+      method: "POST",
+      middlewares: [validateAndTransformBody(PostPartnerOrderActionSchema)],
     },
     {
       matcher: "/partner/orders/:id/reject",

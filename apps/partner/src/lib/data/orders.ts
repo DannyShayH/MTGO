@@ -53,6 +53,10 @@ export type KitchenFacts =
     }
   | { status: "unavailable" }
 
+/** The kitchen's guarded milestones, in order (#142, #146). */
+export type MilestoneAction = "accept" | "start_preparation" | "ready"
+export type OrderAction = MilestoneAction | "reject"
+
 export type RestaurantOrder = {
   id: string
   display_id: number
@@ -61,8 +65,10 @@ export type RestaurantOrder = {
   acceptance_deadline: string | null
   acceptance_window: AcceptanceWindow
   accepted_at: string | null
+  preparation_started_at: string | null
+  ready_at: string | null
   /** What staff may do now, as the backend decided at `server_time`. */
-  available_actions: ("accept" | "reject")[]
+  available_actions: OrderAction[]
   /** Null until cancelled. The note is the rejecting staff's own, never the Customer's. */
   cancellation: {
     category: CancellationCategory

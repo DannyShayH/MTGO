@@ -55,10 +55,13 @@ export type GetAvailableDeliveriesQuery = z.infer<
   typeof GetAvailableDeliveriesSchema
 >
 
-/** Acceptance takes no input: clients cannot set its time, actor or Restaurant. */
-export const PostPartnerAcceptOrderSchema = z.strictObject({})
-export type PostPartnerAcceptOrderBody = z.infer<
-  typeof PostPartnerAcceptOrderSchema
+/**
+ * Accept, start preparation and ready take no input: clients cannot set a
+ * milestone's time, actor or Restaurant.
+ */
+export const PostPartnerOrderActionSchema = z.strictObject({})
+export type PostPartnerOrderActionBody = z.infer<
+  typeof PostPartnerOrderActionSchema
 >
 
 /**

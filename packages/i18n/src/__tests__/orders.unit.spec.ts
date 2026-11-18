@@ -59,3 +59,12 @@ test("the Customer's cancellation and refund texts exist in both languages", asy
         /\{amount\}/,
       )
 })
+
+test("EP: the kitchen milestone refusals are recognised", () => {
+  for (const code of [
+    "order_not_accepted",
+    "preparation_not_started",
+    "order_cancelled",
+  ])
+    assert.equal(isOrderActionErrorCode(code), true, code)
+})

@@ -103,7 +103,9 @@ Read-only inspection found the following constraints for the later specification
 
 - [#144](https://github.com/DannyShayH/MTGO/issues/144): an unanswered Order expires without a staff action. A recovery job runs every minute on the worker, the first time right after it starts, and reads only durable records. It cancels each awaiting Order whose deadline has passed with the timeout outcome by the system and attempts the full refund. It also resumes unfinished native cancellation and refunds that are still pending. After downtime the deadline is never extended: staff and the Customer see the deadline as when the cancellation took effect, and staff also see when it was recorded. Acceptance and rejection apply the same expiry rule before the job has run, and an accepted Order is never cancelled by it. A refund whose response was lost is recorded from Medusa's persisted refund instead of being sent again. A refund that failed explicitly stays visibly owed for the operator's retry under #49; recovery does not retry it.
 
-Customer cancellation, preparation milestones, the Customer food-progress timeline and live updates remain open.
+- [#146](https://github.com/DannyShayH/MTGO/issues/146): staff press Start preparing on an accepted Order and then Ready for pickup, with or without an assigned Delivery agent. Each milestone records its actual time and actor once; a repeat keeps the first one, and an out-of-order, cancelled, foreign or revoked attempt is refused with the Order's current outcome. Readiness is not pickup, delivery or native Order completion, and staff cannot undo a milestone. The milestone times, without the staff who recorded them, are part of the Customer's Order progress for the later timeline.
+
+Customer cancellation, the Customer food-progress timeline and live updates remain open.
 
 ## Evidence required during implementation
 

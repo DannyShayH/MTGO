@@ -19,6 +19,8 @@ type Row = {
   state: OrderOperationState
   placed_at: Date | string | null
   accepted_at: Date | string | null
+  preparation_started_at: Date | string | null
+  ready_at: Date | string | null
   cancelled_at: Date | string | null
   cancellation_category: CancellationCategory | null
   acceptance_deadline: Date | string | null
@@ -26,7 +28,8 @@ type Row = {
 
 /**
  * What the owning Customer sees of their Order's progress (#143): factual
- * milestones, the cancellation category and the refund outcome. Staff
+ * milestones (placement, acceptance and, since #146, preparation start and
+ * food readiness), the cancellation category and the refund outcome. Staff
  * identities and the internal rejection note are never part of it.
  */
 export type OrderProgress = {
@@ -34,6 +37,8 @@ export type OrderProgress = {
   state: OrderOperationState
   placed_at: string | null
   accepted_at: string | null
+  preparation_started_at: string | null
+  ready_at: string | null
   cancellation: CancellationOutcome
   refund: RefundOutcomeView
 }
@@ -51,6 +56,8 @@ export const readOrderProgressStep = createStep(
             "state",
             "placed_at",
             "accepted_at",
+            "preparation_started_at",
+            "ready_at",
             "cancelled_at",
             "cancellation_category",
             "acceptance_deadline",
@@ -66,6 +73,8 @@ export const readOrderProgressStep = createStep(
       state: row.state,
       placed_at: iso(row.placed_at),
       accepted_at: iso(row.accepted_at),
+      preparation_started_at: iso(row.preparation_started_at),
+      ready_at: iso(row.ready_at),
       cancellation: cancellationOutcome(row),
       refund: refunds.get(row.order_id) ?? null,
     }

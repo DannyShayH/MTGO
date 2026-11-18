@@ -134,17 +134,112 @@ export function rejectionNote(raw: string | null | undefined): string | null {
   return note || null
 }
 
-export type OrderAction = "accept" | "reject"
+/**
+ * Refusals of a kitchen milestone because of the Order's current state
+ * (`NOT_ALLOWED`, 400). Staff cannot skip preparation or record food progress
+ * on an Order that is not, or no longer, accepted kitchen work.
+ */
+export const PROGRESS_REFUSALS = [
+  "order_not_accepted",
+  "preparation_not_started",
+  "order_cancelled",
+] as const
+export type ProgressRefusal = (typeof PROGRESS_REFUSALS)[number]
+
+export type TransitionRefusal = AcceptanceRefusal | ProgressRefusal
 
 /**
- * The actions staff may take now. Reject is offered exactly while Accept is:
- * after acceptance, inability to fulfil goes to an operator (#49).
+ * The guarded milestones staff record, in kitchen order. Each moves the
+ * record from one state to the next and records its time and actor.
+ */
+export const ORDER_TRANSITIONS = {
+  accept: {
+    from: "awaiting_acceptance",
+    to: "accepted",
+    at: "accepted_at",
+    by: "accepted_by",
+  },
+  start_preparation: {
+    from: "accepted",
+    to: "preparing",
+    at: "preparation_started_at",
+    by: "preparation_started_by",
+  },
+  ready: {
+    from: "preparing",
+    to: "ready",
+    at: "ready_at",
+    by: "ready_by",
+  },
+} as const satisfies Record<
+  string,
+  { from: OrderOperationState; to: OrderOperationState; at: string; by: string }
+>
+export type MilestoneAction = keyof typeof ORDER_TRANSITIONS
+export const MILESTONE_ACTIONS = Object.keys(
+  ORDER_TRANSITIONS,
+) as MilestoneAction[]
+
+export type TransitionDecision =
+  | { outcome: "apply" }
+  | { outcome: "already_recorded" }
+  | { outcome: "refused"; code: TransitionRefusal }
+
+export type TransitionFacts = AcceptanceFacts & {
+  preparation_started_at?: Date | string | null
+  ready_at?: Date | string | null
+}
+
+/**
+ * Whether staff may record a milestone now (spec #47 stories 13-18). A
+ * cancellation is the current outcome. Otherwise a recorded milestone is
+ * returned unchanged, so retries never duplicate or move it, and a milestone
+ * applies only from its preceding state: acceptance never starts preparation
+ * and readiness never invents a preparation start. None of them depends on a
+ * Delivery agent, and only acceptance depends on the deadline.
+ */
+export function decideTransition(
+  action: MilestoneAction,
+  order: TransitionFacts,
+  now: Date,
+): TransitionDecision {
+  if (action === "accept") {
+    const decision = decideAcceptance(order, now)
+    if (decision.outcome === "accept") return { outcome: "apply" }
+    if (decision.outcome === "already_accepted")
+      return { outcome: "already_recorded" }
+    return decision
+  }
+  if (order.state === "cancelled")
+    return { outcome: "refused", code: "order_cancelled" }
+  const { from, at } = ORDER_TRANSITIONS[action]
+  if (order[at]) return { outcome: "already_recorded" }
+  if (order.state === from) return { outcome: "apply" }
+  return {
+    outcome: "refused",
+    code:
+      order.state === "awaiting_acceptance"
+        ? "order_not_accepted"
+        : "preparation_not_started",
+  }
+}
+
+export type OrderAction = MilestoneAction | "reject"
+
+/**
+ * The actions staff may take now: the one next milestone, and Reject exactly
+ * while Accept is offered. After acceptance, inability to fulfil goes to an
+ * operator (#49).
  */
 export const availableActions = (
-  order: AcceptanceFacts,
+  order: TransitionFacts,
   now: Date,
 ): OrderAction[] =>
-  decideAcceptance(order, now).outcome === "accept" ? ["accept", "reject"] : []
+  MILESTONE_ACTIONS.filter(
+    (action) => decideTransition(action, order, now).outcome === "apply",
+  ).flatMap((action): OrderAction[] =>
+    action === "accept" ? ["accept", "reject"] : [action],
+  )
 
 export const QUEUE_VIEWS = ["awaiting", "active", "history"] as const
 export type QueueView = (typeof QUEUE_VIEWS)[number]

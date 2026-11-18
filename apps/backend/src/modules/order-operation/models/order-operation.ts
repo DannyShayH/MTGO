@@ -47,6 +47,14 @@ const OrderOperation = model
     accepted_at: model.dateTime().nullable(),
     accepted_by: model.text().nullable(),
     /**
+     * The kitchen milestones (#146): each records its actual server time and
+     * the staff member who recorded it, and is never moved or undone.
+     */
+    preparation_started_at: model.dateTime().nullable(),
+    preparation_started_by: model.text().nullable(),
+    ready_at: model.dateTime().nullable(),
+    ready_by: model.text().nullable(),
+    /**
      * The business cancellation (#143): actual server time, actor (staff or
      * Customer id, or `system`), category and an optional internal note.
      * Authoritative even while native commerce cancellation is pending.

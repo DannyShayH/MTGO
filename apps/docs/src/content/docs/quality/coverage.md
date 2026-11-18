@@ -73,8 +73,11 @@ module and HTTP specs that Jest finds affected since `origin/main` (set
 change to a shared module selects every spec that uses it. HTTP specs reach
 routes, middleware, links and Medusa configuration over HTTP rather than through
 imports, so a change under `src/api/`, `src/links/` or `medusa-config` runs every
-HTTP spec. Add `-- --listTests` to see the selection without running it. The
-script is `scripts/test-affected.mjs`. The ready flow still runs the full
+HTTP spec. Each selected HTTP spec runs in its own Jest process, so memory is
+released between specs and a long run doesn't exhaust the Node heap. A failing
+spec doesn't stop the others, and the failures are listed at the end. Add
+`-- --listTests` to see the selection without running it. The script is
+`scripts/test-affected.mjs`. The ready flow still runs the full
 coverage gate.
 
 The fast `unit-tests` check used during development stays database-free. Running

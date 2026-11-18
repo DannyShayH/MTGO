@@ -53,15 +53,36 @@ if (wholeHttpSuite.length > 0)
   console.log(
     `Running every HTTP spec: changed ${wholeHttpSuite.slice(0, 3).join(", ")}${wholeHttpSuite.length > 3 ? ", ..." : ""}`,
   )
+// Extra arguments go to every Jest run, e.g. `-- --listTests` for a dry run.
+const extra = process.argv.slice(2)
+const jest = (type, args, options = { stdio: "inherit" }) =>
+  spawnSync(process.execPath, [jestBin, ...args, ...extra], {
+    ...options,
+    env: { ...process.env, TEST_TYPE: type, NODE_OPTIONS: node },
+  })
+
 for (const [type, args] of suites) {
-  // Extra arguments go to every Jest run, e.g. `-- --listTests` for a dry run.
-  const result = spawnSync(
-    process.execPath,
-    [jestBin, ...args, ...process.argv.slice(2)],
-    {
-      stdio: "inherit",
-      env: { ...process.env, TEST_TYPE: type, NODE_OPTIONS: node },
-    },
+  if (type !== "integration:http" || extra.includes("--listTests")) {
+    const result = jest(type, args)
+    if (result.status !== 0) process.exit(result.status ?? 1)
+    continue
+  }
+  // With one worker Jest runs every HTTP spec in a single process, whose heap
+  // grows with each booted Medusa app until Node runs out of memory. A fresh
+  // Jest process per spec releases that memory between specs.
+  const listed = jest(type, [...args, "--listTests", "--json"], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "inherit"],
+  })
+  if (listed.status !== 0) process.exit(listed.status ?? 1)
+  const specs = JSON.parse(listed.stdout).sort()
+  const failed = specs.filter(
+    (spec) => jest(type, [...args, "--runTestsByPath", spec]).status !== 0,
   )
-  if (result.status !== 0) process.exit(result.status ?? 1)
+  if (failed.length > 0) {
+    console.error(
+      `Failed HTTP specs:\n${failed.map((spec) => `  ${relative(backend, spec)}`).join("\n")}`,
+    )
+    process.exit(1)
+  }
 }

@@ -59,6 +59,16 @@ type OrderText = Record<
   | "accept_hint"
   | "accepted_notice"
   | "accepted_at"
+  | "start_preparation"
+  | "starting_preparation"
+  | "start_preparation_hint"
+  | "preparation_started_notice"
+  | "preparation_started_at"
+  | "ready"
+  | "marking_ready"
+  | "ready_hint"
+  | "ready_notice"
+  | "ready_at"
   | "refreshed_hint"
   | "connection_connecting"
   | "connection_live"
@@ -159,6 +169,18 @@ export const ORDER_TEXT: Record<Locale, OrderText> = {
       "Når I accepterer, lover I at lave maden. Tilberedning registreres bagefter for sig.",
     accepted_notice: "Ordre #{number} er accepteret.",
     accepted_at: "Accepteret {time}",
+    start_preparation: "Start tilberedning",
+    starting_preparation: "Starter tilberedning…",
+    start_preparation_hint:
+      "Registrér, når køkkenet går i gang. Det kræver ikke, at der er fundet et bud.",
+    preparation_started_notice: "Tilberedning af ordre #{number} er startet.",
+    preparation_started_at: "Tilberedning startet {time}",
+    ready: "Klar til afhentning",
+    marking_ready: "Registrerer…",
+    ready_hint:
+      "Registrér, når maden er klar. Det betyder ikke, at den er hentet eller leveret.",
+    ready_notice: "Maden til ordre #{number} er klar til afhentning.",
+    ready_at: "Klar {time}",
     refreshed_hint: "Ordren er hentet igen og viser nu, hvordan den står.",
     connection_connecting: "Opretter forbindelse …",
     connection_live: "Live: nye ordrer vises automatisk",
@@ -263,6 +285,18 @@ export const ORDER_TEXT: Record<Locale, OrderText> = {
       "Accepting commits you to making the food. Preparation is recorded separately afterwards.",
     accepted_notice: "Order #{number} is accepted.",
     accepted_at: "Accepted {time}",
+    start_preparation: "Start preparing",
+    starting_preparation: "Starting preparation…",
+    start_preparation_hint:
+      "Record when the kitchen starts cooking. No Delivery agent needs to be found first.",
+    preparation_started_notice: "Preparation of Order #{number} has started.",
+    preparation_started_at: "Preparation started {time}",
+    ready: "Ready for pickup",
+    marking_ready: "Recording…",
+    ready_hint:
+      "Record when the food is ready. It does not mean the food was picked up or delivered.",
+    ready_notice: "The food for Order #{number} is ready for pickup.",
+    ready_at: "Ready {time}",
     refreshed_hint: "The Order was loaded again and now shows where it stands.",
     connection_connecting: "Connecting …",
     connection_live: "Live: new Orders appear automatically",
@@ -310,6 +344,9 @@ export const ORDER_ACTION_ERROR_CODES = [
   "acceptance_window_elapsed",
   "acceptance_timing_unavailable",
   "order_not_awaiting_acceptance",
+  "order_not_accepted",
+  "preparation_not_started",
+  "order_cancelled",
   "order_changed",
   "order_not_found",
   "unknown_error",
@@ -332,10 +369,15 @@ export const ORDER_ACTION_ERRORS: Record<
     acceptance_timing_unavailable:
       "Ordren har ingen registreret frist og kan ikke accepteres her. Kontakt MTOGO med ordrenummeret.",
     order_not_awaiting_acceptance: "Ordren afventer ikke længere accept.",
+    order_not_accepted:
+      "Ordren er ikke accepteret endnu, så tilberedning kan ikke registreres.",
+    preparation_not_started:
+      "Start tilberedningen først. Maden kan først være klar, når tilberedningen er startet.",
+    order_cancelled: "Ordren er annulleret og skal ikke tilberedes.",
     order_changed: "Ordren blev ændret samtidig. Se, hvordan den står nu.",
     order_not_found: "Ordren findes ikke for din restaurant.",
     unknown_error:
-      "Vi ved ikke, om ordren blev accepteret. Se ordrens status, og prøv igen. En ordre accepteres kun én gang.",
+      "Vi ved ikke, om handlingen blev registreret. Se ordrens status, og prøv igen. Hvert trin registreres kun én gang.",
   },
   en: {
     acceptance_window_elapsed:
@@ -344,11 +386,16 @@ export const ORDER_ACTION_ERRORS: Record<
       "This Order has no recorded deadline and cannot be accepted here. Contact MTOGO with the Order number.",
     order_not_awaiting_acceptance:
       "This Order is no longer awaiting acceptance.",
+    order_not_accepted:
+      "This Order is not accepted yet, so preparation cannot be recorded.",
+    preparation_not_started:
+      "Start preparing first. Food can only be ready once preparation has started.",
+    order_cancelled: "This Order is cancelled and should not be prepared.",
     order_changed:
       "The Order changed at the same time. Check where it stands now.",
     order_not_found: "This Order was not found for your Restaurant.",
     unknown_error:
-      "We could not confirm whether the Order was accepted. Check its status and try again. An Order is only ever accepted once.",
+      "We could not confirm whether the action was recorded. Check the Order's status and try again. Each step is only ever recorded once.",
   },
 }
 

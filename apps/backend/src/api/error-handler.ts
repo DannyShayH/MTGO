@@ -18,6 +18,7 @@ import {
 import {
   ACCEPTANCE_REFUSALS,
   ORDER_CHANGED,
+  PROGRESS_REFUSALS,
 } from "../workflows/order-operations/rules"
 
 const CATEGORY_ROUTE =
@@ -199,6 +200,7 @@ export function mtogoErrorHandler(): MedusaErrorHandlerFunction {
     "order_not_found",
     "order_placement_incomplete",
     ...ACCEPTANCE_REFUSALS,
+    ...PROGRESS_REFUSALS,
     ORDER_CHANGED,
     "order_restaurant_mismatch",
   ])

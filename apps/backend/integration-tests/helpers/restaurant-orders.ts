@@ -378,6 +378,24 @@ export function restaurantOrdersHarness({
       headers,
       validateStatus: () => true,
     })
+  const startPreparation = (
+    headers: Record<string, string>,
+    id: string,
+    body: Record<string, unknown> = {},
+  ) =>
+    api.post(`/partner/orders/${id}/start-preparation`, body, {
+      headers,
+      validateStatus: () => true,
+    })
+  const markReady = (
+    headers: Record<string, string>,
+    id: string,
+    body: Record<string, unknown> = {},
+  ) =>
+    api.post(`/partner/orders/${id}/ready`, body, {
+      headers,
+      validateStatus: () => true,
+    })
   const progress = (headers: Record<string, string>, id: string) =>
     api.get(`/store/orders/${id}/progress`, {
       headers,
@@ -398,6 +416,8 @@ export function restaurantOrdersHarness({
     detail,
     accept,
     reject,
+    startPreparation,
+    markReady,
     progress,
     recordOf,
     seeded: () => ({

@@ -19,7 +19,7 @@ import {
   PurchasedFood,
   pickPurchasedName,
 } from "@modules/orders/components/purchased-food"
-import { AcceptOrder } from "@modules/orders/components/accept-order"
+import { OrderProgressAction } from "@modules/orders/components/order-progress-action"
 import { LiveOrders } from "@modules/orders/components/live-orders"
 import { RejectOrder } from "@modules/orders/components/reject-order"
 import { CancellationOutcome } from "@modules/orders/components/cancellation-outcome"
@@ -95,12 +95,18 @@ export default async function OrderPage({
       <LiveOrders locale={locale} />
       <Container className="rounded-card flex flex-col gap-y-2 px-4 py-4 sm:px-6 sm:py-5">
         <AcceptanceDeadline order={order} locale={locale} detailed />
-        {order.accepted_at && (
-          <Text size="small" weight="plus">
-            {formatText(text.accepted_at, {
-              time: formatOrderTime(order.accepted_at, locale),
-            })}
-          </Text>
+        {(
+          [
+            [order.ready_at, text.ready_at],
+            [order.preparation_started_at, text.preparation_started_at],
+            [order.accepted_at, text.accepted_at],
+          ] as const
+        ).map(([time, label]) =>
+          time ? (
+            <Text key={label} size="small" weight="plus">
+              {formatText(label, { time: formatOrderTime(time, locale) })}
+            </Text>
+          ) : null,
         )}
         {order.placed_at && (
           <Text size="small" className="text-ui-fg-subtle">
@@ -115,7 +121,7 @@ export default async function OrderPage({
           })}
         </Text>
         <div className="mt-2 flex flex-col gap-4 empty:hidden sm:flex-row sm:items-start sm:justify-between">
-          <AcceptOrder key={order.id} order={order} locale={locale} />
+          <OrderProgressAction key={order.id} order={order} locale={locale} />
           <RejectOrder
             key={`${order.id}-reject`}
             order={order}

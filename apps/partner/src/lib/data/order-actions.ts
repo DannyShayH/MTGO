@@ -7,7 +7,7 @@ import { requestId } from "@dtc/logging"
 import { isOrderActionErrorCode, type OrderActionErrorCode } from "@dtc/i18n"
 import { BACKEND_URL, PARTNER_TOKEN_COOKIE } from "@lib/config"
 import { log } from "@lib/logger"
-import type { RestaurantOrder } from "./orders"
+import type { MilestoneAction, RestaurantOrder } from "./orders"
 
 export type OrderActionResult = {
   /** The Order as the backend reports it now, also after a refusal. */
@@ -15,16 +15,26 @@ export type OrderActionResult = {
   error?: OrderActionErrorCode
 }
 
-type OrderAction = "accept" | "reject"
+const MILESTONE_PATHS: Record<MilestoneAction, string> = {
+  accept: "accept",
+  start_preparation: "start-preparation",
+  ready: "ready",
+}
 
 /**
- * Accepts one of the staff member's Restaurant's Orders. The backend decides
- * the time and the actor; the browser only names the Order. Every outcome
- * revalidates the Orders pages, so an uncertain result is followed by a
- * fresh read instead of a guess.
+ * Records one kitchen milestone on one of the staff member's Restaurant's
+ * Orders: accept, start preparation or food ready (#142, #146). The backend
+ * decides the time and the actor; the browser only names the Order and the
+ * step. Every outcome revalidates the Orders pages, so an uncertain result is
+ * followed by a fresh read instead of a guess.
  */
-export async function acceptOrder(orderId: string): Promise<OrderActionResult> {
-  return postOrderAction(orderId, "accept", {})
+export async function runOrderAction(
+  orderId: string,
+  action: MilestoneAction,
+): Promise<OrderActionResult> {
+  // A server action is a public endpoint: accept only the known steps.
+  if (!Object.hasOwn(MILESTONE_PATHS, action)) return { error: "unknown_error" }
+  return postOrderAction(orderId, MILESTONE_PATHS[action], {})
 }
 
 /**
@@ -40,17 +50,17 @@ export async function rejectOrder(
 
 async function postOrderAction(
   orderId: string,
-  action: OrderAction,
+  path: string,
   payload: Record<string, string>,
 ): Promise<OrderActionResult> {
-  const route = `/partner/orders/:id/${action}`
+  const route = `/partner/orders/:id/${path}`
   const token = (await cookies()).get(PARTNER_TOKEN_COOKIE)?.value
   const correlationId = requestId((await headers()).get("x-request-id"))
   let response: Response
   try {
     response = await fetch(
       new URL(
-        `/partner/orders/${encodeURIComponent(orderId)}/${action}`,
+        `/partner/orders/${encodeURIComponent(orderId)}/${path}`,
         BACKEND_URL,
       ),
       {

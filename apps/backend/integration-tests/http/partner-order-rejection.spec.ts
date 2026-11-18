@@ -23,6 +23,8 @@ medusaIntegrationTestRunner({
       detail,
       accept,
       reject,
+      startPreparation,
+      markReady,
       progress,
       recordOf,
     } = harness
@@ -314,25 +316,59 @@ medusaIntegrationTestRunner({
         expect(refund.created_by).toBe("system")
       })
 
-      it("offers no Reject once accepted and refuses one with the current Order", async () => {
-        const order = await placePaidOrder(pizzeriaId)
-        expect(
-          (await detail(staff.headers, order.id)).data.order,
-        ).toMatchObject({ available_actions: ["accept", "reject"] })
-        await accept(staff.headers, order.id)
-        expect(
-          (await detail(staff.headers, order.id)).data.order.available_actions,
-        ).toEqual([])
+      it.each([
+        {
+          state: "accepted",
+          after: [] as ("start" | "ready")[],
+          actions: ["start_preparation"],
+          reason: "DT: acceptance ends the Reject window",
+        },
+        {
+          state: "preparing",
+          after: ["start"] as ("start" | "ready")[],
+          actions: ["ready"],
+          reason: "DT: an Order in preparation cannot be rejected",
+        },
+        {
+          state: "ready",
+          after: ["start", "ready"] as ("start" | "ready")[],
+          actions: [],
+          reason: "DT: ready food cannot be rejected",
+        },
+      ])(
+        "offers no Reject and refuses one with the current Order: $reason",
+        async ({ state, after, actions }) => {
+          const order = await placePaidOrder(pizzeriaId)
+          expect(
+            (await detail(staff.headers, order.id)).data.order,
+          ).toMatchObject({ available_actions: ["accept", "reject"] })
+          await accept(staff.headers, order.id)
+          for (const step of after)
+            await (step === "start" ? startPreparation : markReady)(
+              staff.headers,
+              order.id,
+            )
+          expect(
+            (await detail(staff.headers, order.id)).data.order
+              .available_actions,
+          ).toEqual(actions)
+          const recorded = await recordOf(order.id)
 
-        const refused = await reject(staff.headers, order.id)
+          const refused = await reject(staff.headers, order.id)
 
-        expect(refused.status).toBe(400)
-        expect(refused.data).toMatchObject({
-          code: "order_not_awaiting_acceptance",
-          order: { state: "accepted", cancellation: null, refund: null },
-        })
-        expect(await obligationOf(order.id)).toBeUndefined()
-      })
+          expect(refused.status).toBe(400)
+          expect(refused.data).toMatchObject({
+            code: "order_not_awaiting_acceptance",
+            order: { state, cancellation: null, refund: null },
+          })
+          expect(await recordOf(order.id)).toMatchObject({
+            state,
+            revision: recorded.revision,
+            cancelled_by: null,
+          })
+          expect(await obligationOf(order.id)).toBeUndefined()
+        },
+      )
 
       it("leaves a legacy Order without a deadline to an operator", async () => {
         const order = await placePaidOrder(pizzeriaId)
@@ -412,6 +448,8 @@ medusaIntegrationTestRunner({
           state: "awaiting_acceptance",
           placed_at: order.order_operation.placed_at,
           accepted_at: null,
+          preparation_started_at: null,
+          ready_at: null,
           cancellation: null,
           refund: null,
         })

@@ -15,7 +15,8 @@ Other storefront surfaces can move their text here later (ADR-0017).
 
 `ORDER_TEXT[locale]` supplies the partner Orders workspace (#140): views,
 states, deadline lines, empty, failure and not-found text, and the Accept
-action (#142). `ORDER_ACTION_ERRORS[locale]` has a text for each code in
+(#142), Start preparing and Ready for pickup (#146) actions with their recorded
+milestone lines. `ORDER_ACTION_ERRORS[locale]` has a text for each code in
 `ORDER_ACTION_ERROR_CODES` that an Order action can be refused with.
 `formatOrderTime(iso, locale)` shows a backend timestamp on the Copenhagen
 clock (`13.05`, `13:05`), whatever the server's time zone.

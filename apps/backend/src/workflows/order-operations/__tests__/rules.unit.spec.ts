@@ -3,6 +3,7 @@ import {
   acceptanceWindow,
   availableActions,
   decideAcceptance,
+  decideTransition,
   decideCancellation,
   queueView,
   rejectionNote,
@@ -166,8 +167,9 @@ describe("Accepting an Order", () => {
         accepted_at: acceptedAt,
       },
       now: "2026-11-18T12:01:00.000Z",
-      actions: [],
-      reason: "EP: an accepted Order offers no second Accept",
+      actions: ["start_preparation"],
+      reason:
+        "EP: an accepted Order offers no second Accept, only its next step",
     },
   ])("$reason", ({ order, now, actions }) => {
     expect(availableActions(order, new Date(now))).toEqual(actions)
@@ -329,5 +331,138 @@ describe("An optional rejection reason", () => {
     },
   ])("$reason", ({ raw, expected }) => {
     expect(rejectionNote(raw)).toBe(expected)
+  })
+})
+
+describe("Recording preparation and food readiness", () => {
+  const acceptedAt = new Date("2026-11-18T12:02:00.000Z")
+  const startedAt = new Date("2026-11-18T12:04:00.000Z")
+  const readyAt = new Date("2026-11-18T12:20:00.000Z")
+  const awaiting = {
+    state: "awaiting_acceptance" as const,
+    acceptance_deadline: deadline,
+    accepted_at: null,
+    preparation_started_at: null,
+    ready_at: null,
+  }
+  const accepted = {
+    ...awaiting,
+    state: "accepted" as const,
+    accepted_at: acceptedAt,
+  }
+  const preparing = {
+    ...accepted,
+    state: "preparing" as const,
+    preparation_started_at: startedAt,
+  }
+  const ready = { ...preparing, state: "ready" as const, ready_at: readyAt }
+  // After the acceptance deadline: preparation never depends on it.
+  const later = new Date("2026-11-18T12:30:00.000Z")
+
+  it.each([
+    {
+      action: "start_preparation" as const,
+      order: accepted,
+      expected: { outcome: "apply" },
+      reason:
+        "DT: an accepted Order starts preparation, after the deadline too",
+    },
+    {
+      action: "start_preparation" as const,
+      order: awaiting,
+      expected: { outcome: "refused", code: "order_not_accepted" },
+      reason: "DT: acceptance never starts preparation, nor can it be skipped",
+    },
+    {
+      action: "start_preparation" as const,
+      order: preparing,
+      expected: { outcome: "already_recorded" },
+      reason: "DT: a repeat keeps the first preparation start",
+    },
+    {
+      action: "start_preparation" as const,
+      order: ready,
+      expected: { outcome: "already_recorded" },
+      reason: "DT: a later milestone keeps preparation started, never undone",
+    },
+    {
+      action: "start_preparation" as const,
+      order: { ...accepted, state: "cancelled" as const },
+      expected: { outcome: "refused", code: "order_cancelled" },
+      reason: "DT: a cancelled Order is not prepared",
+    },
+    {
+      action: "ready" as const,
+      order: preparing,
+      expected: { outcome: "apply" },
+      reason: "DT: a preparing Order becomes ready",
+    },
+    {
+      action: "ready" as const,
+      order: accepted,
+      expected: { outcome: "refused", code: "preparation_not_started" },
+      reason: "DT: readiness never invents a preparation start",
+    },
+    {
+      action: "ready" as const,
+      order: awaiting,
+      expected: { outcome: "refused", code: "order_not_accepted" },
+      reason: "DT: an awaiting Order cannot be ready",
+    },
+    {
+      action: "ready" as const,
+      order: ready,
+      expected: { outcome: "already_recorded" },
+      reason: "DT: a repeat keeps the first readiness",
+    },
+    {
+      action: "ready" as const,
+      order: { ...preparing, state: "cancelled" as const },
+      expected: { outcome: "refused", code: "order_cancelled" },
+      reason: "DT: a cancellation during preparation is the current outcome",
+    },
+    {
+      action: "accept" as const,
+      order: preparing,
+      expected: { outcome: "already_recorded" },
+      reason: "DT: acceptance keeps its shared outcome after preparation",
+    },
+  ])("$reason", ({ action, order, expected }) => {
+    expect(decideTransition(action, order, later)).toEqual(expected)
+  })
+
+  it.each([
+    {
+      order: awaiting,
+      now: "2026-11-18T12:01:00.000Z",
+      actions: ["accept", "reject"],
+      reason: "EP: awaiting offers Accept and Reject",
+    },
+    {
+      order: accepted,
+      now: "2026-11-18T12:30:00.000Z",
+      actions: ["start_preparation"],
+      reason: "EP: accepted offers only Start preparing",
+    },
+    {
+      order: preparing,
+      now: "2026-11-18T12:30:00.000Z",
+      actions: ["ready"],
+      reason: "EP: preparing offers only Ready for pickup",
+    },
+    {
+      order: ready,
+      now: "2026-11-18T12:30:00.000Z",
+      actions: [],
+      reason: "EP: ready food offers no further kitchen action",
+    },
+    {
+      order: { ...preparing, state: "cancelled" as const },
+      now: "2026-11-18T12:30:00.000Z",
+      actions: [],
+      reason: "EP: a cancelled Order offers nothing",
+    },
+  ])("$reason", ({ order, now, actions }) => {
+    expect(availableActions(order, new Date(now))).toEqual(actions)
   })
 })

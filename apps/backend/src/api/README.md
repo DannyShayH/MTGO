@@ -168,6 +168,8 @@ signed out is `401`.
     "state": "cancelled",
     "placed_at": "2026-11-18T12:00:00.000Z",
     "accepted_at": null,
+    "preparation_started_at": null,
+    "ready_at": null,
     "cancellation": {
       "category": "restaurant_rejected",
       "cancelled_at": "2026-11-18T12:02:10.000Z",
@@ -193,6 +195,9 @@ free-text reason or a staff identity. A `failed` refund is still owed.
 `effective_at` when it took effect. They differ only for an
 `acceptance_timeout` that recovery processed after downtime (#144):
 `effective_at` is then the acceptance deadline, which is never moved.
+`preparation_started_at` and `ready_at` (#146) are the recorded kitchen
+milestone times, `null` until recorded, for the Customer's food-progress
+timeline; readiness never implies pickup or delivery.
 
 ## Partner dish availability (#108)
 
@@ -1081,7 +1086,9 @@ curl "http://localhost:9000/partner/orders?view=awaiting&limit=20" \
       "acceptance_deadline": "2026-11-18T12:05:00.000Z",
       "acceptance_window": "open",
       "accepted_at": null,
-      "available_actions": ["accept"],
+      "preparation_started_at": null,
+      "ready_at": null,
+      "available_actions": ["accept", "reject"],
       "currency_code": "dkk",
       "total_including_vat": 218,
       "items": [
@@ -1142,9 +1149,11 @@ curl "http://localhost:9000/partner/orders?view=awaiting&limit=20" \
 the deadline, `elapsed` at or after it, and `unavailable` when the Order has no
 recorded placement time (placed before #140) or is no longer awaiting
 acceptance. It is a display fact only: reading never accepts, cancels or
-expires an Order. `accepted_at` is the recorded acceptance time, `null` before
-acceptance. `available_actions` lists what staff may do at `server_time`:
-`["accept"]` while the window is open, otherwise `[]`. The action routes decide
+expires an Order. `accepted_at`, `preparation_started_at` and `ready_at` are the
+recorded milestone times, `null` until recorded; the actors stay in the record.
+`available_actions` lists what staff may do at `server_time`: `["accept",
+"reject"]` while awaiting and the window is open, `["start_preparation"]` once
+accepted, `["ready"]` while preparing, otherwise `[]`. The action routes decide
 again when they receive the request. Amounts include VAT, as menu prices do (ADR-0012). Item
 `name`, quantities and prices are Medusa's purchase snapshot (`name` is the
 retained English title).
@@ -1175,7 +1184,6 @@ the Order's other well-formed lines keep their facts. The response carries no Cu
 **Actor:** Restaurant staff (`restaurant_staff`, bearer token only). One Order of
 the staff member's own Restaurant, `{ "order": { ... }, "server_time": "..." }`
 with the same Order fields as the list, including `available_actions`.
-Preparation actions arrive with #143.
 
 | Status | When                                                                                                  |
 | ------ | ----------------------------------------------------------------------------------------------------- |
@@ -1276,6 +1284,52 @@ curl -N http://localhost:9000/partner/orders/stream \
 | ------ | --------------------------------------------------------------- |
 | `401`  | As for `GET /partner/me`                                        |
 | `403`  | `code: "staff_access_revoked"`: revoked before the stream opens |
+
+### POST /partner/orders/{id}/start-preparation and POST /partner/orders/{id}/ready
+
+**Actor:** Restaurant staff (`restaurant_staff`, bearer token only). Records a
+kitchen milestone on the staff member's own Restaurant's Order (#146, spec #47
+stories 15-18): `start-preparation` on an `accepted` Order, `ready` on a
+`preparing` Order. The body is empty (`{}`); any field, such as a time or an
+actor, is refused with `400`.
+
+```bash
+curl -X POST http://localhost:9000/partner/orders/$ORDER_ID/start-preparation \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{}'
+curl -X POST http://localhost:9000/partner/orders/$ORDER_ID/ready \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{}'
+```
+
+Both use the same guarded transition as acceptance: staff check, the Order's
+lock, a fresh read and one update guarded by the revision and state it read.
+`start-preparation` writes `state: preparing`, `preparation_started_at`,
+`preparation_started_by` and `revision + 1`; `ready` writes `state: ready`,
+`ready_at`, `ready_by` and `revision + 1`. Acceptance never starts preparation,
+and readiness never fills in a missing preparation start. Neither waits for or
+creates a Delivery agent assignment, and readiness records no pickup, delivery
+or native Order completion (the native Order stays `pending` and unfulfilled).
+A closed or deactivated Restaurant's staff can still progress its existing paid
+Orders. Staff cannot undo a milestone or reject an accepted Order; inability to
+fulfil goes to an MTOGO operator with the Order reference (#49). The new
+revision of each milestone is announced on the kitchen feed (#148).
+
+**Success:** `200` with `{ "order": { ... }, "server_time": "..." }`, as
+`GET /partner/orders/{id}` returns it. A repeated or competing request for a
+milestone that is already recorded (or an Order already further along) also
+returns `200` with the first recorded time and actor; nothing is recorded twice.
+
+| Status | When                                                                                              |
+| ------ | ------------------------------------------------------------------------------------------------- |
+| `400`  | A non-empty body (`invalid_data`)                                                                 |
+| `401`  | As for `GET /partner/me`                                                                          |
+| `403`  | `code: "staff_access_revoked"`: as for `GET /partner/me`                                          |
+| `404`  | `code: "order_not_found"`: another Restaurant's Order or an unknown one, answered identically     |
+| `400`  | `code: "order_not_accepted"`: the Order still awaits acceptance                                   |
+| `400`  | `code: "preparation_not_started"`: `ready` on an accepted Order whose preparation has not started |
+| `400`  | `code: "order_cancelled"`: the Order is cancelled                                                 |
+| `409`  | `code: "order_changed"`: as for acceptance                                                        |
+
+Refusals carry `order` and `server_time` as for acceptance.
 
 ### POST /partner/orders/{id}/reject
 

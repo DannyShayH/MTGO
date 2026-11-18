@@ -10,7 +10,7 @@ import {
   listRestaurantOrdersStep,
   retrieveRestaurantOrderStep,
 } from "./steps/read-restaurant-orders"
-import { acceptRestaurantOrderStep } from "./steps/accept-restaurant-order"
+import { transitionRestaurantOrderStep } from "./steps/transition-restaurant-order"
 import { establishIntendedDeliveryStep } from "../delivery/available"
 import { recordLegacyPlacementsStep } from "./steps/record-legacy-placements"
 import { readOrderFeedStep } from "./steps/read-order-feed"
@@ -18,7 +18,7 @@ import type { AnnouncedRevisions } from "./order-feed"
 import { cancelRestaurantOrderStep } from "./steps/cancel-restaurant-order"
 import { settleOrderCancellationStep } from "./steps/settle-order-cancellation"
 import { readOrderProgressStep } from "./steps/read-order-progress"
-import { QueueView } from "./rules"
+import { MilestoneAction, QueueView } from "./rules"
 import { orderOperationLock } from "./locks"
 import {
   recoverOrderOperationsStep,
@@ -64,10 +64,47 @@ export const retrievePartnerOrderWorkflow = createWorkflow(
 )
 
 /**
+ * One guarded kitchen milestone after acceptance, run under the Order's lock
+ * with the same transition step as acceptance. Actor, Restaurant and time come
+ * from the server; the staff record is checked first, so revoked access stops
+ * further actions. Unlike acceptance, it establishes no intended delivery.
+ */
+const createPartnerOrderTransitionWorkflow = (
+  name: string,
+  action: Exclude<MilestoneAction, "accept">,
+) =>
+  createWorkflow(
+    name,
+    function (input: { staff_id: string; order_id: string }) {
+      const current = retrieveAuthorizedStaffStep({ staff_id: input.staff_id })
+      const lock = transform({ input }, ({ input }) =>
+        orderOperationLock(input.order_id),
+      )
+      acquireLockStep(lock)
+      const command = transform({ input, current }, ({ input, current }) => ({
+        restaurant_id: current.restaurant.id,
+        order_id: input.order_id,
+        staff_id: current.staff.id,
+        action,
+      }))
+      transitionRestaurantOrderStep(command)
+      releaseLockStep(lock)
+      const scope = transform({ command }, ({ command }) => ({
+        restaurant_id: command.restaurant_id,
+        order_id: command.order_id,
+      }))
+      return new WorkflowResponse(
+        retrieveRestaurantOrderStep(scope).config({
+          name: "read-transitioned-order",
+        }),
+      )
+    },
+  )
+
+/**
  * Staff accept an awaiting Order strictly before its deadline (spec #47
- * stories 9, 10, 12-14). Actor, Restaurant and time come from the server.
- * Acceptance only records the commitment: it starts no preparation, assigns
- * no Delivery agent and leaves the native Order as it is.
+ * stories 9, 10, 12-14). Acceptance only records the commitment: it starts no
+ * preparation, assigns no Delivery agent and leaves the native Order as it is.
  */
 export const acceptPartnerOrderWorkflow = createWorkflow(
   "accept-partner-order",
@@ -81,8 +118,9 @@ export const acceptPartnerOrderWorkflow = createWorkflow(
       restaurant_id: current.restaurant.id,
       order_id: input.order_id,
       staff_id: current.staff.id,
+      action: "accept" as const,
     }))
-    acceptRestaurantOrderStep(command)
+    transitionRestaurantOrderStep(command)
     establishIntendedDeliveryStep(
       transform({ input }, ({ input }) => ({ order_id: input.order_id })),
     )
@@ -98,6 +136,23 @@ export const acceptPartnerOrderWorkflow = createWorkflow(
     )
   },
 )
+
+/**
+ * Staff record that preparation started on an accepted Order (spec #47
+ * stories 15, 16). It does not wait for, or create, a Delivery assignment.
+ */
+export const startPartnerOrderPreparationWorkflow =
+  createPartnerOrderTransitionWorkflow(
+    "start-partner-order-preparation",
+    "start_preparation",
+  )
+
+/**
+ * Staff record that the food is ready, only after preparation started (spec
+ * #47 stories 17, 18). Readiness is not pickup, delivery or native completion.
+ */
+export const markPartnerOrderReadyWorkflow =
+  createPartnerOrderTransitionWorkflow("mark-partner-order-ready", "ready")
 
 /**
  * One tick of the kitchen feed (#148): staff authorization is checked against
