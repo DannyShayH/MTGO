@@ -100,4 +100,10 @@ export {
 } from "./customer-order-detail.ts"
 export { CUSTOMER_ORDER_CONFIRMATION_TEXT } from "./customer-order-confirmation.ts"
 
-export { DELIVERY_AGENT_TEXT } from "./delivery-agent.ts"
+export {
+  DELIVERY_AGENT_TEXT,
+  DELIVERY_CLAIM_ERROR_CODES,
+  DELIVERY_CLAIM_ERRORS,
+  isDeliveryClaimErrorCode,
+  type DeliveryClaimErrorCode,
+} from "./delivery-agent.ts"

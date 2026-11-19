@@ -20,6 +20,10 @@ import {
   ORDER_CHANGED,
   PROGRESS_REFUSALS,
 } from "../workflows/order-operations/rules"
+import {
+  ASSIGNMENT_CONFLICTS,
+  ASSIGNMENT_REFUSALS,
+} from "../workflows/delivery/assignment-rules"
 
 const CATEGORY_ROUTE =
   /^\/partner\/restaurants\/[^/]+\/categories(?:\/[^/]+)?\/?$/
@@ -189,6 +193,8 @@ export function mtogoErrorHandler(): MedusaErrorHandlerFunction {
     ...PROGRESS_REFUSALS,
     ORDER_CHANGED,
     "order_restaurant_mismatch",
+    ...ASSIGNMENT_REFUSALS,
+    ...ASSIGNMENT_CONFLICTS,
   ])
   return (error, req, res, next) => {
     if (error.message === "customer_identity_exists") {

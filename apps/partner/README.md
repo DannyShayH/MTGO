@@ -12,8 +12,49 @@ Operators invite Delivery agents and approve Danish postal codes in Admin. The
 uses a distinct `delivery_agent` identity. `/delivery` checks authorization on
 each request, displays approved areas and saves a filter restricted to those
 areas. The bearer stays in the same server-side httpOnly partner cookie used by
-the staff flow. The workspace explicitly states that delivery work is not yet
-available; claiming and delivery progress belong to later Feature #48 slices.
+the staff flow. Claiming is described below; delivery progress belongs to later Feature #48
+slices.
+
+### Claiming and the current delivery (#157)
+
+`/delivery` is one column at every width: **Your current delivery** first,
+then **Available deliveries**, with the language switch at the bottom. Cards
+share one surface (`CARD` in `src/modules/delivery/copy.ts`) and show the
+journey as two stops (`RouteStops`): a hollow dot for the pickup, a filled
+one for the Customer. The preparation state is a labelled pill
+(`PreparationBadge`), so its text, not its colour, carries it.
+
+The current delivery has a teal outline and a "You are responsible" band. It
+shows the Restaurant, the pickup, the preparation state, the Customer's name
+and address and, as the one large action, **Call the Customer** (a `tel:`
+link styled as the primary button) with the time the agent became responsible,
+from `GET /partner/delivery-agent/current`. "Assigned by MTOGO" marks an
+operator's assignment. There is no release or hand-over control.
+
+Each available card shows the Restaurant and reference, pickup address,
+destination postal code with its town, the claim deadline with the minutes
+left (a warning pill under five minutes, from the backend's `server_time`) and
+the acceptance time. Without a current delivery each card, and the detail
+page, offers **Claim this delivery**, with its one explanation shown once
+above the list; with one, the list says to finish it first. Pressed controls
+scale to 0.97 for 150 ms, which reduced motion turns off.
+
+**Areas** is a folded panel summarizing "All 21 towns" or "3 of 21 towns".
+It opens to one pill per town (from `areas` in `GET /partner/delivery-agent/me`,
+grouped by `groupDeliveryAreaByTown`), with a check mark and the code count.
+A town's checkbox carries all its codes; saving keeps only approved codes in
+the filter cookie, so it never widens the agent's areas.
+
+`claimDelivery` in `src/lib/data/delivery-agent.ts` posts the card's retry
+identity, created on the server when the page renders, so a second tap or a
+retry recovers the original claim. While pending the button is disabled.
+A refusal shows its Danish or English text from `DELIVERY_CLAIM_ERRORS` and
+refreshes the list. A missing answer or server failure shows **Checking
+status…** and `checkDeliveryClaim` reads the current delivery after 2, 5, 10
+and then every 30 seconds, when the page becomes visible again (after a call
+or screen lock) and when the browser is back online; only the server's
+current delivery shows the claim as successful. `ReconcileOnReturn` reloads
+the workspace on the same events. Focus moves to the outcome message.
 
 ## What it does
 

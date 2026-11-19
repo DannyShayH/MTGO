@@ -45,8 +45,63 @@ postal-code register; an empty list grants no operating area.
   returns the invited identity. `POST /partner/delivery-agent-invitations/accept`
   accepts the same body with an unregistered delivery-agent bearer identity.
 - `GET /partner/delivery-agent/me` requires an authorized agent bearer and
-  returns the current approved codes.
+  returns the current approved codes as `postal_codes` and, with their
+  register town names, `areas: [{ postal_code, name }]` (#157).
 
 The partner website keeps the bearer in its httpOnly cookie. Its saved area
-filter is intersected with current permissions and cannot grant access. Delivery
-claiming, assignment and progress are later slices of Feature #48.
+filter is intersected with current permissions and cannot grant access. Progress after
+assignment (pickup, arrival, handover) and terminal release of capacity are
+later slices of Feature #48.
+
+## Demo login (#157)
+
+`src/scripts/seed-demo-delivery-agent.ts` makes an authorized agent login
+without the invitation email, for local or disposable databases only:
+
+```bash
+SEED_AGENT_EMAIL=agent@mtogo.local SEED_AGENT_PASSWORD=<8+ chars> \
+  NODE_ENV=development npx medusa exec ./src/scripts/seed-demo-delivery-agent.ts
+```
+
+It approves every Restaurant's own postal code and delivery-area codes, or
+`SEED_AGENT_POSTAL_CODES` (comma-separated) instead. A rerun sets the password
+and areas again.
+
+## Assignment (#157)
+
+`IntendedDelivery` also records the one responsibility: `assigned_agent_id`
+(historical, never changed once set), `active_agent_id` (the active-capacity
+hold), `assigned_at`, `assigned_by` (the claiming agent, or the operator's
+user ID), `assignment_source` (`agent_claim` or `operator_assignment`) and
+`assignment_request_id` (the retry identity). Partial unique indexes on
+`active_agent_id` and `assignment_request_id` make one active delivery per
+agent and one assignment per retry identity database guarantees.
+
+`assignDelivery` is the only write. In one transaction it locks the agent row,
+then the delivery row, re-reads the agent's current areas, active hold and
+retry identity, applies the rule passed in by the workflow
+(`decideAssignment` in `src/workflows/delivery/assignment-rules.ts`) and
+writes responsibility and hold in one update whose selector requires the
+delivery to be unassigned. `assignDeliveryStep` calls it while holding the
+locking-module keys `delivery-agent:{agent_id}` then
+`order-operation:{order_id}`, the Order's authoritative guard, in that order,
+and reads the Order's state under them. With Redis configured these locks and
+the row locks serialize separate server and worker processes. The deadline is
+decided with the server's time taken under those locks, and an inactive Order
+is refused before a repeat is recognized, so no claim survives a committed
+terminal outcome. Nothing
+releases a committed assignment: there is no compensation, release or
+reassignment; alerts and repeats leave it in place. Revocation keeps it.
+
+`integration-tests/http/delivery-assignment.spec.ts` covers claims and their
+Customer-contact privacy, retries and reused retry identities, two agents
+racing for one delivery and one agent for two, refusals (areas, deadline,
+inactive Order, unaccepted work, other actors, revocation), the deadline at
+exactly and 1 ms before acceptance plus thirty minutes through the workflow's
+server-time input, responsibility after an area change, the operator list and
+assignment, operator races with a claim, another operator, an area change and
+revocation, and twenty concurrent current-delivery reads (measured locally
+on 19 November 2026 with the in-process runner: p95 223 ms, against the
+agreed 95% within two seconds).
+`src/workflows/delivery/__tests__/assignment-rules.unit.spec.ts` covers the
+decision table.

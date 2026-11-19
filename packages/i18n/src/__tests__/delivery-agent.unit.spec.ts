@@ -1,0 +1,35 @@
+import { test } from "node:test"
+import assert from "node:assert/strict"
+import {
+  DELIVERY_AGENT_TEXT,
+  DELIVERY_CLAIM_ERROR_CODES,
+  DELIVERY_CLAIM_ERRORS,
+  isDeliveryClaimErrorCode,
+} from "../delivery-agent.ts"
+
+test("Danish and English have the same Delivery agent texts, none of them blank", () => {
+  assert.deepEqual(
+    Object.keys(DELIVERY_AGENT_TEXT.da).sort(),
+    Object.keys(DELIVERY_AGENT_TEXT.en).sort(),
+  )
+  for (const locale of ["da", "en"] as const)
+    for (const [key, value] of Object.entries(DELIVERY_AGENT_TEXT[locale]))
+      assert.ok(value.trim(), `${locale}.${key} is blank`)
+})
+
+test("every refusal of a claim has a Danish and an English text", () => {
+  for (const locale of ["da", "en"] as const) {
+    assert.deepEqual(
+      Object.keys(DELIVERY_CLAIM_ERRORS[locale]).sort(),
+      [...DELIVERY_CLAIM_ERROR_CODES].sort(),
+    )
+    for (const code of DELIVERY_CLAIM_ERROR_CODES)
+      assert.ok(DELIVERY_CLAIM_ERRORS[locale][code].trim(), `${locale}.${code}`)
+  }
+})
+
+test("only known claim refusal codes are recognised", () => {
+  assert.equal(isDeliveryClaimErrorCode("delivery_already_assigned"), true)
+  assert.equal(isDeliveryClaimErrorCode("delivery_agent_access_revoked"), false)
+  assert.equal(isDeliveryClaimErrorCode(undefined), false)
+})

@@ -38,6 +38,7 @@ import {
   PostPartnerAcceptStaffInvitationSchema,
   GetPartnerOrdersSchema,
   GetAvailableDeliveriesSchema,
+  PostClaimDeliverySchema,
   PostPartnerOrderActionSchema,
   PostPartnerRejectOrderSchema,
 } from "./partner/validators"
@@ -85,6 +86,10 @@ import {
   InviteDeliveryAgentSchema,
   ListDeliveryAgentsSchema,
 } from "./admin/delivery-agents/validators"
+import {
+  AssignDeliverySchema,
+  ListUnclaimedDeliveriesSchema,
+} from "./admin/deliveries/validators"
 import { recordSessionExpiry } from "./session-expiry"
 
 /** Medusa has no path-parameter validator, so the postal code in the path is checked here. */
@@ -117,6 +122,18 @@ export default defineMiddlewares({
       matcher: "/admin/delivery-agents",
       method: "POST",
       middlewares: [validateAndTransformBody(InviteDeliveryAgentSchema)],
+    },
+    {
+      matcher: "/admin/deliveries/unclaimed",
+      method: "GET",
+      middlewares: [
+        validateAndTransformQuery(ListUnclaimedDeliveriesSchema, {}),
+      ],
+    },
+    {
+      matcher: "/admin/deliveries/:id/assign",
+      method: "POST",
+      middlewares: [validateAndTransformBody(AssignDeliverySchema)],
     },
     {
       matcher: "/admin/delivery-agents/:id/areas",
@@ -452,6 +469,10 @@ export default defineMiddlewares({
       middlewares: [authenticate(DELIVERY_AGENT_ACTOR, "bearer")],
     },
     {
+      matcher: "/partner/delivery-agent/current",
+      middlewares: [authenticate(DELIVERY_AGENT_ACTOR, "bearer")],
+    },
+    {
       matcher: "/partner/delivery-agent/available*",
       middlewares: [authenticate(DELIVERY_AGENT_ACTOR, "bearer")],
     },
@@ -461,6 +482,11 @@ export default defineMiddlewares({
       middlewares: [
         validateAndTransformQuery(GetAvailableDeliveriesSchema, {}),
       ],
+    },
+    {
+      matcher: "/partner/delivery-agent/available/:id/claim",
+      method: "POST",
+      middlewares: [validateAndTransformBody(PostClaimDeliverySchema)],
     },
     {
       matcher: "/partner/delivery-agent-invitations/open",

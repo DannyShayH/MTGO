@@ -1,5 +1,45 @@
 # Custom API Routes
 
+## Claiming and initial assignment (#157)
+
+`POST /partner/delivery-agent/available/{order_id}/claim` requires an
+authorized `delivery_agent` bearer and accepts only `{ request_id }`, a retry
+identity of 1-100 characters `A-Z a-z 0-9 . _ : -` that the client keeps for
+one intended claim. The agent is the authenticated actor. Success returns the
+current-delivery projection below. A repeat by the responsible agent, with
+the same or a new `request_id`, returns the original assignment unchanged
+while the Order is active. A `request_id` belongs to the actor, agent and
+delivery it was first used for; any other reuse is `assignment_request_reused`.
+Refusals: `400` with `delivery_not_active`, `claim_deadline_passed` (at or
+after acceptance plus thirty minutes) or `delivery_outside_approved_areas`
+(both postal codes are checked against the current approved set); `409` with
+`delivery_already_assigned`, `delivery_agent_has_active_delivery` or
+`assignment_request_reused`; `404` `delivery_not_found`; `403` for revoked
+access; `401` without an agent bearer. Refusals carry no Customer or agent
+details. Preparation state does not gate claiming.
+
+`GET /partner/delivery-agent/current` returns `{ delivery, server_time }`,
+where `delivery` is `null` or the agent's one active delivery: intended
+delivery and Order IDs, reference, Restaurant, pickup address, preparation
+state, acceptance and assignment times, `assignment_source`
+(`agent_claim` or `operator_assignment`) and `customer` (name, phone,
+`address_1`, `address_2`, postal code, city) from the Order's purchased
+shipping address. Checkout records no separate delivery instructions, so none
+are returned. Responsibility, not the current areas, grants this read;
+revoked agents receive `403`.
+
+`GET /admin/deliveries/unclaimed?limit=20&offset=0` (limit 1-50) returns
+`{ deliveries, has_more, limit, offset, server_time }` with the same safe
+fields as the agents' list plus `pickup_postal_code` and
+`eligible_agents: [{ id, name }]`: authorized agents approved for both codes
+with no active delivery. `POST /admin/deliveries/{order_id}/assign` accepts
+`{ agent_id, request_id }` and runs the same guarded capability for the
+selected agent, recording the operator as `assigned_by`. It returns
+`{ assignment: { order_id, agent: { id, name }, assigned_at, assigned_by,
+source } }` with the claim's refusal codes; a revoked or pending agent is
+`400` `delivery_agent_not_authorized`, an unknown agent `404`. There is no
+release, replacement or reassignment route.
+
 ## Available deliveries (#156)
 
 `GET /partner/delivery-agent/available?limit=20&offset=0&postal_codes=2200`

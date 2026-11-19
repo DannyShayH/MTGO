@@ -15,23 +15,23 @@ import type OrderOperationModuleService from "../../modules/order-operation/serv
 import { RESTAURANT_MODULE } from "../../modules/restaurant"
 import type RestaurantModuleService from "../../modules/restaurant/service"
 import type { MedusaContainer } from "@medusajs/framework/types"
+import { CLAIM_WINDOW_MS, isActiveOrderState } from "./assignment-rules"
 
 type DeliveryRecord = Awaited<
   ReturnType<DeliveryModuleService["listIntendedDeliveries"]>
 >[number]
-type AvailableInput = {
-  agent_id: string
-  postal_codes?: string[]
-  limit: number
-  offset: number
-  order_id?: string
-}
+type ScanInput = { limit: number; offset: number; order_id?: string }
 
-async function scanAvailablePage(
+/**
+ * Unassigned work before its deadline on active accepted Orders, oldest
+ * acceptance first, in bounded batches. `selected` limits both postal codes
+ * (an agent's areas); an operator's read passes none.
+ */
+export async function scanAvailablePage(
   container: MedusaContainer,
   delivery: DeliveryModuleService,
-  input: AvailableInput,
-  selected: string[],
+  input: ScanInput,
+  selected: string[] | undefined,
   now: Date,
 ) {
   const page: { record: DeliveryRecord; state: string }[] = []
@@ -42,8 +42,9 @@ async function scanAvailablePage(
       {
         ...(input.order_id ? { order_id: input.order_id } : {}),
         assigned_agent_id: null,
-        pickup_postal_code: selected,
-        destination_postal_code: selected,
+        ...(selected
+          ? { pickup_postal_code: selected, destination_postal_code: selected }
+          : {}),
         claim_deadline: { $gt: now },
       },
       { order: { accepted_at: "ASC", id: "ASC" }, take: 50, skip: cursor },
@@ -59,9 +60,7 @@ async function scanAvailablePage(
     const states = new Map(
       operations.map(({ order_id, state, accepted_at }) => [
         order_id,
-        accepted_at && ["accepted", "preparing", "ready"].includes(state)
-          ? state
-          : null,
+        accepted_at && isActiveOrderState(state) ? state : null,
       ]),
     )
     for (const record of records) {
@@ -123,7 +122,7 @@ export const establishIntendedDeliveryStep = createStep(
         destination_postal_code: order.shipping_address.postal_code,
         order_reference: order.display_id,
         accepted_at: acceptedAt,
-        claim_deadline: new Date(acceptedAt.getTime() + 30 * 60 * 1000),
+        claim_deadline: new Date(acceptedAt.getTime() + CLAIM_WINDOW_MS),
       })
       return new StepResponse<DeliveryRecord | null, string | null>(
         record,

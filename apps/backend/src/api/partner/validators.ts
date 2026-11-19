@@ -51,6 +51,19 @@ export const GetAvailableDeliveriesSchema = z.strictObject({
       return codes
     }),
 })
+/**
+ * A client-chosen retry identity for one intended assignment: the same value
+ * on a repeat recovers the original outcome; reused elsewhere it is refused.
+ */
+export const RetryIdentity = z
+  .string()
+  .regex(/^[A-Za-z0-9._:-]{1,100}$/, "request_id_invalid")
+
+export const PostClaimDeliverySchema = z.strictObject({
+  request_id: RetryIdentity,
+})
+export type PostClaimDeliveryBody = z.infer<typeof PostClaimDeliverySchema>
+
 export type GetAvailableDeliveriesQuery = z.infer<
   typeof GetAvailableDeliveriesSchema
 >
