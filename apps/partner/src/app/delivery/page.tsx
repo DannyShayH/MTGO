@@ -99,6 +99,8 @@ export default async function DeliveryPage({
           <CurrentDeliveryCard
             delivery={current}
             copy={copy}
+            locale={locale}
+            pickupRetryIdentity={randomUUID()}
             formatTime={formatTime}
           />
         ) : (

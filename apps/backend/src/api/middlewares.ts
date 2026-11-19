@@ -39,6 +39,7 @@ import {
   GetPartnerOrdersSchema,
   GetAvailableDeliveriesSchema,
   PostClaimDeliverySchema,
+  PostConfirmPickupSchema,
   PostPartnerOrderActionSchema,
   PostPartnerRejectOrderSchema,
 } from "./partner/validators"
@@ -493,6 +494,14 @@ export default defineMiddlewares({
       matcher: "/partner/delivery-agent/available/:id/claim",
       method: "POST",
       middlewares: [validateAndTransformBody(PostClaimDeliverySchema)],
+    },
+    {
+      matcher: "/partner/deliveries/:id/pickup",
+      method: "POST",
+      middlewares: [
+        authenticate(DELIVERY_AGENT_ACTOR, "bearer"),
+        validateAndTransformBody(PostConfirmPickupSchema),
+      ],
     },
     {
       matcher: "/partner/delivery-agent-invitations/open",

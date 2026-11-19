@@ -10,20 +10,14 @@ import {
 } from "@dtc/i18n"
 import { checkDeliveryClaim, claimDelivery } from "@lib/data/delivery-agent"
 import { CLAIM_HINT_ID, PRESSABLE, type DeliveryCopy as Copy } from "./copy"
+import { SETTLED_AFTER_MS, useStatusChecks } from "./use-status-checks"
+
 type State =
   | { kind: "idle" }
   | { kind: "pending" }
   | { kind: "checking" }
   | { kind: "not_confirmed" }
   | { kind: "refused"; code: DeliveryClaimErrorCode }
-
-/** Bounded backoff for status checks while a claim's outcome is unknown. */
-const CHECK_DELAYS_MS = [2000, 5000, 10000, 30000]
-/**
- * A request can wait up to ten seconds for the backend's locks and still
- * commit, so an empty current delivery only means "not claimed" after this.
- */
-const SETTLED_AFTER_MS = 15000
 
 /**
  * Claims one available delivery (#157). The retry identity is fixed for this
@@ -76,33 +70,7 @@ export function ClaimDelivery({
     return result
   }, [orderId, claimed, router])
 
-  useEffect(() => {
-    if (state.kind !== "checking") return
-    let attempt = 0
-    let timer: ReturnType<typeof setTimeout> | undefined
-    let active = true
-    const schedule = () => {
-      timer = setTimeout(async () => {
-        if (!active) return
-        if ((await check()) === "uncertain" && active) {
-          attempt = Math.min(attempt + 1, CHECK_DELAYS_MS.length - 1)
-          schedule()
-        }
-      }, CHECK_DELAYS_MS[attempt])
-    }
-    const onReturn = () => {
-      if (document.visibilityState === "visible") void check()
-    }
-    schedule()
-    document.addEventListener("visibilitychange", onReturn)
-    window.addEventListener("online", onReturn)
-    return () => {
-      active = false
-      clearTimeout(timer)
-      document.removeEventListener("visibilitychange", onReturn)
-      window.removeEventListener("online", onReturn)
-    }
-  }, [state.kind, check])
+  useStatusChecks(state.kind === "checking", check)
 
   useEffect(() => {
     if (state.kind !== "idle" && state.kind !== "pending")

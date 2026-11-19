@@ -123,7 +123,7 @@ Rules that follow from this:
 
 - **Business logic lives in workflows.** A route resolves its input and runs a workflow. A workflow composes steps.
 - **Change commerce data through `core-flows` workflows** (carts, orders, products), not raw module service calls, so links, events and inventory stay consistent.
-- **Every step that changes data has a compensation function**, so a failing workflow undoes the steps before it.
+- **Every step that changes data has a compensation function**, so a failing workflow undoes the steps before it. The one exception is a step that commits an authoritative business milestone, such as a delivery assignment or a pickup. It is never undone, and a recovery job finishes the work it owes ([ADR-0021](/MTGO/architecture/decisions/0021-committed-business-milestones-have-no-compensation/)).
 - **Custom modules never import each other.** Connect them with module links, and combine them in workflows. This keeps new areas, such as complaints later, from forcing changes in existing modules.
 - **Route access is declared in `src/api/middlewares.ts`** (which actor may call it). Decisions that depend on data, such as "only staff of this Restaurant", belong in a workflow step.
 - **No raw SQL or database clients.** Go through module services and workflows.

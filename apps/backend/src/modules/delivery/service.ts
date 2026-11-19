@@ -97,6 +97,33 @@ export type AssignmentCommand = {
   now: Date
 }
 
+/** What the pickup rule needs, read under the delivery row lock. */
+export type PickupFacts = {
+  agent: { id: string; status: "pending" | "authorized" | "revoked" }
+  delivery: {
+    order_id: string
+    assigned_agent_id: string | null
+    active_agent_id: string | null
+    picked_up_at: Date | string | null
+  }
+  order: { state: string; ready_at: Date | string | null }
+  request_holder: { order_id: string; agent_id: string } | null
+}
+
+export type PickupOutcome =
+  | { outcome: "pick_up" }
+  | { outcome: "already_picked_up" }
+  | { outcome: "refused"; code: string }
+
+export type PickupCommand = {
+  order_id: string
+  agent_id: string
+  request_id: string
+  /** The Order's state and readiness, read under the Order's guard by the caller. */
+  order: { state: string; ready_at: Date | string | null }
+  now: Date
+}
+
 class DeliveryModuleService extends MedusaService({
   DeliveryAgent,
   DeliveryAgentArea,
@@ -551,6 +578,100 @@ class DeliveryModuleService extends MedusaService({
         context,
       )
     return decision
+  }
+
+  /**
+   * The one guarded pickup write (#160). In one transaction it locks the
+   * delivery row, re-reads responsibility, the recorded milestone and the
+   * retry identity, lets `decide` apply the shared rule and records the
+   * milestone in one update whose selector requires it to be unrecorded and
+   * the agent to still hold the delivery. A lost race reports
+   * `delivery_changed` instead of writing.
+   */
+  @InjectManager()
+  @InjectTransactionManager()
+  async recordPickup(
+    command: PickupCommand,
+    decide: (facts: PickupFacts) => PickupOutcome,
+    @MedusaContext() context: Context = {},
+  ) {
+    const manager = context.transactionManager as EntityManager
+    const locked = await manager.findOne(
+      "IntendedDelivery",
+      { order_id: command.order_id, deleted_at: null },
+      { lockMode: LockMode.PESSIMISTIC_WRITE },
+    )
+    if (!locked)
+      throw new MedusaError(
+        MedusaError.Types.NOT_FOUND,
+        "delivery_not_found",
+        "delivery_not_found",
+      )
+    const [record] = await this.listIntendedDeliveries(
+      { order_id: command.order_id },
+      { take: 1 },
+      context,
+    )
+    const [agent] = await this.listDeliveryAgents(
+      { id: command.agent_id },
+      { take: 1, select: ["id", "status"] },
+      context,
+    )
+    const [holder] = await this.listIntendedDeliveries(
+      { pickup_request_id: command.request_id },
+      { take: 1, select: ["order_id", "picked_up_by"] },
+      context,
+    )
+    const outcome = decide({
+      agent: agent ?? { id: command.agent_id, status: "revoked" },
+      delivery: record,
+      order: command.order,
+      // A retry identity is only ever stored with its pickup.
+      request_holder: holder
+        ? { order_id: holder.order_id, agent_id: holder.picked_up_by as string }
+        : null,
+    })
+    if (outcome.outcome !== "pick_up") return { outcome, delivery: record }
+    const [updated] = await this.updateIntendedDeliveries(
+      {
+        selector: {
+          id: record.id,
+          picked_up_at: null,
+          active_agent_id: command.agent_id,
+        },
+        data: {
+          picked_up_at: command.now,
+          picked_up_by: command.agent_id,
+          pickup_request_id: command.request_id,
+          native_sync_queued_at: command.now,
+        },
+      },
+      context,
+    )
+    if (!updated)
+      return {
+        outcome: {
+          outcome: "refused",
+          code: "delivery_changed",
+        } as PickupOutcome,
+        delivery: record,
+      }
+    return { outcome, delivery: updated }
+  }
+
+  /** Records the native fulfillment once; a later write never replaces it. */
+  @InjectManager()
+  async recordNativePickup(
+    input: { order_id: string; fulfillment_id: string },
+    @MedusaContext() context: Context = {},
+  ) {
+    await this.updateIntendedDeliveries(
+      {
+        selector: { order_id: input.order_id, native_fulfillment_id: null },
+        data: { native_fulfillment_id: input.fulfillment_id },
+      },
+      context,
+    )
   }
 }
 

@@ -51,7 +51,7 @@ postal-code register; an empty list grants no operating area.
 The partner website keeps the bearer in its httpOnly cookie. Its saved area
 filter is intersected with current permissions and cannot grant access. Progress after
 assignment (pickup, arrival, handover) and terminal release of capacity are
-later slices of Feature #48.
+later slices of Feature #48; pickup is described below.
 
 ## Demo login (#157)
 
@@ -144,3 +144,49 @@ sweeps, claims and operator assignments before and after raising, a sweep
 racing an assignment, ended Orders, paging, operator-only access and the
 backfill. `src/workflows/delivery/__tests__/attention-rules.unit.spec.ts`
 covers the decision table.
+
+## Pickup (#160)
+
+`IntendedDelivery` records the pickup milestone: `picked_up_at` (server
+time), `picked_up_by` (the agent) and `pickup_request_id` (the retry identity,
+unique when set). Readiness is not copied: the rule reads the Order
+operation's `state` and `ready_at` (#146) at the guarded moment, so
+preparation and assignment stay independent and pickup needs both.
+
+`recordPickup` is the only pickup write. `recordPickupStep` holds the same
+locking-module keys as assignment, `delivery-agent:{agent_id}` then
+`order-operation:{order_id}`, reads the Order's state and readiness under
+them, and the service locks the delivery row, applies `decidePickup`
+(`src/workflows/delivery/pickup-rules.ts`) and writes in one update whose
+selector requires the milestone to be unrecorded and the agent to still hold
+the active capacity. A repeat returns the original milestone; a cancelled
+Order or ended responsibility is refused even on a repeat. Nothing undoes a
+recorded pickup.
+
+`native_fulfillment_id` is the native Order fulfillment created and shipped
+for the pickup (`settleNativePickup` in `src/workflows/delivery/pickup.ts`).
+Null after pickup means that synchronization is still owed. The fulfillment
+carries `metadata.intended_delivery_id`, so a retry after a lost write finds it
+instead of fulfilling twice. The location is the one the Order's shipping
+option's fulfillment set belongs to, never a fixed id; a missing one is logged
+as `pickup_location_missing` and stays owed. For the MVP that is one
+platform-wide location shared by every Restaurant, because no Restaurant is
+linked to its own stock location yet. Shipping each pickup from its
+Restaurant's own location is #192. Nothing undoes a recorded pickup, and the
+native work it owes is retried, not compensated (ADR-0021). The request and the
+`recover-delivery-pickups` job (every minute, 50 per sweep) serialize on
+`delivery-native-pickup:{order_id}`. `native_sync_queued_at` starts at the
+pickup time and moves to the start of each attempt; the sweep takes the oldest
+first, so a lasting failure goes to the back and cannot hold back newer
+pickups.
+
+`integration-tests/http/delivery-pickup.spec.ts` covers pickup of ready food
+with its native fulfillment, double taps and retries, refusals before
+readiness (accepted and preparing), other agents, unassigned work, staff,
+forged bodies, cancelled work, revoked agents, a reused retry identity, a stale
+decision refused by the guarded write (`delivery_changed`), three
+competing requests (one milestone, one fulfillment), a missing pickup
+location (pickup stands, the obligation is requeued and finished once
+configured) and recovery after an interruption and after a lost record.
+`src/workflows/delivery/__tests__/pickup-rules.unit.spec.ts` covers the
+decision table.

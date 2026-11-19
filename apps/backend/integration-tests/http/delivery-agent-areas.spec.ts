@@ -300,6 +300,23 @@ medusaIntegrationTestRunner({
       const retained = await service.retrieveDeliveryAgent(agent.id)
       expect(retained.status).toBe("revoked")
       expect(retained.revoked_by).toBe("operator")
+
+      // A second revocation keeps the first; an unknown agent is not found.
+      const again = await api.post(
+        `/admin/delivery-agents/${agent.id}/revoke`,
+        {},
+        { headers: { authorization: admin } },
+      )
+      expect(again.status).toBe(200)
+      const kept = await service.retrieveDeliveryAgent(agent.id)
+      expect(kept.revoked_at).toEqual(retained.revoked_at)
+      expect(kept.authorization_revision).toBe(retained.authorization_revision)
+      const unknown = await api.post(
+        "/admin/delivery-agents/agent_unknown/revoke",
+        {},
+        { headers: { authorization: admin }, validateStatus: () => true },
+      )
+      expect(unknown.status).toBe(404)
     })
     it("accepts before expiry and refuses exactly at and after expiry", async () => {
       const service =
@@ -371,6 +388,15 @@ medusaIntegrationTestRunner({
       expect(result.status).toBe(200)
       expect(result.data.postal_codes).toEqual(["2200"])
       expect(result.data.authorization_revision).toBe(2)
+      const unknown = await api.post(
+        "/admin/delivery-agents/agent_unknown/areas",
+        { postal_codes: ["2200"] },
+        {
+          headers: { authorization: token("user") },
+          validateStatus: () => true,
+        },
+      )
+      expect(unknown.status).toBe(404)
     })
     it("paginates the operator list without losing older agents", async () => {
       const container = getContainer()
@@ -446,6 +472,17 @@ medusaIntegrationTestRunner({
       expect((await service.retrieveDeliveryAgent(agent.id)).status).toBe(
         "revoked",
       )
+      // The revocation that waited makes the same credentials invalid.
+      let ran = false
+      await expect(
+        service.withPendingInvitation(
+          { agent_id: agent.id, token: "fence-token" },
+          async () => {
+            ran = true
+          },
+        ),
+      ).rejects.toThrow("invitation_invalid")
+      expect(ran).toBe(false)
     })
     it("rolls back area rows when updating the authorization revision fails", async () => {
       const delivery =

@@ -24,6 +24,7 @@ import {
   type AssignmentRefusal,
 } from "./assignment-rules"
 import { scanAvailablePage } from "./available"
+import { deliveryAgentLockKey } from "./locks"
 
 type AssignInput = {
   order_id: string
@@ -35,7 +36,7 @@ type AssignInput = {
   now?: string
 }
 
-const deliveryAgentAccessRevoked = () =>
+export const deliveryAgentAccessRevoked = () =>
   new MedusaError(
     MedusaError.Types.FORBIDDEN,
     "delivery_agent_access_revoked",
@@ -76,7 +77,7 @@ export const assignDeliveryStep = createStep(
   "assign-delivery",
   async (input: AssignInput, { container }) => {
     const keys = [
-      `delivery-agent:${input.agent_id}`,
+      deliveryAgentLockKey(input.agent_id),
       orderOperationLock(input.order_id).key,
     ]
     const result = await container.resolve(Modules.LOCKING).execute(
@@ -114,6 +115,8 @@ type CustomerAddress = {
   phone?: string | null
 }
 
+export type DeliveryAction = "confirm_pickup"
+
 export type CurrentDelivery = {
   id: string
   order_id: string
@@ -124,6 +127,10 @@ export type CurrentDelivery = {
   accepted_at: string
   assigned_at: string
   assignment_source: AssignmentSource | null
+  /** The recorded pickup milestone (#160), or null before collection. */
+  picked_up_at: string | null
+  /** What the agent may do now: confirm pickup once the food is ready. */
+  allowed_actions: DeliveryAction[]
   customer: {
     name: string
     phone: string | null
@@ -199,6 +206,13 @@ export const readCurrentDeliveryStep = createStep(
         accepted_at: new Date(record.accepted_at).toISOString(),
         assigned_at: new Date(record.assigned_at as Date).toISOString(),
         assignment_source: record.assignment_source,
+        picked_up_at: record.picked_up_at
+          ? new Date(record.picked_up_at).toISOString()
+          : null,
+        allowed_actions:
+          operation.state === "ready" && !record.picked_up_at
+            ? ["confirm_pickup"]
+            : [],
         customer: {
           name: [address.first_name, address.last_name]
             .filter(Boolean)

@@ -106,4 +106,8 @@ export {
   DELIVERY_CLAIM_ERRORS,
   isDeliveryClaimErrorCode,
   type DeliveryClaimErrorCode,
+  DELIVERY_PICKUP_ERROR_CODES,
+  DELIVERY_PICKUP_ERRORS,
+  isDeliveryPickupErrorCode,
+  type DeliveryPickupErrorCode,
 } from "./delivery-agent.ts"

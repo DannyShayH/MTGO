@@ -7,7 +7,9 @@ import { FetchError } from "@medusajs/js-sdk"
 import { requestId } from "@dtc/logging"
 import {
   isDeliveryClaimErrorCode,
+  isDeliveryPickupErrorCode,
   type DeliveryClaimErrorCode,
+  type DeliveryPickupErrorCode,
 } from "@dtc/i18n"
 import {
   BACKEND_URL,
@@ -50,6 +52,10 @@ export type CurrentDelivery = {
   accepted_at: string
   assigned_at: string
   assignment_source: "agent_claim" | "operator_assignment" | null
+  /** The recorded pickup (#160), or null before collection. */
+  picked_up_at: string | null
+  /** What the agent may do now; pickup only once the food is ready. */
+  allowed_actions: "confirm_pickup"[]
   customer: {
     name: string
     phone: string | null
@@ -89,42 +95,47 @@ export type ClaimResult =
 
 const RETRY_IDENTITY = /^[A-Za-z0-9._:-]{1,100}$/
 
+type AgentActionOutcome<Code> =
+  | { status: "done" }
+  | { status: "refused"; code: Code | "unknown_error" }
+  | { status: "uncertain" }
+
 /**
- * Claims one available delivery (#157). The backend takes the agent from the
- * bearer; the browser names only the Order and the retry identity it keeps
- * for this card, so a repeat after a lost response recovers the original
- * claim. A missing or failed response is reported as uncertain, never as a
+ * Sends one retry-identified Delivery agent action to the backend. The
+ * backend takes the agent from the bearer; the browser names only the Order
+ * and the retry identity, so a repeat after a lost response recovers the
+ * original outcome. A missing or failed response is uncertain, never a
  * success or a refusal.
  */
-export async function claimDelivery(
-  orderId: string,
-  retryIdentity: string,
-): Promise<ClaimResult> {
+async function postAgentAction<Code extends string>(action: {
+  orderId: string
+  retryIdentity: string
+  /** The backend path for the Order. */
+  path: (orderId: string) => string
+  /** The route pattern, for logs without identifiers. */
+  route: string
+  /** The refusal codes this action has texts for. */
+  isKnownCode: (code: unknown) => code is Code
+}): Promise<AgentActionOutcome<Code | "delivery_not_found">> {
+  const { orderId, retryIdentity, route } = action
   // A server action is a public endpoint: check what the browser sent.
   if (typeof orderId !== "string" || !RETRY_IDENTITY.test(retryIdentity))
     return { status: "refused", code: "unknown_error" }
   const token = (await cookies()).get(PARTNER_TOKEN_COOKIE)?.value
   if (!token) redirect("/delivery-sign-in")
   const correlationId = requestId((await headers()).get("x-request-id"))
-  const route = "/partner/delivery-agent/available/:id/claim"
   let response: Response
   try {
-    response = await fetch(
-      new URL(
-        `/partner/delivery-agent/available/${encodeURIComponent(orderId)}/claim`,
-        BACKEND_URL,
-      ),
-      {
-        method: "POST",
-        cache: "no-store",
-        headers: {
-          authorization: `Bearer ${token}`,
-          "content-type": "application/json",
-          "x-request-id": correlationId,
-        },
-        body: JSON.stringify({ request_id: retryIdentity }),
+    response = await fetch(new URL(action.path(orderId), BACKEND_URL), {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+        "x-request-id": correlationId,
       },
-    )
+      body: JSON.stringify({ request_id: retryIdentity }),
+    })
   } catch {
     log("upstream.request.failed", {
       request_id: correlationId,
@@ -136,7 +147,7 @@ export async function claimDelivery(
   revalidatePath("/delivery", "layout")
   if (response.status === 401 || response.status === 403)
     redirect("/delivery-sign-in")
-  if (response.ok) return { status: "claimed" }
+  if (response.ok) return { status: "done" }
   log("upstream.request.failed", {
     request_id: correlationId,
     route,
@@ -144,13 +155,73 @@ export async function claimDelivery(
     status: response.status,
   })
   if (response.status >= 500) return { status: "uncertain" }
+  if (response.status === 404)
+    return { status: "refused", code: "delivery_not_found" }
   const body = (await response.json().catch(() => null)) as {
     code?: unknown
   } | null
-  const code = response.status === 404 ? "delivery_not_found" : body?.code
   return {
     status: "refused",
-    code: isDeliveryClaimErrorCode(code) ? code : "unknown_error",
+    code: action.isKnownCode(body?.code) ? body.code : "unknown_error",
+  }
+}
+
+/** Claims one available delivery (#157) with the card's retry identity. */
+export async function claimDelivery(
+  orderId: string,
+  retryIdentity: string,
+): Promise<ClaimResult> {
+  const result = await postAgentAction({
+    orderId,
+    retryIdentity,
+    path: (id) =>
+      `/partner/delivery-agent/available/${encodeURIComponent(id)}/claim`,
+    route: "/partner/delivery-agent/available/:id/claim",
+    isKnownCode: isDeliveryClaimErrorCode,
+  })
+  return result.status === "done" ? { status: "claimed" } : result
+}
+
+export type PickupResult =
+  | { status: "picked_up" }
+  | { status: "refused"; code: DeliveryPickupErrorCode }
+  /** No answer, or a server failure: pickup may or may not have been recorded. */
+  | { status: "uncertain" }
+
+/**
+ * Confirms collecting the current delivery's ready food (#160). The server
+ * records the time; a repeat with the same retry identity keeps it.
+ */
+export async function confirmPickup(
+  orderId: string,
+  retryIdentity: string,
+): Promise<PickupResult> {
+  const result = await postAgentAction({
+    orderId,
+    retryIdentity,
+    path: (id) => `/partner/deliveries/${encodeURIComponent(id)}/pickup`,
+    route: "/partner/deliveries/:id/pickup",
+    isKnownCode: isDeliveryPickupErrorCode,
+  })
+  return result.status === "done" ? { status: "picked_up" } : result
+}
+
+/**
+ * Reconciles an uncertain pickup from the authoritative current delivery:
+ * picked up only if the server shows the milestone on this delivery.
+ */
+export async function checkPickup(
+  orderId: string,
+): Promise<"picked_up" | "not_picked_up" | "uncertain"> {
+  try {
+    const current = await getCurrentDelivery()
+    revalidatePath("/delivery", "layout")
+    return current?.order_id === orderId && current.picked_up_at
+      ? "picked_up"
+      : "not_picked_up"
+  } catch (error) {
+    unstable_rethrow(error)
+    return "uncertain"
   }
 }
 

@@ -64,6 +64,12 @@ export const PostClaimDeliverySchema = z.strictObject({
 })
 export type PostClaimDeliveryBody = z.infer<typeof PostClaimDeliverySchema>
 
+/** Pickup takes only its retry identity: never a time, agent or location. */
+export const PostConfirmPickupSchema = z.strictObject({
+  request_id: RetryIdentity,
+})
+export type PostConfirmPickupBody = z.infer<typeof PostConfirmPickupSchema>
+
 export type GetAvailableDeliveriesQuery = z.infer<
   typeof GetAvailableDeliveriesSchema
 >

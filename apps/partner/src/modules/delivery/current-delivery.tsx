@@ -1,6 +1,8 @@
-import { Phone } from "@medusajs/icons"
+import { CheckCircleSolid, Phone } from "@medusajs/icons"
 import { Button } from "@medusajs/ui"
+import type { Locale } from "@dtc/i18n"
 import type { CurrentDelivery } from "@lib/data/delivery-agent"
+import { ConfirmPickup } from "./confirm-pickup"
 import { CARD, PRESSABLE, type DeliveryCopy } from "./copy"
 import { PreparationBadge } from "./preparation-badge"
 import { RouteStops } from "./route-stops"
@@ -8,19 +10,27 @@ import { RouteStops } from "./route-stops"
 /**
  * The responsible agent's one current delivery (#157), the first thing on
  * the screen. Only here does the workspace show the Customer's name, address
- * and phone. Calling is the one large action; there is no release or
- * hand-over control.
+ * and phone. Before collection the primary action is confirming pickup,
+ * offered only once the server allows it (food ready); afterwards the card
+ * shows the recorded pickup time and the next step (#160). There is no
+ * release control.
  */
 export function CurrentDeliveryCard({
   delivery,
   copy,
+  locale,
+  pickupRetryIdentity,
   formatTime,
 }: {
   delivery: CurrentDelivery
   copy: DeliveryCopy
+  locale: Locale
+  /** A fresh retry identity for this render's pickup confirmation. */
+  pickupRetryIdentity: string
   formatTime: (value: string) => string
 }) {
   const { customer } = delivery
+  const canPickUp = delivery.allowed_actions.includes("confirm_pickup")
   return (
     <article
       aria-labelledby="current-delivery-title"
@@ -64,16 +74,46 @@ export function CurrentDeliveryCard({
             </>
           }
         />
+        {delivery.picked_up_at ? (
+          <div
+            role="status"
+            className="bg-mtogo-status-success-surface text-mtogo-status-success-text flex items-start gap-2 rounded-lg p-3 text-base"
+          >
+            <CheckCircleSolid aria-hidden className="mt-0.5 shrink-0" />
+            <span className="flex flex-col gap-0.5">
+              <span className="font-medium tabular-nums">
+                {copy.pickedUpAt} {formatTime(delivery.picked_up_at)}
+              </span>
+              <span>{copy.nextDeliver}</span>
+            </span>
+          </div>
+        ) : canPickUp ? (
+          <ConfirmPickup
+            orderId={delivery.order_id}
+            restaurantName={delivery.restaurant_name}
+            retryIdentity={pickupRetryIdentity}
+            locale={locale}
+            copy={copy}
+          />
+        ) : (
+          <p className="text-mtogo-text-secondary bg-ui-bg-subtle rounded-lg p-3 text-sm">
+            {copy.pickupWaiting}
+          </p>
+        )}
         {customer.phone ? (
           <Button
             asChild
             size="large"
-            className={`focus-visible:ring-mtogo-focus-ring min-h-12 w-full gap-2 text-base focus-visible:ring-2 focus-visible:ring-offset-2 ${PRESSABLE}`}
+            variant={canPickUp ? "secondary" : "primary"}
+            className={`focus-visible:ring-mtogo-focus-ring h-auto min-h-12 w-full flex-wrap gap-x-2 gap-y-0.5 whitespace-normal py-2 text-base focus-visible:ring-2 focus-visible:ring-offset-2 ${PRESSABLE}`}
           >
+            {/* Wraps at large text sizes: the number moves under the label instead of overflowing. */}
             <a href={`tel:${customer.phone.replace(/[^\d+]/g, "")}`}>
               <Phone aria-hidden />
               <span>{copy.call}</span>
-              <span className="tabular-nums opacity-80">{customer.phone}</span>
+              <span className="whitespace-nowrap tabular-nums opacity-80">
+                {customer.phone}
+              </span>
             </a>
           </Button>
         ) : (

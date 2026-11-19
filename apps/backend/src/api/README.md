@@ -24,9 +24,52 @@ delivery and Order IDs, reference, Restaurant, pickup address, preparation
 state, acceptance and assignment times, `assignment_source`
 (`agent_claim` or `operator_assignment`) and `customer` (name, phone,
 `address_1`, `address_2`, postal code, city) from the Order's purchased
-shipping address. Checkout records no separate delivery instructions, so none
-are returned. Responsibility, not the current areas, grants this read;
+shipping address, plus `picked_up_at` (null before pickup) and
+`allowed_actions` (`["confirm_pickup"]` only while the food is ready and not
+yet collected, otherwise `[]`). Checkout records no separate delivery
+instructions, so none are returned. Responsibility, not the current areas, grants this read;
 revoked agents receive `403`.
+
+## Pickup (#160)
+
+### POST /partner/deliveries/{order_id}/pickup
+
+Records that the responsible agent collected the food. The time, agent and
+location come from the server. Allowed only for the agent responsible for an
+active delivery whose Order the Restaurant has recorded `ready` (#146). A
+repeat, with the same or a new `request_id`, returns the original
+`picked_up_at` while the Order is active.
+
+**Actor:** authorized Delivery agent (`delivery_agent` bearer)
+
+| Field        | Type   | Required | Rules                                                                                 |
+| ------------ | ------ | -------- | ------------------------------------------------------------------------------------- |
+| `request_id` | string | yes      | 1-100 characters `A-Z a-z 0-9 . _ : -`; one per intended pickup, kept for its retries |
+
+```json
+{ "request_id": "3f0c9d4e-6a51-4f43-9a0b-2c8e5a7d1b90" }
+```
+
+**Success:** `200` with the current-delivery projection
+`{ "delivery": { ..., "picked_up_at": "...", "allowed_actions": [] }, "server_time": "..." }`
+
+| Status | When                                                                              |
+| ------ | --------------------------------------------------------------------------------- |
+| `400`  | `food_not_ready`; `delivery_not_responsible` (another agent's or unassigned work) |
+| `400`  | `delivery_not_active` (cancelled Order or ended responsibility, even on a repeat) |
+| `400`  | Invalid body or unknown fields                                                    |
+| `401`  | No `delivery_agent` bearer                                                        |
+| `403`  | `delivery_agent_access_revoked`                                                   |
+| `404`  | `delivery_not_found` (no accepted delivery for the Order)                         |
+| `409`  | `pickup_request_reused` (`request_id` first used for another delivery or agent)   |
+| `409`  | `delivery_changed` (the delivery changed between the guarded read and the write)  |
+
+A recorded pickup also creates and ships one native Order fulfillment of every
+item through Medusa's `createOrderFulfillmentWorkflow` and
+`createOrderShipmentWorkflow`, at the stock location the Order's delivery
+option is configured with. The Order's `fulfillment_status` becomes `shipped`,
+not `delivered`. A failure there never fails the request: the delivery module
+keeps the obligation and the `recover-delivery-pickups` job finishes it.
 
 `GET /admin/deliveries/unclaimed?limit=20&offset=0` (limit 1-50) returns
 `{ deliveries, has_more, limit, offset, server_time }` with the same safe

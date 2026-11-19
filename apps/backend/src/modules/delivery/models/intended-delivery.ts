@@ -34,6 +34,25 @@ const IntendedDelivery = model
     assignment_source: model.enum([...ASSIGNMENT_SOURCES]).nullable(),
     /** The retry identity of the request that established the assignment. */
     assignment_request_id: model.text().nullable(),
+    /**
+     * The pickup milestone (#160): the server time the responsible agent
+     * confirmed collecting ready food, recorded once and never moved.
+     */
+    picked_up_at: model.dateTime().nullable(),
+    picked_up_by: model.text().nullable(),
+    /** The retry identity of the request that recorded pickup. */
+    pickup_request_id: model.text().nullable(),
+    /**
+     * The native Order fulfillment created and shipped for this pickup. Null
+     * after pickup means the native synchronization is still owed.
+     */
+    native_fulfillment_id: model.text().nullable(),
+    /**
+     * When the owed native synchronization was last queued: the pickup
+     * time, then each attempt's start. The recovery sweep takes the oldest
+     * first, so a lasting failure cannot hold back newer pickups.
+     */
+    native_sync_queued_at: model.dateTime().nullable(),
   })
   .indexes([
     { on: ["order_id"], unique: true },
@@ -48,6 +67,16 @@ const IntendedDelivery = model
       on: ["assignment_request_id"],
       unique: true,
       where: "assignment_request_id IS NOT NULL",
+    },
+    {
+      on: ["pickup_request_id"],
+      unique: true,
+      where: "pickup_request_id IS NOT NULL",
+    },
+    // The recovery sweep's read of pickups still owing native fulfillment.
+    {
+      on: ["native_sync_queued_at"],
+      where: "picked_up_at IS NOT NULL AND native_fulfillment_id IS NULL",
     },
   ])
 

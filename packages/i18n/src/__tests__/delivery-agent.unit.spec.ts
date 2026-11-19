@@ -5,6 +5,9 @@ import {
   DELIVERY_CLAIM_ERROR_CODES,
   DELIVERY_CLAIM_ERRORS,
   isDeliveryClaimErrorCode,
+  DELIVERY_PICKUP_ERROR_CODES,
+  DELIVERY_PICKUP_ERRORS,
+  isDeliveryPickupErrorCode,
 } from "../delivery-agent.ts"
 
 test("Danish and English have the same Delivery agent texts, none of them blank", () => {
@@ -32,4 +35,27 @@ test("only known claim refusal codes are recognised", () => {
   assert.equal(isDeliveryClaimErrorCode("delivery_already_assigned"), true)
   assert.equal(isDeliveryClaimErrorCode("delivery_agent_access_revoked"), false)
   assert.equal(isDeliveryClaimErrorCode(undefined), false)
+})
+
+test("every refusal of a pickup has a Danish and an English text", () => {
+  for (const locale of ["da", "en"] as const) {
+    assert.deepEqual(
+      Object.keys(DELIVERY_PICKUP_ERRORS[locale]).sort(),
+      [...DELIVERY_PICKUP_ERROR_CODES].sort(),
+    )
+    for (const code of DELIVERY_PICKUP_ERROR_CODES)
+      assert.ok(
+        DELIVERY_PICKUP_ERRORS[locale][code].trim(),
+        `${locale}.${code}`,
+      )
+  }
+})
+
+test("only known pickup refusal codes are recognised", () => {
+  assert.equal(isDeliveryPickupErrorCode("food_not_ready"), true)
+  assert.equal(
+    isDeliveryPickupErrorCode("delivery_agent_access_revoked"),
+    false,
+  )
+  assert.equal(isDeliveryPickupErrorCode(undefined), false)
 })

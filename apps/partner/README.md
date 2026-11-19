@@ -29,7 +29,8 @@ shows the Restaurant, the pickup, the preparation state, the Customer's name
 and address and, as the one large action, **Call the Customer** (a `tel:`
 link styled as the primary button) with the time the agent became responsible,
 from `GET /partner/delivery-agent/current`. "Assigned by MTOGO" marks an
-operator's assignment. There is no release or hand-over control.
+operator's assignment. There is no release or hand-over control. Pickup
+(#160) is described below.
 
 Each available card shows the Restaurant and reference, pickup address,
 destination postal code with its town, the claim deadline with the minutes
@@ -55,6 +56,23 @@ and then every 30 seconds, when the page becomes visible again (after a call
 or screen lock) and when the browser is back online; only the server's
 current delivery shows the claim as successful. `ReconcileOnReturn` reloads
 the workspace on the same events. Focus moves to the outcome message.
+
+### Pickup (#160)
+
+The current delivery offers **I have collected the food** only when the
+backend's `allowed_actions` includes `confirm_pickup`, that is once the
+Restaurant has marked the food ready; before that it explains that pickup
+opens when the food is ready. While pickup is offered, it is the primary
+action and **Call the Customer** becomes a secondary button. The first tap
+only asks **Do you have the food in hand?** with **Yes, confirm pickup** and
+**Not yet**; focus moves to the question and back to the button on Not yet.
+`confirmPickup` posts the card's retry identity, so a double tap or retry
+keeps the original time. Refusals show `DELIVERY_PICKUP_ERRORS`; a missing
+answer shows **Checking status…** and `checkPickup` reconciles from the
+current delivery with the same backoff and return events as claiming
+(`useStatusChecks`). After pickup the card shows **Collected at HH:MM** and
+the next step, taking the food to the Customer. No location permission,
+photo or GPS is involved.
 
 ## What it does
 

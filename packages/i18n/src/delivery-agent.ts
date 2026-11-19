@@ -70,6 +70,20 @@ export const DELIVERY_AGENT_TEXT = {
     pickupAt: "Hent hos",
     responsible: "Du er ansvarlig",
     availableCount: "{count} ledige",
+    confirmPickup: "Jeg har hentet maden",
+    confirmPickupTitle: "Har du maden i hånden?",
+    confirmPickupHint:
+      "Bekræft kun, når du har fået maden udleveret hos {restaurant}. Tidspunktet registreres og kan ikke ændres.",
+    confirmCollected: "Ja, bekræft afhentning",
+    notYet: "Ikke endnu",
+    confirmingPickup: "Registrerer afhentning…",
+    pickupWaiting:
+      "Du kan bekræfte afhentning, når restauranten har meldt maden klar.",
+    pickedUpAt: "Hentet kl.",
+    nextDeliver: "Næste: Bring maden ud til kunden.",
+    pickupCheckingHint:
+      "Vi ved endnu ikke, om afhentningen blev registreret. Vi tjekker igen, når forbindelsen er tilbage.",
+    pickupNotConfirmed: "Afhentningen blev ikke registreret. Prøv igen.",
   },
   en: {
     title: "Delivery agent",
@@ -142,6 +156,20 @@ export const DELIVERY_AGENT_TEXT = {
     pickupAt: "Pick up at",
     responsible: "You are responsible",
     availableCount: "{count} available",
+    confirmPickup: "I have collected the food",
+    confirmPickupTitle: "Do you have the food in hand?",
+    confirmPickupHint:
+      "Only confirm once {restaurant} has handed you the food. The time is recorded and cannot be changed.",
+    confirmCollected: "Yes, confirm pickup",
+    notYet: "Not yet",
+    confirmingPickup: "Recording pickup…",
+    pickupWaiting:
+      "You can confirm pickup once the Restaurant marks the food ready.",
+    pickedUpAt: "Collected at",
+    nextDeliver: "Next: take the food to the Customer.",
+    pickupCheckingHint:
+      "We do not know yet whether your pickup was recorded. We check again when the connection is back.",
+    pickupNotConfirmed: "Your pickup was not recorded. Please try again.",
   },
 } as const
 
@@ -195,6 +223,52 @@ export const DELIVERY_CLAIM_ERRORS: Record<
     delivery_not_found: "This delivery is no longer available.",
     assignment_request_reused:
       "The action could not be completed. Refresh the page and try again.",
+    unknown_error: "The action could not be completed. Please try again.",
+  },
+}
+
+/** Codes a pickup can be refused with; `unknown_error` covers the rest. */
+export const DELIVERY_PICKUP_ERROR_CODES = [
+  "food_not_ready",
+  "delivery_not_responsible",
+  "delivery_not_active",
+  "delivery_not_found",
+  "pickup_request_reused",
+  "delivery_changed",
+  "unknown_error",
+] as const
+export type DeliveryPickupErrorCode =
+  (typeof DELIVERY_PICKUP_ERROR_CODES)[number]
+
+export function isDeliveryPickupErrorCode(
+  value: unknown,
+): value is DeliveryPickupErrorCode {
+  return DELIVERY_PICKUP_ERROR_CODES.some((code) => code === value)
+}
+
+export const DELIVERY_PICKUP_ERRORS: Record<
+  "da" | "en",
+  Record<DeliveryPickupErrorCode, string>
+> = {
+  da: {
+    food_not_ready: "Maden er ikke meldt klar endnu.",
+    delivery_not_responsible: "Du er ikke ansvarlig for denne levering.",
+    delivery_not_active: "Ordren er ikke længere aktiv.",
+    delivery_not_found: "Leveringen findes ikke længere.",
+    pickup_request_reused:
+      "Handlingen kunne ikke gennemføres. Opdater siden, og prøv igen.",
+    delivery_changed: "Leveringen er ændret. Opdater siden, og prøv igen.",
+    unknown_error: "Handlingen kunne ikke gennemføres. Prøv igen.",
+  },
+  en: {
+    food_not_ready: "The food has not been marked ready yet.",
+    delivery_not_responsible: "You are not responsible for this delivery.",
+    delivery_not_active: "This Order is no longer active.",
+    delivery_not_found: "This delivery no longer exists.",
+    pickup_request_reused:
+      "The action could not be completed. Refresh the page and try again.",
+    delivery_changed:
+      "This delivery has changed. Refresh the page and try again.",
     unknown_error: "The action could not be completed. Please try again.",
   },
 }

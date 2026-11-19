@@ -24,6 +24,10 @@ import {
   ASSIGNMENT_CONFLICTS,
   ASSIGNMENT_REFUSALS,
 } from "../workflows/delivery/assignment-rules"
+import {
+  PICKUP_CONFLICTS,
+  PICKUP_REFUSALS,
+} from "../workflows/delivery/pickup-rules"
 
 const CATEGORY_ROUTE =
   /^\/partner\/restaurants\/[^/]+\/categories(?:\/[^/]+)?\/?$/
@@ -195,6 +199,8 @@ export function mtogoErrorHandler(): MedusaErrorHandlerFunction {
     "order_restaurant_mismatch",
     ...ASSIGNMENT_REFUSALS,
     ...ASSIGNMENT_CONFLICTS,
+    ...PICKUP_REFUSALS,
+    ...PICKUP_CONFLICTS,
   ])
   return (error, req, res, next) => {
     if (error.message === "customer_identity_exists") {
