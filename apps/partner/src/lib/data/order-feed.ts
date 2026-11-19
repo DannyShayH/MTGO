@@ -6,13 +6,18 @@ import { log } from "@lib/logger"
 import {
   checkOrdersWith,
   relayFeed,
+  type AwaitingRead,
   type OrdersCheck,
 } from "./order-feed-relay"
 
 export type { OrdersCheck }
 
 const FEED_ROUTE = "/partner/orders/stream"
-const CHECK_ROUTE = "/partner/orders?view=awaiting&limit=1&offset=0"
+/**
+ * The backend's largest page, earliest deadline first. A kitchen with more
+ * awaiting Orders than this still gets every alert for Orders on the page.
+ */
+const CHECK_ROUTE = "/partner/orders?view=awaiting&limit=50&offset=0"
 
 const authorization = (token: string) => ({ authorization: `Bearer ${token}` })
 const tokenOfRequest = async () =>
@@ -39,7 +44,7 @@ export async function checkOrders(): Promise<OrdersCheck> {
   return checkOrdersWith({
     token: await tokenOfRequest(),
     readQueue: (token) =>
-      sdk.client.fetch<{ server_time: string }>(CHECK_ROUTE, {
+      sdk.client.fetch<AwaitingRead>(CHECK_ROUTE, {
         headers: authorization(token),
         cache: "no-store",
       }),

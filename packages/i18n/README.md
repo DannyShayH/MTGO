@@ -29,6 +29,9 @@ reads `cancel_refused_{code}` for each code in `CUSTOMER_CANCEL_ERROR_CODES`;
 else to `unknown_error`, so backend text never reaches the Customer.
 The food-progress timeline (#147) reads `step_{key}`, `step_{status}`,
 `now_{state}` and the `progress_*` freshness texts.
+The partner new-Order alert (#149) reads `arrival_*` in `ORDER_TEXT` for the
+banner and the New mark, and `sound_*` for the opt-in sound switch and its
+refusal line.
 `foodProgressSteps(progress)` turns the Customer's progress read into the
 timeline's steps: the reached stage is `current`, earlier ones `completed` with
 their recorded times and later ones `upcoming` without a time. A cancelled

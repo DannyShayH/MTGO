@@ -33,11 +33,15 @@ export function AcceptanceDeadline({
   order,
   locale,
   detailed = false,
+  prominent = false,
 }: {
   order: RestaurantOrder
   locale: Locale
   detailed?: boolean
+  /** The awaiting queue leads with the deadline, so it is read first. */
+  prominent?: boolean
 }) {
+  const size = prominent ? "base" : "small"
   const text = ORDER_TEXT[locale]
   // After acceptance or cancellation the deadline is history: shown in the
   // details only, as a plain fact rather than an instruction.
@@ -52,7 +56,7 @@ export function AcceptanceDeadline({
   if (order.acceptance_window === "unavailable" || !order.acceptance_deadline)
     return (
       <div>
-        <Text size="small" weight="plus" className="text-ui-fg-subtle">
+        <Text size={size} weight="plus" className="text-ui-fg-subtle">
           {text.timing_unavailable}
         </Text>
         {detailed && (
@@ -66,9 +70,10 @@ export function AcceptanceDeadline({
   const elapsed = order.acceptance_window === "elapsed"
   return (
     <Text
-      size="small"
+      size={size}
       weight="plus"
       className={clx(
+        "tabular-nums",
         elapsed ? "text-ui-fg-subtle" : "text-mtogo-status-warning-text",
       )}
     >

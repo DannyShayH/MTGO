@@ -84,7 +84,7 @@ export default async function OrderPage({
 
   const { order } = result
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex max-w-3xl flex-col gap-4">
       <BackLink locale={locale} />
       <header className="flex flex-wrap items-center gap-3">
         <Heading level="h1">
@@ -92,7 +92,12 @@ export default async function OrderPage({
         </Heading>
         <OrderStateBadge state={order.state} locale={locale} />
       </header>
-      <LiveOrders locale={locale} />
+      <LiveOrders
+        locale={locale}
+        loaded={formatText(text.checked_at, {
+          time: formatOrderTime(result.server_time, locale),
+        })}
+      />
       <Container className="rounded-card flex flex-col gap-y-2 px-4 py-4 sm:px-6 sm:py-5">
         <AcceptanceDeadline order={order} locale={locale} detailed />
         {(
@@ -115,11 +120,6 @@ export default async function OrderPage({
             })}
           </Text>
         )}
-        <Text size="small" className="text-ui-fg-subtle">
-          {formatText(text.checked_at, {
-            time: formatOrderTime(result.server_time, locale),
-          })}
-        </Text>
         <div className="mt-2 flex flex-col gap-4 empty:hidden sm:flex-row sm:items-start sm:justify-between">
           <OrderProgressAction key={order.id} order={order} locale={locale} />
           <RejectOrder

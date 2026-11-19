@@ -99,7 +99,18 @@ type OrderText = Record<
   | "operator_boundary"
   | "refund_short_pending"
   | "refund_short_failed"
-  | "refund_short_succeeded",
+  | "refund_short_succeeded"
+  | "arrival_one"
+  | "arrival_many"
+  | "arrival_more"
+  | "awaiting_count"
+  | "showing"
+  | "arrival_hint"
+  | "arrival_view"
+  | "arrival_dismiss"
+  | "arrival_new"
+  | "sound_label"
+  | "sound_blocked",
   string
 >
 
@@ -218,6 +229,19 @@ export const ORDER_TEXT: Record<Locale, OrderText> = {
     refund_short_pending: "Refusion i gang",
     refund_short_failed: "Refusion mislykkedes – skyldes stadig",
     refund_short_succeeded: "Refunderet",
+    arrival_one: "Ny ordre #{number} venter på accept",
+    arrival_many: "{count} nye ordrer venter på accept: {numbers}",
+    arrival_more: "{numbers} og {more} flere",
+    awaiting_count: "{count} afventer accept",
+    showing: "{from}–{to} af {count}",
+    arrival_hint:
+      "Husk acceptfristen. At skjule beskeden accepterer ikke ordren.",
+    arrival_view: "Se ordrer, der afventer accept",
+    arrival_dismiss: "Skjul besked",
+    arrival_new: "Ny",
+    sound_label: "Lyd ved nye ordrer",
+    sound_blocked:
+      "Browseren tillod ikke lyd. Nye ordrer vises stadig på skærmen.",
     operator_boundary:
       "Kan I ikke lave maden alligevel? Kontakt MTOGO med ordre #{number}. En accepteret ordre kan kun annulleres af MTOGO.",
   },
@@ -334,6 +358,19 @@ export const ORDER_TEXT: Record<Locale, OrderText> = {
     refund_short_pending: "Refund in progress",
     refund_short_failed: "Refund failed – still owed",
     refund_short_succeeded: "Refunded",
+    arrival_one: "New Order #{number} is awaiting acceptance",
+    arrival_many: "{count} new Orders are awaiting acceptance: {numbers}",
+    arrival_more: "{numbers} and {more} more",
+    awaiting_count: "{count} awaiting acceptance",
+    showing: "{from}–{to} of {count}",
+    arrival_hint:
+      "Mind the acceptance deadline. Hiding this alert does not accept the Order.",
+    arrival_view: "View awaiting Orders",
+    arrival_dismiss: "Hide alert",
+    arrival_new: "New",
+    sound_label: "Sound for new Orders",
+    sound_blocked:
+      "The browser did not allow sound. New Orders are still shown on screen.",
     operator_boundary:
       "Can you no longer make the food? Contact MTOGO with Order #{number}. Only MTOGO can cancel an accepted Order.",
   },

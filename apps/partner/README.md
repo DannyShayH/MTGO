@@ -95,11 +95,17 @@ have separate messages. The bearer stays in the httpOnly cookie.
 (`?view=awaiting`, `active`, `history`) and 20 Orders per page (`&page=N`).
 Awaiting acceptance is ordered by the backend: earliest acceptance deadline
 first, with a stable tie-breaker, and Orders without recorded timing last. The
-list is one column, so that order reads the same at every width. Each card is
-one link to `/orders/{id}` and shows the Order reference (`#display_id`), its
-operational state, the deadline line, the placement time and the purchased
-dishes with quantities. The detail page adds unit prices, line totals and the
-Order total including VAT.
+page is one column at most `max-w-3xl` wide, so that order reads the same at
+every width and the toolbar stays next to the queue. Each card is one link to
+`/orders/{id}` (it presses in slightly) with the Order reference
+(`#display_id`). An Awaiting card leads with the deadline line in larger type
+where other views show the state badge, since every Order in that view awaits
+acceptance, then the placement time and each purchased dish with its quantity
+on its own line. In progress and History cards are denser: the state (and
+refund) badge, and the dishes on one wrapping line next to the placement time.
+The Awaiting tab carries the number of Orders awaiting acceptance, and the
+page links say "Page 1 of 3 · 1–20 of 50". The detail page adds unit prices,
+line totals and the Order total including VAT.
 
 Dish names and food information are the ones purchased (#141), shown in the
 staff member's language whatever the Customer's Order language. Under each
@@ -115,22 +121,29 @@ The deadline line only reports the backend's `acceptance_window`: "Accept by
 13:05" while open, "Acceptance window ended 13:05" once elapsed, and "Timing
 unknown" for an Order placed before timings were recorded. The page never uses
 the browser clock to decide it, and the queue itself accepts or cancels nothing. Times are
-shown on the Copenhagen clock. A "Loaded 13:01" line shows the server time of
-the last read, so the data's age stays visible.
+shown on the Copenhagen clock. "Loaded 13:01" in the toolbar shows the server
+time of the last read, so the data's age stays visible.
 
 ### Live updates and connection recovery (#148)
 
-The Orders queue and Order details stay current while open. The browser opens
+The kitchen feed runs on every dashboard page (`KitchenFeedProvider` in
+`src/modules/orders/components/kitchen-feed.tsx`, mounted in the dashboard
+layout), so the Orders badge and arrival alerts work on Menu or Overview too.
+On the Orders pages it also keeps the queue and Order details current;
+elsewhere it only runs the check, so a form being edited is never
+re-rendered by an Order update. The browser opens
 the same-origin relay `GET /api/orders/stream`
 (`src/app/api/orders/stream/route.ts`), which uses the js-sdk's `fetchStream`
 on the server with the bearer from this request's httpOnly cookie, passed per
 call. The token never reaches browser code or a URL. Closing the browser
 connection aborts the backend stream. A hint, or the `ready` that follows
-every (re)connection, rereads the page's projections with `router.refresh()`,
-which keeps keyboard focus and scroll position.
+every (re)connection, rereads an Orders page's projections with
+`router.refresh()`, which keeps keyboard focus and scroll position.
 
-A status line with a dot shows the connection, in Danish and English, as a
-`role="status"` region:
+On the Orders pages a toolbar between the title and the views holds the
+connection status, "Loaded", the sound switch and Refresh in one row. The
+status is a line with a dot, in Danish and English, as a `role="status"`
+region:
 
 | Status       | Meaning                                                                                                         |
 | ------------ | --------------------------------------------------------------------------------------------------------------- |
@@ -176,6 +189,60 @@ still shows Next.js's default error page.
 Deadlines stay the backend's: a stale or offline screen still shows the
 `acceptance_window` from its last read, never a deadline worked out in the
 browser.
+
+### New-Order arrival alerts (#149)
+
+When an Order starts awaiting acceptance, on any dashboard page, a banner
+appears at the top of the content: a bell icon, the heading
+`New Order #N is awaiting acceptance` (with several,
+`12 new Orders are awaiting acceptance: #N, #N, #N and 9 more`, naming the
+oldest three) and the reminder that hiding
+
+the alert does not accept the Order. It stays in view while staff scroll,
+until they hide it. It uses the warning colours, like the deadline line.
+
+The **Orders** link in the sidebar (the top strip on phones) carries the
+number of Orders awaiting acceptance as a small count, like an unread count,
+on every dashboard page; screen readers hear "Orders, 4 awaiting acceptance".
+It is a count, not a bell: there is no notification list behind it. New cards
+in the Awaiting view carry a "New" mark with the same icon and hold a warm
+tint for a moment as they appear (skipped with reduced motion), so nothing
+relies on colour alone. The banner sits in an always-present
+`aria-live="assertive"` region, so screen readers announce it, and it never
+moves keyboard focus. **View awaiting Orders** opens the queue; **Hide alert**
+hides the banner and the marks and moves focus to the sound switch on the
+Orders pages, or to the Orders link elsewhere, so keyboard focus is never
+lost. Hiding is only an acknowledgement: it sends nothing to the backend, and
+an Order accepted, rejected or expired elsewhere leaves the banner by itself.
+The queue keeps its earliest-deadline order and the backend's deadline line.
+
+**Sound for new Orders** is a switch in the Orders toolbar, off on every page
+load. Switching it on plays a short two-note tone made with Web Audio (no
+sound file, no dependency), and the same tone then plays once per batch of
+arrivals on any dashboard page. If the browser refuses sound, the switch
+stays off and a line under the toolbar says so ("The browser did not allow
+sound. New Orders are still shown on screen."); the visual alert is
+unaffected. The choice and the known Orders live in `ArrivalAlertsProvider` in
+the dashboard layout, so they survive moving between pages and are forgotten
+when the staff member signs out or reloads the page.
+
+Arrivals are found by stable Order id in the polling check
+(`GET /api/orders/check`), which now reads the first 50 awaiting Orders
+(the backend's largest page) and passes only the total `count` and their
+`id`, `display_id` and `placed_at` to the browser. The badge shows that
+`count`, so it is right even beyond 50. Every feed hint, every reconnect (`ready`), every poll in the
+fallback and every reconcile goes through that check first, so SSE and
+polling discoveries behave the same. The first successful read of a screen
+session is the baseline and raises nothing. After it, an Order is alerted
+only the first time it is seen and only if it was placed at or after that
+read's `server_time`, on the backend's clock. So history loads, repeated
+hints and reconnect replays stay silent, and an Order that was already
+waiting beyond the first 50 when the screen opened stays silent when it moves
+up. An Order placed in the second or so between the page render and that
+first read appears in the queue but raises no alert. The rules are in `src/modules/orders/arrivals.ts`,
+tested by `src/modules/orders/__tests__/arrivals.unit.spec.ts`. There is no
+operating-system notification, service worker or alert while the app is
+closed.
 
 Empty views have their own sentence, a backend failure shows a retry message,
 and an Order of another Restaurant (or an unknown id) shows "Order not found"

@@ -20,3 +20,12 @@
     transform: translateY(-4px) scale(0.99);
   }
 }
+
+/* A new Order's card holds a warm tint for a moment, then fades to normal
+   (#149). Used through motion-safe:, so reduced motion keeps only the mark. */
+@keyframes arrival-tint {
+  0%,
+  40% {
+    opacity: 1;
+  }
+}

@@ -45,26 +45,28 @@ export default async function OrdersPage({
     `/orders?view=${view}${target > 1 ? `&page=${target}` : ""}`
 
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <Heading level="h1">{text.title}</Heading>
-          <Text className="text-ui-fg-subtle mt-2 max-w-prose">
-            {text.intro}
-          </Text>
-        </div>
-        <div className="flex flex-col items-start gap-y-2">
-          <LiveOrders locale={locale} />
-          {result && (
-            <Text size="small" className="text-ui-fg-subtle">
-              {formatText(text.checked_at, {
-                time: formatOrderTime(result.server_time, locale),
-              })}
-            </Text>
-          )}
-        </div>
+    // One column at every width, so the toolbar stays next to the queue it
+    // controls and the deadline order reads the same everywhere.
+    <div className="flex max-w-3xl flex-col gap-5">
+      <header>
+        <Heading level="h1">{text.title}</Heading>
+        <Text className="text-ui-fg-subtle mt-2 max-w-prose">{text.intro}</Text>
       </header>
-      <QueueViews current={view} locale={locale} />
+      <LiveOrders
+        locale={locale}
+        loaded={
+          result
+            ? formatText(text.checked_at, {
+                time: formatOrderTime(result.server_time, locale),
+              })
+            : undefined
+        }
+      />
+      <QueueViews
+        current={view}
+        locale={locale}
+        awaitingCount={view === "awaiting" && result ? result.count : undefined}
+      />
       {!result ? (
         <Container className="rounded-card" role="alert">
           <Heading level="h2">{text.unavailable}</Heading>
@@ -79,9 +81,14 @@ export default async function OrdersPage({
         </Container>
       ) : (
         <>
-          <ul className="flex max-w-3xl flex-col gap-3">
+          <ul className="flex flex-col gap-3">
             {result.orders.map((order) => (
-              <OrderCard key={order.id} order={order} locale={locale} />
+              <OrderCard
+                key={order.id}
+                order={order}
+                view={view}
+                locale={locale}
+              />
             ))}
           </ul>
           {pages > 1 && (
@@ -94,8 +101,14 @@ export default async function OrdersPage({
                   {text.previous}
                 </Link>
               )}
-              <Text size="small" className="text-ui-fg-subtle">
+              <Text size="small" className="text-ui-fg-subtle tabular-nums">
                 {formatText(text.page_of, { page, pages })}
+                <span aria-hidden> · </span>
+                {formatText(text.showing, {
+                  from: (page - 1) * ORDERS_PAGE_SIZE + 1,
+                  to: Math.min(page * ORDERS_PAGE_SIZE, result.count),
+                  count: result.count,
+                })}
               </Text>
               {page < pages && (
                 <Link href={pageHref(page + 1)} className={LINK_CLASS}>

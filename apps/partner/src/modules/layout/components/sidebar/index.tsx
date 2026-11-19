@@ -14,6 +14,10 @@ import {
 import { signOut } from "@lib/data/session"
 import { BrandMark } from "../brand-mark"
 import { LanguageSwitch } from "../language-switch"
+import {
+  AwaitingCount,
+  ORDERS_NAV_ID,
+} from "@modules/orders/components/arrival-alerts"
 
 /** Restaurant staff tools, with the current page announced by the navigation. */
 const NAVIGATION = [
@@ -57,6 +61,7 @@ export function Sidebar({
               <li key={href} className="shrink-0">
                 <Link
                   href={href}
+                  id={href === "/orders" ? ORDERS_NAV_ID : undefined}
                   aria-current={current ? "page" : undefined}
                   className={clx(
                     "txt-compact-small-plus focus-visible:ring-mtogo-focus-ring ease-out-strong flex min-h-11 items-center gap-x-2 whitespace-nowrap rounded-md px-3 py-1.5 transition-[background-color,color,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset motion-safe:active:scale-[0.97] md:px-2",
@@ -71,6 +76,9 @@ export function Sidebar({
                     }
                   />
                   {text[label]}
+                  {/* The kitchen's workload on every page, like an unread
+                      count; it says how many, never which (#149). */}
+                  {href === "/orders" && <AwaitingCount locale={locale} />}
                 </Link>
               </li>
             )

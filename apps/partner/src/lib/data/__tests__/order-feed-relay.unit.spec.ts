@@ -3,6 +3,7 @@ import { describe, it } from "node:test"
 import {
   checkOrdersWith,
   relayFeed,
+  type AwaitingRead,
   type FeedMessage,
   type Upstream,
 } from "../order-feed-relay.ts"
@@ -137,7 +138,7 @@ describe("The kitchen feed relay", () => {
 describe("The kitchen screen's polling check", () => {
   const check = (
     token: string | undefined,
-    readQueue: (token: string) => Promise<{ server_time: string }>,
+    readQueue: (token: string) => Promise<AwaitingRead>,
   ) => {
     const failures: unknown[] = []
     return checkOrdersWith({
@@ -147,9 +148,36 @@ describe("The kitchen screen's polling check", () => {
     }).then((result) => ({ result, failures }))
   }
 
-  it("is ok when the authorized Orders read works", async () => {
-    const { result } = await check("token", async () => ({ server_time: "t" }))
-    assert.deepEqual(result, { status: "ok", server_time: "t" })
+  it("is ok with the awaiting Orders' identities when the authorized read works", async () => {
+    const { result } = await check("token", async () => ({
+      server_time: "t",
+      count: 3,
+      orders: [
+        {
+          id: "order_1",
+          display_id: 11,
+          placed_at: "p1",
+          state: "awaiting_acceptance",
+        },
+        {
+          id: "order_2",
+          display_id: 12,
+          placed_at: null,
+          items: [{ title: "Pizza" }],
+        },
+      ],
+    }))
+    assert.deepEqual(result, {
+      status: "ok",
+      awaiting: {
+        server_time: "t",
+        count: 3,
+        orders: [
+          { id: "order_1", display_id: 11, placed_at: "p1" },
+          { id: "order_2", display_id: 12, placed_at: null },
+        ],
+      },
+    })
   })
 
   it("ends the session when the cookie is gone", async () => {

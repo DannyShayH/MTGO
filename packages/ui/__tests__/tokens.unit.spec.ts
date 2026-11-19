@@ -110,6 +110,24 @@ const cases = [
     minimum: TEXT,
   },
   {
+    reason: "Warning line on the page (connection status, sound refused)",
+    foreground: "status-warning-text",
+    background: "surface-page",
+    minimum: TEXT,
+  },
+  {
+    reason: "Warning line on a card",
+    foreground: "status-warning-text",
+    background: "surface-card",
+    minimum: TEXT,
+  },
+  {
+    reason: "Focus ring in the new-Order alert (the offset shows its surface)",
+    foreground: "focus-ring",
+    background: "status-warning-surface",
+    minimum: BOUNDARY,
+  },
+  {
     reason: "Error message",
     foreground: "status-error-text",
     background: "status-error-surface",

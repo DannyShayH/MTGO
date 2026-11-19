@@ -29,9 +29,27 @@ export type Upstream = {
   abort: () => void
 }
 
-/** The polling check's answer; `ended` names why the session ended. */
+/** An awaiting Order as the arrival alert needs it (#149), and no more. */
+export type AwaitingOrder = {
+  id: string
+  display_id: number
+  /** Paid placement on the backend's clock; null before timings were recorded. */
+  placed_at: string | null
+}
+
+/** One read of the awaiting queue: its first page, the total and the server time. */
+export type AwaitingRead = {
+  server_time: string
+  count: number
+  orders: AwaitingOrder[]
+}
+
+/**
+ * The polling check's answer; `ended` names why the session ended. `ok`
+ * carries the awaiting Orders' identities for the arrival alert (#149).
+ */
 export type OrdersCheck =
-  | { status: "ok"; server_time: string }
+  | { status: "ok"; awaiting: AwaitingRead }
   | { status: "ended"; code: FeedEndedCode }
   | { status: "unavailable" }
 
@@ -109,8 +127,10 @@ export function relayFeed({
 
 /**
  * Asks whether the authorized Orders read works right now, through the
- * smallest page of the real queue contract, so a success proves the same
- * path the screen then reloads through.
+ * first page of the real awaiting queue contract, so a success proves the
+ * same path the screen then reloads through. The same read tells the screen
+ * which Orders await acceptance, so feed hints, reconnects and polls all
+ * discover new arrivals the same way (#149).
  */
 export async function checkOrdersWith({
   token,
@@ -118,13 +138,24 @@ export async function checkOrdersWith({
   onFailure,
 }: {
   token: string | undefined
-  readQueue: (token: string) => Promise<{ server_time: string }>
+  readQueue: (token: string) => Promise<AwaitingRead>
   onFailure: (error: unknown) => void
 }): Promise<OrdersCheck> {
   if (!token) return { status: "ended", code: "signed_out" }
   try {
-    const { server_time } = await readQueue(token)
-    return { status: "ok", server_time }
+    const { server_time, count, orders } = await readQueue(token)
+    return {
+      status: "ok",
+      awaiting: {
+        server_time,
+        count,
+        orders: orders.map(({ id, display_id, placed_at }) => ({
+          id,
+          display_id,
+          placed_at,
+        })),
+      },
+    }
   } catch (error) {
     const code = endedCodeOfFailure(error)
     if (code) return { status: "ended", code }
