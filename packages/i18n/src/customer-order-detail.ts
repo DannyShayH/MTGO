@@ -35,6 +35,38 @@ export const CUSTOMER_ORDER_DETAIL_TEXT = {
       "Ordren blev ændret samtidig. Her kan du se, hvordan den står nu.",
     cancel_refused_unknown_error:
       "Vi kunne ikke bekræfte annulleringen. Se ordrens status på siden, og prøv igen. En ordre annulleres og refunderes kun én gang.",
+    progress_heading: "Ordrens forløb",
+    step_placed: "Ordre afgivet",
+    step_accepted: "Restauranten har accepteret",
+    step_preparing: "Tilberedes",
+    step_ready: "Klar til afhentning",
+    step_cancelled: "Annulleret",
+    step_completed: "Gennemført",
+    step_current: "Nu",
+    step_upcoming: "Kommer senere",
+    now_awaiting_acceptance:
+      "Vi venter på, at restauranten accepterer din ordre.",
+    now_accepted:
+      "Restauranten har accepteret din ordre. Her kan du se, når den går i gang med maden.",
+    now_preparing: "Restauranten er i gang med at lave din mad.",
+    now_ready: "Maden er klar hos restauranten og venter på at blive hentet.",
+    now_cancelled: "Ordren er annulleret.",
+    state_awaiting_acceptance: "Venter på restauranten",
+    state_accepted: "Accepteret",
+    state_preparing: "Tilberedes",
+    state_ready: "Klar til afhentning",
+    state_cancelled: "Annulleret",
+    progress_updated: "Opdateret {time}",
+    progress_updating: "Opdaterer …",
+    progress_refresh: "Opdater",
+    progress_stale:
+      "Vi kunne ikke hente den nyeste status. Sådan stod ordren {time}.",
+    progress_unavailable:
+      "Vi kan ikke vise ordrens forløb lige nu. Prøv at opdatere om lidt.",
+    progress_paused:
+      "Siden opdaterer ikke længere af sig selv. Tryk på Opdater for at se den nyeste status.",
+    progress_refused:
+      "Vi kan ikke længere vise ordrens forløb her. Log ind igen for at se den nyeste status.",
   },
   en: {
     title: "Order details",
@@ -72,6 +104,38 @@ export const CUSTOMER_ORDER_DETAIL_TEXT = {
       "The Order changed at the same time. Here is where it stands now.",
     cancel_refused_unknown_error:
       "We could not confirm the cancellation. Check the Order's status on this page and try again. An Order is only ever cancelled and refunded once.",
+    progress_heading: "Your Order's progress",
+    step_placed: "Order placed",
+    step_accepted: "Restaurant accepted",
+    step_preparing: "Preparing",
+    step_ready: "Ready for pickup",
+    step_cancelled: "Cancelled",
+    step_completed: "Done",
+    step_current: "Now",
+    step_upcoming: "Upcoming",
+    now_awaiting_acceptance:
+      "We are waiting for the Restaurant to accept your Order.",
+    now_accepted:
+      "The Restaurant accepted your Order. You will see here when it starts on your food.",
+    now_preparing: "The Restaurant is preparing your food.",
+    now_ready: "Your food is ready at the Restaurant, waiting to be picked up.",
+    now_cancelled: "This Order is cancelled.",
+    state_awaiting_acceptance: "Waiting for the Restaurant",
+    state_accepted: "Accepted",
+    state_preparing: "Preparing",
+    state_ready: "Ready for pickup",
+    state_cancelled: "Cancelled",
+    progress_updated: "Updated {time}",
+    progress_updating: "Updating …",
+    progress_refresh: "Refresh",
+    progress_stale:
+      "We could not get the latest status. This is how your Order stood at {time}.",
+    progress_unavailable:
+      "We cannot show your Order's progress right now. Try refreshing in a moment.",
+    progress_paused:
+      "This page no longer updates by itself. Select Refresh to see the latest status.",
+    progress_refused:
+      "We can no longer show this Order's progress here. Sign in again to see the latest status.",
   },
 } as const
 
@@ -90,3 +154,78 @@ export const customerCancelErrorCode = (
   value: unknown,
 ): CustomerCancelErrorCode =>
   CUSTOMER_CANCEL_ERROR_CODES.find((code) => code === value) ?? "unknown_error"
+
+/** The four food stages a Customer follows (#147); delivery belongs to #48. */
+export const FOOD_STEPS = ["placed", "accepted", "preparing", "ready"] as const
+export type FoodStepKey = (typeof FOOD_STEPS)[number]
+
+/** The recorded facts of the Customer's progress read the timeline needs. */
+export type FoodProgressFacts = {
+  state:
+    "awaiting_acceptance" | "accepted" | "preparing" | "ready" | "cancelled"
+  placed_at: string | null
+  accepted_at: string | null
+  preparation_started_at: string | null
+  ready_at: string | null
+  cancellation: { effective_at: string } | null
+}
+
+export type FoodStep = {
+  key: FoodStepKey | "cancelled"
+  status: "completed" | "current" | "upcoming"
+  /** The recorded time, or null when none was recorded or it is upcoming. */
+  at: string | null
+}
+
+const REACHED_BY_STATE = {
+  awaiting_acceptance: 0,
+  accepted: 1,
+  preparing: 2,
+  ready: 3,
+} as const
+
+/**
+ * The Order timeline's food steps from recorded facts only (#147). The step
+ * the Order has reached is current, earlier ones completed and later ones
+ * upcoming without a time. A cancelled Order keeps the milestones it really
+ * reached and ends in a completed cancellation; the stages it never reached
+ * are left out instead of being shown as still to come or falsely completed.
+ */
+export const foodProgressSteps = (facts: FoodProgressFacts): FoodStep[] => {
+  const times: Record<FoodStepKey, string | null> = {
+    placed: facts.placed_at,
+    accepted: facts.accepted_at,
+    preparing: facts.preparation_started_at,
+    ready: facts.ready_at,
+  }
+  if (facts.state === "cancelled") {
+    // Placement is a fact of every Order; later stages only when recorded.
+    const reachedStages = FOOD_STEPS.filter(
+      (key, index) => index === 0 || times[key] !== null,
+    )
+    // The cancellation is over, so it is done; no stage is still current.
+    return [
+      ...reachedStages.map((key) => ({
+        key,
+        status: "completed" as const,
+        at: times[key],
+      })),
+      {
+        key: "cancelled",
+        status: "completed",
+        at: facts.cancellation?.effective_at ?? null,
+      },
+    ]
+  }
+  const reached = REACHED_BY_STATE[facts.state]
+  return FOOD_STEPS.map((key, index) => ({
+    key,
+    status:
+      index < reached
+        ? "completed"
+        : index === reached
+          ? "current"
+          : "upcoming",
+    at: index <= reached ? times[key] : null,
+  }))
+}

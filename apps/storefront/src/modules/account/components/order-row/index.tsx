@@ -1,4 +1,8 @@
-import { CUSTOMER_ORDER_CONFIRMATION_TEXT, type Locale } from "@dtc/i18n"
+import {
+  CUSTOMER_ORDER_CONFIRMATION_TEXT,
+  CUSTOMER_ORDER_DETAIL_TEXT,
+  type Locale,
+} from "@dtc/i18n"
 import { ChevronRight, ShoppingBag } from "@medusajs/icons"
 import type { HttpTypes } from "@medusajs/types"
 import { accountText } from "@lib/util/account-text"
@@ -27,8 +31,17 @@ export default function OrderRow({
   const awaitingAcceptance = order_operation
     ? order_operation.state === "awaiting_acceptance"
     : order.metadata?.mtogo_order_state === "awaiting_restaurant_acceptance"
-  const state =
-    awaitingAcceptance && order.status === "pending"
+  // The recorded food progress (#147) explains more than commerce status.
+  const operational = order_operation?.state as
+    | "awaiting_acceptance"
+    | "accepted"
+    | "preparing"
+    | "ready"
+    | "cancelled"
+    | undefined
+  const state = operational
+    ? CUSTOMER_ORDER_DETAIL_TEXT[locale][`state_${operational}`]
+    : awaitingAcceptance && order.status === "pending"
       ? CUSTOMER_ORDER_CONFIRMATION_TEXT[locale].state
       : (statuses[order.status] ?? order.status)
   const itemCount = order.items?.reduce((sum, item) => sum + item.quantity, 0)

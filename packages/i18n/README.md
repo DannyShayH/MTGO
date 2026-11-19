@@ -27,6 +27,13 @@ acceptance (#145) with its confirmation, pending and notice text. A refusal
 reads `cancel_refused_{code}` for each code in `CUSTOMER_CANCEL_ERROR_CODES`;
 `customerCancelErrorCode(value)` allowlists a backend code and maps anything
 else to `unknown_error`, so backend text never reaches the Customer.
+The food-progress timeline (#147) reads `step_{key}`, `step_{status}`,
+`now_{state}` and the `progress_*` freshness texts.
+`foodProgressSteps(progress)` turns the Customer's progress read into the
+timeline's steps: the reached stage is `current`, earlier ones `completed` with
+their recorded times and later ones `upcoming` without a time. A cancelled
+Order keeps only the stages it really reached and ends in a `cancelled` step at
+its `effective_at`.
 
 `MENU_TEXT[locale]` supplies the partner Menu reference workspace, including
 loading and recovery messages. Allergen and food-label names/descriptions come

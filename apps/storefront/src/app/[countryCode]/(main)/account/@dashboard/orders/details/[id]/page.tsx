@@ -1,5 +1,5 @@
 import { getCustomerLocale } from "@lib/data/customer-locale"
-import { retrieveAccountOrder, retrieveOrderProgress } from "@lib/data/orders"
+import { readOrderProgress, retrieveAccountOrder } from "@lib/data/orders"
 import { accountText } from "@lib/util/account-text"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import OrderDetailsTemplate from "@modules/order/templates/order-details-template"
@@ -11,7 +11,7 @@ export default async function OrderDetailPage({ params }: Props) {
   const locale = await getCustomerLocale()
   const [result, progress] = await Promise.all([
     retrieveAccountOrder(id),
-    retrieveOrderProgress(id),
+    readOrderProgress(id),
   ])
   if (result.state !== "success") {
     if (result.state === "not_found") notFound()

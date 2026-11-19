@@ -201,6 +201,18 @@ medusaIntegrationTestRunner({
         expect(await obligationOf(order.id)).toBeUndefined()
       })
 
+      it("answers an Order without an operation record as not found, without effects", async () => {
+        const order = await placePaidOrder(pizzeriaId)
+        await operations().deleteOrderOperations((await recordOf(order.id)).id)
+
+        const refused = await cancel(customer, order.id)
+
+        expect(refused.status).toBe(404)
+        expect(refused.data.code).toBe("order_not_found")
+        expect((await progress(customer, order.id)).status).toBe(404)
+        expect(await obligationOf(order.id)).toBeUndefined()
+      })
+
       it("keeps one cancellation and one refund for a double tap and a retried lost response", async () => {
         const order = await placePaidOrder(pizzeriaId)
         const provider = jest.spyOn(

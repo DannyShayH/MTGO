@@ -21,7 +21,8 @@ export const retrieveOrder = async (id: string) => {
       method: "GET",
       query: {
         fields:
-          "+metadata,*payment_collections.payments,*items,*items.metadata,*items.variant,*items.product",
+          // The Restaurant's id finds the dishes' menu photos (#147).
+          "+metadata,+restaurant.id,*payment_collections.payments,*items,*items.metadata,*items.variant,*items.product",
       },
       headers,
       cache: "no-store",
@@ -103,6 +104,9 @@ export type OrderProgress = {
     "awaiting_acceptance" | "accepted" | "preparing" | "ready" | "cancelled"
   placed_at: string | null
   accepted_at: string | null
+  /** Food milestones recorded by the Restaurant (#146). */
+  preparation_started_at: string | null
+  ready_at: string | null
   /** What the Customer may do now, decided at the server's time (#145). */
   available_actions: "cancel"[]
   cancellation: {
@@ -120,29 +124,43 @@ export type OrderProgress = {
 }
 
 /**
- * Progress is additional to the Order details: when it cannot be read, the
- * page still shows the purchase and simply omits the outcome panel. A
- * refused read (another Customer's or unknown Order) is expected and the
- * details page handles it; any other failure is logged.
+ * One progress read: the projection with the server's time of reading it,
+ * a refusal (another Customer's, unknown or unpublished Order, or signed
+ * out), or a failure the caller shows as stale.
  */
-export const retrieveOrderProgress = async (
+export type OrderProgressRead =
+  | { state: "success"; progress: OrderProgress; server_time: string }
+  | { state: "not_found" }
+  | { state: "failed" }
+
+/**
+ * The authorized progress read (#143), also called from the open Order page
+ * to refresh its timeline (#147). Progress is additional to the Order
+ * details: when it cannot be read, the page still shows the purchase. A
+ * refusal is expected and not logged; any other failure is.
+ */
+export async function readOrderProgress(
   id: string,
-): Promise<OrderProgress | null> => {
+): Promise<OrderProgressRead> {
   try {
-    const { progress } = await sdk.client.fetch<{ progress: OrderProgress }>(
-      `/store/orders/${encodeURIComponent(id)}/progress`,
-      { method: "GET", headers: await getAuthHeaders(), cache: "no-store" },
-    )
-    return progress
+    const { progress, server_time } = await sdk.client.fetch<{
+      progress: OrderProgress
+      server_time: string
+    }>(`/store/orders/${encodeURIComponent(id)}/progress`, {
+      method: "GET",
+      headers: await getAuthHeaders(),
+      cache: "no-store",
+    })
+    return { state: "success", progress, server_time }
   } catch (error) {
     const status = (error as { status?: number }).status
-    if (status !== 401 && status !== 404)
-      log("upstream.request.failed", {
-        route: "/store/orders/:id/progress",
-        method: "GET",
-        status,
-      })
-    return null
+    if (status === 401 || status === 404) return { state: "not_found" }
+    log("upstream.request.failed", {
+      route: "/store/orders/:id/progress",
+      method: "GET",
+      status,
+    })
+    return { state: "failed" }
   }
 }
 
@@ -181,8 +199,17 @@ export async function cancelOrder(id: string): Promise<CancelOrderResult> {
   }
 }
 
-/** Existing Orders may have no commerce thumbnail: menu photos are stored separately.
- * Only decorate missing images; recorded purchase names, quantities and prices stay intact.
+/**
+ * A thumbnail the Customer's browser can load. A dish's product thumbnail is
+ * the Admin-only photo route (`/admin/products/:id/dish/photo`), which a
+ * Customer cannot open, so only an absolute http(s) URL counts.
+ */
+const isViewable = (url: string | null | undefined): url is string =>
+  !!url && /^https?:\/\//.test(url)
+
+/** Order lines carry no viewable photo: menu photos are stored separately.
+ * Only decorate images the Customer cannot load; recorded purchase names,
+ * quantities and prices stay intact.
  */
 async function withMenuPhotos(orders: HttpTypes.StoreOrder[]) {
   const menus = new Map<string, ReturnType<typeof retrieveBasketDishes>>()
@@ -197,7 +224,10 @@ async function withMenuPhotos(orders: HttpTypes.StoreOrder[]) {
       const restaurantId =
         restaurant?.id ??
         (typeof lineRestaurantId === "string" ? lineRestaurantId : undefined)
-      if (!restaurantId || !order.items?.some((item) => !item.thumbnail))
+      if (
+        !restaurantId ||
+        !order.items?.some((item) => !isViewable(item.thumbnail))
+      )
         return order
       if (!menus.has(restaurantId))
         menus.set(restaurantId, retrieveBasketDishes(restaurantId))
@@ -207,10 +237,11 @@ async function withMenuPhotos(orders: HttpTypes.StoreOrder[]) {
         ...order,
         items: order.items?.map((item) => ({
           ...item,
-          thumbnail:
-            item.thumbnail ||
-            (item.variant_id ? menu.dishes[item.variant_id]?.photoUrl : null) ||
-            null,
+          thumbnail: isViewable(item.thumbnail)
+            ? item.thumbnail
+            : (item.variant_id
+                ? menu.dishes[item.variant_id]?.photoUrl
+                : null) || null,
         })),
       }
     }),

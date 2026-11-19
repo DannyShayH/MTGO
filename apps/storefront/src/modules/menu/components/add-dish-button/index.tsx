@@ -1,13 +1,14 @@
 "use client"
 
 import { Plus } from "@medusajs/icons"
-import { Button, toast } from "@medusajs/ui"
+import { toast } from "@medusajs/ui"
 import { CUSTOMER_MENU_TEXT, type Locale } from "@dtc/i18n"
 import { addDishToBasket, type AddDishResult } from "@lib/data/basket"
 import { notifyCartUpdated } from "@lib/util/cart-events"
 import BasketStepper, {
   basketPressable,
 } from "@modules/cart/components/basket-stepper"
+import { clx } from "@modules/common/components/ui"
 import { useState } from "react"
 
 export type BasketLine = { lineId: string; quantity: number }
@@ -26,13 +27,18 @@ type Props = {
   line: BasketLine | null
 }
 
-const addButton = `!min-h-11 shrink-0 !rounded-full !border-0 !bg-mtogo-action-primary !px-4 !text-sm !font-semibold !text-mtogo-text-on-primary !shadow-none [@media(hover:hover)_and_(pointer:fine)]:hover:!bg-mtogo-action-primary-hover active:!bg-mtogo-action-primary-pressed ${basketPressable}`
+const addButton = clx(
+  "inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full bg-mtogo-action-primary px-4 text-sm font-semibold text-mtogo-text-on-primary active:bg-mtogo-action-primary-pressed [@media(hover:hover)_and_(pointer:fine)]:hover:bg-mtogo-action-primary-hover",
+  basketPressable,
+)
 
 /**
  * The dish's basket control on the price row, as food delivery apps place it:
  * a compact "Add" pill that becomes a quantity stepper once the dish is in the
  * basket. The stepper is the confirmation, so success shows no toast or popup.
- * Failures speak through a toast and never leave a wrong count on screen.
+ * The press shows the stepper at one at once, while the server adds the line
+ * (optimistic); a failure puts the pill back and speaks through a toast, so a
+ * wrong count never stays on screen.
  */
 export default function AddDishButton({
   dishName,
@@ -76,6 +82,7 @@ export default function AddDishButton({
 
   const add = async (isSwitchConfirmed = false) => {
     setIsPending(true)
+    setHasJustAdded(true)
     let result: AddDishResult
     try {
       result = await addDishToBasket({
@@ -92,7 +99,6 @@ export default function AddDishButton({
     setIsPending(false)
     if (isSwitchConfirmed) notifyCartUpdated()
     if (result.status === "added") {
-      setHasJustAdded(true)
       confirm({ lineId: result.lineId, quantity: result.quantity })
       notifyCartUpdated()
     } else if (result.status === "other_restaurant") {
@@ -119,28 +125,25 @@ export default function AddDishButton({
     }
   }
 
-  if (!lineId || quantity === 0)
+  if ((!lineId || quantity === 0) && !isPending)
     return (
-      <Button
+      <button
         type="button"
-        variant="primary"
         className={addButton}
-        isLoading={isPending}
-        disabled={isPending}
         aria-label={`${label("add_to_basket_label")}, ${priceLabel}`}
         onClick={() => void add()}
         data-testid="add-dish-to-basket"
       >
         <Plus aria-hidden="true" />
         <span aria-hidden="true">{text.add_to_basket}</span>
-      </Button>
+      </button>
     )
 
   // The pill hands over to the stepper in place; a soft blur hides the swap.
   return (
     <BasketStepper
-      lineId={lineId}
-      quantity={quantity}
+      lineId={isPending ? null : lineId}
+      quantity={isPending ? Math.max(quantity, 1) : quantity}
       dishName={dishName}
       locale={locale}
       onSettled={(next) =>

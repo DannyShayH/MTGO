@@ -90,8 +90,13 @@ export {
 export {
   CUSTOMER_ORDER_DETAIL_TEXT,
   CUSTOMER_CANCEL_ERROR_CODES,
+  FOOD_STEPS,
   customerCancelErrorCode,
+  foodProgressSteps,
   type CustomerCancelErrorCode,
+  type FoodProgressFacts,
+  type FoodStep,
+  type FoodStepKey,
 } from "./customer-order-detail.ts"
 export { CUSTOMER_ORDER_CONFIRMATION_TEXT } from "./customer-order-confirmation.ts"
 

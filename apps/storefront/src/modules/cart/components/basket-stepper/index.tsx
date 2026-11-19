@@ -33,7 +33,8 @@ export default function BasketStepper({
   onSettled,
   className,
 }: {
-  lineId: string
+  /** Null while the line is still being added: shown, but not yet changeable. */
+  lineId: string | null
   /** What the server holds now. */
   quantity: number
   dishName: string
@@ -51,7 +52,9 @@ export default function BasketStepper({
     setShown(quantity)
   }
 
+  const isAdding = lineId === null
   const change = async (next: number) => {
+    if (!lineId) return
     setShown(next)
     try {
       if (next === 0) await deleteLineItem(lineId)
@@ -70,6 +73,7 @@ export default function BasketStepper({
     <div
       role="group"
       aria-label={dishName}
+      aria-busy={isAdding}
       className={clx(
         "inline-flex h-11 shrink-0 items-center rounded-full bg-mtogo-surface-selected text-mtogo-text-primary",
         className,
@@ -80,6 +84,7 @@ export default function BasketStepper({
         type="button"
         className={stepButton}
         aria-label={label(shown === 1 ? "remove_label" : "decrease_label")}
+        aria-disabled={isAdding}
         onClick={() => void change(shown - 1)}
         data-testid="dish-quantity-decrease"
       >
@@ -106,6 +111,7 @@ export default function BasketStepper({
         className={stepButton}
         disabled={shown >= MAX_DISH_QUANTITY}
         aria-label={label("increase_label")}
+        aria-disabled={isAdding}
         onClick={() => void change(shown + 1)}
         data-testid="dish-quantity-increase"
       >

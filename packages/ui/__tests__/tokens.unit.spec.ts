@@ -157,6 +157,18 @@ const cases = [
     background: "surface-card",
     minimum: BOUNDARY,
   },
+  {
+    reason: "Cancelled step marker in the Order timeline on a card",
+    foreground: "status-error-text",
+    background: "surface-card",
+    minimum: BOUNDARY,
+  },
+  {
+    reason: "Upcoming step outline in the Order timeline on a card",
+    foreground: "border-control",
+    background: "surface-card",
+    minimum: BOUNDARY,
+  },
 ]
 
 describe("MTOGO colour tokens", () => {

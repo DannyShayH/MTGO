@@ -146,7 +146,9 @@ Use these scenarios to test the journey before splitting it into implementation 
     reason is optional, as agreed during Feature #47 discovery #139. Failed
     refunds stay unresolved. Customers may cancel before acceptance from their
     Order page, which offers Cancel only while the server allows it and then
-    shows the cancellation and the full refund's outcome separately (#145).
+    shows the cancellation and the full refund's outcome separately (#145). The
+    Order page's food-progress timeline keeps the stages the Order really
+    reached and ends in the cancellation instead of a completed path (#147).
     Operator handling is required afterward, with no automatic change-of-mind
     refund once preparation starts.
   </li>

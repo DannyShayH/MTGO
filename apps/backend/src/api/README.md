@@ -148,6 +148,10 @@ restore that capability.
 
 `GET /store/orders/:id` returns the Order's `metadata` (the checkout review) only
 when the request asks for it with `fields=+metadata`.
+Likewise `fields=+restaurant.id` adds `restaurant: { id }`, nothing else of
+the Restaurant (#147). The Order page uses it to show each dish's menu photo,
+because a line item's `thumbnail` is the Admin-only dish photo route, which a
+Customer cannot open.
 
 The zero-cost `MTOGO delivery included` shipping option is created by the
 `menu-delivery` migration script and linked to the menu sales channel. It can be
@@ -203,6 +207,8 @@ timeline; readiness never implies pickup or delivery.
 server's time: `["cancel"]` while the Order awaits acceptance strictly before
 its deadline, otherwise `[]` (accepted, cancelled, at or past the deadline, or
 a legacy Order without one). Offer Cancel only while it is listed.
+`server_time` is when this read was made; the Order timeline (#147) shows it
+as when the progress was last confirmed.
 
 ### POST /store/orders/:id/cancel
 

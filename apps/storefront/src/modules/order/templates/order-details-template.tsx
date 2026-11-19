@@ -5,22 +5,24 @@ import { ArrowLeft, Calendar, MapPin, ShoppingBag } from "@medusajs/icons"
 import { HttpTypes } from "@medusajs/types"
 import { convertToLocale } from "@lib/util/money"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
-import type { OrderProgress } from "@lib/data/orders"
-import OrderCancellation from "@modules/order/components/order-cancellation"
-import CancelOrder from "@modules/order/components/cancel-order"
+import type { OrderProgressRead } from "@lib/data/orders"
+import OrderProgressPanel from "@modules/order/components/order-progress"
 
 export default function OrderDetailsTemplate({
   order,
   locale,
   confirmation = false,
-  progress = null,
+  progress,
 }: {
   order: HttpTypes.StoreOrder
   locale: Locale
   confirmation?: boolean
-  progress?: OrderProgress | null
+  /** The authorized progress read; a refused one shows no timeline. */
+  progress?: OrderProgressRead
 }) {
   const text = CUSTOMER_ORDER_DETAIL_TEXT[locale]
+  const showsProgress =
+    !!progress && progress.state !== "not_found" && !!order.display_id
   const address = order.shipping_address
   const account = accountText[locale]
   const statuses: Record<string, string> = {
@@ -67,9 +69,12 @@ export default function OrderDetailsTemplate({
             <h1 className="text-2xl font-semibold tracking-tight text-mtogo-text-primary">
               #{order.display_id}
             </h1>
-            <span className="inline-flex items-center rounded-full bg-mtogo-surface-selected px-3 py-1 text-sm font-medium text-mtogo-text-link">
-              {statuses[order.status] ?? order.status}
-            </span>
+            {/* The timeline states the Order's real progress instead (#147). */}
+            {!showsProgress && (
+              <span className="inline-flex items-center rounded-full bg-mtogo-surface-selected px-3 py-1 text-sm font-medium text-mtogo-text-link">
+                {statuses[order.status] ?? order.status}
+              </span>
+            )}
           </div>
           <p className="mt-3 flex items-center gap-2 text-sm text-mtogo-text-secondary">
             <Calendar aria-hidden="true" />
@@ -83,14 +88,14 @@ export default function OrderDetailsTemplate({
         </header>
       )}
 
-      {progress && order.display_id && (
-        <CancelOrder
-          progress={progress}
-          orderNumber={order.display_id}
+      {showsProgress && (
+        <OrderProgressPanel
+          orderId={order.id}
+          orderNumber={order.display_id!}
+          initial={progress}
           locale={locale}
         />
       )}
-      {progress && <OrderCancellation progress={progress} locale={locale} />}
 
       <section aria-labelledby="order-items-heading">
         <div className="flex items-center gap-3">
