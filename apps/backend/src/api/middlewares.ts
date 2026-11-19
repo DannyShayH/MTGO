@@ -64,6 +64,7 @@ import {
   PostStoreUpdateCustomerAddressSchema,
   PostStoreUpdateCustomerSchema,
 } from "./store/customers/validators"
+import { PostStoreCancelOrderSchema } from "./store/orders/validators"
 import { PostCustomerVerificationRequestSchema } from "./auth/customer-verification/validators"
 import {
   PostCustomerEmailChangeConfirmSchema,
@@ -167,6 +168,16 @@ export default defineMiddlewares({
         authenticate("customer", ["bearer", "session"]),
         requireIsolatedCustomerIdentity,
         requireOwnedOrder,
+      ],
+    },
+    {
+      matcher: "/store/orders/:id/cancel",
+      method: "POST",
+      middlewares: [
+        authenticate("customer", ["bearer", "session"]),
+        requireIsolatedCustomerIdentity,
+        requireOwnedOrder,
+        validateAndTransformBody(PostStoreCancelOrderSchema),
       ],
     },
     {

@@ -7,6 +7,7 @@ import { convertToLocale } from "@lib/util/money"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import type { OrderProgress } from "@lib/data/orders"
 import OrderCancellation from "@modules/order/components/order-cancellation"
+import CancelOrder from "@modules/order/components/cancel-order"
 
 export default function OrderDetailsTemplate({
   order,
@@ -82,6 +83,13 @@ export default function OrderDetailsTemplate({
         </header>
       )}
 
+      {progress && order.display_id && (
+        <CancelOrder
+          progress={progress}
+          orderNumber={order.display_id}
+          locale={locale}
+        />
+      )}
       {progress && <OrderCancellation progress={progress} locale={locale} />}
 
       <section aria-labelledby="order-items-heading">

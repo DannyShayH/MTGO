@@ -105,7 +105,9 @@ Read-only inspection found the following constraints for the later specification
 
 - [#146](https://github.com/DannyShayH/MTGO/issues/146): staff press Start preparing on an accepted Order and then Ready for pickup, with or without an assigned Delivery agent. Each milestone records its actual time and actor once; a repeat keeps the first one, and an out-of-order, cancelled, foreign or revoked attempt is refused with the Order's current outcome. Readiness is not pickup, delivery or native Order completion, and staff cannot undo a milestone. The milestone times, without the staff who recorded them, are part of the Customer's Order progress for the later timeline.
 
-Customer cancellation, the Customer food-progress timeline and live updates remain open.
+- [#145](https://github.com/DannyShayH/MTGO/issues/145): the owning Customer cancels an awaiting Order from their Order page before Restaurant acceptance. Cancel is offered only while the server allows it and asks for confirmation first. The request rechecks the state and deadline under the Order's lock and uses the same cancellation, full-refund and native synchronization as rejection, so a double tap, a retried lost response or a race with acceptance gives one outcome and one refund. At or after the deadline the Order receives the timeout outcome even before the recovery job runs; after acceptance the Customer is told to contact MTOGO with the Order number. The page then shows the cancellation separately from the refund's pending, failed or succeeded outcome, keeping the purchase, payment and address history.
+
+The Customer food-progress timeline and live updates remain open.
 
 ## Evidence required during implementation
 

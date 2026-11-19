@@ -6,6 +6,10 @@ import medusaError from "@lib/util/medusa-error"
 import { getAuthHeaders } from "./cookies"
 import { HttpTypes } from "@medusajs/types"
 import { log } from "@lib/logger"
+import {
+  customerCancelErrorCode,
+  type CustomerCancelErrorCode,
+} from "@dtc/i18n"
 
 export const retrieveOrder = async (id: string) => {
   const headers = {
@@ -99,6 +103,8 @@ export type OrderProgress = {
     "awaiting_acceptance" | "accepted" | "preparing" | "ready" | "cancelled"
   placed_at: string | null
   accepted_at: string | null
+  /** What the Customer may do now, decided at the server's time (#145). */
+  available_actions: "cancel"[]
   cancellation: {
     category:
       "restaurant_rejected" | "acceptance_timeout" | "customer_cancelled"
@@ -137,6 +143,41 @@ export const retrieveOrderProgress = async (
         status,
       })
     return null
+  }
+}
+
+export type CancelOrderResult =
+  { ok: true } | { ok: false; error: CustomerCancelErrorCode }
+
+/**
+ * The owning Customer cancels their awaiting Order before acceptance (#145).
+ * The backend decides at its own time whether it is still the Customer's
+ * cancellation, the timeout, or refused, and starts the full refund. The
+ * caller re-reads the page afterwards, so every outcome, including an
+ * uncertain one, is followed by the recorded truth instead of a guess.
+ */
+export async function cancelOrder(id: string): Promise<CancelOrderResult> {
+  try {
+    await sdk.client.fetch(`/store/orders/${encodeURIComponent(id)}/cancel`, {
+      method: "POST",
+      body: {},
+      headers: await getAuthHeaders(),
+      cache: "no-store",
+    })
+    return { ok: true }
+  } catch (error) {
+    const status = (error as { status?: number }).status
+    log("upstream.request.failed", {
+      route: "/store/orders/:id/cancel",
+      method: "POST",
+      status,
+    })
+    // A refusal's message is its code; anything else is uncertain.
+    const code =
+      status === 400 || status === 409
+        ? (error as { message?: unknown }).message
+        : undefined
+    return { ok: false, error: customerCancelErrorCode(code) }
   }
 }
 

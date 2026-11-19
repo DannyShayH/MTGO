@@ -87,7 +87,12 @@ export {
   type MenuArrangementError,
 } from "./menu-arrangement.ts"
 
-export { CUSTOMER_ORDER_DETAIL_TEXT } from "./customer-order-detail.ts"
+export {
+  CUSTOMER_ORDER_DETAIL_TEXT,
+  CUSTOMER_CANCEL_ERROR_CODES,
+  customerCancelErrorCode,
+  type CustomerCancelErrorCode,
+} from "./customer-order-detail.ts"
 export { CUSTOMER_ORDER_CONFIRMATION_TEXT } from "./customer-order-confirmation.ts"
 
 export { DELIVERY_AGENT_TEXT } from "./delivery-agent.ts"

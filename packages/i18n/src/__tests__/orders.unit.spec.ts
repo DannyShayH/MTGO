@@ -68,3 +68,32 @@ test("EP: the kitchen milestone refusals are recognised", () => {
   ])
     assert.equal(isOrderActionErrorCode(code), true, code)
 })
+
+test("EP: a Customer cancellation refusal maps to a known code, never backend text (#145)", async () => {
+  const { customerCancelErrorCode } =
+    await import("../customer-order-detail.ts")
+  assert.equal(
+    customerCancelErrorCode("order_not_awaiting_acceptance"),
+    "order_not_awaiting_acceptance",
+  )
+  assert.equal(customerCancelErrorCode("order_changed"), "order_changed")
+  assert.equal(
+    customerCancelErrorCode("mock provider declined: secret-detail"),
+    "unknown_error",
+  )
+  assert.equal(customerCancelErrorCode(undefined), "unknown_error")
+})
+
+test("every Customer cancellation refusal has text in both languages, with operator guidance after acceptance", async () => {
+  const { CUSTOMER_CANCEL_ERROR_CODES, CUSTOMER_ORDER_DETAIL_TEXT } =
+    await import("../customer-order-detail.ts")
+  for (const locale of ["da", "en"] as const) {
+    for (const code of CUSTOMER_CANCEL_ERROR_CODES)
+      assert.ok(CUSTOMER_ORDER_DETAIL_TEXT[locale][`cancel_refused_${code}`])
+    assert.match(
+      CUSTOMER_ORDER_DETAIL_TEXT[locale]
+        .cancel_refused_order_not_awaiting_acceptance,
+      /MTOGO.*\{number\}/,
+    )
+  }
+})

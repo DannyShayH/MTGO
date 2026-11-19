@@ -21,6 +21,13 @@ milestone lines. `ORDER_ACTION_ERRORS[locale]` has a text for each code in
 `formatOrderTime(iso, locale)` shows a backend timestamp on the Copenhagen
 clock (`13.05`, `13:05`), whatever the server's time zone.
 
+`CUSTOMER_ORDER_DETAIL_TEXT[locale]` supplies the Customer's Order page: the
+cancellation and refund outcome (#143) and the Cancel action before
+acceptance (#145) with its confirmation, pending and notice text. A refusal
+reads `cancel_refused_{code}` for each code in `CUSTOMER_CANCEL_ERROR_CODES`;
+`customerCancelErrorCode(value)` allowlists a backend code and maps anything
+else to `unknown_error`, so backend text never reaches the Customer.
+
 `MENU_TEXT[locale]` supplies the partner Menu reference workspace, including
 loading and recovery messages. Allergen and food-label names/descriptions come
 from the backend catalogue in both languages; this package does not duplicate

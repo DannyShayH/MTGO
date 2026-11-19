@@ -2,6 +2,7 @@ import {
   acceptanceDeadline,
   acceptanceWindow,
   availableActions,
+  customerActions,
   decideAcceptance,
   decideTransition,
   decideCancellation,
@@ -249,6 +250,54 @@ describe("Cancelling an Order before acceptance", () => {
         new Date("2026-11-18T12:01:00.000Z"),
       ),
     ).toEqual({ outcome: "cancel", category: "customer_cancelled" })
+  })
+})
+
+describe("What the owning Customer may do now (#145)", () => {
+  const awaiting = {
+    state: "awaiting_acceptance" as const,
+    acceptance_deadline: deadline,
+    accepted_at: null,
+  }
+
+  it.each([
+    {
+      order: awaiting,
+      now: "2026-11-18T12:04:59.999Z",
+      actions: ["cancel"],
+      reason: "BVA: 1 ms before the deadline Cancel is offered",
+    },
+    {
+      order: awaiting,
+      now: "2026-11-18T12:05:00.000Z",
+      actions: [],
+      reason:
+        "BVA: exactly at the deadline the Order is the timeout's, not the Customer's",
+    },
+    {
+      order: { ...awaiting, acceptance_deadline: null },
+      now: "2026-11-18T12:01:00.000Z",
+      actions: [],
+      reason: "DT: a legacy Order without a deadline is left to an operator",
+    },
+    {
+      order: {
+        ...awaiting,
+        state: "accepted" as const,
+        accepted_at: new Date("2026-11-18T12:02:00.000Z"),
+      },
+      now: "2026-11-18T12:03:00.000Z",
+      actions: [],
+      reason: "DT: after acceptance only an operator can cancel",
+    },
+    {
+      order: { ...awaiting, state: "cancelled" as const },
+      now: "2026-11-18T12:01:00.000Z",
+      actions: [],
+      reason: "DT: a cancelled Order offers nothing more",
+    },
+  ])("$reason", ({ order, now, actions }) => {
+    expect(customerActions(order, new Date(now))).toEqual(actions)
   })
 })
 

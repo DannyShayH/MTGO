@@ -241,6 +241,25 @@ export const availableActions = (
     action === "accept" ? ["accept", "reject"] : [action],
   )
 
+export type CustomerOrderAction = "cancel"
+
+/**
+ * What the owning Customer may do now (#145; spec #47 stories 27, 29, 30):
+ * Cancel exactly while the Order would still be recorded as their own
+ * cancellation, that is awaiting acceptance strictly before its deadline.
+ * After acceptance the Customer is directed to an operator.
+ */
+export const customerActions = (
+  order: AcceptanceFacts,
+  now: Date,
+): CustomerOrderAction[] => {
+  const decision = decideCancellation(order, "customer_cancelled", now)
+  return decision.outcome === "cancel" &&
+    decision.category === "customer_cancelled"
+    ? ["cancel"]
+    : []
+}
+
 export const QUEUE_VIEWS = ["awaiting", "active", "history"] as const
 export type QueueView = (typeof QUEUE_VIEWS)[number]
 

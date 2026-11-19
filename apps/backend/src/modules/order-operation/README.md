@@ -108,8 +108,8 @@ a newer revision, so the kitchen feed (#148) announces the change.
   (`full-refund.ts`) and `syncNativeOrderCancellationWorkflow`
   (`native-cancellation.ts`) under the Order's settlement lock
   (`order-settlement:{order_id}`). Neither can throw past it and both are
-  idempotent. Rejection and the timeout recovery use this engine, and the
-  Customer cancellation slice is to use it too; there is no second refund path.
+  idempotent. Rejection, Customer cancellation and the timeout recovery use this engine;
+  there is no second refund path.
   A refund is `succeeded` only when the payment's persisted refund with the
   obligation's key succeeded for its amount. The pure decisions (owed amount,
   failure class, the outcome an attempt records and the native cancellation
@@ -124,6 +124,15 @@ a newer revision, so the kitchen feed (#148) announces the change.
   `refund_exceeds_remaining` instead of being over-refunded. A `failed`
   obligation stays owed until the operator's retry under #49 sets it back to
   `pending`.
+
+- **Customer cancellation** (`cancelCustomerOrderWorkflow`, #145): the owning
+  Customer's request runs the same lock, `commitPreAcceptanceCancellation` and
+  `settleCancellation` as Reject, requesting `customer_cancelled` with the
+  Customer's id as `cancelled_by` and no note. At or after the deadline the
+  same request records `acceptance_timeout` by `system`, even before the sweep
+  has run; accepted work and legacy Orders are refused for an operator. The
+  progress read lists `cancel` in `available_actions` exactly while this would
+  be recorded as `customer_cancelled` (`customerActions` in `rules.ts`).
 
 - **Timeout and recovery** (`recoverOrderOperationsWorkflow`, #144): run by
   the `recover-order-operations` job every minute on the worker, so the first
@@ -211,6 +220,12 @@ fulfilment, the milestones in the Customer's progress without actors, repeated
 and competing milestones, out-of-order and cancelled refusals, closed and
 deactivated Restaurants, client-supplied fields and signed-out, Customer,
 foreign and revoked callers.
+`integration-tests/http/customer-order-cancellation.spec.ts` (#145) covers
+the owning Customer's cancellation and its one refund, foreign, unknown and
+signed-out callers without effects, refused client fields, refusal after
+acceptance with the current progress, the timeout outcome before any sweep, a
+legacy Order, a double tap and retried lost response, a race with acceptance
+and an explicitly failing mock provider.
 
 Measured locally in the devcontainer (in-process HTTP runner, disposable
 PostgreSQL, one Restaurant with five awaiting Orders, twenty simultaneous

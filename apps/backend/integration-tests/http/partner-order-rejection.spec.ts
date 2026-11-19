@@ -450,6 +450,7 @@ medusaIntegrationTestRunner({
           accepted_at: null,
           preparation_started_at: null,
           ready_at: null,
+          available_actions: ["cancel"],
           cancellation: null,
           refund: null,
         })

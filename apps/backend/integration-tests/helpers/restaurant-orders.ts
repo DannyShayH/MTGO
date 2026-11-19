@@ -401,6 +401,15 @@ export function restaurantOrdersHarness({
       headers,
       validateStatus: () => true,
     })
+  const cancel = (
+    headers: Record<string, string>,
+    id: string,
+    body: Record<string, unknown> = {},
+  ) =>
+    api.post(`/store/orders/${id}/cancel`, body, {
+      headers,
+      validateStatus: () => true,
+    })
 
   return {
     password,
@@ -419,6 +428,7 @@ export function restaurantOrdersHarness({
     startPreparation,
     markReady,
     progress,
+    cancel,
     recordOf,
     seeded: () => ({
       admin,

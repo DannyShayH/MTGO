@@ -17,6 +17,7 @@ import { readOrderFeedStep } from "./steps/read-order-feed"
 import type { AnnouncedRevisions } from "./order-feed"
 import { cancelRestaurantOrderStep } from "./steps/cancel-restaurant-order"
 import { settleOrderCancellationStep } from "./steps/settle-order-cancellation"
+import { cancelCustomerOrderStep } from "./steps/cancel-customer-order"
 import { readOrderProgressStep } from "./steps/read-order-progress"
 import { MilestoneAction, QueueView } from "./rules"
 import { orderOperationLock } from "./locks"
@@ -231,6 +232,44 @@ export const retrieveOrderProgressWorkflow = createWorkflow(
   "retrieve-order-progress",
   function (input: { order_id: string }) {
     return new WorkflowResponse(readOrderProgressStep(input))
+  },
+)
+
+/**
+ * The owning Customer cancels an awaiting Order before acceptance (#145; spec
+ * #47 stories 27, 29, 30, 32, 33, 42), through the same lock, guarded commit
+ * and settlement as staff rejection: the cancellation and its full-refund
+ * obligation commit first, then the refund is attempted and native
+ * cancellation synchronized. Only the request that cancelled settles, so a
+ * double tap or lost response returns the recorded outcome. The route's
+ * middleware has already proven the Order is the Customer's placed Order.
+ */
+export const cancelCustomerOrderWorkflow = createWorkflow(
+  "cancel-customer-order",
+  function (input: { customer_id: string; order_id: string }) {
+    const lock = transform({ input }, ({ input }) =>
+      orderOperationLock(input.order_id),
+    )
+    acquireLockStep(lock)
+    const cancellation = cancelCustomerOrderStep(input)
+    releaseLockStep(lock)
+    const order = transform({ input }, ({ input }) => ({
+      order_id: input.order_id,
+    }))
+    when(
+      "settle-customer-cancellation",
+      { cancellation },
+      ({ cancellation }) => cancellation.cancelled,
+    ).then(() => {
+      settleOrderCancellationStep(order).config({
+        name: "settle-customer-cancellation-effects",
+      })
+    })
+    return new WorkflowResponse(
+      readOrderProgressStep(order).config({
+        name: "read-cancelled-order-progress",
+      }),
+    )
   },
 )
 

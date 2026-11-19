@@ -170,6 +170,7 @@ signed out is `401`.
     "accepted_at": null,
     "preparation_started_at": null,
     "ready_at": null,
+    "available_actions": [],
     "cancellation": {
       "category": "restaurant_rejected",
       "cancelled_at": "2026-11-18T12:02:10.000Z",
@@ -198,6 +199,67 @@ free-text reason or a staff identity. A `failed` refund is still owed.
 `preparation_started_at` and `ready_at` (#146) are the recorded kitchen
 milestone times, `null` until recorded, for the Customer's food-progress
 timeline; readiness never implies pickup or delivery.
+`available_actions` (#145) is what the Customer may do now, decided at the
+server's time: `["cancel"]` while the Order awaits acceptance strictly before
+its deadline, otherwise `[]` (accepted, cancelled, at or past the deadline, or
+a legacy Order without one). Offer Cancel only while it is listed.
+
+### POST /store/orders/:id/cancel
+
+**Actor:** the owning Customer (`customer`, bearer or session), with the same
+ownership and placed-Order checks as `GET /store/orders/:id/progress` (#145).
+Another Customer's Order, an unpaid provisional row and an unknown id are all
+`404` without effects; signed out is `401`. The body must be `{}`: actor,
+time, outcome and refund amount come from the token and the server, and any
+field is `400 invalid_data`.
+
+Under the Order's lock the server re-reads the record and decides with the
+same rule as staff rejection and the timeout sweep (`decideCancellation`):
+
+- awaiting and strictly before the deadline: the cancellation is recorded as
+  `customer_cancelled` by the Customer;
+- at or after the deadline, even before the sweep has run: the Order receives
+  the `acceptance_timeout` outcome by `system`, and the request still answers
+  `200` with it;
+- already cancelled (a double tap, a retried lost response, or a competing
+  rejection or timeout): `200` with the recorded outcome and no new effects.
+
+The cancellation and the Order's one full-refund obligation commit together
+before the provider is contacted; the refund attempt and native Medusa
+cancellation then run through the same settlement as rejection, so a refund
+is never duplicated. The response has the same shape as
+`GET /store/orders/:id/progress`:
+
+```json
+{
+  "progress": {
+    "order_id": "order_01...",
+    "state": "cancelled",
+    "available_actions": [],
+    "cancellation": {
+      "category": "customer_cancelled",
+      "cancelled_at": "2026-11-18T12:02:10.000Z",
+      "effective_at": "2026-11-18T12:02:10.000Z"
+    },
+    "refund": {
+      "status": "succeeded",
+      "amount_including_vat": 190,
+      "...": "..."
+    }
+  },
+  "server_time": "2026-11-18T12:02:11.000Z"
+}
+```
+
+A `failed` refund is still owed (the Order stays cancelled; the operator's
+retry is #49). Refusals carry `code` (also as `message`) and the current
+`progress`, so the page can show the truth:
+
+| Status | `code`                          | When                                                               |
+| ------ | ------------------------------- | ------------------------------------------------------------------ |
+| `400`  | `order_not_awaiting_acceptance` | The Restaurant has accepted it; the Customer must contact MTOGO.   |
+| `400`  | `acceptance_timing_unavailable` | A legacy Order without a recorded deadline is left to an operator. |
+| `409`  | `order_changed`                 | The record changed between read and write (a lost race).           |
 
 ## Partner dish availability (#108)
 

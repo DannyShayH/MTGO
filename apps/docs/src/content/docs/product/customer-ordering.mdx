@@ -144,9 +144,11 @@ Use these scenarios to test the journey before splitting it into implementation 
     **The Restaurant rejects the Order.** Rejection or five minutes without
     acceptance cancels it with a full refund owed. A staff-provided rejection
     reason is optional, as agreed during Feature #47 discovery #139. Failed
-    refunds stay unresolved. Customers may cancel before acceptance; operator
-    handling is required afterward, with no automatic change-of-mind refund once
-    preparation starts.
+    refunds stay unresolved. Customers may cancel before acceptance from their
+    Order page, which offers Cancel only while the server allows it and then
+    shows the cancellation and the full refund's outcome separately (#145).
+    Operator handling is required afterward, with no automatic change-of-mind
+    refund once preparation starts.
   </li>
   <li>
     **Handover cannot be completed.** Contact attempts and operator escalation
