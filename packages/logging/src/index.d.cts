@@ -8,6 +8,7 @@ export type LogEvent =
   | "input.rejected"
   | "upstream.request.failed"
   | "request.failed"
+  | "monitoring.demo_read.succeeded"
 export type LogFields = {
   request_id?: string
   route?: string

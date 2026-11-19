@@ -9,6 +9,10 @@ const events = {
   "input.rejected": ["info", "Input rejected"],
   "upstream.request.failed": ["info", "Upstream request failed"],
   "request.failed": ["error", "Request failed"],
+  "monitoring.demo_read.succeeded": [
+    "info",
+    "Disposable backend product read completed",
+  ],
 }
 
 /** IDs are correlation labels, never credentials or a source of authority. */
@@ -20,8 +24,11 @@ function requestId(value) {
 
 function httpStatus(error) {
   if (!error || typeof error !== "object") return undefined
-  const status = error.status ?? error.response?.status
-  return Number.isInteger(status) && status >= 400 && status <= 599
+  return statusInRange(error.status ?? error.response?.status, 400)
+}
+
+function statusInRange(status, minimum) {
+  return Number.isInteger(status) && status >= minimum && status <= 599
     ? status
     : undefined
 }
@@ -46,9 +53,10 @@ function createLogRecord(
   if (!Object.hasOwn(events, event))
     throw new Error("Unknown application log event")
   const [defaultLevel, msg] = events[event]
-  const status = httpStatus({ status: fields.status })
+  const status = statusInRange(fields.status, 100)
   const level =
-    event === "upstream.request.failed" && (!status || status >= 500)
+    event === "upstream.request.failed" &&
+    (!status || status < 400 || status >= 500)
       ? "warn"
       : defaultLevel
   const record = {

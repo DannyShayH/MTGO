@@ -1,7 +1,28 @@
 const { test } = require("node:test")
 const assert = require("node:assert/strict")
 const { PassThrough } = require("node:stream")
-const { createApplicationLogger } = require("../index.cjs")
+const {
+  createApplicationLogger,
+  createLogRecord,
+  httpStatus,
+} = require("../index.cjs")
+
+test("records the demo outcome with a separate success status", () => {
+  const record = createLogRecord("backend", "monitoring.demo_read.succeeded", {
+    method: "GET",
+    route: "/store/products",
+    status: 200,
+    token: "synthetic-secret",
+  })
+  assert.equal(record.event, "monitoring.demo_read.succeeded")
+  assert.equal(record.level, "info")
+  assert.equal(record.status, 200)
+  assert.equal(record.msg, "Disposable backend product read completed")
+  assert.equal(record.route, "/store/products")
+  assert.equal(record.method, "GET")
+  assert.doesNotMatch(JSON.stringify(record), /synthetic-secret/)
+  assert.equal(httpStatus({ status: 200 }), undefined)
+})
 
 test("emits a safe sign-in record and excludes secrets even inside allowed fields", () => {
   const output = new PassThrough()

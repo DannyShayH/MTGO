@@ -35,7 +35,9 @@ ENV NODE_ENV=production
 # Medusa backend, admin and worker. Also carries the Compose file of the same
 # release, which the deploy script extracts (deploy/staging/mtogo-deploy.sh).
 FROM source AS backend
-RUN cd apps/backend && npm run build \
+# The disposable monitoring journey needs only the HTTP API build.
+ARG DISABLE_MEDUSA_ADMIN=false
+RUN cd apps/backend && DISABLE_MEDUSA_ADMIN=${DISABLE_MEDUSA_ADMIN} npm run build \
     && mkdir -p .medusa/server/static \
     && chown -R node:node .medusa/server/static
 WORKDIR /app/apps/backend/.medusa/server

@@ -1,0 +1,89 @@
+# Disposable synthetic application only. Never merge this into staging Compose.
+name: mtogo-monitoring-demo
+
+x-environment: &environment
+  NODE_ENV: production
+  DATABASE_URL: postgres://postgres:${DEMO_DB_PASSWORD:?Generate a disposable password in .env}@postgres:5432/medusa_ci_monitoring?sslmode=disable
+  JWT_SECRET: ${DEMO_JWT_SECRET:?Generate a disposable secret in .env}
+  COOKIE_SECRET: ${DEMO_COOKIE_SECRET:?Generate a disposable secret in .env}
+  STORE_CORS: http://localhost:8000
+  ADMIN_CORS: http://localhost:9000
+  AUTH_CORS: http://localhost:9000
+  REDIS_URL: ""
+  DISABLE_MEDUSA_ADMIN: "true"
+  MEDUSA_TELEMETRY_DISABLED: "1"
+  MTOGO_METRICS_ENABLED: "1"
+  MTOGO_METRICS_HOST: backend-metrics
+  MTOGO_METRICS_PORT: "9464"
+  PORT: "9000"
+  MTOGO_MONITORING_DEMO: "1"
+
+services:
+  postgres:
+    image: postgres:16.16-bookworm
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DEMO_DB_PASSWORD:?Generate a disposable password in .env}
+      POSTGRES_DB: medusa_ci_monitoring
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d medusa_ci_monitoring"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - demo-database:/var/lib/postgresql/data
+    networks:
+      - application
+
+  migrate:
+    image: mtogo-monitoring-backend:local
+    build:
+      context: ../..
+      dockerfile: deploy/staging/Dockerfile
+      target: backend
+      args:
+        DISABLE_MEDUSA_ADMIN: "true"
+    profiles: ["tools"]
+    command:
+      [
+        "npm",
+        "exec",
+        "--no",
+        "--",
+        "medusa",
+        "db:migrate",
+        "--execute-safe-links",
+      ]
+    environment: *environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - application
+
+  backend:
+    image: mtogo-monitoring-backend:local
+    environment:
+      <<: *environment
+      MEDUSA_WORKER_MODE: shared
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:9000:9000"
+    networks:
+      application:
+      loopback:
+      metrics:
+        aliases: [backend-metrics]
+
+networks:
+  application:
+    internal: true
+  loopback:
+  metrics:
+    external: true
+    name: mtogo-local-metrics
+
+volumes:
+  demo-database:

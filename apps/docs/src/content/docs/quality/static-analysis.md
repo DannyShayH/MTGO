@@ -105,6 +105,10 @@ check with:
 node scripts/verify-sonarqube-ide.mjs
 ```
 
+The workflow retries interrupted extension downloads, including connection
+resets. Each retry replaces the partial VSIX file, and extraction must succeed
+before the devcontainer build starts.
+
 Use [connected mode](https://docs.sonarsource.com/sonarqube-for-vs-code/connect-your-ide/setup)
 to synchronize the project's rules and issue statuses:
 

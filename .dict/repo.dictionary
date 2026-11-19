@@ -94,3 +94,11 @@ PGUSER
 PGPASSWORD
 PGDATABASE
 PGSSLMODE
+prometheus
+grafana
+promtool
+PROPFIND
+ECONNREFUSED
+devx
+pylance
+localhome

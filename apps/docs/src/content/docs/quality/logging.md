@@ -43,15 +43,16 @@ full URLs or query strings. IDs contain only opaque identifiers. `err` appears
 only on `request.failed`, as `{ "type": "Error" }`, `TypeError` or `RangeError`.
 Raw error messages, stacks, causes and attached data are deliberately discarded.
 
-| Event                     | Level                                  | Current use                                                     |
-| ------------------------- | -------------------------------------- | --------------------------------------------------------------- |
-| `auth.sign_in.succeeded`  | info                                   | Partner sign-in after authorized staff lookup and token storage |
-| `auth.sign_in.failed`     | warn                                   | Partner sign-in refusal, invalid input or upstream failure      |
-| `auth.session.ended`      | info                                   | Partner sign-out and `/session-ended` cookie cleanup            |
-| `access.denied`           | warn                                   | Backend 401/403 on the demonstrated path                        |
-| `input.rejected`          | info                                   | Other backend 4xx on that path                                  |
-| `upstream.request.failed` | info for 4xx; warn for 5xx/no response | Storefront Medusa error helper and partner access-ended lookup  |
-| `request.failed`          | error                                  | Backend 5xx on the demonstrated path                            |
+| Event                            | Level                                  | Current use                                                          |
+| -------------------------------- | -------------------------------------- | -------------------------------------------------------------------- |
+| `auth.sign_in.succeeded`         | info                                   | Partner sign-in after authorized staff lookup and token storage      |
+| `auth.sign_in.failed`            | warn                                   | Partner sign-in refusal, invalid input or upstream failure           |
+| `auth.session.ended`             | info                                   | Partner sign-out and `/session-ended` cookie cleanup                 |
+| `access.denied`                  | warn                                   | Backend 401/403 on the demonstrated path                             |
+| `input.rejected`                 | info                                   | Other backend 4xx on that path                                       |
+| `upstream.request.failed`        | info for 4xx; warn for 5xx/no response | Storefront Medusa error helper and partner access-ended lookup       |
+| `request.failed`                 | error                                  | Backend 5xx on the demonstrated path                                 |
+| `monitoring.demo_read.succeeded` | info                                   | Successful disposable product read, with its HTTP status in `status` |
 
 Extend vocabulary centrally when a new boundary needs an event. Log once at the
 boundary; do not log and rethrow the same failure at multiple layers of an app.

@@ -64,6 +64,14 @@ Development happens inside the devcontainer, so everyone has the same Node, tool
 
 The admin dashboard runs on `http://localhost:9000/app` and the storefront on `http://localhost:8000`. To run the database integration suites from inside the devcontainer, use `cd apps/backend && npm run test:integration:modules` (it succeeds when there are no custom module tests yet) and `npm run test:integration:http`. The devcontainer sets `DB_HOST=localhost`, `DB_PORT`, `DB_USERNAME` and `DB_PASSWORD` itself, because Jest loads `.env.test` rather than `.env`, and Medusa's test runner forces SSL for any database host other than `localhost`. After pulling a change to `.devcontainer/`, run **Dev Containers: Rebuild and Reopen in Container**.
 
+The devcontainer also installs an independent Docker engine and Compose through
+the Docker-in-Docker feature. Rebuild and reopen the container after adding this
+feature, then check `docker version` (both Client and Server) and
+`docker compose version`. This feature requires a privileged development
+container. For the disposable monitoring stack, follow the
+[local request monitoring runbook](apps/docs/src/content/docs/quality/local-request-monitoring.md)
+from `deploy/monitoring/`.
+
 `npm run verify:applications` builds every app and runs the browser journeys. It needs more memory than the devcontainer gets by default on many machines: with about 7 GB it was killed with exit code 137 while building. Give Docker Desktop (on Windows, the WSL2 memory limit) at least 12 GB if you run it locally. On a 16 GB laptop, keep WSL at 8 GB and leave this check to the ready flow, which runs it in CI either way; see [memory on a 16 GB laptop](https://dannyshayh.github.io/MTGO/architecture/technology-stack/#memory-on-a-16-gb-laptop) for the recommended `.wslconfig` and how to recover with `wsl --shutdown`.
 
 After pulling dependency updates, stop the development servers before running

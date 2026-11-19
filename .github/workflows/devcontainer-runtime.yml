@@ -46,7 +46,7 @@ jobs:
 
       - name: Download SonarQube for IDE
         run: |
-          curl --compressed --fail --location --retry 3 \
+          curl --compressed --fail --location --retry 3 --retry-all-errors \
             https://marketplace.visualstudio.com/_apis/public/gallery/publishers/SonarSource/vsextensions/sonarlint-vscode/latest/vspackage \
             --output /tmp/sonarqube-for-ide.vsix
           mkdir -p /tmp/sonarqube-for-ide
