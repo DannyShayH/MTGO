@@ -76,9 +76,10 @@ inventory:
     command: npm ci
 
   - id: unit-tests
-    name: Run backend unit tests (fast, no database)
+    name: Run backend unit tests and the coverage report tests (fast, no database)
     command: |
-      cd apps/backend && npm run test:unit -- --passWithNoTests
+      cd apps/backend && npm run test:unit -- --passWithNoTests &&
+        node --test ../../scripts/coverage-report.test.mjs
 
   - id: package-tests
     name: Run the shared package tests (fast, no database)
@@ -100,7 +101,11 @@ inventory:
     name: Run backend unit and HTTP tests with coverage (lcov in apps/backend/coverage)
     timeout: 15m
     command: |
-      cd apps/backend && npm run test:coverage
+      # On failure, name the changed files with the lowest branch coverage.
+      cd apps/backend && npm run test:coverage || {
+        node ../../scripts/coverage-report.mjs
+        exit 1
+      }
 
   - id: lint
     name: Run ESLint for all apps (medusa lint + storefront eslint)

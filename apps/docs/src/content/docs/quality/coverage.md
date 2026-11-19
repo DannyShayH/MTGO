@@ -41,7 +41,40 @@ below 80%.
 
 The `coverage` check in `.insitu.yml` runs this command in `ready-backend` (and the local `ready-checks` aggregate),
 with a 15-minute limit like the other test checks.
-A failure stops the ready flow before merging to `main`.
+A failure stops the ready flow before merging to `main`. The check then prints
+the branch coverage of each backend file changed since `origin/main`, lowest
+first, and names the files below 80%, so the fix starts in the right place. The
+ready job checks out the full history for that comparison.
+
+## See the coverage of a change before wrapup
+
+The global threshold leaves little slack, so a slice that adds a few lightly
+tested branches can fail the ready flow. Check the files you changed first.
+From `apps/backend`, run:
+
+```bash
+npm run test:affected -- --coverage
+```
+
+This runs the same affected specs as `test:affected` (see below) and measures
+only the changed source files in the unit and HTTP runs, the suites the gate
+counts. Module integration specs run without coverage. It then prints the branch
+coverage of each changed file, lowest first, and names those below 80%:
+
+```text
+Branch coverage of changed backend files:
+   62.5%    5/8    src/workflows/order-operations/full-refund.ts  (below 80%)
+  100.0%    31/31  src/workflows/order-operations/rules.ts
+1 changed file below 80% branch coverage: src/workflows/order-operations/full-refund.ts
+```
+
+A file below 80% does not fail the command; the global threshold still decides
+in the ready flow. Treat a named file as untested behavior: cover it at the
+agreed seams (pure rules, templates, error mapping, or the HTTP spec of its
+route) in the same slice. A branch that cannot be reached is removed, not
+tested. Never lower the threshold or exclude files to make the number pass.
+The report reads LCOV through `scripts/coverage-report.mjs`, whose tests run in
+the trunk-worthy `unit-tests` check.
 
 `JEST_MAX_WORKERS` sets how many Jest workers the coverage and HTTP suites use.
 Unset, it is 1 and the suites run in band, which fits an 8 GB devcontainer.

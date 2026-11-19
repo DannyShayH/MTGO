@@ -154,8 +154,11 @@ The rules enforce: no circular dependencies, apps may import packages but never 
 Run the suites from `apps/backend` — it defines no plain `test` script, so the root `<pm> run test` runs nothing there.
 
 **Local checks and the ready flow.** Before `gh wrapup`, run `<pm> run lint`,
-`cd apps/backend && <pm> run test:affected`, and `npm test` in each changed
-`packages/*` and in `apps/partner` when it changed. `test:affected` runs the unit, module and HTTP specs that import
+`cd apps/backend && <pm> run test:affected -- --coverage`, and `npm test` in each changed
+`packages/*` and in `apps/partner` when it changed. With `--coverage` it also
+prints the branch coverage of each changed backend file and names those below
+80%; cover them in the same issue, because the ready flow fails when global
+branch coverage drops below 80% (see [coverage](apps/docs/src/content/docs/quality/coverage.md)). `test:affected` runs the unit, module and HTTP specs that import
 something changed since `origin/main`, plus changed spec files; a change under
 `src/api/`, `src/links/` or `medusa-config` runs every HTTP spec. After
 `gh deliver`, the ready flow runs the full backend suites and affected browser journeys on
@@ -182,6 +185,7 @@ live store.
 
 ```bash
 cd apps/backend && <pm> run test:affected                  # specs affected since origin/main
+cd apps/backend && <pm> run test:affected -- --coverage    # ...plus branch coverage of the changed files
 cd apps/backend && <pm> run test:unit                      # **/src/**/__tests__/**/*.unit.spec.ts
 cd apps/backend && <pm> run test:integration:modules       # **/src/modules/*/__tests__/**
 cd apps/backend && <pm> run test:integration:http          # **/integration-tests/http/*.spec.ts
