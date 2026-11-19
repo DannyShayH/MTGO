@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process"
-import { mkdtemp, readFile, rm } from "node:fs/promises"
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { join, relative } from "node:path"
+import { dirname, join, relative, resolve } from "node:path"
 import {
   backendJest,
   changeBase,
@@ -11,6 +11,7 @@ import {
   measuredFiles,
 } from "./backend-changes.mjs"
 import { changedCoverageReport } from "./coverage-report.mjs"
+import { resolveImport, selectHttpSpecs } from "./http-spec-selection.mjs"
 
 // Runs the backend specs affected by changes since JEST_CHANGED_SINCE
 // (default origin/main), including uncommitted and untracked files. Run it
@@ -18,7 +19,10 @@ import { changedCoverageReport } from "./coverage-report.mjs"
 //
 // Jest selects specs by following their imports. HTTP specs reach routes,
 // middleware, links and Medusa configuration over HTTP instead of importing
-// them, so a change there runs the whole HTTP suite.
+// them, so http-spec-selection.mjs adds the specs that request the URL paths
+// of changed files under src/api. Middleware, links, Medusa configuration and
+// the helpers middleware applies to every request still run the whole HTTP
+// suite. The run prints which specs were chosen and why.
 //
 // `--coverage` also measures the changed source files in the unit and HTTP
 // runs, the suites the ready flow's coverage gate counts, and prints their
@@ -31,9 +35,58 @@ const backend = process.cwd()
 const { jestBin } = backendJest(backend)
 const base = changeBase()
 const changedFiles = await changedBackendFiles(backend, base)
-const wholeHttpSuite = changedFiles.filter((file) =>
-  /^(src\/api\/|src\/links\/|medusa-config\.)/.test(file),
-)
+
+/** Text of every source file under a folder, by backend-relative path. */
+async function sourcesUnder(folder) {
+  const entries = await readdir(join(backend, folder), {
+    recursive: true,
+    withFileTypes: true,
+  })
+  const files = entries
+    .filter((entry) => entry.isFile() && /\.[jt]s$/.test(entry.name))
+    .map((entry) =>
+      relative(backend, join(entry.parentPath ?? entry.path, entry.name)),
+    )
+  return Object.fromEntries(
+    await Promise.all(
+      files.map(async (file) => [
+        file,
+        await readFile(join(backend, file), "utf8"),
+      ]),
+    ),
+  )
+}
+
+/** A spec's text plus that of the integration-tests helpers it imports. */
+function specSources(spec, tests) {
+  const seen = new Set()
+  const queue = [spec]
+  while (queue.length) {
+    const file = queue.shift()
+    if (seen.has(file)) continue
+    seen.add(file)
+    for (const [, specifier] of tests[file].matchAll(
+      /from\s*["'](\.{1,2}\/[^"']+)["']/g,
+    )) {
+      const base = relative(backend, resolve(backend, dirname(file), specifier))
+      const target = resolveImport(base, tests)
+      if (target) queue.push(target)
+    }
+  }
+  return [...seen].map((file) => tests[file])
+}
+
+const tests = await sourcesUnder("integration-tests")
+const httpSelection = selectHttpSpecs({
+  changed: changedFiles,
+  api: await sourcesUnder("src/api"),
+  specs: Object.fromEntries(
+    Object.keys(tests)
+      .filter((file) => /^integration-tests\/http\/.*\.spec\.[jt]s$/.test(file))
+      .map((spec) => [spec, specSources(spec, tests)]),
+  ),
+})
+const isWholeHttpSuite = httpSelection.all !== null
 
 const node = "--experimental-vm-modules"
 const since = [`--changedSince=${base}`, "--passWithNoTests"]
@@ -43,15 +96,23 @@ const suites = [
   ["integration:modules", ["--silent", "--runInBand", "--forceExit", ...since]],
   [
     "integration:http",
-    wholeHttpSuite.length > 0
+    isWholeHttpSuite
       ? ["--silent=false", workers, "--forceExit"]
       : ["--silent=false", workers, "--forceExit", ...since],
   ],
 ]
 
-if (wholeHttpSuite.length > 0)
+if (isWholeHttpSuite)
+  console.log(`Running every HTTP spec: ${httpSelection.all}`)
+else if (httpSelection.specs.length)
   console.log(
-    `Running every HTTP spec: changed ${wholeHttpSuite.slice(0, 3).join(", ")}${wholeHttpSuite.length > 3 ? ", ..." : ""}`,
+    [
+      "HTTP specs requesting the changed routes:",
+      ...httpSelection.specs.map(
+        ({ spec, reasons }) =>
+          `  ${spec}\n${reasons.map((reason) => `    ${reason}`).join("\n")}`,
+      ),
+    ].join("\n"),
   )
 // Extra arguments go to every Jest run, e.g. `-- --listTests` for a dry run.
 const extra = process.argv.slice(2).filter((arg) => arg !== "--coverage")
@@ -105,7 +166,7 @@ async function reportCoverage() {
 }
 
 for (const [type, args] of suites) {
-  if (type !== "integration:http" || extra.includes("--listTests")) {
+  if (type !== "integration:http") {
     const result = jest(type, [...args, ...coverageArgs(type)])
     if (result.status !== 0) {
       await removeCoverageRoot()
@@ -124,7 +185,17 @@ for (const [type, args] of suites) {
     await removeCoverageRoot()
     process.exit(listed.status ?? 1)
   }
-  const specs = JSON.parse(listed.stdout).sort()
+  // Jest's import-based picks plus the specs requesting the changed routes.
+  const specs = [
+    ...new Set([
+      ...JSON.parse(listed.stdout),
+      ...httpSelection.specs.map(({ spec }) => join(backend, spec)),
+    ]),
+  ].sort()
+  if (extra.includes("--listTests")) {
+    console.log(specs.join("\n"))
+    continue
+  }
   const failed = specs.filter(
     (spec) =>
       jest(type, [...args, "--runTestsByPath", spec, ...coverageArgs(type)])

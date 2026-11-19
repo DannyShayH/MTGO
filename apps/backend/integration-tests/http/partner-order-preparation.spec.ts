@@ -13,8 +13,8 @@ medusaIntegrationTestRunner({
     JWT_SECRET: "ci-only-partner-order-preparation-secret",
     REDIS_URL: "",
   },
-  testSuite: ({ api, getContainer }) => {
-    const harness = restaurantOrdersHarness({ api, getContainer })
+  testSuite: ({ api, getContainer, dbUtils }) => {
+    const harness = restaurantOrdersHarness({ api, getContainer, dbUtils })
     const {
       operations,
       restaurants,

@@ -13,13 +13,13 @@ concurrency:
 
 jobs:
   backend:
-    name: Backend tests
+    name: Backend lint and module tests
     runs-on: ubuntu-latest
     permissions:
       contents: read
       statuses: write
 
-    # Throwaway database for integration tests and application build verification
+    # Throwaway database for integration tests
     services:
       postgres:
         image: postgres:16
@@ -38,9 +38,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-        with:
-          # origin/main, so a failed coverage gate can name the changed files
-          fetch-depth: 0
 
       - name: Set up and verify runner environment
         uses: ./.github/actions/prep-runner
@@ -49,9 +46,72 @@ jobs:
         with:
           verify: gh insitu run trunk-worthy
 
+      - name: Lint and backend module tests
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USERNAME: postgres
+          DB_PASSWORD: postgres
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/medusa_ci_build
+          JWT_SECRET: ci-only-jwt-secret
+          COOKIE_SECRET: ci-only-cookie-secret
+          STORE_CORS: http://localhost:8000
+          ADMIN_CORS: http://localhost:9000
+          AUTH_CORS: http://localhost:8000,http://localhost:9000
+          NEXT_PUBLIC_MEDUSA_BACKEND_URL: http://localhost:9000
+          NEXT_PUBLIC_BASE_URL: http://localhost:8000
+          NEXT_PUBLIC_DEFAULT_REGION: dk
+          MEDUSA_TELEMETRY_DISABLED: "1"
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: gh insitu run ready-backend
+
+  # The unit and HTTP specs with coverage take most of the ready flow. One
+  # 4-vCPU runner fits only three Jest workers (each boots its own Medusa app,
+  # and the fourth core stays free for PostgreSQL), so the suite is split over
+  # three runners with Jest's --shard. backend-coverage-gate applies the
+  # unchanged global thresholds to the merged report of all three shards.
+  backend-coverage:
+    name: Backend coverage shard ${{ matrix.shard }} of 3
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      statuses: write
+    strategy:
+      # The gate needs every shard; stop the others as soon as one fails.
+      fail-fast: true
+      matrix:
+        # Keep in step with the coverage-shard-* checks in .insitu.yml.
+        shard: [1, 2, 3]
+
+    # Throwaway database for integration tests
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: medusa_ci_build
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up runner environment
+        uses: ./.github/actions/prep-runner
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       # Throwaway database: trade crash safety for speed. Every HTTP spec
       # creates its own database and runs all Medusa migrations on it, and
-      # four workers write at once, so waiting on disk flushes is wasted time.
+      # three workers write at once, so waiting on disk flushes is wasted time.
       # These settings take effect on reload, without a restart.
       - name: Tune the throwaway PostgreSQL for tests
         run: |
@@ -61,7 +121,7 @@ jobs:
             -c "ALTER SYSTEM SET full_page_writes = off" \
             -c "SELECT pg_reload_conf()"
 
-      - name: Lint and backend tests
+      - name: Backend unit and HTTP tests with coverage
         env:
           # Each HTTP spec has its own database and a free port, so CI runs
           # three Jest workers on the 4-vCPU, 16 GB public-repo runner (each
@@ -86,7 +146,46 @@ jobs:
           NEXT_PUBLIC_DEFAULT_REGION: dk
           MEDUSA_TELEMETRY_DISABLED: "1"
           NEXT_TELEMETRY_DISABLED: "1"
-        run: gh insitu run ready-backend
+        run: gh insitu run ready-backend-coverage-${{ matrix.shard }}
+
+      - name: Upload the shard's coverage
+        uses: actions/upload-artifact@v7
+        with:
+          name: backend-coverage-shard-${{ matrix.shard }}-${{ github.sha }}
+          path: apps/backend/coverage/shard/coverage-final.json
+          if-no-files-found: error
+          retention-days: 1
+
+  backend-coverage-gate:
+    name: Backend coverage threshold
+    runs-on: ubuntu-latest
+    needs: backend-coverage
+    permissions:
+      contents: read
+      statuses: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # origin/main, so a failed coverage gate can name the changed files
+          fetch-depth: 0
+
+      - name: Set up runner environment
+        uses: ./.github/actions/prep-runner
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download the coverage shards
+        uses: actions/download-artifact@v8
+        with:
+          pattern: backend-coverage-shard-*-${{ github.sha }}
+          path: apps/backend/coverage/shards
+
+      - name: Merge the shards and apply the coverage thresholds
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh insitu run ready-backend-coverage-gate
 
       - name: Verify backend coverage report
         run: test -s apps/backend/coverage/lcov.info
@@ -228,7 +327,7 @@ jobs:
   merge-to-trunk:
     name: Merge to trunk
     runs-on: ubuntu-latest
-    needs: [backend, applications, docs]
+    needs: [backend, backend-coverage-gate, applications, docs]
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     permissions:

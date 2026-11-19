@@ -20,16 +20,18 @@ export function backendJest(backend) {
     createRequire(jestPackage).resolve("@jest/core/package.json"),
   )
   const { getChangedFilesForRoots } = fromJestCore("jest-changed-files")
-  // The glob matcher Jest's coverage reporter applies to collectCoverageFrom.
-  const micromatch = createRequire(
+  // Jest's coverage reporter: its glob matcher for collectCoverageFrom and
+  // the Istanbul libraries it merges and writes coverage with.
+  const fromReporters = createRequire(
     fromJestCore.resolve("@jest/reporters/package.json"),
-  )("micromatch")
-  return { jestBin, getChangedFilesForRoots, micromatch }
+  )
+  const micromatch = fromReporters("micromatch")
+  return { jestBin, getChangedFilesForRoots, micromatch, fromReporters }
 }
 
 /**
  * What the ready coverage gate measures, from jest.config.js: the source
- * globs and the global branch threshold (a percentage).
+ * globs, the global thresholds and the global branch threshold (percentages).
  */
 export function coverageSettings(backend) {
   const { collectCoverageFrom, coverageThreshold } = createRequire(
@@ -37,6 +39,7 @@ export function coverageSettings(backend) {
   )("./jest.config.js")
   return {
     collectCoverageFrom,
+    thresholds: coverageThreshold.global,
     branchThreshold: coverageThreshold.global.branches,
   }
 }

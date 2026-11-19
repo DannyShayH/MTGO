@@ -159,8 +159,11 @@ Run the suites from `apps/backend` — it defines no plain `test` script, so the
 prints the branch coverage of each changed backend file and names those below
 80%; cover them in the same issue, because the ready flow fails when global
 branch coverage drops below 80% (see [coverage](apps/docs/src/content/docs/quality/coverage.md)). `test:affected` runs the unit, module and HTTP specs that import
-something changed since `origin/main`, plus changed spec files; a change under
-`src/api/`, `src/links/` or `medusa-config` runs every HTTP spec. After
+something changed since `origin/main`, plus changed spec files. A changed route
+under `src/api/` also runs the HTTP specs that request its URL path, and it prints
+which specs it chose and why. `middlewares.ts`, the `src/api/` helpers it applies to
+every request, `src/links/` and `medusa-config` still run every HTTP spec, each in
+its own Jest process. After
 `gh deliver`, the ready flow runs the full backend suites and affected browser journeys on
 GitHub (shared or unknown runtime changes retain full browser coverage), so the full local runs are unnecessary.
 
@@ -198,7 +201,7 @@ The devcontainer shares a few GB of memory with VS Code and the editor agents. W
 - Never run builds, `verify:applications`, Playwright or the integration suites in parallel, and never start one while another is still running in the background.
 - Stop dev servers you started before running `verify:applications` or a full suite.
 - While developing, run the single test file you are changing.
-- Leave `JEST_MAX_WORKERS` unset locally, so the backend HTTP and coverage suites run in band. Each worker boots its own Medusa app, and CI sets 3 on its 4-vCPU, 16 GB runners (a fourth worker starves PostgreSQL and fails the latency gates).
+- Leave `JEST_MAX_WORKERS` unset locally, so the backend HTTP and coverage suites run in band. Each worker boots its own Medusa app (about 1.5 GB), and CI sets 3 on its 4-vCPU, 16 GB runners (a fourth worker starves PostgreSQL and fails the latency gates). `JEST_MAX_WORKERS=2` is safe for a full `test:coverage` or `test:integration:http` run only in a devcontainer with 16 GB or more, when `free -g` shows at least 6 GB available. `test:affected` runs its HTTP specs one process at a time either way.
 - Pass `--concurrency=1` to Turbo builds.
 
 Single test — pass a path/pattern through to Jest, keeping `TEST_TYPE`:

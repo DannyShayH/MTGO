@@ -12,8 +12,8 @@ type RefundRow = { id: string; amount: unknown; idempotency_key: string }
 medusaIntegrationTestRunner({
   dbName: "medusa_ci_partner_order_rejection_http",
   env: { JWT_SECRET: "ci-only-partner-order-rejection-secret", REDIS_URL: "" },
-  testSuite: ({ api, getContainer }) => {
-    const harness = restaurantOrdersHarness({ api, getContainer })
+  testSuite: ({ api, getContainer, dbUtils }) => {
+    const harness = restaurantOrdersHarness({ api, getContainer, dbUtils })
     const {
       operations,
       placePaidOrder,

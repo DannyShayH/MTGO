@@ -79,7 +79,9 @@ inventory:
     name: Run backend unit tests and the coverage report tests (fast, no database)
     command: |
       cd apps/backend && npm run test:unit -- --passWithNoTests &&
-        node --test ../../scripts/coverage-report.test.mjs
+        node --test ../../scripts/coverage-report.test.mjs \
+          ../../scripts/merge-coverage.test.mjs \
+          ../../scripts/http-spec-selection.test.mjs
 
   - id: package-tests
     name: Run the shared package tests (fast, no database)
@@ -103,6 +105,33 @@ inventory:
     command: |
       # On failure, name the changed files with the lowest branch coverage.
       cd apps/backend && npm run test:coverage || {
+        node ../../scripts/coverage-report.mjs
+        exit 1
+      }
+
+  # The ready flow splits the coverage run over three parallel jobs (Jest
+  # --shard) and applies the unchanged global thresholds to their merged
+  # report in coverage-gate. Keep the shard count in step with on_ready.yml.
+  - id: coverage-shard-1
+    name: Run the first third of the backend unit and HTTP tests with coverage
+    timeout: 15m
+    command: cd apps/backend && npm run test:coverage:shard -- --shard=1/3
+
+  - id: coverage-shard-2
+    name: Run the second third of the backend unit and HTTP tests with coverage
+    timeout: 15m
+    command: cd apps/backend && npm run test:coverage:shard -- --shard=2/3
+
+  - id: coverage-shard-3
+    name: Run the last third of the backend unit and HTTP tests with coverage
+    timeout: 15m
+    command: cd apps/backend && npm run test:coverage:shard -- --shard=3/3
+
+  - id: coverage-gate
+    name: Merge the coverage shards and apply the global thresholds (lcov in apps/backend/coverage)
+    command: |
+      # On failure, name the changed files with the lowest branch coverage.
+      cd apps/backend && node ../../scripts/merge-coverage.mjs --shards=3 coverage/shards || {
         node ../../scripts/coverage-report.mjs
         exit 1
       }
@@ -193,12 +222,31 @@ waves:
 
   # Separate CI jobs own disjoint check statuses. Only backend needs trunk-worthy too.
   - id: ready-backend
-    name: Lint and backend tests before merge to trunk
+    name: Lint and backend module tests before merge to trunk
     parallel: false
     checks:
       - lint
-      - coverage
       - integration-modules
+
+  - id: ready-backend-coverage-1
+    name: First backend coverage shard before merge to trunk
+    checks:
+      - coverage-shard-1
+
+  - id: ready-backend-coverage-2
+    name: Second backend coverage shard before merge to trunk
+    checks:
+      - coverage-shard-2
+
+  - id: ready-backend-coverage-3
+    name: Last backend coverage shard before merge to trunk
+    checks:
+      - coverage-shard-3
+
+  - id: ready-backend-coverage-gate
+    name: Backend coverage threshold before merge to trunk
+    checks:
+      - coverage-gate
 
   - id: ready-applications
     name: Application builds and browser tests before merge to trunk

@@ -14,8 +14,8 @@ jest.setTimeout(240000)
 medusaIntegrationTestRunner({
   dbName: "medusa_ci_partner_order_placement_http",
   env: { JWT_SECRET: "ci-only-partner-order-placement-secret", REDIS_URL: "" },
-  testSuite: ({ api, getContainer }) => {
-    const harness = restaurantOrdersHarness({ api, getContainer })
+  testSuite: ({ api, getContainer, dbUtils }) => {
+    const harness = restaurantOrdersHarness({ api, getContainer, dbUtils })
     const {
       operations,
       restaurants,

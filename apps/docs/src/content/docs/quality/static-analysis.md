@@ -129,7 +129,8 @@ The storefront and docs are analyzed but excluded from coverage calculations.
 The workflow makes Jest's backend-relative LCOV paths relative to the repository
 root so the scanner can resolve them without confusing them with other apps.
 
-Ready uploads `backend-coverage-<commit SHA>` only after the backend checks pass.
+Ready uploads `backend-coverage-<commit SHA>` only after the merged coverage of
+its three shards passes the thresholds.
 The artifact is retained for three days, like the docs site artifact. The merge
 fast-forwards `main`, so the delivered SHA matches the report's Ready SHA. Sonar
 selects an unexpired artifact with both the exact name and matching source SHA;

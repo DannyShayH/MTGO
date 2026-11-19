@@ -21,7 +21,8 @@
     "test:integration:modules": "TEST_TYPE=integration:modules NODE_OPTIONS=--experimental-vm-modules jest --silent=false --runInBand --forceExit --passWithNoTests",
     "test:unit": "TEST_TYPE=unit NODE_OPTIONS=--experimental-vm-modules jest --silent --runInBand --forceExit",
     "test:affected": "node ../../scripts/test-affected.mjs",
-    "test:coverage": "TEST_TYPE=coverage NODE_OPTIONS=--experimental-vm-modules jest --silent --maxWorkers=${JEST_MAX_WORKERS:-1} --forceExit --coverage"
+    "test:coverage": "TEST_TYPE=coverage NODE_OPTIONS=--experimental-vm-modules jest --silent --maxWorkers=${JEST_MAX_WORKERS:-1} --forceExit --coverage",
+    "test:coverage:shard": "TEST_TYPE=coverage NODE_OPTIONS=--experimental-vm-modules jest --silent --maxWorkers=${JEST_MAX_WORKERS:-1} --forceExit --coverage --coverageThreshold={} --coverageReporters=json --coverageDirectory=coverage/shard"
   },
   "dependencies": {
     "@dtc/logging": "^0.0.1",

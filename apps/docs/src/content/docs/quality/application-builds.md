@@ -26,19 +26,21 @@ fail verification rather than hold the CI runner indefinitely.
 
 The existing lint, coverage, module and HTTP integration tests, architecture rules,
 docs tests, docs type check, docs build and link checks still apply. Ready runs
-three parallel jobs; all three must succeed before `merge-to-trunk` can run.
+its jobs in parallel; all of them must succeed before `merge-to-trunk` can run.
 
-| Job          | Insitu wave          | Checks and evidence                                                                                                                   |
-| ------------ | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Backend      | `ready-backend`      | Full `trunk-worthy` verification, lint, combined unit/HTTP coverage and module integration tests; PostgreSQL; SHA-named LCOV artifact |
-| Applications | `ready-applications` | Production builds and browser tests; PostgreSQL and Chromium; browser reports                                                         |
-| Docs         | `ready-docs`         | Board collection, docs tests, type check, build and link checks, token leakage check; SHA-named Pages artifact                        |
+| Job                         | Insitu wave                   | Checks and evidence                                                                                            |
+| --------------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Backend                     | `ready-backend`               | Full `trunk-worthy` verification, lint and module integration tests; PostgreSQL                                |
+| Backend coverage shards (3) | `ready-backend-coverage-<n>`  | A third of the unit and HTTP specs each, with coverage and no threshold; PostgreSQL; shard coverage artifact   |
+| Backend coverage threshold  | `ready-backend-coverage-gate` | Merges the shards and applies the unchanged global thresholds; SHA-named LCOV artifact                         |
+| Applications                | `ready-applications`          | Production builds and browser tests; PostgreSQL and Chromium; browser reports                                  |
+| Docs                        | `ready-docs`                  | Board collection, docs tests, type check, build and link checks, token leakage check; SHA-named Pages artifact |
 
 Each wave reports its own check statuses. Only the backend job repeats the full
 `trunk-worthy` verification; its failure still prevents merging. Each job prepares
-its own runner. HTTP suites run once through `coverage`; `integration-http` remains
+its own runner. HTTP suites run once, through the coverage shards; `integration-http` remains
 in the inventory for local use. Docs can upload their artifact while the other
-jobs run, but neither artifact allows a merge until all three jobs succeed.
+jobs run, but neither artifact allows a merge until every job succeeds.
 Deploy on `main` publishes the same docs artifact and imports the Ready LCOV into
 [SonarQube Cloud](/MTGO/quality/static-analysis/) without rerunning tests.
 

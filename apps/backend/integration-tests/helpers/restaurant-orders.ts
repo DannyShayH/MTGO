@@ -63,14 +63,19 @@ export type QueueOrder = {
 /**
  * The paid Restaurant Order journey shared by the partner Order specs: two
  * active Restaurants with demo menus, a verified Customer and the public
- * checkout, plus staff sign-in and the partner Order calls. It registers the
- * seeding `beforeEach`; read the seeded identities from `seeded()` in a
- * later `beforeEach`. Each spec still runs on its own disposable database.
+ * checkout, plus staff sign-in and the partner Order calls.
+ *
+ * It seeds once per spec file, in a `beforeAll`, and snapshots that state as
+ * the database template the runner restores before every test. So each test
+ * still starts from the same clean seeded state, without paying 5-7 s of
+ * seeding. Read the seeded identities from `seeded()` in a `beforeEach`. Each
+ * spec still runs on its own disposable database.
  */
 export function restaurantOrdersHarness({
   api,
   getContainer,
-}: Pick<MedusaSuiteOptions, "api" | "getContainer">) {
+  dbUtils,
+}: Pick<MedusaSuiteOptions, "api" | "getContainer" | "dbUtils">) {
   const password = "ci-only-orders-password"
   let admin: { authorization: string }
   let store: { "x-publishable-api-key": string }
@@ -262,7 +267,7 @@ export function restaurantOrdersHarness({
   const recordOf = async (order_id: string) =>
     (await operations().listOrderOperations({ order_id }))[0]
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     const container = getContainer()
     await syncPostalCodeRegisterWorkflow(container).run({
       input: { postal_codes: register.postal_codes },
@@ -367,6 +372,9 @@ export function restaurantOrdersHarness({
     const registered = await registerCustomer("orders-customer@example.test")
     customer = registered.headers
     customerId = registered.id
+    // The seeded state becomes the template restored before every test; the
+    // runner skips the restore before the first test, which starts from it.
+    await dbUtils.snapshot()
   })
 
   const reject = (
