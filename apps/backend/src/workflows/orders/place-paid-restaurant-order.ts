@@ -29,6 +29,7 @@ import {
   PurchasedItem,
 } from "../order-operations/purchased-items"
 import { consumePurchaseReviewStep } from "../order-operations/steps/consume-purchase-review"
+import { markPaidPlacementsStep } from "../order-operations/steps/mark-paid-placements"
 import { hasPaidPlacement } from "./placed-order-visibility"
 
 type Input = { order_id: string; cart_id: string }
@@ -162,7 +163,13 @@ export const placePaidRestaurantOrderWorkflow = createWorkflow(
         restaurant_id: (facts as PlacementFacts).restaurant_id,
         purchased_items: (facts as PlacementFacts).purchased_items,
       }))
-      recordPaidPlacementStep(placement)
+      const record = recordPaidPlacementStep(placement)
+      // Order lists filter on this copy of the record (#154).
+      markPaidPlacementsStep(
+        transform({ record, input }, ({ record, input }) => [
+          { order_id: input.order_id, order_operation_id: record.id },
+        ]),
+      )
       const review = transform({ facts }, ({ facts }) => ({
         id: (facts as PlacementFacts).purchase_review_id,
       }))

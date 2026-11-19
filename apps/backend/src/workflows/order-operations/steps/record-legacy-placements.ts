@@ -14,8 +14,8 @@ type Row = {
 const PAGE = 200
 
 /**
- * Orders are paged and their metadata marker checked in code: Order metadata
- * is not queryable, and this runs once per migration over a bounded table.
+ * Orders are paged and their metadata marker checked in code; this runs once
+ * per migration over a bounded table.
  *
  * Gives each Order placed before #140 its operational record. Only the
  * Restaurant link is evidence; the placement time is not, so the record has no

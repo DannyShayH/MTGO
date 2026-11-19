@@ -142,6 +142,16 @@ The Order-to-Restaurant link table is created by `db:migrate` (it runs
 ownership protection and suppress provisional Restaurant Orders until their
 paid placement is recorded. Placement is an immutable fact, so an Order stays
 visible whatever its later operational state (accepted, cancelled and so on). Admin list and detail reads apply the same visibility rule.
+Orders without a checkout review, and older Orders carrying the legacy
+`mtogo_order_state` placement marker, are always visible.
+
+Both list reads exclude provisional rows in the list query itself (#154): an
+Order is listed when it has no checkout review, the legacy marker, or the
+`mtogo_paid_placement` copy of its placement record id in `metadata`. So
+`count` is the number of visible Orders on every page, `limit` pages stay full
+except the last, and the requested `order` is kept. For example, a Customer
+with two paid Orders and one provisional Order gets `count: 2` from
+`GET /store/orders?limit=1&offset=0`, and `offset=2` returns no Orders.
 The built-in Admin Orders export returns `400 order_export_unavailable`
 because it cannot apply the provisional-row filter; a filtered export can
 restore that capability.

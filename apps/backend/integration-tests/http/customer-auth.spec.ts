@@ -5,6 +5,9 @@ import { Modules, generateJwtToken } from "@medusajs/framework/utils"
 import { isolateCustomerIdentityWorkflow } from "../../src/workflows/customer-auth"
 import { sendCustomerPasswordResetEmailWorkflow } from "../../src/workflows/customer-auth/send-customer-password-reset-email"
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
+import { markRecordedPlacementsWorkflow } from "../../src/workflows/order-operations"
+import { orderOperationsOf } from "../../src/workflows/order-operations/purchased-items"
+import { CHECKOUT_REVIEW_KEY } from "../../src/workflows/orders/placed-order-visibility"
 import {
   createCustomerAccountWorkflow,
   createCustomerAddressesWorkflow,
@@ -146,8 +149,11 @@ medusaIntegrationTestRunner({
           ],
         },
       })
+      // Like storefront checkouts, every Order carries a checkout review. Every
+      // fifth stays an unpaid provisional row spread across both pages; the
+      // rest get a placement record, marked by the #154 backfill.
       const ids: string[] = []
-      for (let index = 0; index < 12; index++) {
+      for (let index = 0; index < 15; index++) {
         const { result: order } = await createOrderWorkflow(getContainer()).run(
           {
             input: {
@@ -155,7 +161,10 @@ medusaIntegrationTestRunner({
               email: "history-owner@example.test",
               currency_code: "dkk",
               region_id: regions[0].id,
-              metadata: { restaurant_name: "Synthetic Restaurant" },
+              metadata: {
+                restaurant_name: "Synthetic Restaurant",
+                [CHECKOUT_REVIEW_KEY]: { version: 1 },
+              },
               items: [{ title: `Meal ${index}`, quantity: 1, unit_price: 50 }],
               shipping_address: {
                 first_name: "Original",
@@ -169,8 +178,18 @@ medusaIntegrationTestRunner({
             },
           },
         )
-        ids.push(order.id)
+        if (index % 5 !== 2) ids.push(order.id)
       }
+      await orderOperationsOf(getContainer()).createOrderOperations(
+        ids.map((order_id) => ({
+          order_id,
+          restaurant_id: "synthetic_restaurant",
+          placed_at: new Date(),
+        })),
+      )
+      await markRecordedPlacementsWorkflow(getContainer()).run({
+        input: undefined,
+      })
       const options = { headers: owner.ownerHeaders }
       const first = await api.get(
         "/store/orders?limit=10&offset=0&order=-created_at",
@@ -242,7 +261,7 @@ medusaIntegrationTestRunner({
       const percentile = (share: number) =>
         timings[Math.ceil(share * timings.length) - 1]
       console.log(
-        `History 20 concurrent journeys (list + detail), 12 orders: ` +
+        `History 20 concurrent journeys (list + detail), 12 placed + 3 provisional orders: ` +
           `p50 ${Math.round(percentile(0.5))} ms, p95 ${Math.round(percentile(0.95))} ms`,
       )
       expect(

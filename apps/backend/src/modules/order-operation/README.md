@@ -161,8 +161,13 @@ a newer revision, so the kitchen feed (#148) announces the change.
 
 `src/links/order-order-operation.ts` is a read-only, one-to-one link from the Order
 (`id`) to the record (`order_id`). Query reads it as `order.order_operation`;
-there is no link table, so creating the record is the single write that
-places the Order. Customer and Admin Order reads do not use the link inside Medusa's
+there is no link table, so creating the record is the write that places the
+Order. The same placement then copies the record id onto the Order as
+`metadata.mtogo_paid_placement` (#154), and its compensation removes it again.
+The copy exists only so Customer and Admin Order lists can filter on placement
+in one query; detail reads and every rule still check the record. The
+`order-placement-markers` migration script marks Orders placed before #154,
+and is idempotent. Customer and Admin Order reads do not use the link inside Medusa's
 list workflow: `withOrderOperations` in `src/workflows/orders` attaches the
 records with one indexed `order_id` query, which kept the Order history
 concurrency gate (20 journeys, p95 under two seconds) at about 1.6 s locally

@@ -1,6 +1,20 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import { createOrderWorkflow } from "@medusajs/medusa/core-flows"
+import { Modules } from "@medusajs/framework/utils"
+import {
+  createStep,
+  createWorkflow,
+  WorkflowResponse,
+} from "@medusajs/framework/workflows-sdk"
 import { readPublishedMenu } from "../../src/workflows/menu"
+import { markRecordedPlacementsWorkflow } from "../../src/workflows/order-operations"
+import { markPaidPlacementsStep } from "../../src/workflows/order-operations/steps/mark-paid-placements"
+import {
+  AWAITING_ACCEPTANCE,
+  CHECKOUT_REVIEW_KEY,
+  ORDER_STATE_METADATA_KEY,
+  PLACEMENT_MARKER_KEY,
+} from "../../src/workflows/orders/placed-order-visibility"
 import seedFoodCatalogue from "../../src/migration-scripts/food-catalogue"
 import { FOOD_CATALOGUE_MODULE } from "../../src/modules/food-catalogue"
 import type FoodCatalogueModuleService from "../../src/modules/food-catalogue/service"
@@ -10,6 +24,18 @@ import {
 } from "../helpers/restaurant-orders"
 
 jest.setTimeout(240000)
+
+/** Marks, then fails, so the marking is compensated. */
+const markThenFailWorkflow = createWorkflow(
+  "test-mark-paid-placements-then-fail",
+  function (input: Parameters<typeof markPaidPlacementsStep>[0]) {
+    markPaidPlacementsStep(input)
+    createStep("test-fail-after-marking", async () => {
+      throw new Error("after marking")
+    })()
+    return new WorkflowResponse(undefined)
+  },
+)
 
 medusaIntegrationTestRunner({
   dbName: "medusa_ci_partner_order_placement_http",
@@ -59,6 +85,8 @@ medusaIntegrationTestRunner({
           order_id: first.id,
         })
         expect(records).toHaveLength(1)
+        // Order lists filter on this copy of the record (#154).
+        expect(retried.metadata[PLACEMENT_MARKER_KEY]).toBe(records[0].id)
       })
 
       it("keeps paid Orders visible to Customer and Admin whatever their later operational state", async () => {
@@ -80,7 +108,7 @@ medusaIntegrationTestRunner({
             customer_id: customerId,
             email: "orders-customer@example.test",
             currency_code: "dkk",
-            metadata: { mtogo_checkout_review: { version: 1 } },
+            metadata: { [CHECKOUT_REVIEW_KEY]: { version: 1 } },
             items: [{ title: "Provisional", quantity: 1, unit_price: 100 }],
           },
         })
@@ -112,6 +140,134 @@ medusaIntegrationTestRunner({
         }
         const operator = await api.get("/admin/orders", { headers: admin })
         expect(operator.data.count).toBe(2)
+      })
+
+      it("counts and pages only visible Orders wherever provisional rows sit", async () => {
+        const createCoreOrder = async (
+          title: string,
+          metadata: Record<string, unknown>,
+        ) =>
+          (
+            await createOrderWorkflow(getContainer()).run({
+              input: {
+                region_id: regionId,
+                customer_id: customerId,
+                email: "orders-customer@example.test",
+                currency_code: "dkk",
+                metadata,
+                items: [{ title, quantity: 1, unit_price: 100 }],
+              },
+            })
+          ).result
+        const provisional = () =>
+          createCoreOrder("Provisional", {
+            [CHECKOUT_REVIEW_KEY]: { version: 1 },
+          })
+        // Oldest first: P, paid, P, legacy, unreviewed, paid, P.
+        await provisional()
+        const firstPaid = await placePaidOrder(pizzeriaId)
+        await provisional()
+        const legacy = await createCoreOrder("Legacy", {
+          [CHECKOUT_REVIEW_KEY]: { version: 1 },
+          [ORDER_STATE_METADATA_KEY]: AWAITING_ACCEPTANCE,
+        })
+        const unreviewed = await createCoreOrder("Unreviewed", {})
+        const lastPaid = await placePaidOrder(pizzeriaId)
+        await provisional()
+        const visible = [firstPaid, legacy, unreviewed, lastPaid].map(
+          ({ id }) => id,
+        )
+
+        for (const [path, headers] of [
+          ["/store/orders", customer],
+          ["/admin/orders", admin],
+        ] as const) {
+          const unlimited = await api.get(`${path}?order=created_at`, {
+            headers,
+          })
+          expect(unlimited.data.count).toBe(4)
+          expect(
+            unlimited.data.orders.map(({ id }: { id: string }) => id),
+          ).toEqual(visible)
+          const pages: string[][] = []
+          for (let offset = 0; offset < 5; offset++) {
+            const page = await api.get(
+              `${path}?order=created_at&limit=1&offset=${offset}`,
+              { headers },
+            )
+            expect(page.data).toMatchObject({ count: 4, limit: 1, offset })
+            pages.push(page.data.orders.map(({ id }: { id: string }) => id))
+          }
+          expect(pages).toEqual([...visible.map((id) => [id]), []])
+          const pair = await api.get(
+            `${path}?order=-created_at&limit=2&offset=1`,
+            { headers },
+          )
+          expect(pair.data.count).toBe(4)
+          expect(pair.data.orders.map(({ id }: { id: string }) => id)).toEqual([
+            unreviewed.id,
+            legacy.id,
+          ])
+        }
+        // A Customer's own `$and` filter still applies beside the exclusion.
+        const filtered = await api.get(
+          `/store/orders?$and[0][id][0]=${legacy.id}&$and[0][id][1]=${lastPaid.id}`,
+          { headers: customer },
+        )
+        expect(filtered.data.count).toBe(2)
+        expect(
+          filtered.data.orders.map(({ id }: { id: string }) => id).sort(),
+        ).toEqual([legacy.id, lastPaid.id].sort())
+      })
+
+      it("marks Orders placed before #154 once, and an undone marking hides the Order again", async () => {
+        const paid = await placePaidOrder(pizzeriaId)
+        const orders = getContainer().resolve(Modules.ORDER)
+        const markerOf = async () =>
+          (await orders.retrieveOrder(paid.id, { select: ["metadata"] }))
+            .metadata?.[PLACEMENT_MARKER_KEY]
+        const [record] = await operations().listOrderOperations({
+          order_id: paid.id,
+        })
+        // An empty string removes the key; Medusa merges metadata otherwise.
+        const unmark = () =>
+          orders.updateOrders([
+            { id: paid.id, metadata: { [PLACEMENT_MARKER_KEY]: "" } },
+          ])
+        // As if placed before #154: the record exists, the marker does not.
+        await unmark()
+        expect(
+          (await api.get("/store/orders", { headers: customer })).data.count,
+        ).toBe(0)
+
+        for (let run = 0; run < 2; run++)
+          await markRecordedPlacementsWorkflow(getContainer()).run({
+            input: undefined,
+          })
+        expect(await markerOf()).toBe(record.id)
+        expect(
+          (await api.get("/store/orders", { headers: customer })).data.count,
+        ).toBe(1)
+
+        // A failed placement's compensation must remove the key again.
+        await unmark()
+        const { errors } = await markThenFailWorkflow(getContainer()).run({
+          input: [{ order_id: paid.id, order_operation_id: record.id }],
+          throwOnError: false,
+        })
+        expect(errors).toHaveLength(1)
+        expect(await markerOf()).toBeUndefined()
+        expect(
+          (await api.get("/store/orders", { headers: customer })).data.count,
+        ).toBe(0)
+
+        // A failed run that marked nothing has nothing to undo.
+        const empty = await markThenFailWorkflow(getContainer()).run({
+          input: [],
+          throwOnError: false,
+        })
+        expect(empty.errors).toHaveLength(1)
+        expect(await markerOf()).toBeUndefined()
       })
     })
 

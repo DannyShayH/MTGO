@@ -13,6 +13,8 @@ import {
 import { transitionRestaurantOrderStep } from "./steps/transition-restaurant-order"
 import { establishIntendedDeliveryStep } from "../delivery/available"
 import { recordLegacyPlacementsStep } from "./steps/record-legacy-placements"
+import { findUnmarkedPlacementsStep } from "./steps/find-unmarked-placements"
+import { markPaidPlacementsStep } from "./steps/mark-paid-placements"
 import { readOrderFeedStep } from "./steps/read-order-feed"
 import type { AnnouncedRevisions } from "./order-feed"
 import { cancelRestaurantOrderStep } from "./steps/cancel-restaurant-order"
@@ -278,6 +280,15 @@ export const recordLegacyPlacementsWorkflow = createWorkflow(
   "record-legacy-placements",
   function () {
     return new WorkflowResponse(recordLegacyPlacementsStep())
+  },
+)
+
+/** Idempotent: copies each placement record's id onto an Order still without it (#154). */
+export const markRecordedPlacementsWorkflow = createWorkflow(
+  "mark-recorded-placements",
+  function () {
+    markPaidPlacementsStep(findUnmarkedPlacementsStep())
+    return new WorkflowResponse(undefined)
   },
 )
 
