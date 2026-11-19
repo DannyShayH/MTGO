@@ -191,7 +191,7 @@ for (const [type, args] of suites) {
       ...JSON.parse(listed.stdout),
       ...httpSelection.specs.map(({ spec }) => join(backend, spec)),
     ]),
-  ].sort()
+  ].sort((a, b) => a.localeCompare(b))
   if (extra.includes("--listTests")) {
     console.log(specs.join("\n"))
     continue

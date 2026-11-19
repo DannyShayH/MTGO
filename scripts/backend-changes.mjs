@@ -62,5 +62,7 @@ export async function changedBackendFiles(backend, base = changeBase()) {
   const { changedFiles } = await getChangedFilesForRoots([backend], {
     changedSince: base,
   })
-  return [...changedFiles].map((file) => relative(backend, file)).sort()
+  return [...changedFiles]
+    .map((file) => relative(backend, file))
+    .sort((a, b) => a.localeCompare(b))
 }

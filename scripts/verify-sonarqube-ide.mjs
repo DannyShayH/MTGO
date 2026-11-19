@@ -38,7 +38,7 @@ function findExtensionDirectory() {
 
   const matches = readdirSync(extensionRoot)
     .filter((entry) => entry.startsWith("sonarsource.sonarlint-vscode-"))
-    .sort()
+    .sort((a, b) => a.localeCompare(b))
 
   if (matches.length === 0) {
     fail(NOT_INSTALLED_MESSAGE)

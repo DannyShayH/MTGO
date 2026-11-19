@@ -46,7 +46,7 @@ function importersOf(file, api) {
         found.add(importer)
         queue.push(importer)
       }
-  return [...found].sort()
+  return [...found].sort((a, b) => a.localeCompare(b))
 }
 
 const isRoute = (file) => posix.basename(file) === "route.ts"

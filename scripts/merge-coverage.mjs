@@ -78,7 +78,9 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const shardsArg = process.argv.find((arg) => arg.startsWith("--shards="))
   const expectedShards = shardsArg ? Number(shardsArg.slice(9)) : undefined
   const dirs = process.argv.slice(2).filter((arg) => !arg.startsWith("--"))
-  const files = (await Promise.all(dirs.map(reportsUnder))).flat().sort()
+  const files = (await Promise.all(dirs.map(reportsUnder)))
+    .flat()
+    .sort((a, b) => a.localeCompare(b))
   if (!files.length) {
     console.error(`No coverage-final.json under ${dirs.join(", ") || "(none)"}`)
     process.exit(1)
