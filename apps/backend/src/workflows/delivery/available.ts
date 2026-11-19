@@ -16,6 +16,7 @@ import { RESTAURANT_MODULE } from "../../modules/restaurant"
 import type RestaurantModuleService from "../../modules/restaurant/service"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { CLAIM_WINDOW_MS, isActiveOrderState } from "./assignment-rules"
+import { unassignedAttentionDueAt } from "./attention-rules"
 
 type DeliveryRecord = Awaited<
   ReturnType<DeliveryModuleService["listIntendedDeliveries"]>
@@ -73,7 +74,14 @@ export async function scanAvailablePage(
   return page
 }
 
-/** Recovery is safe to repeat: order_id is unique and acceptance is never rewritten. */
+/** What the establishing step created, for its compensation. */
+type Created = { id: string; order_id: string } | null
+
+/**
+ * Recovery is safe to repeat: order_id is unique and acceptance is never
+ * rewritten. A new record is established with its unassigned attention
+ * obligation (#158) in one transaction.
+ */
 export const establishIntendedDeliveryStep = createStep(
   "establish-intended-delivery",
   async (input: { order_id: string }, { container }) => {
@@ -83,10 +91,7 @@ export const establishIntendedDeliveryStep = createStep(
       { take: 1 },
     )
     if (existing)
-      return new StepResponse<DeliveryRecord | null, string | null>(
-        existing,
-        null,
-      )
+      return new StepResponse<DeliveryRecord | null, Created>(existing, null)
     const operation = container.resolve<OrderOperationModuleService>(
       ORDER_OPERATION_MODULE,
     )
@@ -95,7 +100,7 @@ export const establishIntendedDeliveryStep = createStep(
       { take: 1 },
     )
     if (!accepted?.accepted_at)
-      return new StepResponse<DeliveryRecord | null, string | null>(null, null)
+      return new StepResponse<DeliveryRecord | null, Created>(null, null)
     const [restaurant] = await container
       .resolve<RestaurantModuleService>(RESTAURANT_MODULE)
       .listRestaurants({ id: accepted.restaurant_id }, { take: 1 })
@@ -110,42 +115,50 @@ export const establishIntendedDeliveryStep = createStep(
       | { display_id: number; shipping_address?: { postal_code?: string } }
       | undefined
     if (!restaurant || !order?.shipping_address?.postal_code)
-      return new StepResponse<DeliveryRecord | null, string | null>(null, null)
+      return new StepResponse<DeliveryRecord | null, Created>(null, null)
     const acceptedAt = new Date(accepted.accepted_at)
     try {
-      const record = await delivery.createIntendedDeliveries({
-        order_id: input.order_id,
-        restaurant_id: accepted.restaurant_id,
-        restaurant_name: restaurant.name,
-        pickup_address: `${restaurant.address_street}, ${restaurant.address_postal_code} ${restaurant.address_city}`,
-        pickup_postal_code: restaurant.address_postal_code,
-        destination_postal_code: order.shipping_address.postal_code,
-        order_reference: order.display_id,
-        accepted_at: acceptedAt,
-        claim_deadline: new Date(acceptedAt.getTime() + CLAIM_WINDOW_MS),
+      const record = await delivery.establishDelivery({
+        delivery: {
+          order_id: input.order_id,
+          restaurant_id: accepted.restaurant_id,
+          restaurant_name: restaurant.name,
+          pickup_address: `${restaurant.address_street}, ${restaurant.address_postal_code} ${restaurant.address_city}`,
+          pickup_postal_code: restaurant.address_postal_code,
+          destination_postal_code: order.shipping_address.postal_code,
+          order_reference: order.display_id,
+          accepted_at: acceptedAt,
+          claim_deadline: new Date(acceptedAt.getTime() + CLAIM_WINDOW_MS),
+        },
+        unassigned_attention_due_at: unassignedAttentionDueAt(acceptedAt),
       })
-      return new StepResponse<DeliveryRecord | null, string | null>(
-        record,
-        record.id,
-      )
+      return new StepResponse<DeliveryRecord | null, Created>(record, {
+        id: record.id,
+        order_id: record.order_id,
+      })
     } catch (error) {
       const [concurrent] = await delivery.listIntendedDeliveries(
         { order_id: input.order_id },
         { take: 1 },
       )
       if (concurrent)
-        return new StepResponse<DeliveryRecord | null, string | null>(
+        return new StepResponse<DeliveryRecord | null, Created>(
           concurrent,
           null,
         )
       throw error
     }
   },
-  async (createdId: string | null, { container }) => {
-    if (createdId)
-      await container
-        .resolve<DeliveryModuleService>(DELIVERY_MODULE)
-        .deleteIntendedDeliveries(createdId)
+  async (created: Created, { container }) => {
+    if (!created) return
+    const delivery = container.resolve<DeliveryModuleService>(DELIVERY_MODULE)
+    const attention = await delivery.listDeliveryAttentions(
+      { order_id: created.order_id },
+      { select: ["id"], take: null },
+    )
+    if (attention.length)
+      await delivery.deleteDeliveryAttentions(attention.map(({ id }) => id))
+    await delivery.deleteIntendedDeliveries(created.id)
   },
 )
 

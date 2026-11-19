@@ -15,6 +15,10 @@ import DeliveryAgent, {
 import IntendedDelivery, {
   type AssignmentSource,
 } from "./models/intended-delivery"
+import DeliveryAttention, {
+  type AttentionResolution,
+  type AttentionType,
+} from "./models/delivery-attention"
 
 /** What the shared assignment rule needs, read under both row locks. */
 export type AssignmentFacts = {
@@ -46,6 +50,41 @@ export type AssignmentOutcome =
   | { outcome: "already_assigned" }
   | { outcome: "refused"; code: string }
 
+/**
+ * What the shared attention rule needs. The attention and delivery are read
+ * under both row locks; `order_active` is read just before them, which is
+ * safe because a terminal Order never becomes active again.
+ */
+export type AttentionRuleFacts = {
+  attention: {
+    type: AttentionType
+    due_at: Date | string
+    raised_at: Date | string | null
+    resolved_at: Date | string | null
+  }
+  delivery: { assigned_agent_id: string | null }
+  order_active: boolean
+}
+
+export type AttentionRuleDecision =
+  | { action: "wait" }
+  | { action: "keep" }
+  | { action: "raise" }
+  | { action: "resolve"; resolution: AttentionResolution }
+
+/** The immutable facts of newly accepted work. */
+export type EstablishedDelivery = {
+  order_id: string
+  restaurant_id: string
+  restaurant_name: string
+  pickup_address: string
+  pickup_postal_code: string
+  destination_postal_code: string
+  order_reference: number
+  accepted_at: Date
+  claim_deadline: Date
+}
+
 export type AssignmentCommand = {
   order_id: string
   agent_id: string
@@ -63,6 +102,7 @@ class DeliveryModuleService extends MedusaService({
   DeliveryAgentArea,
   DeliveryAgentInvitation,
   IntendedDelivery,
+  DeliveryAttention,
 }) {
   /** Fence credential creation against consumption and revocation, even if a lease is lost. */
   @InjectManager()
@@ -376,7 +416,141 @@ class DeliveryModuleService extends MedusaService({
         } as AssignmentOutcome,
         delivery: record,
       }
+    // The valid assignment ends the unassigned condition in the same commit.
+    await this.updateDeliveryAttentions(
+      {
+        selector: {
+          order_id: command.order_id,
+          type: "unassigned",
+          resolved_at: null,
+        },
+        data: { resolved_at: command.now, resolution: "assigned" },
+      },
+      context,
+    )
     return { outcome, delivery: updated }
+  }
+
+  /**
+   * Establish accepted work and its unassigned attention obligation in one
+   * transaction (#158), so no committed delivery lacks its obligation.
+   */
+  @InjectManager()
+  @InjectTransactionManager()
+  async establishDelivery(
+    input: {
+      delivery: EstablishedDelivery
+      unassigned_attention_due_at: Date
+    },
+    @MedusaContext() context: Context = {},
+  ) {
+    const record = await this.createIntendedDeliveries(input.delivery, context)
+    await this.createDeliveryAttentions(
+      {
+        order_id: input.delivery.order_id,
+        type: "unassigned",
+        due_at: input.unassigned_attention_due_at,
+      },
+      context,
+    )
+    return record
+  }
+
+  /**
+   * Store one attention obligation per Order and condition (#158). Safe to
+   * repeat and to race: the unique `(order_id, type)` index keeps one record,
+   * and an existing record keeps its original deadline.
+   */
+  async scheduleAttention(input: {
+    order_id: string
+    type: AttentionType
+    due_at: Date
+  }) {
+    const existing = async () =>
+      (
+        await this.listDeliveryAttentions(
+          { order_id: input.order_id, type: input.type },
+          { take: 1 },
+        )
+      )[0]
+    const found = await existing()
+    if (found) return { attention: found, isCreated: false }
+    try {
+      return {
+        attention: await this.createDeliveryAttentions(input),
+        isCreated: true,
+      }
+    } catch (error) {
+      const concurrent = await existing()
+      if (concurrent) return { attention: concurrent, isCreated: false }
+      throw error
+    }
+  }
+
+  /**
+   * Apply the attention rule to one obligation (#158). It locks the delivery
+   * row, then the attention row, the order `assignDelivery` takes them, so a
+   * sweep and an assignment serialize and cannot leave unassigned attention
+   * outstanding on assigned work. `raised_at` records the processing time;
+   * `due_at` is never changed.
+   */
+  @InjectManager()
+  @InjectTransactionManager()
+  async reconcileAttention(
+    input: { attention_id: string; order_active: boolean; now: Date },
+    decide: (facts: AttentionRuleFacts, now: Date) => AttentionRuleDecision,
+    @MedusaContext() context: Context = {},
+  ): Promise<AttentionRuleDecision> {
+    const manager = context.transactionManager as EntityManager
+    const attention = await this.retrieveDeliveryAttention(
+      input.attention_id,
+      {},
+      context,
+    )
+    await manager.findOne(
+      "IntendedDelivery",
+      { order_id: attention.order_id, deleted_at: null },
+      { lockMode: LockMode.PESSIMISTIC_WRITE },
+    )
+    await manager.findOne(
+      "DeliveryAttention",
+      { id: attention.id, deleted_at: null },
+      { lockMode: LockMode.PESSIMISTIC_WRITE },
+    )
+    const current = await this.retrieveDeliveryAttention(
+      attention.id,
+      {},
+      context,
+    )
+    const [record] = await this.listIntendedDeliveries(
+      { order_id: attention.order_id },
+      { take: 1, select: ["assigned_agent_id"] },
+      context,
+    )
+    const decision = decide(
+      {
+        attention: current,
+        // Attention without its delivery cannot be assigned work.
+        delivery: { assigned_agent_id: record?.assigned_agent_id ?? null },
+        order_active: input.order_active && !!record,
+      },
+      input.now,
+    )
+    if (decision.action === "raise")
+      await this.updateDeliveryAttentions(
+        { id: current.id, raised_at: input.now },
+        context,
+      )
+    if (decision.action === "resolve")
+      await this.updateDeliveryAttentions(
+        {
+          id: current.id,
+          resolved_at: input.now,
+          resolution: decision.resolution,
+        },
+        context,
+      )
+    return decision
   }
 }
 

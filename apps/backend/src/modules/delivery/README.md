@@ -105,3 +105,42 @@ on 19 November 2026 with the in-process runner: p95 223 ms, against the
 agreed 95% within two seconds).
 `src/workflows/delivery/__tests__/assignment-rules.unit.spec.ts` covers the
 decision table.
+
+## Operator attention (#158)
+
+`DeliveryAttention` is the reusable durable obligation behind operator
+attention: one record per Order and condition (unique `order_id, type`), with
+the effective deadline `due_at`, the sweep's processing time `raised_at`, and
+`resolved_at` with a `resolution` (`assigned` or `order_ended`). Later
+conditions (assigned without pickup, in transit, unreachable recipient,
+revoked access) add a `type` and the moment that schedules them; they reuse
+the same sweep, rule and list.
+
+Acceptance creates the delivery record and its `unassigned` attention, due at
+the durable acceptance time plus ten minutes, in one transaction
+(`establishDelivery`), so no committed delivery lacks its obligation. The
+`schedule-delivery-attention` migration script schedules it for work accepted
+before #158. The `recover-delivery-attention` job runs
+`recoverDeliveryAttentionWorkflow` every minute, so its first tick after a
+worker starts is the startup reconciliation. A sweep reads at most ten pages
+of fifty per phase. Phase one raises or resolves obligations due at or before
+its time, earliest deadline first; phase two resolves raised attention whose
+Order ended, continuing on the next tick where it stopped. `decideAttention`
+in `src/workflows/delivery/attention-rules.ts` is the one rule, with one end
+condition per type: due exactly at the deadline, never re-raised, and `due_at`
+never moves, so downtime only delays processing.
+`GET /admin/deliveries/attention` hides ended Orders at once and scans at most
+twenty pages; `offset` is limited to 500.
+
+`reconcileAttention` locks the delivery row and then the attention row, and
+`assignDelivery` resolves the unassigned attention in its own transaction after
+the same delivery-row lock, so a sweep racing an assignment cannot leave
+attention outstanding on assigned work. Attention never cancels, releases or
+assigns work, and the list does not investigate or correct (#49).
+
+`integration-tests/http/delivery-attention.spec.ts` covers 1 ms before and
+exactly at acceptance plus ten minutes, downtime and repeated or concurrent
+sweeps, claims and operator assignments before and after raising, a sweep
+racing an assignment, ended Orders, paging, operator-only access and the
+backfill. `src/workflows/delivery/__tests__/attention-rules.unit.spec.ts`
+covers the decision table.

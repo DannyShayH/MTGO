@@ -32,6 +32,40 @@ type UnclaimedPage = {
   server_time: string
 }
 
+type Attention = {
+  id: string
+  type: "unassigned"
+  order_id: string
+  order_reference: number
+  restaurant_name: string
+  pickup_postal_code: string
+  destination_postal_code: string
+  preparation_status: Unclaimed["preparation_status"]
+  accepted_at: string
+  due_at: string
+  raised_at: string
+  claim_deadline: string
+  assignment: {
+    agent: { id: string; name: string }
+    assigned_at: string
+    source: "agent_claim" | "operator_assignment" | null
+  } | null
+}
+type AttentionPage = {
+  attention: Attention[]
+  has_more: boolean
+  server_time: string
+}
+
+/** What each outstanding condition means to the operator. */
+const ATTENTION: Record<Attention["type"], { label: string; detail: string }> =
+  {
+    unassigned: {
+      label: "Unassigned after 10 min",
+      detail: "No agent has taken this delivery ten minutes after acceptance.",
+    },
+  }
+
 const REFUSALS: Record<string, string> = {
   delivery_already_assigned:
     "An agent already took this delivery. The list has been refreshed.",
@@ -222,6 +256,154 @@ function DeliveryRow({
   )
 }
 
+/**
+ * Outstanding operator attention (#158): conditions the backend raised from
+ * durable deadlines, oldest first. It only shows them; an assignment in the
+ * list below removes unassigned attention, and nothing here cancels work.
+ */
+function AttentionList({ limit }: Readonly<{ limit: number }>) {
+  const [offset, setOffset] = useState(0)
+  const list = useQuery({
+    queryKey: ["delivery-attention", offset],
+    queryFn: () =>
+      sdk.client.fetch<AttentionPage>("/admin/deliveries/attention", {
+        query: { limit, offset },
+      }),
+    refetchInterval: REFRESH_MS,
+  })
+  const count = list.data?.attention.length ?? 0
+  return (
+    <Container className="divide-y p-0">
+      <div className="flex flex-col gap-1 px-6 py-4">
+        <div className="flex items-center gap-2">
+          <Heading>Needs attention</Heading>
+          {list.data && count > 0 && (
+            <StatusBadge color="red">
+              {list.data.has_more ? `${offset + count}+` : offset + count}
+            </StatusBadge>
+          )}
+        </div>
+        <Text size="small" leading="compact" className="text-ui-fg-subtle">
+          Deliveries past an attention deadline, oldest first. Attention only
+          shows the problem: assign an agent below before the claim deadline.
+        </Text>
+      </div>
+      {list.isLoading && (
+        <div className="flex items-center justify-center px-6 py-6">
+          <Spinner className="text-ui-fg-subtle animate-spin" />
+        </div>
+      )}
+      {list.error && (
+        <div className="px-6 py-4">
+          <Alert variant="error">
+            Could not load deliveries that need attention.
+          </Alert>
+        </div>
+      )}
+      {list.data && count === 0 && (
+        <div className="px-6 py-4">
+          <Text size="small" leading="compact" className="text-ui-fg-subtle">
+            Nothing needs attention right now.
+          </Text>
+        </div>
+      )}
+      {list.data?.attention.map((item) => {
+        const condition = ATTENTION[item.type]
+        const isPastDeadline =
+          new Date(item.claim_deadline).getTime() <=
+          new Date(list.data.server_time).getTime()
+        return (
+          <div
+            key={item.id}
+            className="grid gap-2 px-6 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:gap-8"
+          >
+            <div className="flex min-w-0 flex-col gap-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <Text size="small" leading="compact" weight="plus">
+                  #{item.order_reference}
+                </Text>
+                <Text
+                  size="small"
+                  leading="compact"
+                  weight="plus"
+                  className="break-words"
+                >
+                  {item.restaurant_name}
+                </Text>
+                <StatusBadge color="red">{condition.label}</StatusBadge>
+                <StatusBadge color={PREPARATION[item.preparation_status].color}>
+                  {PREPARATION[item.preparation_status].label}
+                </StatusBadge>
+              </div>
+              <Text
+                size="small"
+                leading="compact"
+                className="text-ui-fg-subtle"
+              >
+                {condition.detail}
+              </Text>
+              <Text
+                size="small"
+                leading="compact"
+                className="text-ui-fg-subtle flex items-center gap-1"
+              >
+                <span>Pickup {item.pickup_postal_code}</span>
+                <ArrowRightMini aria-label="to" />
+                <span>destination {item.destination_postal_code}</span>
+              </Text>
+            </div>
+            <div className="flex flex-col gap-1 md:items-end">
+              <Text size="small" leading="compact" weight="plus">
+                {item.assignment
+                  ? `${item.assignment.agent.name} since ${time(item.assignment.assigned_at)}`
+                  : "No agent assigned"}
+              </Text>
+              <Text
+                size="small"
+                leading="compact"
+                className="text-ui-fg-subtle"
+              >
+                Accepted {time(item.accepted_at)} · due {time(item.due_at)}
+              </Text>
+              <Text
+                size="small"
+                leading="compact"
+                className={
+                  isPastDeadline ? "text-ui-fg-error" : "text-ui-fg-subtle"
+                }
+              >
+                {isPastDeadline
+                  ? `Claim deadline passed at ${time(item.claim_deadline)}`
+                  : `Claim deadline ${time(item.claim_deadline)}`}
+              </Text>
+            </div>
+          </div>
+        )
+      })}
+      {list.data && (offset > 0 || list.data.has_more) && (
+        <div className="flex items-center justify-end gap-2 px-6 py-4">
+          <Button
+            size="small"
+            variant="secondary"
+            disabled={offset === 0}
+            onClick={() => setOffset(Math.max(0, offset - limit))}
+          >
+            Previous
+          </Button>
+          <Button
+            size="small"
+            variant="secondary"
+            disabled={!list.data.has_more}
+            onClick={() => setOffset(offset + limit)}
+          >
+            Next
+          </Button>
+        </div>
+      )}
+    </Container>
+  )
+}
+
 const DeliveriesPage = () => {
   const queryClient = useQueryClient()
   const [offset, setOffset] = useState(0)
@@ -235,96 +417,103 @@ const DeliveriesPage = () => {
       }),
     refetchInterval: REFRESH_MS,
   })
+  // An assignment also removes unassigned attention.
   const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: ["unclaimed-deliveries"] })
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["unclaimed-deliveries"] }),
+      queryClient.invalidateQueries({ queryKey: ["delivery-attention"] }),
+    ])
   const count = list.data?.deliveries.length ?? 0
   return (
-    <Container className="divide-y p-0">
-      <div className="flex flex-wrap items-start justify-between gap-4 px-6 py-4">
-        <div className="flex flex-col gap-1">
-          <Heading>Unclaimed deliveries</Heading>
-          <Text size="small" leading="compact" className="text-ui-fg-subtle">
-            Accepted Orders no agent has claimed, oldest first. Assign one
-            before its claim deadline; an assignment cannot be released or
-            changed here.
-          </Text>
-        </div>
-        <Button
-          size="small"
-          variant="secondary"
-          onClick={refresh}
-          isLoading={list.isFetching}
-        >
-          Refresh
-        </Button>
-      </div>
-      {notice && (
-        <div className="px-6 py-4">
-          <Alert variant="success" dismissible>
-            {notice}
-          </Alert>
-        </div>
-      )}
-      {list.isLoading && (
-        <div className="flex items-center justify-center px-6 py-10">
-          <Spinner className="text-ui-fg-subtle animate-spin" />
-        </div>
-      )}
-      {list.error && (
-        <div className="px-6 py-4">
-          <Alert variant="error">Could not load unclaimed deliveries.</Alert>
-        </div>
-      )}
-      {list.data && count === 0 && (
-        <div className="flex flex-col items-center gap-1 px-6 py-10">
-          <Text size="small" leading="compact" weight="plus">
-            No deliveries are waiting for an agent
-          </Text>
-          <Text size="small" leading="compact" className="text-ui-fg-subtle">
-            Work appears here when a Restaurant accepts an Order.
-          </Text>
-        </div>
-      )}
-      {list.data?.deliveries.map((delivery) => (
-        <DeliveryRow
-          key={delivery.id}
-          delivery={delivery}
-          serverTime={list.data.server_time}
-          onAssigned={setNotice}
-          onDone={refresh}
-        />
-      ))}
-      {list.data && (offset > 0 || list.data.has_more) && (
-        <div className="flex items-center justify-between gap-2 px-6 py-4">
-          <Text size="small" leading="compact" className="text-ui-fg-subtle">
-            {offset + 1}–{offset + count}
-          </Text>
-          <div className="flex gap-2">
-            <Button
-              size="small"
-              variant="secondary"
-              disabled={offset === 0}
-              onClick={() => setOffset(Math.max(0, offset - limit))}
-            >
-              Previous
-            </Button>
-            <Button
-              size="small"
-              variant="secondary"
-              disabled={!list.data.has_more}
-              onClick={() => setOffset(offset + limit)}
-            >
-              Next
-            </Button>
+    <div className="flex flex-col gap-y-3">
+      <AttentionList limit={limit} />
+      <Container className="divide-y p-0">
+        <div className="flex flex-wrap items-start justify-between gap-4 px-6 py-4">
+          <div className="flex flex-col gap-1">
+            <Heading>Unclaimed deliveries</Heading>
+            <Text size="small" leading="compact" className="text-ui-fg-subtle">
+              Accepted Orders no agent has claimed, oldest first. Assign one
+              before its claim deadline; an assignment cannot be released or
+              changed here.
+            </Text>
           </div>
+          <Button
+            size="small"
+            variant="secondary"
+            onClick={refresh}
+            isLoading={list.isFetching}
+          >
+            Refresh
+          </Button>
         </div>
-      )}
-    </Container>
+        {notice && (
+          <div className="px-6 py-4">
+            <Alert variant="success" dismissible>
+              {notice}
+            </Alert>
+          </div>
+        )}
+        {list.isLoading && (
+          <div className="flex items-center justify-center px-6 py-10">
+            <Spinner className="text-ui-fg-subtle animate-spin" />
+          </div>
+        )}
+        {list.error && (
+          <div className="px-6 py-4">
+            <Alert variant="error">Could not load unclaimed deliveries.</Alert>
+          </div>
+        )}
+        {list.data && count === 0 && (
+          <div className="flex flex-col items-center gap-1 px-6 py-10">
+            <Text size="small" leading="compact" weight="plus">
+              No deliveries are waiting for an agent
+            </Text>
+            <Text size="small" leading="compact" className="text-ui-fg-subtle">
+              Work appears here when a Restaurant accepts an Order.
+            </Text>
+          </div>
+        )}
+        {list.data?.deliveries.map((delivery) => (
+          <DeliveryRow
+            key={delivery.id}
+            delivery={delivery}
+            serverTime={list.data.server_time}
+            onAssigned={setNotice}
+            onDone={refresh}
+          />
+        ))}
+        {list.data && (offset > 0 || list.data.has_more) && (
+          <div className="flex items-center justify-between gap-2 px-6 py-4">
+            <Text size="small" leading="compact" className="text-ui-fg-subtle">
+              {offset + 1}–{offset + count}
+            </Text>
+            <div className="flex gap-2">
+              <Button
+                size="small"
+                variant="secondary"
+                disabled={offset === 0}
+                onClick={() => setOffset(Math.max(0, offset - limit))}
+              >
+                Previous
+              </Button>
+              <Button
+                size="small"
+                variant="secondary"
+                disabled={!list.data.has_more}
+                onClick={() => setOffset(offset + limit)}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        )}
+      </Container>
+    </div>
   )
 }
 
 export const config = defineRouteConfig({
-  label: "Unclaimed deliveries",
+  label: "Deliveries",
   icon: Clock,
 })
 

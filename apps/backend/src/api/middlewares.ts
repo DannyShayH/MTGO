@@ -88,6 +88,7 @@ import {
 } from "./admin/delivery-agents/validators"
 import {
   AssignDeliverySchema,
+  ListDeliveryAttentionSchema,
   ListUnclaimedDeliveriesSchema,
 } from "./admin/deliveries/validators"
 import { recordSessionExpiry } from "./session-expiry"
@@ -129,6 +130,11 @@ export default defineMiddlewares({
       middlewares: [
         validateAndTransformQuery(ListUnclaimedDeliveriesSchema, {}),
       ],
+    },
+    {
+      matcher: "/admin/deliveries/attention",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(ListDeliveryAttentionSchema, {})],
     },
     {
       matcher: "/admin/deliveries/:id/assign",

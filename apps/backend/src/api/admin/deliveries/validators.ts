@@ -14,3 +14,12 @@ export const AssignDeliverySchema = z.strictObject({
   request_id: RetryIdentity,
 })
 export type AssignDeliveryBody = z.infer<typeof AssignDeliverySchema>
+
+/** Bounded: the read scans past ended Orders, so deep offsets are refused. */
+export const ListDeliveryAttentionSchema = z.strictObject({
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+  offset: z.coerce.number().int().min(0).max(500).default(0),
+})
+export type ListDeliveryAttentionQuery = z.infer<
+  typeof ListDeliveryAttentionSchema
+>

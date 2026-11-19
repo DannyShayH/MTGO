@@ -40,6 +40,17 @@ source } }` with the claim's refusal codes; a revoked or pending agent is
 `400` `delivery_agent_not_authorized`, an unknown agent `404`. There is no
 release, replacement or reassignment route.
 
+`GET /admin/deliveries/attention?limit=20&offset=0` (limit 1-50, offset
+at most 500, #158)
+returns `{ attention, has_more, limit, offset, server_time }`: raised,
+unresolved operator attention on active Orders, oldest `due_at` first. Each
+item has `id`, `type` (`unassigned`), `order_id`, `order_reference`,
+`restaurant_name`, `pickup_postal_code`, `destination_postal_code`,
+`preparation_status`, the real `accepted_at`, the effective deadline `due_at`,
+the processing time `raised_at`, `claim_deadline` and `assignment` (`null`, or
+`{ agent: { id, name }, assigned_at, source }`). It omits Customer details and
+only reads: attention never cancels, releases or assigns work.
+
 ## Available deliveries (#156)
 
 `GET /partner/delivery-agent/available?limit=20&offset=0&postal_codes=2200`
