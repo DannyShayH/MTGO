@@ -28,6 +28,9 @@ const CONDITION_ENDED: Record<
 > = {
   unassigned: ({ delivery }) =>
     delivery.assigned_agent_id ? "assigned" : null,
+  // Revoked access is never restored and the assignment is never released,
+  // so only the Order ending (checked by the rule) stops this condition.
+  access_revoked: () => null,
 }
 
 /**

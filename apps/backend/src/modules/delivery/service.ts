@@ -200,13 +200,33 @@ class DeliveryModuleService extends MedusaService({
         invitations.map(({ id }) => id),
         context,
       )
+    const revokedAt = new Date()
     await this.updateDeliveryAgents(
       {
         id: agent.id,
         status: "revoked",
-        revoked_at: new Date(),
+        revoked_at: revokedAt,
         revoked_by: input.revoked_by,
         authorization_revision: agent.authorization_revision + 1,
+      },
+      context,
+    )
+    // Responsibility and capacity stay with the agent (#159); the operator is
+    // told at once, in the same transaction, so no committed revocation of
+    // active work lacks its obligation.
+    const [active] = await this.listIntendedDeliveries(
+      { active_agent_id: agent.id },
+      { take: 1, select: ["order_id"] },
+      context,
+    )
+    if (!active) return
+    // A repeat returned above, and the unique (order_id, type) index backs it.
+    await this.createDeliveryAttentions(
+      {
+        order_id: active.order_id,
+        type: "access_revoked",
+        due_at: revokedAt,
+        raised_at: revokedAt,
       },
       context,
     )

@@ -243,7 +243,7 @@ export type AttentionItem = {
   raised_at: string
   claim_deadline: string
   assignment: {
-    agent: { id: string; name: string }
+    agent: { id: string; name: string; agent_access: "authorized" | "revoked" }
     assigned_at: string
     source: AssignmentSource | null
   } | null
@@ -320,10 +320,20 @@ const listDeliveryAttentionStep = createStep(
       (agentIds.length
         ? await delivery.listDeliveryAgents(
             { id: agentIds },
-            { take: null, select: ["id", "name"] },
+            { take: null, select: ["id", "name", "status"] },
           )
         : []
-      ).map(({ id, name }) => [id, { id, name }]),
+      ).map(({ id, name, status }) => [
+        id,
+        {
+          id,
+          name,
+          agent_access:
+            status === "revoked"
+              ? ("revoked" as const)
+              : ("authorized" as const),
+        },
+      ]),
     )
     const iso = (value: Date | string) => new Date(value).toISOString()
     const attention: AttentionItem[] = shown.flatMap(({ attention, state }) => {

@@ -4,10 +4,7 @@ import {
   StepResponse,
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk"
-import {
-  ContainerRegistrationKeys,
-  MedusaError,
-} from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { DELIVERY_MODULE } from "../../modules/delivery"
 import type DeliveryModuleService from "../../modules/delivery/service"
 import { ORDER_OPERATION_MODULE } from "../../modules/order-operation"
@@ -15,6 +12,7 @@ import type OrderOperationModuleService from "../../modules/order-operation/serv
 import { RESTAURANT_MODULE } from "../../modules/restaurant"
 import type RestaurantModuleService from "../../modules/restaurant/service"
 import type { MedusaContainer } from "@medusajs/framework/types"
+import { requireAuthorizedDeliveryAgent } from "./agent-access"
 import { CLAIM_WINDOW_MS, isActiveOrderState } from "./assignment-rules"
 import { unassignedAttentionDueAt } from "./attention-rules"
 
@@ -175,15 +173,10 @@ const listAvailableStep = createStep(
     { container },
   ) => {
     const delivery = container.resolve<DeliveryModuleService>(DELIVERY_MODULE)
-    const [agent] = await delivery.listDeliveryAgents(
-      { id: input.agent_id, status: "authorized" },
-      { take: 1 },
+    const agent = await requireAuthorizedDeliveryAgent(
+      container,
+      input.agent_id,
     )
-    if (!agent)
-      throw new MedusaError(
-        MedusaError.Types.FORBIDDEN,
-        "delivery_agent_access_revoked",
-      )
     const areas = await delivery.listDeliveryAgentAreas(
       { agent_id: agent.id },
       { take: null },

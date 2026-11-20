@@ -24,6 +24,10 @@ import {
   type AssignmentRefusal,
 } from "./assignment-rules"
 import { scanAvailablePage } from "./available"
+import {
+  deliveryAgentAccessRevoked,
+  requireAuthorizedDeliveryAgent,
+} from "./agent-access"
 import { deliveryAgentLockKey } from "./locks"
 
 type AssignInput = {
@@ -35,13 +39,6 @@ type AssignInput = {
   /** The server's time as ISO text; only workflow callers set it, never HTTP. */
   now?: string
 }
-
-export const deliveryAgentAccessRevoked = () =>
-  new MedusaError(
-    MedusaError.Types.FORBIDDEN,
-    "delivery_agent_access_revoked",
-    "delivery_agent_access_revoked",
-  )
 
 function refusal(code: AssignmentRefusal, source: AssignmentSource) {
   // An agent whose access ended is signed out, as on every agent route.
@@ -158,11 +155,10 @@ export const readCurrentDeliveryStep = createStep(
     { container },
   ): Promise<StepResponse<CurrentDeliveryView>> => {
     const delivery = container.resolve<DeliveryModuleService>(DELIVERY_MODULE)
-    const [agent] = await delivery.listDeliveryAgents(
-      { id: input.agent_id, status: "authorized" },
-      { take: 1, select: ["id"] },
+    const agent = await requireAuthorizedDeliveryAgent(
+      container,
+      input.agent_id,
     )
-    if (!agent) throw deliveryAgentAccessRevoked()
     const server_time = new Date().toISOString()
     const [record] = await delivery.listIntendedDeliveries(
       { active_agent_id: agent.id },

@@ -1,5 +1,5 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { TruckFast } from "@medusajs/icons"
+import { PencilSquare, TruckFast } from "@medusajs/icons"
 import {
   Alert,
   Button,
@@ -7,10 +7,18 @@ import {
   Heading,
   Input,
   Label,
+  Prompt,
+  StatusBadge,
   Text,
+  toast,
 } from "@medusajs/ui"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
+import {
+  AgentAreasDrawer,
+  useAgentAreas,
+} from "../../components/agent-areas-drawer"
+import { summarizeAreas } from "../../lib/postal-towns"
 import { sdk } from "../../lib/restaurant-api"
 
 type Agent = {
@@ -19,60 +27,128 @@ type Agent = {
   email: string
   status: "pending" | "authorized" | "revoked"
 }
-type Areas = { postal_codes: string[]; authorization_revision: number }
 
-function AgentAreas({ agent }: Readonly<{ agent: Agent }>) {
-  const queryClient = useQueryClient()
-  const [draft, setDraft] = useState<string | null>(null)
-  const areas = useQuery({
-    queryKey: ["delivery-agent-areas", agent.id],
-    queryFn: () =>
-      sdk.client.fetch<Areas>(`/admin/delivery-agents/${agent.id}/areas`),
-  })
-  const save = useMutation({
-    mutationFn: (postal_codes: string[]) =>
-      sdk.client.fetch(`/admin/delivery-agents/${agent.id}/areas`, {
+const STATUS: Record<
+  Agent["status"],
+  { label: string; color: "green" | "orange" | "grey" }
+> = {
+  authorized: { label: "Authorized", color: "green" },
+  pending: { label: "Invitation pending", color: "orange" },
+  revoked: { label: "Access revoked", color: "grey" },
+}
+
+function AgentRow({
+  agent,
+  onRevoked,
+}: Readonly<{ agent: Agent; onRevoked: () => Promise<unknown> }>) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [isConfirming, setIsConfirming] = useState(false)
+  const areas = useAgentAreas(agent.id)
+  const revoke = useMutation({
+    mutationFn: () =>
+      sdk.client.fetch(`/admin/delivery-agents/${agent.id}/revoke`, {
         method: "POST",
-        body: { postal_codes },
       }),
     onSuccess: async () => {
-      setDraft(null)
-      await queryClient.invalidateQueries({
-        queryKey: ["delivery-agent-areas", agent.id],
+      setIsConfirming(false)
+      await onRevoked()
+      toast.success("Access revoked", {
+        description: `${agent.name} can no longer use the delivery app. A delivery they hold stays assigned and appears under Deliveries, Needs attention.`,
       })
     },
+    onError: () =>
+      toast.error("Could not revoke access", {
+        description: "Nothing changed. Try again.",
+      }),
   })
-  const value = draft ?? areas.data?.postal_codes.join(", ") ?? ""
+  const status = STATUS[agent.status]
+  const isRevoked = agent.status === "revoked"
+  let areaSummary = "Loading areas…"
+  if (areas.isError) areaSummary = "Areas unavailable"
+  if (areas.data) areaSummary = summarizeAreas(areas.data.areas)
   return (
-    <div className="flex flex-col gap-2">
-      <Label htmlFor={`areas-${agent.id}`}>Approved Danish postal codes</Label>
-      <Text size="small" className="text-ui-fg-subtle">
-        Separate four-digit codes with commas. Leave empty to approve no areas.
-      </Text>
-      <Input
-        id={`areas-${agent.id}`}
-        value={value}
-        onChange={(event) => setDraft(event.target.value)}
-        disabled={!areas.isSuccess || save.isPending}
-      />
-      {(areas.error || save.error) && (
-        <Alert variant="error">
-          Could not load or save areas. Check the postal codes and try again.
-        </Alert>
+    <div className="grid gap-3 px-6 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:gap-8">
+      <div className="flex min-w-0 flex-col gap-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <Text
+            size="small"
+            leading="compact"
+            weight="plus"
+            className="break-words"
+          >
+            {agent.name}
+          </Text>
+          <StatusBadge color={status.color}>{status.label}</StatusBadge>
+        </div>
+        <Text
+          size="small"
+          leading="compact"
+          className="text-ui-fg-subtle break-all"
+        >
+          {agent.email}
+        </Text>
+        <Text
+          size="small"
+          leading="compact"
+          className="text-ui-fg-subtle tabular-nums"
+        >
+          {isRevoked
+            ? "Access ended. To let this person work again, send a new invitation."
+            : areaSummary}
+        </Text>
+      </div>
+      {!isRevoked && (
+        <div className="flex items-center gap-2">
+          <Button
+            size="small"
+            variant="secondary"
+            onClick={() => setIsEditing(true)}
+          >
+            <PencilSquare />
+            Edit areas
+          </Button>
+          <Button
+            size="small"
+            variant="danger"
+            onClick={() => setIsConfirming(true)}
+          >
+            Revoke access
+          </Button>
+        </div>
       )}
-      <Button
-        size="small"
-        variant="secondary"
-        disabled={!areas.isSuccess || draft === null || save.isPending}
-        isLoading={save.isPending}
-        onClick={() =>
-          save.mutate(
-            value.trim() ? value.split(",").map((code) => code.trim()) : [],
-          )
-        }
-      >
-        Save areas
-      </Button>
+      {!isRevoked && (
+        <AgentAreasDrawer
+          agent={agent}
+          open={isEditing}
+          onOpenChange={setIsEditing}
+        />
+      )}
+      <Prompt open={isConfirming} onOpenChange={setIsConfirming}>
+        <Prompt.Content>
+          <Prompt.Header>
+            <Prompt.Title>Revoke access for {agent.name}?</Prompt.Title>
+            <Prompt.Description>
+              They are signed out of delivery work at once and cannot be
+              restored; you would send a new invitation instead. A delivery they
+              already hold stays assigned to them and keeps their capacity, and
+              you are alerted so it is not forgotten.
+            </Prompt.Description>
+          </Prompt.Header>
+          <Prompt.Footer>
+            <Prompt.Cancel disabled={revoke.isPending}>Cancel</Prompt.Cancel>
+            <Prompt.Action
+              disabled={revoke.isPending}
+              onClick={(event) => {
+                // Keep the prompt open until the request has finished.
+                event.preventDefault()
+                revoke.mutate()
+              }}
+            >
+              {revoke.isPending ? "Revoking…" : "Revoke access"}
+            </Prompt.Action>
+          </Prompt.Footer>
+        </Prompt.Content>
+      </Prompt>
     </div>
   )
 }
@@ -92,7 +168,11 @@ const DeliveryAgentsPage = () => {
       ),
   })
   const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: ["delivery-agents"] })
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["delivery-agents"] }),
+      // A revoked agent's active delivery shows up as attention.
+      queryClient.invalidateQueries({ queryKey: ["delivery-attention"] }),
+    ])
   const invite = useMutation({
     mutationFn: () =>
       sdk.client.fetch("/admin/delivery-agents", {
@@ -100,46 +180,48 @@ const DeliveryAgentsPage = () => {
         body: { name, email },
       }),
     onSuccess: async () => {
+      toast.success("Invitation sent", {
+        description: `${name} has 24 hours to set a password.`,
+      })
       setName("")
       setEmail("")
       await refresh()
     },
   })
-  const revoke = useMutation({
-    mutationFn: (id: string) =>
-      sdk.client.fetch(`/admin/delivery-agents/${id}/revoke`, {
-        method: "POST",
-      }),
-    onSuccess: refresh,
-  })
+  const count = agents.data?.count ?? 0
   return (
     <div className="flex flex-col gap-4">
-      <Container className="flex flex-col gap-4">
-        <Heading>Delivery agents</Heading>
-        <Text>
-          Invite an employee and approve the postal codes where they may work.
-        </Text>
+      <Container className="divide-y p-0">
+        <div className="px-6 py-4">
+          <Heading>Delivery agents</Heading>
+          <Text size="small" className="text-ui-fg-subtle">
+            Invite an employee, then approve the towns where they may claim
+            deliveries.
+          </Text>
+        </div>
         <form
           onSubmit={(event) => {
             event.preventDefault()
             invite.mutate()
           }}
-          className="flex flex-wrap items-end gap-3 [&_input:invalid:not(:user-invalid):focus-visible]:!shadow-borders-interactive-with-active [&_input:invalid:not(:user-invalid):not(:focus-visible)]:!shadow-borders-base"
+          className="grid gap-3 px-6 py-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end [&_input:invalid:not(:user-invalid):focus-visible]:!shadow-borders-interactive-with-active [&_input:invalid:not(:user-invalid):not(:focus-visible)]:!shadow-borders-base"
         >
-          <div>
+          <div className="flex flex-col gap-1">
             <Label htmlFor="agent-name">Name</Label>
             <Input
               id="agent-name"
+              autoComplete="off"
               value={name}
               onChange={(event) => setName(event.target.value)}
               required
             />
           </div>
-          <div>
+          <div className="flex flex-col gap-1">
             <Label htmlFor="agent-email">Email</Label>
             <Input
               id="agent-email"
               type="email"
+              autoComplete="off"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               required
@@ -150,23 +232,53 @@ const DeliveryAgentsPage = () => {
           </Button>
         </form>
         {invite.error && (
-          <Alert variant="error">
-            Could not send the invitation. Check the email and try again.
-          </Alert>
+          <div className="px-6 py-4">
+            <Alert variant="error">
+              Could not send the invitation. Check the email, and that this
+              person does not already have an active invitation or access.
+            </Alert>
+          </div>
         )}
       </Container>
-      <Container className="flex flex-col gap-5">
-        <Heading level="h2">Agents</Heading>
-        {agents.isLoading && <Text>Loading agents…</Text>}
-        {agents.error && <Alert variant="error">Could not load agents.</Alert>}
+
+      <Container className="divide-y p-0">
+        <div className="flex items-center justify-between px-6 py-4">
+          <Heading level="h2">Agents</Heading>
+          {agents.data && (
+            <Text
+              size="small"
+              leading="compact"
+              className="text-ui-fg-subtle tabular-nums"
+            >
+              {count === 0 ? 0 : offset + 1}–{Math.min(offset + limit, count)}{" "}
+              of {count}
+            </Text>
+          )}
+        </div>
+        {agents.isLoading && (
+          <div className="px-6 py-4">
+            <Text size="small" role="status" className="text-ui-fg-subtle">
+              Loading agents…
+            </Text>
+          </div>
+        )}
+        {agents.error && (
+          <div className="px-6 py-4">
+            <Alert variant="error">Could not load agents.</Alert>
+          </div>
+        )}
         {agents.data?.agents.length === 0 && (
-          <Text>No agents have been invited yet.</Text>
+          <div className="px-6 py-4">
+            <Text size="small" className="text-ui-fg-subtle">
+              No agents have been invited yet.
+            </Text>
+          </div>
         )}
-        {revoke.error && (
-          <Alert variant="error">Could not revoke access.</Alert>
-        )}
-        {agents.data && (
-          <div className="flex items-center gap-2">
+        {agents.data?.agents.map((agent) => (
+          <AgentRow key={agent.id} agent={agent} onRevoked={refresh} />
+        ))}
+        {agents.data && (offset > 0 || offset + limit < count) && (
+          <div className="flex items-center justify-end gap-2 px-6 py-4">
             <Button
               size="small"
               variant="secondary"
@@ -175,47 +287,16 @@ const DeliveryAgentsPage = () => {
             >
               Previous
             </Button>
-            <Text size="small">
-              {agents.data.count === 0 ? 0 : offset + 1}–
-              {Math.min(offset + limit, agents.data.count)} of{" "}
-              {agents.data.count}
-            </Text>
             <Button
               size="small"
               variant="secondary"
-              disabled={offset + limit >= agents.data.count}
+              disabled={offset + limit >= count}
               onClick={() => setOffset(offset + limit)}
             >
               Next
             </Button>
           </div>
         )}
-        {agents.data?.agents.map((agent) => (
-          <section
-            key={agent.id}
-            className="border-ui-border-base flex flex-col gap-3 border-t pt-4"
-          >
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <Text weight="plus">{agent.name}</Text>
-                <Text size="small" className="break-all text-ui-fg-subtle">
-                  {agent.email} · {agent.status}
-                </Text>
-              </div>
-              {agent.status !== "revoked" && (
-                <Button
-                  size="small"
-                  variant="danger"
-                  isLoading={revoke.isPending}
-                  onClick={() => revoke.mutate(agent.id)}
-                >
-                  Revoke
-                </Button>
-              )}
-            </div>
-            <AgentAreas agent={agent} />
-          </section>
-        ))}
       </Container>
     </div>
   )

@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto"
-import { redirect, unstable_rethrow } from "next/navigation"
+import { unstable_rethrow } from "next/navigation"
 import { ArrowPath } from "@medusajs/icons"
 import { Button } from "@medusajs/ui"
 import { DELIVERY_AGENT_TEXT, formatText } from "@dtc/i18n"
 import { getMessages } from "@lib/i18n"
 import {
-  getDeliveryAgent,
+  requireDeliveryAgent,
   getDeliveryFilter,
   getAvailableDeliveries,
   getCurrentDelivery,
@@ -31,8 +31,7 @@ export default async function DeliveryPage({
 }: {
   searchParams: Promise<{ page?: string }>
 }) {
-  const agent = await getDeliveryAgent()
-  if (!agent) redirect("/delivery-sign-in")
+  const agent = await requireDeliveryAgent()
   const { locale } = await getMessages()
   const copy = DELIVERY_AGENT_TEXT[locale]
   const selected = await getDeliveryFilter(agent.agent.id, agent.postal_codes)

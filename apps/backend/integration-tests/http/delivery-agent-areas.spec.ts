@@ -388,6 +388,12 @@ medusaIntegrationTestRunner({
       expect(result.status).toBe(200)
       expect(result.data.postal_codes).toEqual(["2200"])
       expect(result.data.authorization_revision).toBe(2)
+      const read = await api.get(path, {
+        headers: { authorization: token("user") },
+      })
+      expect(read.data.areas).toEqual([
+        { postal_code: "2200", name: "København N" },
+      ])
       const unknown = await api.post(
         "/admin/delivery-agents/agent_unknown/areas",
         { postal_codes: ["2200"] },

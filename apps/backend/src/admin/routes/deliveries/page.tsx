@@ -34,7 +34,7 @@ type UnclaimedPage = {
 
 type Attention = {
   id: string
-  type: "unassigned"
+  type: "unassigned" | "access_revoked"
   order_id: string
   order_reference: number
   restaurant_name: string
@@ -46,7 +46,11 @@ type Attention = {
   raised_at: string
   claim_deadline: string
   assignment: {
-    agent: { id: string; name: string }
+    agent: {
+      id: string
+      name: string
+      agent_access: "authorized" | "revoked"
+    }
     assigned_at: string
     source: "agent_claim" | "operator_assignment" | null
   } | null
@@ -63,6 +67,11 @@ const ATTENTION: Record<Attention["type"], { label: string; detail: string }> =
     unassigned: {
       label: "Unassigned after 10 min",
       detail: "No agent has taken this delivery ten minutes after acceptance.",
+    },
+    access_revoked: {
+      label: "Agent access revoked",
+      detail:
+        "The responsible agent's access was revoked. The delivery stays assigned to them and still counts as their active delivery until it ends.",
     },
   }
 
@@ -309,6 +318,13 @@ function AttentionList({ limit }: Readonly<{ limit: number }>) {
       )}
       {list.data?.attention.map((item) => {
         const condition = ATTENTION[item.type]
+        const revokedNote =
+          item.assignment?.agent.agent_access === "revoked"
+            ? " (access revoked)"
+            : ""
+        const assignee = item.assignment
+          ? `${item.assignment.agent.name}${revokedNote} since ${time(item.assignment.assigned_at)}`
+          : "No agent assigned"
         const isPastDeadline =
           new Date(item.claim_deadline).getTime() <=
           new Date(list.data.server_time).getTime()
@@ -354,28 +370,30 @@ function AttentionList({ limit }: Readonly<{ limit: number }>) {
             </div>
             <div className="flex flex-col gap-1 md:items-end">
               <Text size="small" leading="compact" weight="plus">
-                {item.assignment
-                  ? `${item.assignment.agent.name} since ${time(item.assignment.assigned_at)}`
-                  : "No agent assigned"}
+                {assignee}
               </Text>
               <Text
                 size="small"
                 leading="compact"
                 className="text-ui-fg-subtle"
               >
-                Accepted {time(item.accepted_at)} · due {time(item.due_at)}
+                {item.type === "access_revoked"
+                  ? `Accepted ${time(item.accepted_at)} · access revoked ${time(item.raised_at)}`
+                  : `Accepted ${time(item.accepted_at)} · due ${time(item.due_at)}`}
               </Text>
-              <Text
-                size="small"
-                leading="compact"
-                className={
-                  isPastDeadline ? "text-ui-fg-error" : "text-ui-fg-subtle"
-                }
-              >
-                {isPastDeadline
-                  ? `Claim deadline passed at ${time(item.claim_deadline)}`
-                  : `Claim deadline ${time(item.claim_deadline)}`}
-              </Text>
+              {item.type === "unassigned" && (
+                <Text
+                  size="small"
+                  leading="compact"
+                  className={
+                    isPastDeadline ? "text-ui-fg-error" : "text-ui-fg-subtle"
+                  }
+                >
+                  {isPastDeadline
+                    ? `Claim deadline passed at ${time(item.claim_deadline)}`
+                    : `Claim deadline ${time(item.claim_deadline)}`}
+                </Text>
+              )}
             </div>
           </div>
         )

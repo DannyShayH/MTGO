@@ -9,22 +9,21 @@ import DeliveryModuleService from "../../modules/delivery/service"
 import { MedusaError } from "@medusajs/framework/utils"
 import { POSTAL_CODE_MODULE } from "../../modules/postal-code"
 import PostalCodeModuleService from "../../modules/postal-code/service"
+import { listApprovedAreas } from "./agent-access"
 
 const readDeliveryAgentApprovedAreasStep = createStep(
   "read-delivery-agent-approved-areas",
   async (input: { agent_id: string }, { container }) => {
-    const service = container.resolve<DeliveryModuleService>(DELIVERY_MODULE)
-    const agent = await service.retrieveDeliveryAgent(input.agent_id)
-    const areas = await service.listDeliveryAgentAreas(
-      { agent_id: agent.id },
-      { take: null },
-    )
+    const agent = await container
+      .resolve<DeliveryModuleService>(DELIVERY_MODULE)
+      .retrieveDeliveryAgent(input.agent_id)
+    // The register's town names let Admin group the codes by town.
+    const { postal_codes, areas } = await listApprovedAreas(container, agent.id)
     return new StepResponse({
       agent_id: agent.id,
       authorization_revision: agent.authorization_revision,
-      postal_codes: areas
-        .map(({ postal_code }) => postal_code)
-        .sort((a, b) => a.localeCompare(b)),
+      postal_codes,
+      areas,
     })
   },
 )

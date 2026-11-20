@@ -1047,16 +1047,26 @@ medusaIntegrationTestRunner({
           pizzeriaId,
           "mette@pizzeria.example",
         )
+        const reads = jest.spyOn(operations(), "listOrderOperations")
+        // Count only the feed's reads of this Restaurant: the every-minute
+        // recovery and attention jobs also list Order operations.
+        const feedReads = () =>
+          reads.mock.calls.filter(
+            ([filters]) =>
+              (filters as { restaurant_id?: string } | undefined)
+                ?.restaurant_id === pizzeriaId,
+          ).length
         const stream = await open(staff.headers)
         await stream.next("ready")
         await new Promise((resolve) => setTimeout(resolve, 1500))
-        const reads = jest.spyOn(operations(), "listOrderOperations")
+        // The open screen does read, so the count below can catch a leak.
+        expect(feedReads()).toBeGreaterThan(0)
         stream.close()
         // Let an in-flight read finish, then expect no further reads.
         await new Promise((resolve) => setTimeout(resolve, 1500))
-        const settled = reads.mock.calls.length
+        const settled = feedReads()
         await new Promise((resolve) => setTimeout(resolve, 3000))
-        expect(reads.mock.calls.length).toBe(settled)
+        expect(feedReads()).toBe(settled)
         reads.mockRestore()
       })
 

@@ -84,6 +84,8 @@ export const DELIVERY_AGENT_TEXT = {
     pickupCheckingHint:
       "Vi ved endnu ikke, om afhentningen blev registreret. Vi tjekker igen, når forbindelsen er tilbage.",
     pickupNotConfirmed: "Afhentningen blev ikke registreret. Prøv igen.",
+    accessEnded:
+      "Din adgang som leveringspartner er afsluttet. Hvis du har en levering, er den stadig tildelt dig, og MTOGO er gjort opmærksom på den. Kontakt MTOGO.",
   },
   en: {
     title: "Delivery agent",
@@ -170,6 +172,8 @@ export const DELIVERY_AGENT_TEXT = {
     pickupCheckingHint:
       "We do not know yet whether your pickup was recorded. We check again when the connection is back.",
     pickupNotConfirmed: "Your pickup was not recorded. Please try again.",
+    accessEnded:
+      "Your delivery agent access has ended. If you hold a delivery, it stays assigned to you and MTOGO has been alerted. Contact MTOGO.",
   },
 } as const
 

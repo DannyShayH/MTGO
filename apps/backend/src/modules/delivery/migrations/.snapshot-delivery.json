@@ -596,7 +596,7 @@
           "scale": null,
           "default": null,
           "comment": null,
-          "enumItems": ["unassigned"],
+          "enumItems": ["unassigned", "access_revoked"],
           "mappedType": "enum"
         },
         "due_at": {

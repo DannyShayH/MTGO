@@ -21,10 +21,8 @@ import { ORDER_OPERATION_MODULE } from "../../modules/order-operation"
 import type OrderOperationModuleService from "../../modules/order-operation/service"
 import { orderOperationLock } from "../order-operations/locks"
 import { logRecoveryFailure } from "../order-operations/recovery-log"
-import {
-  deliveryAgentAccessRevoked,
-  readCurrentDeliveryStep,
-} from "./assignment"
+import { deliveryAgentAccessRevoked } from "./agent-access"
+import { readCurrentDeliveryStep } from "./assignment"
 import { deliveryAgentLockKey, nativePickupLock } from "./locks"
 import {
   PICKUP_CONFLICTS,

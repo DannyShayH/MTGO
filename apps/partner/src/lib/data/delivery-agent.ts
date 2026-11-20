@@ -21,6 +21,8 @@ import { cookieOptions, storePartnerToken } from "@lib/partner-token"
 import { MIN_PASSWORD_LENGTH } from "@lib/password"
 
 const FILTER_COOKIE = "mtogo_delivery_area_filter"
+/** Where a refused (revoked) Delivery agent lands, with an honest notice. */
+const AGENT_ACCESS_ENDED_PATH = "/delivery-sign-in?message=access_ended"
 type CurrentAgent = {
   agent: { id: string; name: string }
   postal_codes: string[]
@@ -78,10 +80,9 @@ export async function getCurrentDelivery(): Promise<CurrentDelivery | null> {
     })
     return result.delivery
   } catch (error) {
-    if (
-      error instanceof FetchError &&
-      (error.status === 401 || error.status === 403)
-    )
+    if (error instanceof FetchError && error.status === 403)
+      redirect(AGENT_ACCESS_ENDED_PATH)
+    if (error instanceof FetchError && error.status === 401)
       redirect("/delivery-sign-in")
     throw error
   }
@@ -145,8 +146,8 @@ async function postAgentAction<Code extends string>(action: {
     return { status: "uncertain" }
   }
   revalidatePath("/delivery", "layout")
-  if (response.status === 401 || response.status === 403)
-    redirect("/delivery-sign-in")
+  if (response.status === 403) redirect(AGENT_ACCESS_ENDED_PATH)
+  if (response.status === 401) redirect("/delivery-sign-in")
   if (response.ok) return { status: "done" }
   log("upstream.request.failed", {
     request_id: correlationId,
@@ -303,24 +304,46 @@ export async function getDeliveryInvitation(
   }
 }
 
+type AgentRead =
+  | { status: "authorized"; agent: CurrentAgent }
+  /** The backend refused a valid token: access was revoked. */
+  | { status: "ended" }
+  | { status: "signed_out" }
+
+async function readDeliveryAgent(token?: string): Promise<AgentRead> {
+  const bearer = token ?? (await cookies()).get(PARTNER_TOKEN_COOKIE)?.value
+  if (!bearer) return { status: "signed_out" }
+  try {
+    return {
+      status: "authorized",
+      agent: await createPartnerSdk().client.fetch<CurrentAgent>(
+        "/partner/delivery-agent/me",
+        { headers: { authorization: `Bearer ${bearer}` }, cache: "no-store" },
+      ),
+    }
+  } catch (error) {
+    if (error instanceof FetchError && error.status === 403)
+      return { status: "ended" }
+    if (error instanceof FetchError && error.status === 401)
+      return { status: "signed_out" }
+    throw error
+  }
+}
+
 export async function getDeliveryAgent(
   token?: string,
 ): Promise<CurrentAgent | null> {
-  const bearer = token ?? (await cookies()).get(PARTNER_TOKEN_COOKIE)?.value
-  if (!bearer) return null
-  try {
-    return await createPartnerSdk().client.fetch<CurrentAgent>(
-      "/partner/delivery-agent/me",
-      { headers: { authorization: `Bearer ${bearer}` }, cache: "no-store" },
-    )
-  } catch (error) {
-    if (
-      error instanceof FetchError &&
-      (error.status === 401 || error.status === 403)
-    )
-      return null
-    throw error
-  }
+  const read = await readDeliveryAgent(token)
+  return read.status === "authorized" ? read.agent : null
+}
+
+/** The signed-in agent, or a redirect to sign-in (with the ended-access notice). */
+export async function requireDeliveryAgent(): Promise<CurrentAgent> {
+  const read = await readDeliveryAgent()
+  if (read.status === "authorized") return read.agent
+  redirect(
+    read.status === "ended" ? AGENT_ACCESS_ENDED_PATH : "/delivery-sign-in",
+  )
 }
 
 export async function signInDeliveryAgent(

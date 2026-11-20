@@ -14,10 +14,11 @@ const facts = (
     resolved_at?: Date | null
     assigned_agent_id?: string | null
     order_active?: boolean
+    type?: "unassigned" | "access_revoked"
   } = {},
 ): AttentionRuleFacts => ({
   attention: {
-    type: "unassigned",
+    type: overrides.type ?? "unassigned",
     due_at: due,
     raised_at: overrides.raised_at ?? null,
     resolved_at: overrides.resolved_at ?? null,
@@ -94,6 +95,28 @@ describe("Delivery attention decision", () => {
       },
       expected: { action: "keep" },
       reason: "Decision table: already resolved stays as it is",
+    },
+    {
+      now: "2026-11-19T12:20:00.000Z",
+      given: {
+        type: "access_revoked" as const,
+        assigned_agent_id: "dagt_1",
+        raised_at: raised,
+      },
+      expected: { action: "keep" },
+      reason:
+        "Decision table: revoked access stays outstanding on assigned work",
+    },
+    {
+      now: "2026-11-19T12:20:00.000Z",
+      given: {
+        type: "access_revoked" as const,
+        assigned_agent_id: "dagt_1",
+        raised_at: raised,
+        order_active: false,
+      },
+      expected: { action: "resolve", resolution: "order_ended" },
+      reason: "Decision table: revoked access ends only with the Order",
     },
   ])("$reason → $expected.action", ({ now, given, expected }) => {
     expect(decideAttention(facts(given), new Date(now))).toEqual(expected)

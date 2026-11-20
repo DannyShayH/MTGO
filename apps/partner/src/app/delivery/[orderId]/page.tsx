@@ -5,9 +5,9 @@ import { getMessages } from "@lib/i18n"
 import {
   getAvailableDelivery,
   getCurrentDelivery,
-  getDeliveryAgent,
+  requireDeliveryAgent,
 } from "@lib/data/delivery-agent"
-import { redirect, unstable_rethrow } from "next/navigation"
+import { unstable_rethrow } from "next/navigation"
 import Link from "next/link"
 import { AvailableCard } from "@modules/delivery/available-card"
 import { CARD, CLAIM_HINT_ID, PRESSABLE } from "@modules/delivery/copy"
@@ -18,8 +18,7 @@ export default async function DeliveryDetail({
 }: {
   params: Promise<{ orderId: string }>
 }) {
-  const agent = await getDeliveryAgent()
-  if (!agent) redirect("/delivery-sign-in")
+  const agent = await requireDeliveryAgent()
   const { locale } = await getMessages()
   const copy = DELIVERY_AGENT_TEXT[locale]
   const result = await getAvailableDelivery((await params).orderId).catch(

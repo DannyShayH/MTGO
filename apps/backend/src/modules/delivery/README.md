@@ -106,15 +106,43 @@ agreed 95% within two seconds).
 `src/workflows/delivery/__tests__/assignment-rules.unit.spec.ts` covers the
 decision table.
 
+## Revoking agent access (#159)
+
+`POST /admin/delivery-agents/{id}/revoke` holds the agent's capacity key
+`delivery-agent:{agent_id}` (the key claims, initial assignments and pickups
+take first), locks the agent row, marks the agent `revoked` and advances
+`authorization_revision`. Every agent route rechecks `status` on each request,
+so reads, claims and pickups are refused with `delivery_agent_access_revoked`
+(403) from the next call; a claim that raced the revocation either committed
+first (and is then kept and flagged) or is refused. Identity and historical
+assignments are kept.
+
+Revocation never changes the delivery: `assigned_agent_id` and the
+active-capacity hold `active_agent_id` stay, so no capacity is freed and
+responsibility is not transferred. If the agent holds an active delivery, the
+same transaction stores an `access_revoked` `DeliveryAttention`, already
+raised (`due_at` and `raised_at` are the revocation time). It has no condition
+of its own that ends it; it resolves as `order_ended` when the Order ends. The
+operator list shows it with the agent's `agent_access`. Removing approved
+areas alone does not revoke: the responsible agent keeps the current
+delivery and no attention is raised. Every agent read authorizes through
+`requireAuthorizedDeliveryAgent` in `workflows/delivery/agent-access.ts`, and
+later stream and location consumers must call the same guard.
+
+On the phone, any 403 from the agent routes sends the agent to
+`/delivery-sign-in?message=access_ended`, which says in Danish or English that
+access has ended and that any delivery stays assigned and MTOGO has been alerted.
+`integration-tests/http/delivery-agent-revocation.spec.ts` covers it.
+
 ## Operator attention (#158)
 
 `DeliveryAttention` is the reusable durable obligation behind operator
 attention: one record per Order and condition (unique `order_id, type`), with
 the effective deadline `due_at`, the sweep's processing time `raised_at`, and
 `resolved_at` with a `resolution` (`assigned` or `order_ended`). Later
-conditions (assigned without pickup, in transit, unreachable recipient,
-revoked access) add a `type` and the moment that schedules them; they reuse
-the same sweep, rule and list.
+conditions (assigned without pickup, in transit, unreachable recipient) add a
+`type` and the moment that schedules them; they reuse the same sweep, rule
+and list.
 
 Acceptance creates the delivery record and its `unassigned` attention, due at
 the durable acceptance time plus ten minutes, in one transaction

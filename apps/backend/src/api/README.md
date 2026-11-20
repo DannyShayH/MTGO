@@ -87,11 +87,12 @@ release, replacement or reassignment route.
 at most 500, #158)
 returns `{ attention, has_more, limit, offset, server_time }`: raised,
 unresolved operator attention on active Orders, oldest `due_at` first. Each
-item has `id`, `type` (`unassigned`), `order_id`, `order_reference`,
+item has `id`, `type` (`unassigned` or `access_revoked`), `order_id`, `order_reference`,
 `restaurant_name`, `pickup_postal_code`, `destination_postal_code`,
 `preparation_status`, the real `accepted_at`, the effective deadline `due_at`,
 the processing time `raised_at`, `claim_deadline` and `assignment` (`null`, or
-`{ agent: { id, name }, assigned_at, source }`). It omits Customer details and
+`{ agent: { id, name, agent_access: "authorized" | "revoked" }, assigned_at,
+source }`). It omits Customer details and
 only reads: attention never cancels, releases or assigns work.
 
 ## Available deliveries (#156)
@@ -116,8 +117,15 @@ returns `{ agents, count, limit, offset }`, with bounded `limit` and `offset`.
 `POST /admin/delivery-agents` accepts `{ name, email }` and sends a 24-hour
 invitation to the private mailbox or configured email provider.
 `POST /admin/delivery-agents/:id/revoke` revokes an invitation or access while
-retaining the agent identity. `GET /admin/delivery-agents/:id/areas` returns
-`{ agent_id, authorization_revision, postal_codes }`; `POST` replaces the
+retaining the agent identity and returns `{ agent: { id } }` (a repeat changes
+nothing; an unknown agent is `404`). From the next call the agent's reads,
+claims and pickups are `403 delivery_agent_access_revoked`. An active delivery
+stays assigned and keeps the agent's capacity, and an already raised
+`access_revoked` attention (#159) appears in the attention list until the Order
+ends. `GET /admin/delivery-agents/:id/areas` returns
+`{ agent_id, authorization_revision, postal_codes, areas }`, where `areas` is
+`[{ postal_code, name }]` with the register's town name (`null` when the register
+no longer names the code); `POST` replaces the
 complete set with `{ postal_codes: string[] }`. Invalid or unregistered Danish
 codes return `400`. An empty list is permitted and grants no operating area.
 
