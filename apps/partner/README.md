@@ -29,8 +29,9 @@ shows the Restaurant, the pickup, the preparation state, the Customer's name
 and address and, as the one large action, **Call the Customer** (a `tel:`
 link styled as the primary button) with the time the agent became responsible,
 from `GET /partner/delivery-agent/current`. "Assigned by MTOGO" marks an
-operator's assignment. There is no release or hand-over control. Pickup
-(#160) is described below.
+operator's assignment. There is no release control. Pickup (#160) and
+handover (#161) are described below. **View completed deliveries** under the
+current section opens the agent's history.
 
 Under the two stops, **Route to pickup** and **Route to the Customer** (#190)
 open the phone's own maps app through plain Google Maps directions links
@@ -117,6 +118,31 @@ oldest first. A refused permission says how to allow it in the browser's
 settings and turns the switch off; an unavailable position says that pickup
 distances are not shown. The position is never stored in the browser, a
 cookie or a URL, and claiming works the same with sharing on or off.
+
+### Handover and completed deliveries (#161)
+
+Pickup and handover share one confirmation component
+(`ConfirmMilestone` in `src/modules/delivery/confirm-milestone.tsx`). After
+pickup, when `allowed_actions` includes `confirm_handover`, the card offers
+**I have handed over the food**; the first tap asks **Has the food been
+handed over?** with **Yes, confirm handover** and **Not yet**. Nothing else
+counts as handover: no arrival, location, timer, photo or code.
+`confirmHandover` posts the card's retry identity; refusals show
+`DELIVERY_HANDOVER_ERRORS`, and a missing answer shows **Checking status…**
+while `checkHandover` reconciles from the agent's own history. Once the server
+records the handover the app goes to `/delivery?completed={order_id}`, which
+reads that entry back from the history and shows **Delivery completed**,
+the Restaurant, reference and handover time above the now empty current
+section; available work becomes claimable again. A `completed` value that is
+not the agent's own delivered work shows nothing.
+
+`/delivery/history` lists the agent's ended deliveries, newest first, twenty
+per page from `GET /partner/delivery-agent/history`: Restaurant, reference,
+end time and an outcome pill (Delivered, Cancelled or Not delivered).
+`/delivery/history/{order_id}` shows the pickup address and the acceptance,
+assignment, pickup and end times, with **Not recorded** for a milestone that
+never happened. Neither shows the Customer's name, phone or address, and both
+say so; another agent's or unknown work reads as not in the history.
 
 ## What it does
 

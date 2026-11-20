@@ -8,6 +8,9 @@ import {
   DELIVERY_PICKUP_ERROR_CODES,
   DELIVERY_PICKUP_ERRORS,
   isDeliveryPickupErrorCode,
+  DELIVERY_HANDOVER_ERROR_CODES,
+  DELIVERY_HANDOVER_ERRORS,
+  isDeliveryHandoverErrorCode,
 } from "../delivery-agent.ts"
 
 test("Danish and English have the same Delivery agent texts, none of them blank", () => {
@@ -58,4 +61,27 @@ test("only known pickup refusal codes are recognised", () => {
     false,
   )
   assert.equal(isDeliveryPickupErrorCode(undefined), false)
+})
+
+test("every refusal of a handover has a Danish and an English text", () => {
+  for (const locale of ["da", "en"] as const) {
+    assert.deepEqual(
+      Object.keys(DELIVERY_HANDOVER_ERRORS[locale]).sort(),
+      [...DELIVERY_HANDOVER_ERROR_CODES].sort(),
+    )
+    for (const code of DELIVERY_HANDOVER_ERROR_CODES)
+      assert.ok(
+        DELIVERY_HANDOVER_ERRORS[locale][code].trim(),
+        `${locale}.${code}`,
+      )
+  }
+})
+
+test("only known handover refusal codes are recognised", () => {
+  assert.equal(isDeliveryHandoverErrorCode("pickup_not_recorded"), true)
+  assert.equal(
+    isDeliveryHandoverErrorCode("delivery_agent_access_revoked"),
+    false,
+  )
+  assert.equal(isDeliveryHandoverErrorCode(undefined), false)
 })

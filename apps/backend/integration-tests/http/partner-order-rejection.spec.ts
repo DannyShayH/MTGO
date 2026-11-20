@@ -453,6 +453,8 @@ medusaIntegrationTestRunner({
           available_actions: ["cancel"],
           cancellation: null,
           refund: null,
+          // No delivery exists before acceptance (#161).
+          delivery: null,
         })
       })
 

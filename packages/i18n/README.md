@@ -38,6 +38,15 @@ their recorded times and later ones `upcoming` without a time. A cancelled
 Order keeps only the stages it really reached and ends in a `cancelled` step at
 its `effective_at`.
 
+`DELIVERY_AGENT_TEXT[locale]` supplies the Delivery agent's phone screens:
+available and current work, the pickup (#160) and handover (#161) confirmation
+steps, and the completed-delivery history list and detail. A refused claim,
+pickup or handover reads `DELIVERY_CLAIM_ERRORS`, `DELIVERY_PICKUP_ERRORS` or
+`DELIVERY_HANDOVER_ERRORS[locale]`. These hold a text for each code in the
+matching `*_ERROR_CODES`. `isDeliveryClaimErrorCode`,
+`isDeliveryPickupErrorCode` and `isDeliveryHandoverErrorCode` allowlist a
+backend code before the screen shows it.
+
 `MENU_TEXT[locale]` supplies the partner Menu reference workspace, including
 loading and recovery messages. Allergen and food-label names/descriptions come
 from the backend catalogue in both languages; this package does not duplicate

@@ -41,6 +41,8 @@ import {
   PostClaimDeliverySchema,
   PostConfirmPickupSchema,
   PostPickupDistancesSchema,
+  PostConfirmHandoverSchema,
+  GetCompletedDeliveriesSchema,
   PostPartnerOrderActionSchema,
   PostPartnerRejectOrderSchema,
 } from "./partner/validators"
@@ -513,6 +515,25 @@ export default defineMiddlewares({
       middlewares: [
         authenticate(DELIVERY_AGENT_ACTOR, "bearer"),
         validateAndTransformBody(PostConfirmPickupSchema),
+      ],
+    },
+    {
+      matcher: "/partner/deliveries/:id/deliver",
+      method: "POST",
+      middlewares: [
+        authenticate(DELIVERY_AGENT_ACTOR, "bearer"),
+        validateAndTransformBody(PostConfirmHandoverSchema),
+      ],
+    },
+    {
+      matcher: "/partner/delivery-agent/history*",
+      middlewares: [authenticate(DELIVERY_AGENT_ACTOR, "bearer")],
+    },
+    {
+      matcher: "/partner/delivery-agent/history",
+      method: "GET",
+      middlewares: [
+        validateAndTransformQuery(GetCompletedDeliveriesSchema, {}),
       ],
     },
     {

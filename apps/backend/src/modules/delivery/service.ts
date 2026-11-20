@@ -14,6 +14,7 @@ import DeliveryAgent, {
 } from "./models/delivery-agent"
 import IntendedDelivery, {
   type AssignmentSource,
+  type TerminalOutcome,
 } from "./models/intended-delivery"
 import DeliveryAttention, {
   type AttentionResolution,
@@ -121,6 +122,40 @@ export type PickupCommand = {
   request_id: string
   /** The Order's state and readiness, read under the Order's guard by the caller. */
   order: { state: string; ready_at: Date | string | null }
+  now: Date
+}
+
+/** What a terminal rule needs, read under the delivery row lock. */
+export type TerminalFacts = {
+  agent: { id: string; status: "pending" | "authorized" | "revoked" } | null
+  delivery: {
+    order_id: string
+    assigned_agent_id: string | null
+    active_agent_id: string | null
+    picked_up_at: Date | string | null
+    terminal_outcome: TerminalOutcome | null
+  }
+  order_active: boolean
+  request_holder: { order_id: string; agent_id: string } | null
+}
+
+export type TerminalDecision =
+  | { outcome: "end" }
+  | { outcome: "already_delivered" }
+  | { outcome: "already_ended"; terminal_outcome: TerminalOutcome }
+  | { outcome: "refused"; code: string }
+
+export type TerminalCommand = {
+  order_id: string
+  outcome: TerminalOutcome
+  /** The authenticated actor: the delivering agent, an operator, a Customer or `system`. */
+  actor_id: string
+  /** The delivering agent; only a handover names one. */
+  agent_id?: string
+  /** The handover's retry identity; only a handover has one. */
+  request_id?: string
+  /** Decided under the Order's guard by the caller. */
+  order_active: boolean
   now: Date
 }
 
@@ -705,6 +740,115 @@ class DeliveryModuleService extends MedusaService({
           trip_distance_m: input.trip_distance_m,
           trip_measured_at: input.measured_at,
         },
+      },
+      context,
+    )
+  }
+
+  /**
+   * The one terminal transition (#161), shared by the agent's handover, the
+   * Order's authoritative cancellation and #49's operator-confirmed failure.
+   * In one transaction it locks the delivery row, re-reads it, the agent and
+   * the retry identity, lets `decide` apply the caller's rule and commits the
+   * outcome together with the release of the active-capacity hold, in one
+   * update whose selector requires the delivery to be unended. Responsibility
+   * and earlier milestones are kept. A lost race reports `delivery_changed`.
+   */
+  @InjectManager()
+  @InjectTransactionManager()
+  async endDelivery(
+    command: TerminalCommand,
+    decide: (facts: TerminalFacts) => TerminalDecision,
+    @MedusaContext() context: Context = {},
+  ) {
+    const manager = context.transactionManager as EntityManager
+    const locked = await manager.findOne(
+      "IntendedDelivery",
+      { order_id: command.order_id, deleted_at: null },
+      { lockMode: LockMode.PESSIMISTIC_WRITE },
+    )
+    if (!locked)
+      throw new MedusaError(
+        MedusaError.Types.NOT_FOUND,
+        "delivery_not_found",
+        "delivery_not_found",
+      )
+    const [record] = await this.listIntendedDeliveries(
+      { order_id: command.order_id },
+      { take: 1 },
+      context,
+    )
+    const [agent] = command.agent_id
+      ? await this.listDeliveryAgents(
+          { id: command.agent_id },
+          { take: 1, select: ["id", "status"] },
+          context,
+        )
+      : []
+    const [holder] = command.request_id
+      ? await this.listIntendedDeliveries(
+          { handover_request_id: command.request_id },
+          { take: 1, select: ["order_id", "terminal_by"] },
+          context,
+        )
+      : []
+    const decision = decide({
+      agent: command.agent_id
+        ? (agent ?? { id: command.agent_id, status: "revoked" })
+        : null,
+      delivery: record,
+      order_active: command.order_active,
+      // A retry identity is only ever stored with its handover.
+      request_holder: holder
+        ? { order_id: holder.order_id, agent_id: holder.terminal_by as string }
+        : null,
+    })
+    if (decision.outcome !== "end") return { decision, delivery: record }
+    const delivered = command.outcome === "delivered"
+    const [updated] = await this.updateIntendedDeliveries(
+      {
+        selector: {
+          id: record.id,
+          terminal_outcome: null,
+          // A handover must still hold the agent's capacity.
+          ...(delivered ? { active_agent_id: command.agent_id } : {}),
+        },
+        data: {
+          terminal_outcome: command.outcome,
+          terminal_at: command.now,
+          terminal_by: command.actor_id,
+          active_agent_id: null,
+          ...(delivered
+            ? {
+                handover_request_id: command.request_id ?? null,
+                native_sync_queued_at: command.now,
+              }
+            : {}),
+        },
+      },
+      context,
+    )
+    if (!updated)
+      return {
+        decision: {
+          outcome: "refused",
+          code: "delivery_changed",
+        } as TerminalDecision,
+        delivery: record,
+      }
+    return { decision, delivery: updated }
+  }
+
+  /** Records the native delivered marking once. */
+  @InjectManager()
+  async recordNativeDelivered(
+    input: { order_id: string; now: Date },
+    @MedusaContext() context: Context = {},
+  ) {
+    await this.updateIntendedDeliveries(
+      {
+        selector: { order_id: input.order_id, native_delivered_at: null },
+        data: { native_delivered_at: input.now },
       },
       context,
     )

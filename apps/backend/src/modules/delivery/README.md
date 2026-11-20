@@ -233,7 +233,8 @@ Order or ended responsibility is refused even on a repeat. Nothing undoes a
 recorded pickup.
 
 `native_fulfillment_id` is the native Order fulfillment created and shipped
-for the pickup (`settleNativePickup` in `src/workflows/delivery/pickup.ts`).
+for the pickup (`settleNativeFulfillment` in
+`src/workflows/delivery/native-fulfillment.ts`).
 Null after pickup means that synchronization is still owed. The fulfillment
 carries `metadata.intended_delivery_id`, so a retry after a lost write finds it
 instead of fulfilling twice. The location is the one the Order's shipping
@@ -243,8 +244,8 @@ platform-wide location shared by every Restaurant, because no Restaurant is
 linked to its own stock location yet. Shipping each pickup from its
 Restaurant's own location is #192. Nothing undoes a recorded pickup, and the
 native work it owes is retried, not compensated (ADR-0021). The request and the
-`recover-delivery-pickups` job (every minute, 50 per sweep) serialize on
-`delivery-native-pickup:{order_id}`. `native_sync_queued_at` starts at the
+`recover-delivery-fulfillments` job (every minute, 50 per sweep) serialize on
+`delivery-native-fulfillment:{order_id}`. `native_sync_queued_at` starts at the
 pickup time and moves to the start of each attempt; the sweep takes the oldest
 first, so a lasting failure goes to the back and cannot hold back newer
 pickups.
@@ -259,3 +260,60 @@ location (pickup stands, the obligation is requeued and finished once
 configured) and recovery after an interruption and after a lost record.
 `src/workflows/delivery/__tests__/pickup-rules.unit.spec.ts` covers the
 decision table.
+
+## Handover and terminal outcome (#161)
+
+`IntendedDelivery` records how the work ended: `terminal_outcome`
+(`delivered`, `cancelled` or `failed`), `terminal_at` (server time),
+`terminal_by` (the delivering agent, an operator, a Customer or `system`) and,
+for a handover, `handover_request_id` (the retry identity, unique when set).
+They are written once and never replaced. The same write sets
+`active_agent_id` to null, so the agent can take new work; `assigned_agent_id`,
+`assigned_by`, the pickup and every earlier milestone stay as they were.
+
+`endDelivery` is the only terminal write. It locks the delivery row, re-reads
+it with the agent and the retry identity, applies the caller's rule and
+writes in one update whose selector requires an unended delivery (and, for a
+handover, the agent still holding the capacity). A stale decision is refused
+as `delivery_changed`. Callers:
+
+- **Handover.** `recordHandoverStep` (`src/workflows/delivery/terminal.ts`)
+  holds `delivery-agent:{agent_id}` then `order-operation:{order_id}`, reads
+  whether the Order is still active and applies `decideHandover`
+  (`terminal-rules.ts`): the responsible, authorized agent of an active
+  delivery with a recorded pickup. No arrival, location, permission or timer
+  is read, so nothing but the confirmation marks work delivered. A repeat by
+  that agent, with any `request_id`, returns the original outcome; cancelled
+  or failed work is refused.
+- **Cancellation and failure.** `endDeliveryForOrder` applies
+  `decideTermination` for an authoritative cancellation (#162) or an
+  operator-confirmed failure (#49). The caller already holds the Order's
+  guard; `endDeliveryWorkflow` takes it for callers that do not. Work that
+  already ended keeps its outcome, so a delivered Order is never rewritten as
+  cancelled. An Order without accepted work has no delivery and is left
+  alone. The later location slice (#166) is to remove the latest coordinate
+  in this same write.
+
+After a handover `settleNativeFulfillment` also marks the native fulfillment
+delivered through `markOrderFulfillmentAsDeliveredWorkflow`, so the Order's
+`fulfillment_status` becomes `delivered`, and records `native_delivered_at`.
+A failure never fails the request; the recovery sweep reads delivered work
+without `native_delivered_at` as well as pickups without a fulfillment.
+Cancelled or failed work is never marked delivered.
+
+The agent's own history (`src/workflows/delivery/history.ts`) reads ended
+work by `assigned_agent_id`, newest `terminal_at` first, filtered and paged
+in the module query. Each entry has only the Order reference, Restaurant,
+pickup address, acceptance, assignment, pickup and end times and the outcome.
+Customer contact and destination stay on the Order for separately authorized
+Customer and operator access. A milestone that was never recorded is `null`.
+
+`integration-tests/http/delivery-handover.spec.ts` covers handover with
+capacity release and the native delivered marking, retries, refusals before
+pickup, by other agents and actors, unknown Orders, forged bodies (time,
+coordinates, photo), revoked agents, a reused retry identity, three competing
+requests, a stale decision, the cancellation boundary (release, repeat,
+never over a delivered outcome, no delivery), recovery after an interruption,
+history paging, privacy and ownership, and the Customer's progress
+milestones. `src/workflows/delivery/__tests__/terminal-rules.unit.spec.ts`
+covers the decision tables.

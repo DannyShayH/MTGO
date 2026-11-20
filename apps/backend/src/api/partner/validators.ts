@@ -81,6 +81,24 @@ export const PostPickupDistancesSchema = z.strictObject({
 })
 export type PostPickupDistancesBody = z.infer<typeof PostPickupDistancesSchema>
 
+/**
+ * Handover takes only its retry identity: never a time, agent, location,
+ * photo, signature or code (#161).
+ */
+export const PostConfirmHandoverSchema = z.strictObject({
+  request_id: RetryIdentity,
+})
+export type PostConfirmHandoverBody = z.infer<typeof PostConfirmHandoverSchema>
+
+/** One page of the agent's own completed history. */
+export const GetCompletedDeliveriesSchema = z.strictObject({
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+  offset: z.coerce.number().int().min(0).default(0),
+})
+export type GetCompletedDeliveriesQuery = z.infer<
+  typeof GetCompletedDeliveriesSchema
+>
+
 export type GetAvailableDeliveriesQuery = z.infer<
   typeof GetAvailableDeliveriesSchema
 >

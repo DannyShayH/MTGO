@@ -7,8 +7,10 @@ import { FetchError } from "@medusajs/js-sdk"
 import { requestId } from "@dtc/logging"
 import {
   isDeliveryClaimErrorCode,
+  isDeliveryHandoverErrorCode,
   isDeliveryPickupErrorCode,
   type DeliveryClaimErrorCode,
+  type DeliveryHandoverErrorCode,
   type DeliveryPickupErrorCode,
 } from "@dtc/i18n"
 import {
@@ -62,8 +64,8 @@ export type CurrentDelivery = {
   picked_up_at: string | null
   /** The route distance from pickup to the Customer (#191), or null. */
   trip_distance_km: number | null
-  /** What the agent may do now; pickup only once the food is ready. */
-  allowed_actions: "confirm_pickup"[]
+  /** What the agent may do now: pickup once the food is ready, then handover. */
+  allowed_actions: ("confirm_pickup" | "confirm_handover")[]
   customer: {
     name: string
     phone: string | null
@@ -72,6 +74,24 @@ export type CurrentDelivery = {
     postal_code: string
     city: string
   }
+}
+
+/**
+ * One of the agent's own ended deliveries (#161): reference, Restaurant,
+ * milestone times and outcome, never the Customer's contact or address.
+ */
+export type CompletedDelivery = {
+  id: string
+  order_id: string
+  order_reference: number
+  restaurant_name: string
+  pickup_address: string
+  accepted_at: string
+  assigned_at: string | null
+  assignment_source: "agent_claim" | "operator_assignment" | null
+  picked_up_at: string | null
+  ended_at: string
+  outcome: "delivered" | "cancelled" | "failed"
 }
 
 export async function getCurrentDelivery(): Promise<CurrentDelivery | null> {
@@ -232,6 +252,48 @@ export async function checkPickup(
   }
 }
 
+export type HandoverResult =
+  | { status: "delivered" }
+  | { status: "refused"; code: DeliveryHandoverErrorCode }
+  /** No answer, or a server failure: handover may or may not have been recorded. */
+  | { status: "uncertain" }
+
+/**
+ * Confirms actual handover of the current delivery (#161). The server
+ * records the time and frees the agent for new work; a repeat with the same
+ * retry identity keeps the original outcome.
+ */
+export async function confirmHandover(
+  orderId: string,
+  retryIdentity: string,
+): Promise<HandoverResult> {
+  const result = await postAgentAction({
+    orderId,
+    retryIdentity,
+    path: (id) => `/partner/deliveries/${encodeURIComponent(id)}/deliver`,
+    route: "/partner/deliveries/:id/deliver",
+    isKnownCode: isDeliveryHandoverErrorCode,
+  })
+  return result.status === "done" ? { status: "delivered" } : result
+}
+
+/**
+ * Reconciles an uncertain handover from the agent's own history: delivered
+ * only if the server shows this delivery ended as delivered.
+ */
+export async function checkHandover(
+  orderId: string,
+): Promise<"delivered" | "not_delivered" | "uncertain"> {
+  try {
+    const entry = await getCompletedDelivery(orderId)
+    revalidatePath("/delivery", "layout")
+    return entry?.outcome === "delivered" ? "delivered" : "not_delivered"
+  } catch (error) {
+    unstable_rethrow(error)
+    return "uncertain"
+  }
+}
+
 /**
  * Reconciles an uncertain claim from the authoritative current delivery:
  * claimed only if the server says this agent is responsible for it.
@@ -362,6 +424,55 @@ export async function getAvailableDelivery(orderId: string) {
     })
   } catch (error) {
     if (error instanceof FetchError && error.status === 404) return null
+    throw error
+  }
+}
+
+/** One page of the agent's own completed deliveries, newest first. */
+export async function getCompletedDeliveries(offset: number, limit = 20) {
+  const bearer = (await cookies()).get(PARTNER_TOKEN_COOKIE)?.value
+  if (!bearer) redirect("/delivery-sign-in")
+  const query = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+  })
+  try {
+    return await createPartnerSdk().client.fetch<{
+      deliveries: CompletedDelivery[]
+      has_more: boolean
+    }>(`/partner/delivery-agent/history?${query}`, {
+      headers: { authorization: `Bearer ${bearer}` },
+      cache: "no-store",
+    })
+  } catch (error) {
+    if (error instanceof FetchError && error.status === 403)
+      redirect(AGENT_ACCESS_ENDED_PATH)
+    if (error instanceof FetchError && error.status === 401)
+      redirect("/delivery-sign-in")
+    throw error
+  }
+}
+
+/** One of the agent's own completed deliveries, or null if it is not one. */
+export async function getCompletedDelivery(
+  orderId: string,
+): Promise<CompletedDelivery | null> {
+  const bearer = (await cookies()).get(PARTNER_TOKEN_COOKIE)?.value
+  if (!bearer) redirect("/delivery-sign-in")
+  try {
+    const result = await createPartnerSdk().client.fetch<{
+      delivery: CompletedDelivery
+    }>(`/partner/delivery-agent/history/${encodeURIComponent(orderId)}`, {
+      headers: { authorization: `Bearer ${bearer}` },
+      cache: "no-store",
+    })
+    return result.delivery
+  } catch (error) {
+    if (error instanceof FetchError && error.status === 404) return null
+    if (error instanceof FetchError && error.status === 403)
+      redirect(AGENT_ACCESS_ENDED_PATH)
+    if (error instanceof FetchError && error.status === 401)
+      redirect("/delivery-sign-in")
     throw error
   }
 }

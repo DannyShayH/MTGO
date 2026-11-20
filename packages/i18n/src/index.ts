@@ -110,4 +110,8 @@ export {
   DELIVERY_PICKUP_ERRORS,
   isDeliveryPickupErrorCode,
   type DeliveryPickupErrorCode,
+  DELIVERY_HANDOVER_ERROR_CODES,
+  DELIVERY_HANDOVER_ERRORS,
+  isDeliveryHandoverErrorCode,
+  type DeliveryHandoverErrorCode,
 } from "./delivery-agent.ts"

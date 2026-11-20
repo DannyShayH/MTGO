@@ -55,6 +55,13 @@ medusaIntegrationTestRunner({
         placed_at,
         cancellation: null,
         refund: null,
+        // Accepted work awaits an agent: no delivery milestone yet (#161).
+        delivery: {
+          assigned_at: null,
+          picked_up_at: null,
+          delivered_at: null,
+          outcome: null,
+        },
       }
 
       const { accepted_at } = (await accept(staff.headers, order.id)).data.order
@@ -109,6 +116,8 @@ medusaIntegrationTestRunner({
         expect(await progressOf(order.id)).toEqual({
           order_id: order.id,
           state: "cancelled",
+          // Never accepted, so there was never a delivery.
+          delivery: null,
           placed_at: order.order_operation.placed_at,
           accepted_at: null,
           preparation_started_at: null,

@@ -8,11 +8,18 @@ export const ASSIGNMENT_SOURCES = [
 export type AssignmentSource = (typeof ASSIGNMENT_SOURCES)[number]
 
 /**
+ * How a delivery ended (#161): the agent's confirmed handover, the Order's
+ * authoritative cancellation, or an operator-confirmed failure (#49).
+ */
+export const TERMINAL_OUTCOMES = ["delivered", "cancelled", "failed"] as const
+export type TerminalOutcome = (typeof TERMINAL_OUTCOMES)[number]
+
+/**
  * One accepted Order's immutable pickup and destination facts, and its one
  * responsible agent (#157). `assigned_agent_id` is the historical
  * responsibility and never changes once set; `active_agent_id` is the
- * agent's active-capacity hold, unique per agent, released only by a later
- * terminal outcome.
+ * agent's active-capacity hold, unique per agent, released only by the
+ * terminal outcome (#161).
  */
 const IntendedDelivery = model
   .define("intended_delivery", {
@@ -66,6 +73,19 @@ const IntendedDelivery = model
     destination_longitude: model.float().nullable(),
     trip_distance_m: model.number().nullable(),
     trip_measured_at: model.dateTime().nullable(),
+    /**
+     * The terminal outcome (#161), recorded once with its server time and
+     * actor (the delivering agent, an operator, a Customer or `system`) and
+     * never replaced. It releases `active_agent_id` in the same write; the
+     * assignment and earlier milestones stay as they were.
+     */
+    terminal_outcome: model.enum([...TERMINAL_OUTCOMES]).nullable(),
+    terminal_at: model.dateTime().nullable(),
+    terminal_by: model.text().nullable(),
+    /** The retry identity of the handover request that delivered the work. */
+    handover_request_id: model.text().nullable(),
+    /** When the native fulfillment was marked delivered after handover. */
+    native_delivered_at: model.dateTime().nullable(),
   })
   .indexes([
     { on: ["order_id"], unique: true },
@@ -86,10 +106,21 @@ const IntendedDelivery = model
       unique: true,
       where: "pickup_request_id IS NOT NULL",
     },
-    // The recovery sweep's read of pickups still owing native fulfillment.
+    {
+      on: ["handover_request_id"],
+      unique: true,
+      where: "handover_request_id IS NOT NULL",
+    },
+    // The recovery sweep's read of native fulfillment still owed.
     {
       on: ["native_sync_queued_at"],
-      where: "picked_up_at IS NOT NULL AND native_fulfillment_id IS NULL",
+      where:
+        "((picked_up_at IS NOT NULL AND native_fulfillment_id IS NULL) OR (terminal_outcome = 'delivered' AND native_delivered_at IS NULL))",
+    },
+    // The agent's own completed history, newest first.
+    {
+      on: ["assigned_agent_id", "terminal_at", "id"],
+      where: "terminal_outcome IS NOT NULL",
     },
   ])
 

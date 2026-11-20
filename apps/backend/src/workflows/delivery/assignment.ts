@@ -113,7 +113,7 @@ type CustomerAddress = {
   phone?: string | null
 }
 
-export type DeliveryAction = "confirm_pickup"
+export type DeliveryAction = "confirm_pickup" | "confirm_handover"
 
 export type CurrentDelivery = {
   id: string
@@ -129,7 +129,10 @@ export type CurrentDelivery = {
   picked_up_at: string | null
   /** The route distance from pickup to the Customer (#191), or null. */
   trip_distance_km: number | null
-  /** What the agent may do now: confirm pickup once the food is ready. */
+  /**
+   * What the agent may do now: confirm pickup once the food is ready, then
+   * confirm handover once pickup is recorded (#161).
+   */
   allowed_actions: DeliveryAction[]
   customer: {
     name: string
@@ -140,6 +143,19 @@ export type CurrentDelivery = {
     city: string
   }
 }
+/**
+ * The next step of active work: pickup once the food is ready, then
+ * handover once pickup is recorded (#161). An ended Order allows nothing.
+ */
+function allowedActions(
+  state: string,
+  picked_up_at: Date | string | null,
+): DeliveryAction[] {
+  if (!isActiveOrderState(state)) return []
+  if (picked_up_at) return ["confirm_handover"]
+  return state === "ready" ? ["confirm_pickup"] : []
+}
+
 type CurrentDeliveryView = {
   delivery: CurrentDelivery | null
   server_time: string
@@ -209,10 +225,7 @@ export const readCurrentDeliveryStep = createStep(
           ? new Date(record.picked_up_at).toISOString()
           : null,
         trip_distance_km: distanceKm(record.trip_distance_m),
-        allowed_actions:
-          operation.state === "ready" && !record.picked_up_at
-            ? ["confirm_pickup"]
-            : [],
+        allowed_actions: allowedActions(operation.state, record.picked_up_at),
         customer: {
           name: [address.first_name, address.last_name]
             .filter(Boolean)

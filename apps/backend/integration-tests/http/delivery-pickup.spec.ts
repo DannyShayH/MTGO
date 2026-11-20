@@ -6,7 +6,7 @@ import {
 } from "@medusajs/framework/utils"
 import { DELIVERY_MODULE } from "../../src/modules/delivery"
 import type DeliveryModuleService from "../../src/modules/delivery/service"
-import { recoverDeliveryPickupsWorkflow } from "../../src/workflows/delivery/pickup"
+import { recoverDeliveryFulfillmentsWorkflow } from "../../src/workflows/delivery/native-fulfillment"
 import { restaurantOrdersHarness } from "../helpers/restaurant-orders"
 
 jest.setTimeout(240000)
@@ -147,9 +147,10 @@ medusaIntegrationTestRunner({
         expect(new Date(pickedUpAt).getTime()).toBeGreaterThanOrEqual(
           started - 1000,
         )
+        // Once collected, the next step is handover (#161).
         expect(picked.data.delivery).toMatchObject({
           order_id: order.id,
-          allowed_actions: [],
+          allowed_actions: ["confirm_handover"],
         })
         expect((await current(agent.headers)).data.delivery).toEqual(
           picked.data.delivery,
@@ -345,7 +346,7 @@ medusaIntegrationTestRunner({
 
     describe("recovery of native fulfillment owed by a pickup", () => {
       const recover = () =>
-        recoverDeliveryPickupsWorkflow(getContainer()).run({ input: {} })
+        recoverDeliveryFulfillmentsWorkflow(getContainer()).run({ input: {} })
 
       it("keeps the pickup when no pickup location is configured, requeues the owed fulfillment and finishes it once configured", async () => {
         const { order, agent } = await claimedOrder("ready")

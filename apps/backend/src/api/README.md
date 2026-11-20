@@ -25,8 +25,10 @@ state, acceptance and assignment times, `assignment_source`
 (`agent_claim` or `operator_assignment`) and `customer` (name, phone,
 `address_1`, `address_2`, postal code, city) from the Order's purchased
 shipping address, plus `picked_up_at` (null before pickup) and
-`allowed_actions` (`["confirm_pickup"]` only while the food is ready and not
-yet collected, otherwise `[]`). Checkout records no separate delivery
+`allowed_actions`: `["confirm_pickup"]` while the food is ready and not yet
+collected, `["confirm_handover"]` once collected (#161), otherwise `[]`. After
+handover, cancellation or failure the delivery is no longer current and
+`delivery` is `null`. Checkout records no separate delivery
 instructions, so none are returned. Responsibility, not the current areas, grants this read;
 revoked agents receive `403`.
 
@@ -69,7 +71,58 @@ item through Medusa's `createOrderFulfillmentWorkflow` and
 `createOrderShipmentWorkflow`, at the stock location the Order's delivery
 option is configured with. The Order's `fulfillment_status` becomes `shipped`,
 not `delivered`. A failure there never fails the request: the delivery module
-keeps the obligation and the `recover-delivery-pickups` job finishes it.
+keeps the obligation and the `recover-delivery-fulfillments` job finishes it.
+
+## Handover and completed history (#161)
+
+### POST /partner/deliveries/{order_id}/deliver
+
+Records that the responsible agent handed the food over to the Customer or
+their designated recipient, ends the delivery as `delivered` and frees the
+agent for new work. Allowed only for the agent responsible for an active
+delivery with a recorded pickup. The time and agent come from the server; no
+arrival, coordinate, photo, signature or code is accepted or required. A
+repeat, with the same or a new `request_id`, returns the original entry.
+
+**Actor:** authorized Delivery agent (`delivery_agent` bearer)
+
+| Field        | Type   | Required | Rules                                                                                   |
+| ------------ | ------ | -------- | --------------------------------------------------------------------------------------- |
+| `request_id` | string | yes      | 1-100 characters `A-Z a-z 0-9 . _ : -`; one per intended handover, kept for its retries |
+
+**Success:** `200` with the completed entry
+`{ "delivery": { ..., "outcome": "delivered", "ended_at": "..." }, "server_time": "..." }`
+(fields as in the history below).
+
+| Status | When                                                                              |
+| ------ | --------------------------------------------------------------------------------- |
+| `400`  | `pickup_not_recorded`; `delivery_not_responsible` (another agent's or unassigned) |
+| `400`  | `delivery_not_active` (cancelled, failed or ended Order)                          |
+| `400`  | Invalid body or unknown fields                                                    |
+| `401`  | No `delivery_agent` bearer                                                        |
+| `403`  | `delivery_agent_access_revoked`                                                   |
+| `404`  | `delivery_not_found` (no accepted delivery for the Order)                         |
+| `409`  | `handover_request_reused` (`request_id` first used for another delivery or agent) |
+| `409`  | `delivery_changed` (the delivery changed between the guarded read and the write)  |
+
+A handover also marks the native fulfillment delivered through
+`markOrderFulfillmentAsDeliveredWorkflow`; the Order's `fulfillment_status`
+becomes `delivered`. A failure there never fails the request; the
+`recover-delivery-fulfillments` job finishes it.
+
+### GET /partner/delivery-agent/history
+
+`?limit=20&offset=0` (limit 1-50, offset nonnegative) returns
+`{ deliveries, has_more, limit, offset, server_time }`: the caller's own ended
+deliveries, newest end first. Each entry has `id`, `order_id`,
+`order_reference`, `restaurant_name`, `pickup_address`, `accepted_at`,
+`assigned_at`, `assignment_source`, `picked_up_at` (null when never
+recorded), `ended_at` and `outcome` (`delivered`, `cancelled` or `failed`). No
+Customer name, phone, address or instructions. `GET
+/partner/delivery-agent/history/{order_id}` returns `{ delivery, server_time }`
+for one of them; another agent's, still active or unknown work is a generic
+`404`. Both require an authorized agent: `401` without the bearer, `403` when
+revoked.
 
 `GET /admin/deliveries/unclaimed?limit=20&offset=0` (limit 1-50) returns
 `{ deliveries, has_more, limit, offset, server_time }` with the same safe
@@ -320,6 +373,12 @@ data; the Customer's delivery charge remains zero.
 
 ### GET /store/orders/:id/progress
 
+Since #161 `progress.delivery` carries the committed delivery milestones
+that the #50 timeline reads. It is `null` before acceptance, otherwise
+`{ assigned_at, picked_up_at, delivered_at, outcome }`, each `null` until
+recorded. `delivered_at` is set only for a confirmed handover. The agent's
+identity is never included.
+
 **Actor:** the owning Customer (`customer`, bearer or session), with the same
 ownership and placed-Order checks as `GET /store/orders/:id` (#143). Another
 Customer's Order, an unpaid provisional row and an unknown id are all `404`;
@@ -346,7 +405,8 @@ signed out is `401`.
       "currency_code": "dkk",
       "last_attempted_at": "2026-11-18T12:02:10.000Z",
       "succeeded_at": null
-    }
+    },
+    "delivery": null
   },
   "server_time": "2026-11-18T12:03:00.000Z"
 }

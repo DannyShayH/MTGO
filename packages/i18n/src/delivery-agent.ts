@@ -108,6 +108,36 @@ export const DELIVERY_AGENT_TEXT = {
       "Afstande: © openrouteservice.org | OpenStreetMap contributors",
     accessEnded:
       "Din adgang som leveringspartner er afsluttet. Hvis du har en levering, er den stadig tildelt dig, og MTOGO er gjort opmærksom på den. Kontakt MTOGO.",
+    confirmHandover: "Jeg har afleveret maden",
+    confirmHandoverTitle: "Er maden afleveret?",
+    confirmHandoverHint:
+      "Bekræft kun, når kunden eller den, kunden har udpeget, har fået maden i hånden. Tidspunktet registreres og kan ikke ændres.",
+    confirmDelivered: "Ja, bekræft aflevering",
+    confirmingHandover: "Registrerer aflevering…",
+    handoverCheckingHint:
+      "Vi ved endnu ikke, om afleveringen blev registreret. Vi tjekker igen, når forbindelsen er tilbage.",
+    handoverNotConfirmed: "Afleveringen blev ikke registreret. Prøv igen.",
+    completedTitle: "Levering afsluttet",
+    completedAt: "Afleveret kl. {time}",
+    completedNext: "Du kan nu påtage dig en ny levering.",
+    history: "Afsluttede leveringer",
+    historyLink: "Se afsluttede leveringer",
+    historyEmpty: "Du har endnu ingen afsluttede leveringer.",
+    historyFailed: "Dine afsluttede leveringer kunne ikke hentes. Prøv igen.",
+    historyUnavailable: "Leveringen findes ikke i dine afsluttede leveringer.",
+    historyPrivacy:
+      "Kundens navn, telefonnummer og adresse vises ikke, når leveringen er afsluttet.",
+    backToHistory: "Tilbage til afsluttede leveringer",
+    outcome: "Udfald",
+    outcomeDelivered: "Afleveret",
+    outcomeCancelled: "Annulleret",
+    outcomeFailed: "Ikke leveret",
+    milestones: "Tidspunkter",
+    endedAt: "Afsluttet",
+    pickedUp: "Hentet",
+    assigned: "Ansvarlig fra",
+    accepted: "Accepteret af restauranten",
+    notRecorded: "Ikke registreret",
   },
   en: {
     title: "Delivery agent",
@@ -218,6 +248,36 @@ export const DELIVERY_AGENT_TEXT = {
       "Distances: © openrouteservice.org | OpenStreetMap contributors",
     accessEnded:
       "Your delivery agent access has ended. If you hold a delivery, it stays assigned to you and MTOGO has been alerted. Contact MTOGO.",
+    confirmHandover: "I have handed over the food",
+    confirmHandoverTitle: "Has the food been handed over?",
+    confirmHandoverHint:
+      "Only confirm once the Customer, or the person they chose, has the food in hand. The time is recorded and cannot be changed.",
+    confirmDelivered: "Yes, confirm handover",
+    confirmingHandover: "Recording handover…",
+    handoverCheckingHint:
+      "We do not know yet whether your handover was recorded. We check again when the connection is back.",
+    handoverNotConfirmed: "Your handover was not recorded. Please try again.",
+    completedTitle: "Delivery completed",
+    completedAt: "Handed over at {time}",
+    completedNext: "You can now claim a new delivery.",
+    history: "Completed deliveries",
+    historyLink: "View completed deliveries",
+    historyEmpty: "You have no completed deliveries yet.",
+    historyFailed: "Your completed deliveries could not be loaded. Try again.",
+    historyUnavailable: "This delivery is not among your completed deliveries.",
+    historyPrivacy:
+      "The Customer's name, phone number and address are not shown once a delivery has ended.",
+    backToHistory: "Back to completed deliveries",
+    outcome: "Outcome",
+    outcomeDelivered: "Delivered",
+    outcomeCancelled: "Cancelled",
+    outcomeFailed: "Not delivered",
+    milestones: "Times",
+    endedAt: "Ended",
+    pickedUp: "Collected",
+    assigned: "Responsible from",
+    accepted: "Accepted by the Restaurant",
+    notRecorded: "Not recorded",
   },
 } as const
 
@@ -314,6 +374,52 @@ export const DELIVERY_PICKUP_ERRORS: Record<
     delivery_not_active: "This Order is no longer active.",
     delivery_not_found: "This delivery no longer exists.",
     pickup_request_reused:
+      "The action could not be completed. Refresh the page and try again.",
+    delivery_changed:
+      "This delivery has changed. Refresh the page and try again.",
+    unknown_error: "The action could not be completed. Please try again.",
+  },
+}
+
+/** Codes a handover can be refused with; `unknown_error` covers the rest. */
+export const DELIVERY_HANDOVER_ERROR_CODES = [
+  "pickup_not_recorded",
+  "delivery_not_responsible",
+  "delivery_not_active",
+  "delivery_not_found",
+  "handover_request_reused",
+  "delivery_changed",
+  "unknown_error",
+] as const
+export type DeliveryHandoverErrorCode =
+  (typeof DELIVERY_HANDOVER_ERROR_CODES)[number]
+
+export function isDeliveryHandoverErrorCode(
+  value: unknown,
+): value is DeliveryHandoverErrorCode {
+  return DELIVERY_HANDOVER_ERROR_CODES.some((code) => code === value)
+}
+
+export const DELIVERY_HANDOVER_ERRORS: Record<
+  "da" | "en",
+  Record<DeliveryHandoverErrorCode, string>
+> = {
+  da: {
+    pickup_not_recorded: "Bekræft afhentning, før du bekræfter aflevering.",
+    delivery_not_responsible: "Du er ikke ansvarlig for denne levering.",
+    delivery_not_active: "Leveringen er ikke længere aktiv.",
+    delivery_not_found: "Leveringen findes ikke længere.",
+    handover_request_reused:
+      "Handlingen kunne ikke gennemføres. Opdater siden, og prøv igen.",
+    delivery_changed: "Leveringen er ændret. Opdater siden, og prøv igen.",
+    unknown_error: "Handlingen kunne ikke gennemføres. Prøv igen.",
+  },
+  en: {
+    pickup_not_recorded: "Confirm pickup before confirming handover.",
+    delivery_not_responsible: "You are not responsible for this delivery.",
+    delivery_not_active: "This delivery is no longer active.",
+    delivery_not_found: "This delivery no longer exists.",
+    handover_request_reused:
       "The action could not be completed. Refresh the page and try again.",
     delivery_changed:
       "This delivery has changed. Refresh the page and try again.",

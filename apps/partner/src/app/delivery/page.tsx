@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto"
 import { unstable_rethrow } from "next/navigation"
-import { ArrowPath } from "@medusajs/icons"
+import Link from "next/link"
+import { ArrowPath, CheckCircleSolid } from "@medusajs/icons"
 import { Button } from "@medusajs/ui"
 import { DELIVERY_AGENT_TEXT, formatText } from "@dtc/i18n"
 import { getMessages } from "@lib/i18n"
@@ -8,6 +9,7 @@ import {
   requireDeliveryAgent,
   getDeliveryFilter,
   getAvailableDeliveries,
+  getCompletedDelivery,
   getCurrentDelivery,
   signOutDeliveryAgent,
 } from "@lib/data/delivery-agent"
@@ -30,18 +32,21 @@ const SECTION_TITLE =
 /**
  * The Delivery agent workspace on a phone (#156, #157): the current
  * delivery first, then the available work in the chosen towns. One column at
- * every width, so the order never changes.
+ * every width, so the order never changes. Right after a handover (#161) it
+ * shows the completion, read back from the agent's own history, above the
+ * now empty current section, so the agent can claim the next job.
  */
 export default async function DeliveryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>
+  searchParams: Promise<{ page?: string; completed?: string }>
 }) {
   const agent = await requireDeliveryAgent()
   const { locale } = await getMessages()
   const copy = DELIVERY_AGENT_TEXT[locale]
   const selected = await getDeliveryFilter(agent.agent.id, agent.postal_codes)
-  const rawPage = Number((await searchParams).page ?? "1")
+  const params = await searchParams
+  const rawPage = Number(params.page ?? "1")
   const page = Number.isSafeInteger(rawPage) && rawPage > 0 ? rawPage : 1
   // `undefined` is a failed read: claims stay hidden rather than guessed.
   const current = await getCurrentDelivery().catch((error) => {
@@ -49,6 +54,14 @@ export default async function DeliveryPage({
     unstable_rethrow(error)
     return undefined
   })
+  // Only the agent's own completed work is shown; anything else shows nothing.
+  const completed =
+    typeof params.completed === "string" && params.completed
+      ? await getCompletedDelivery(params.completed).catch((error) => {
+          unstable_rethrow(error)
+          return null
+        })
+      : null
   const deliveries = await getAvailableDeliveries(
     selected,
     (page - 1) * 20,
@@ -114,6 +127,29 @@ export default async function DeliveryPage({
           <h2 id="current-title" className={SECTION_TITLE}>
             {copy.current}
           </h2>
+          {completed?.outcome === "delivered" && (
+            <div
+              role="status"
+              className="bg-mtogo-status-success-surface text-mtogo-status-success-text flex items-start gap-2 rounded-lg p-4 text-base"
+            >
+              <CheckCircleSolid aria-hidden className="mt-0.5 shrink-0" />
+              <span className="flex min-w-0 flex-col gap-0.5">
+                <span className="font-semibold">{copy.completedTitle}</span>
+                <span className="break-words">
+                  {completed.restaurant_name}{" "}
+                  <span className="tabular-nums">
+                    #{completed.order_reference}
+                  </span>
+                </span>
+                <span className="tabular-nums">
+                  {formatText(copy.completedAt, {
+                    time: formatTime(completed.ended_at),
+                  })}
+                </span>
+                {!current && <span>{copy.completedNext}</span>}
+              </span>
+            </div>
+          )}
           {current === undefined ? (
             message(copy.currentFailed, true)
           ) : current ? (
@@ -121,12 +157,18 @@ export default async function DeliveryPage({
               delivery={current}
               copy={copy}
               locale={locale}
-              pickupRetryIdentity={randomUUID()}
+              actionRetryIdentity={randomUUID()}
               formatTime={formatTime}
             />
           ) : (
             message(copy.noCurrent)
           )}
+          <Link
+            href="/delivery/history"
+            className={`text-mtogo-text-link focus-visible:ring-mtogo-focus-ring flex min-h-11 items-center self-start rounded-md px-1 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 ${PRESSABLE}`}
+          >
+            {copy.historyLink}
+          </Link>
         </section>
 
         <section
