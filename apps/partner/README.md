@@ -32,6 +32,21 @@ from `GET /partner/delivery-agent/current`. "Assigned by MTOGO" marks an
 operator's assignment. There is no release or hand-over control. Pickup
 (#160) is described below.
 
+Under the two stops, **Route to pickup** and **Route to the Customer** (#190)
+open the phone's own maps app through plain Google Maps directions links
+(`travelmode=bicycling`), each with a smaller **Apple Maps** link beside it.
+`routeLinks` in `modules/delivery/route-links.ts` builds them from the
+current-delivery projection only, so available cards and the detail page never
+show them. Route to pickup sends no origin: the maps app starts from the
+phone's position, which never reaches MTOGO. Route to the Customer starts at
+the pickup address and ends at the Customer's address, second line included.
+Both addresses get ", Denmark" appended, so maps never picks a street of the
+same name abroad.
+The Apple link uses the classic `saddr`/`daddr` form without `dirflg`, which
+has no documented cycling value, so Apple Maps uses the agent's own preferred
+transport mode. Each link opens in a new tab or app; returning to the
+workspace reconciles as after a call.
+
 Each available card shows the Restaurant and reference, pickup address,
 destination postal code with its town, the claim deadline with the minutes
 left (a warning pill under five minutes, from the backend's `server_time`) and

@@ -1,4 +1,4 @@
-import { Alert, Heading } from "@medusajs/ui"
+import { Alert, Heading, Toaster } from "@medusajs/ui"
 import { DELIVERY_AGENT_TEXT } from "@dtc/i18n"
 import { getMessages } from "@lib/i18n"
 import { getDeliveryInvitation } from "@lib/data/delivery-agent"
@@ -17,6 +17,8 @@ export default async function DeliveryInvitePage({
   const copy = DELIVERY_AGENT_TEXT[locale]
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-6 px-4 py-12">
+      {/* Top, so the phone keyboard never covers an error. */}
+      <Toaster position="top-center" />
       <div className="bg-ui-bg-base shadow-elevation-card-rest rounded-card flex w-full max-w-sm flex-col gap-6 p-6 sm:p-8">
         <BrandMark name={messages.text.app_name} />
         <Heading level="h1">{copy.invitation}</Heading>

@@ -102,3 +102,6 @@ ECONNREFUSED
 devx
 pylance
 localhome
+daddr
+dirflg
+saddr

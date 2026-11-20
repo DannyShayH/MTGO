@@ -11,6 +11,7 @@ export const DELIVERY_AGENT_TEXT = {
     choosePassword: "Vælg en adgangskode",
     invalid: "Linket er ugyldigt eller er udløbet.",
     failed: "Handlingen kunne ikke gennemføres. Prøv igen.",
+    wrongCredentials: "Forkert e-mail eller adgangskode.",
     approved: "Godkendte områder",
     noAreas: "Du har endnu ingen godkendte postnumre.",
     filter: "Filtrer områder",
@@ -80,6 +81,11 @@ export const DELIVERY_AGENT_TEXT = {
     pickupWaiting:
       "Du kan bekræfte afhentning, når restauranten har meldt maden klar.",
     pickedUpAt: "Hentet kl.",
+    routeToPickup: "Rute til afhentning",
+    routeToCustomer: "Rute til kunden",
+    appleMaps: "Apple Maps",
+    routeToPickupApple: "Rute til afhentning i Apple Maps",
+    routeToCustomerApple: "Rute til kunden i Apple Maps",
     nextDeliver: "Næste: Bring maden ud til kunden.",
     pickupCheckingHint:
       "Vi ved endnu ikke, om afhentningen blev registreret. Vi tjekker igen, når forbindelsen er tilbage.",
@@ -99,6 +105,7 @@ export const DELIVERY_AGENT_TEXT = {
     choosePassword: "Choose a password",
     invalid: "This link is invalid or has expired.",
     failed: "The action could not be completed. Please try again.",
+    wrongCredentials: "Wrong email or password.",
     approved: "Approved areas",
     noAreas: "You have no approved postal codes yet.",
     filter: "Filter areas",
@@ -168,6 +175,11 @@ export const DELIVERY_AGENT_TEXT = {
     pickupWaiting:
       "You can confirm pickup once the Restaurant marks the food ready.",
     pickedUpAt: "Collected at",
+    routeToPickup: "Route to pickup",
+    routeToCustomer: "Route to the Customer",
+    appleMaps: "Apple Maps",
+    routeToPickupApple: "Route to pickup in Apple Maps",
+    routeToCustomerApple: "Route to the Customer in Apple Maps",
     nextDeliver: "Next: take the food to the Customer.",
     pickupCheckingHint:
       "We do not know yet whether your pickup was recorded. We check again when the connection is back.",

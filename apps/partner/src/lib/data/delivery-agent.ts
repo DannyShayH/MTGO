@@ -30,7 +30,9 @@ type CurrentAgent = {
   areas: { postal_code: string; name: string | null }[]
 }
 type Invite = { id: string; name: string; email: string }
-export type AgentActionState = { error?: "failed" | "invalid" }
+export type AgentActionState = {
+  error?: "failed" | "invalid" | "wrong_credentials" | "ended"
+}
 export type AvailableDelivery = {
   id: string
   order_id: string
@@ -358,10 +360,15 @@ export async function signInDeliveryAgent(
       "delivery-agent-emailpass",
       { email, password },
     )
-    if (typeof token !== "string" || !(await getDeliveryAgent(token)))
-      return { error: "failed" }
+    if (typeof token !== "string") return { error: "failed" }
+    // The password was right; a revoked agent is told access ended (#159).
+    const read = await readDeliveryAgent(token)
+    if (read.status === "ended") return { error: "ended" }
+    if (read.status !== "authorized") return { error: "failed" }
     await storePartnerToken(token)
-  } catch {
+  } catch (error) {
+    if (error instanceof FetchError && error.status === 401)
+      return { error: "wrong_credentials" }
     return { error: "failed" }
   }
   redirect("/delivery")

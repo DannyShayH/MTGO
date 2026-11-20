@@ -5,6 +5,8 @@ import type { CurrentDelivery } from "@lib/data/delivery-agent"
 import { ConfirmPickup } from "./confirm-pickup"
 import { CARD, PRESSABLE, type DeliveryCopy } from "./copy"
 import { PreparationBadge } from "./preparation-badge"
+import { streetLine } from "./route-links"
+import { RouteLinksPanel } from "./route-links-panel"
 import { RouteStops } from "./route-stops"
 
 /**
@@ -64,16 +66,14 @@ export function CurrentDeliveryCard({
           dropoff={
             <>
               <span className="block font-medium">{customer.name}</span>
-              <span className="block">
-                {customer.address_1}
-                {customer.address_2 ? `, ${customer.address_2}` : ""}
-              </span>
+              <span className="block">{streetLine(customer)}</span>
               <span className="block">
                 {customer.postal_code} {customer.city}
               </span>
             </>
           }
         />
+        <RouteLinksPanel delivery={delivery} copy={copy} />
         {delivery.picked_up_at ? (
           <div
             role="status"

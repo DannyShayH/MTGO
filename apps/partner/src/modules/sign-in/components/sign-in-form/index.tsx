@@ -4,6 +4,7 @@ import { useActionState, useState } from "react"
 import { accessEndedMessage, type Messages } from "@dtc/i18n"
 import { Alert, Button, Input, Label } from "@medusajs/ui"
 import { signIn } from "@lib/data/session"
+import { PHONE_FORM } from "@modules/common/form-styles"
 
 export function SignInForm({ messages }: { messages: Messages }) {
   const { text, codes } = messages
@@ -12,13 +13,7 @@ export function SignInForm({ messages }: { messages: Messages }) {
   // password only needs the password typed again.
   const [email, setEmail] = useState("")
   return (
-    <form
-      action={action}
-      // Medusa UI outlines an empty required field in red before anyone has
-      // typed; the last two rules keep the red for fields the person has left
-      // invalid.
-      className="flex flex-col gap-y-4 [&_button]:min-h-11 [&_input:invalid:not(:user-invalid):focus-visible]:!shadow-borders-interactive-with-active [&_input:invalid:not(:user-invalid):not(:focus-visible)]:!shadow-borders-base [&_input]:min-h-11 [&_input]:text-base"
-    >
+    <form action={action} className={PHONE_FORM}>
       {state.error && (
         <Alert variant="error" role="alert">
           {state.error === "staff_access_revoked"
