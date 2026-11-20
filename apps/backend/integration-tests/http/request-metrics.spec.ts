@@ -37,6 +37,19 @@ medusaIntegrationTestRunner({
       return response.text()
     }
     afterAll(() => stop?.())
+    // Process series change on every scrape; request series change only on use.
+    const requestSeries = (metrics: string) =>
+      metrics
+        .split("\n")
+        .filter((line) => line.includes("mtogo_http_"))
+        .join("\n")
+    const sample = (metrics: string, name: string) =>
+      Number(
+        metrics
+          .split("\n")
+          .find((line) => line.startsWith(`${name} `))
+          ?.split(" ")[1],
+      )
     // Tests share one process-wide counter, so compare a series before/after.
     const seriesValue = (metrics: string, labels: string) =>
       Number(
@@ -136,7 +149,7 @@ medusaIntegrationTestRunner({
       )
       expect(final).not.toMatch(/private|discard|secret|synthetic|health/)
       expect(final).not.toContain(headers["x-publishable-api-key"])
-      expect(await scrape()).toBe(final)
+      expect(requestSeries(await scrape())).toBe(requestSeries(final))
     })
 
     it("labels an invalid body by its route pattern and collapses IDs and query strings", async () => {
@@ -192,7 +205,7 @@ medusaIntegrationTestRunner({
       await api.get("/health")
       await api.get("/app", { validateStatus: () => true })
       await api.get("/app/assets/secret.js", { validateStatus: () => true })
-      expect(await scrape()).toBe(baseline)
+      expect(requestSeries(await scrape())).toBe(requestSeries(baseline))
 
       // Refused before a stream is established, so it keeps its ordinary outcome.
       const stream = await api.get("/partner/orders/stream", {
@@ -275,6 +288,39 @@ medusaIntegrationTestRunner({
         /mtogo_http_request_duration_seconds_bucket\{le="5",method="GET",route="\/store\/regions"\} \d+/,
       )
       expect(after).not.toMatch(/synthetic-region-failure|secret_marker/)
+    })
+
+    it("exports CPU, memory and event-loop delay of the process serving the API", async () => {
+      const headers = await publishableHeaders()
+      const before = await scrape()
+      // The runner serves Medusa in this Node process, so the exporter
+      // describes it, not a separate worker, Next.js app, host or database.
+      expect(before).toContain(
+        `nodejs_version_info{version="${process.version}",`,
+      )
+      for (let i = 0; i < 25; i++)
+        expect(
+          (await api.get("/store/products?limit=1", { headers })).status,
+        ).toBe(200)
+      const after = await scrape()
+      const cpu = (metrics: string) =>
+        sample(metrics, "process_cpu_seconds_total")
+      expect(cpu(after)).toBeGreaterThan(cpu(before))
+      expect(after).toContain("# TYPE process_cpu_seconds_total counter\n")
+      const resident = sample(after, "process_resident_memory_bytes")
+      const heapUsed = sample(after, "nodejs_heap_size_used_bytes")
+      // A booted Medusa application holds tens of megabytes, reported in bytes.
+      expect(heapUsed).toBeGreaterThan(20 * 1024 * 1024)
+      expect(resident).toBeGreaterThan(heapUsed)
+      for (const name of [
+        "nodejs_eventloop_lag_p50_seconds",
+        "nodejs_eventloop_lag_p99_seconds",
+        "nodejs_eventloop_lag_max_seconds",
+      ]) {
+        expect(sample(after, name)).toBeGreaterThanOrEqual(0)
+        expect(sample(after, name)).toBeLessThan(10)
+      }
+      expect(after).not.toContain(headers["x-publishable-api-key"])
     })
 
     it("counts an unauthenticated admin request once as an early rejection", async () => {

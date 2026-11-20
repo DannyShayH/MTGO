@@ -1,18 +1,21 @@
 ---
 title: Local backend request monitoring
-description: Completed ordinary backend API responses, including early refusals, 5xx proportion and p95 latency, through a private exporter, Prometheus and a provisioned Grafana Viewer dashboard.
+description: Completed ordinary backend API responses, including early refusals, 5xx proportion and p95 latency, plus the HTTP-serving process's CPU, memory and event-loop delay, through a private exporter, Prometheus and a provisioned Grafana Viewer dashboard.
 ---
 
 This implements the local journeys of
 [#169](https://github.com/DannyShayH/MTGO/issues/169),
-[#170](https://github.com/DannyShayH/MTGO/issues/170) and
-[#171](https://github.com/DannyShayH/MTGO/issues/171), under
+[#170](https://github.com/DannyShayH/MTGO/issues/170),
+[#171](https://github.com/DannyShayH/MTGO/issues/171) and
+[#172](https://github.com/DannyShayH/MTGO/issues/172), under
 [#167](https://github.com/DannyShayH/MTGO/issues/167). It measures every
 completed ordinary API response from one backend process, including
 authentication, publishable-key and body refusals before application
 middleware, with its server-side duration. It shows rates, five-minute
 counts, the 5xx proportion and ordinary API p95, and states plainly when
-evidence is unavailable. It does not count Customers or Orders, and HTTP
+evidence is unavailable. Beside the requests it shows the CPU, memory and
+event-loop delay of the same HTTP-serving Node process, and nothing wider:
+no host, worker, Next.js or database runtime. It does not count Customers or Orders, and HTTP
 latency is not Order processing time. Business state, logging
 and request correlation retain their existing contracts.
 
@@ -42,8 +45,8 @@ Monitoring is disabled unless `MTOGO_METRICS_ENABLED=1`. The supported
 For a native development server, use `PORT` rather than a CLI `--port`
 override and keep the default exporter bind at `127.0.0.1`.
 
-There is no application-log collection, process panels,
-SSE/interruption counters or adjustable warning thresholds yet.
+There is no application-log collection, host/container/database/Redis or
+Next.js process metrics, separate-worker runtime metrics, SSE/interruption counters or adjustable warning thresholds yet.
 The [confirmed discovery](/MTGO/quality/prometheus-monitoring-discovery/)
 describes the later work. Seven-day Prometheus retention is a time policy,
 not a storage quota or evidence that the full four-component stack fits staging.
@@ -127,7 +130,7 @@ NODE
 ```
 
 Log into Grafana as `local-viewer` using the ignored local Viewer password.
-Open `http://127.0.0.1:3000/d/mtogo-backend-requests` (**MTOGO — backend API requests**). The provisioned dashboard
+Open `http://127.0.0.1:3000/d/mtogo-backend-requests` (**MTOGO — backend API requests and process**). The provisioned dashboard
 and data source are managed in Git; a Viewer cannot overwrite them. These
 disposable accounts are not staging team-access provisioning.
 
@@ -260,6 +263,54 @@ curl --silent --output /dev/null --write-out '%{http_code} %{time_total}s\n' 'ht
 docker compose -f compose.application.yaml start postgres
 ```
 
+## HTTP-serving process: CPU, memory and event-loop delay (#172)
+
+The bottom row covers the **one HTTP-serving backend Node process**: the
+same `backend-metrics:9464` target (job `mtogo-backend`) the request panels
+use. The private registry runs `@prometheus-io/client`'s standard
+`collectDefaultMetrics` collectors. On each scrape they read this process's
+own counters. The **HTTP-serving process scope** panel states the target,
+units and limits.
+
+| Panel                      | Query                                                                  | Unit and meaning                                                                                                                                                                                                                  | Useful range                                                                                                                                                                                                                 |
+| -------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CPU — cores used           | `rate(process_cpu_seconds_total[5m])`                                  | User plus system CPU seconds used per second, averaged over five minutes. **1 = one full core**; a busy process can exceed 1 with native threads.                                                                                 | Near 0 when quiet. Node runs JavaScript on one thread, so close to 1 for minutes means the process is CPU-bound and requests queue. It is not host utilization: a 100% busy host can show a low value here, and the reverse. |
+| Memory — bytes             | `process_resident_memory_bytes`, `nodejs_heap_size_{used,total}_bytes` | Resident set (RSS: RAM the OS holds for the process: code, heap, buffers, native memory) and V8 heap used/total (JavaScript objects). RSS > heap total > heap used.                                                               | A booted backend holds a few hundred MB RSS. Steady growth over hours that never falls back suggests a leak. Compare RSS with the container memory cap on staging.                                                           |
+| Event-loop delay — seconds | `nodejs_eventloop_lag_{p50,p99,max}_seconds`                           | Time between ticks of Node's 10 ms sampling timer, from `perf_hooks.monitorEventLoopDelay`, over the window since the **previous scrape** (~15 s). Every scrape resets the statistics; time above the 0.01 s resolution is delay. | Around 0.01 s (the sampling resolution) when healthy. A p99 above about 0.1 s for several scrapes means requests wait behind blocking work; correlate with the p95.                                                          |
+
+Every query requires the target's latest scrape to be UP, so a stopped
+backend reads **Unavailable**, never its last value. The CPU rate needs two
+scrapes and is Unavailable until then. A gauge from one successful scrape is
+current evidence and is shown. CPU seconds count from exporter start, not
+process start. A restart resets them and `rate` handles that.
+
+Limits of the chosen collectors:
+
+- Delay statistics cover the time since the last scrape of that exporter.
+  Only Prometheus should scrape it: an extra `curl` to `/metrics` resets the
+  window and shortens what the next scrape reports.
+- Node needs one 10 ms sample after a reset before it measures again. A block
+  that starts within about 10 ms after a scrape can go unreported.
+- `max` is the worst single sample since the previous scrape. Between
+  scrapes it reports nothing about which request caused it.
+- The client also exports its other standard series (CPU user/system split,
+  virtual memory, process heap, start time, external memory, the
+  `setImmediate`-based `nodejs_eventloop_lag_seconds` and lag min/mean/stddev/p90,
+  GC duration, active handles and resources, file descriptors, heap spaces,
+  event-loop utilization, `nodejs_version_info`). They are bounded, available for ad hoc
+  queries and not on the dashboard. The client offers no teardown for its
+  event-loop monitor, GC observer and 100 ms utilization timer. They
+  do not keep the process alive and stop at process exit; production starts the exporter once per process.
+
+To see the panels react locally, send a short synthetic burst to the real
+API, then compare CPU and event-loop delay with the quiet period before it.
+Keyless reads are refused with 400, so the burst also appears as
+`early_rejection` responses, not as 5xx:
+
+```bash
+for i in $(seq 1 500); do curl --silent --output /dev/null 'http://127.0.0.1:9000/store/products?synthetic=burst'; done
+```
+
 ## Operation, failure and cleanup
 
 Stop either monitoring service locally and run the real read again. The API
@@ -311,6 +362,9 @@ docker compose down
 | p95 or 5xx proportion Unavailable while UP         | Expected with no completed responses or no duration observations in five minutes. Check **Data state** and the observation count; send a real read.               |
 | Data state shows Insufficient history              | Fewer than two successful scrapes in five minutes, for example right after Prometheus or the backend started. Wait 30 seconds.                                    |
 | p95 shows exactly 10 s                             | The 95th percentile is in the overflow bucket: at least 10 s. Investigate the slow route in **p95 by route pattern**.                                             |
+| Process panels Unavailable while requests show     | The CPU rate needs two scrapes; wait 30 seconds. If memory is also Unavailable, the backend release predates #172 and exports no process collectors.              |
+| CPU above 1 core or much lower than `top`          | It is this one process, in cores, averaged over five minutes. `top` shows instantaneous whole-host or per-thread figures; they are different measurements.        |
+| Event-loop delay jumps when you `curl` `/metrics`  | A manual scrape resets the delay window. Read the values in Grafana, or query Prometheus, instead of scraping the exporter by hand.                               |
 | `test rules` fails after a dashboard change        | Update the expression and expected values in `tests/dashboard-queries.test.yaml` together; the backend unit test names any query the file lacks.                  |
 | Dashboard absent                                   | Check Grafana provisioning logs and the mounted dashboard/provider/data-source paths; keep the pinned versions together.                                          |
 | `docker: command not found`                        | Rebuild and reopen the devcontainer with the Docker-in-Docker feature, then check `docker version` and `docker compose version`.                                  |
@@ -409,7 +463,7 @@ Repeat the startup above and check:
 
 No staging capacity, combined four-component budget or activation acceptance is
 claimed by this local slice. Staging metrics (#194) reuse the same dashboard,
-now titled **MTOGO — backend API requests**, and record their own acceptance on
+now titled **MTOGO — backend API requests and process**, and record their own acceptance on
 the [staging request monitoring](/MTGO/quality/staging-request-monitoring/) page.
 
 ### Latency and 5xx proportion (#171)
@@ -446,3 +500,47 @@ Repeat the startup above, run the `test rules` command, then check as a Viewer:
   value becomes Unavailable rather than 0. After restart, rates stay positive.
 - The **Interpret the observations** panel says latency is not Order
   processing time.
+
+### HTTP-serving process (#172)
+
+The unit suite scrapes the real exporter. It checks that the standard process
+collectors are present with their Prometheus types. It checks that heap used ≤
+heap total < resident memory, in bytes. 300 ms of busy work adds about 0.3
+CPU seconds, not 300. A 250 ms event-loop block is reported as at least 0.2 s
+of maximum delay, and the next scrape no longer reports it. The real Medusa
+suite checks that the exporter started by the `register` hook reports the
+Node process that serves the API (`nodejs_version_info` matches its
+version). CPU seconds grow across 25 real product reads, and a booted
+application's heap and resident memory are in bytes. Comparisons of request
+series between scrapes now ignore process series, which change on every
+scrape.
+
+Agent verification on 20 November 2026, on the uncommitted #172 working tree:
+
+| Boundary                | Observed result                                                                                                                                                                   |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Node HTTP/exporter      | **59 request-metrics unit tests passed**, four runs in a row, including the CPU and event-loop block cases.                                                                       |
+| Dashboard queries       | **66 dashboard-query unit tests passed**: process panels state units and scope, gate on a current scrape, use `[5m]` and are in the promtool file verbatim.                       |
+| Medusa HTTP suite       | **7 tests passed** in `request-metrics.spec.ts`, including the process collectors of the API-serving process.                                                                     |
+| Prometheus query engine | **Not run by the agent.** The devcontainer had no Docker engine and downloading `promtool` was not permitted. Run the `test rules` command above; it holds six new process cases. |
+| Grafana Viewer          | **Not run by the agent**, for the same reason. This is the developer's manual acceptance below.                                                                                   |
+
+The promtool process cases cover a healthy target at 0.2 cores, DOWN (stale
+series, nothing shown), an absent target beside an unrelated job's process,
+one scrape (memory shown, no CPU rate), a collection gap inside the window
+(0.2 cores and the post-recovery memory) and a restart that resets CPU seconds.
+
+Repeat the startup above, run the `test rules` command, then check as a Viewer:
+
+- The bottom row shows the **HTTP-serving process scope** panel naming
+  `backend-metrics:9464`. It says CPU is cores, not host utilization, and
+  lists what is not covered.
+- After 30 seconds, CPU shows a small value in cores, memory in MB/GB with
+  resident above heap total above heap used, and event-loop delay near
+  0.01 s.
+- During the burst above, CPU and event-loop p99 rise and fall back
+  afterwards. Record the peak values here.
+- Stopping the backend makes every process panel **Unavailable**, not its
+  last value. After restart the CPU rate returns after two scrapes, without
+  a negative dip.
+- Check the row at 1440 and 390 pixels wide; units and long titles stay readable.

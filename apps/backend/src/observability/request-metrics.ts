@@ -4,7 +4,12 @@ import {
   type IncomingMessage,
   type ServerResponse,
 } from "node:http"
-import { Counter, Histogram, Registry } from "@prometheus-io/client"
+import {
+  collectDefaultMetrics,
+  Counter,
+  Histogram,
+  Registry,
+} from "@prometheus-io/client"
 import { MedusaError } from "@medusajs/framework/utils"
 
 type RequestStart = {
@@ -114,6 +119,12 @@ export function startRequestMetrics({
     )
 
   const registry = new Registry()
+  // The client's standard process collectors, read from this HTTP-serving
+  // process on each scrape: CPU seconds, resident/heap bytes and event-loop
+  // delay statistics reset at every scrape. The client offers no teardown for its
+  // event-loop monitor, GC observer and utilization timer; they do not hold
+  // the process open, and clearing the registry hides their series.
+  collectDefaultMetrics({ register: registry })
   const completed = new Counter({
     name: "mtogo_http_requests_total",
     help: "Completed ordinary backend API responses by matched route pattern or fixed fallback",

@@ -114,3 +114,4 @@ memswap
 promql
 reqps
 subsecond
+stddev

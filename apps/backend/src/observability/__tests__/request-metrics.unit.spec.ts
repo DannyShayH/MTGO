@@ -122,6 +122,12 @@ describe("private request metrics HTTP boundary", () => {
     expect(response.status).toBe(200)
     return response.text()
   }
+  // Process series change on every scrape; request series change only on use.
+  const requestSeries = (metrics: string) =>
+    metrics
+      .split("\n")
+      .filter((line) => line.includes("mtogo_http_"))
+      .join("\n")
 
   it.each([
     { status: 200, reason: "EP: completed read" },
@@ -140,7 +146,7 @@ describe("private request metrics HTTP boundary", () => {
       `mtogo_http_requests_total{method="GET",route="/store/products",status="${status}"} 1`,
     )
     expect(metrics).not.toContain("secret")
-    expect(await scrape()).toBe(metrics)
+    expect(requestSeries(await scrape())).toBe(requestSeries(metrics))
   })
 
   it("exports a completed response duration in seconds with buckets including the 2s and 5s boundaries", async () => {
@@ -179,7 +185,7 @@ describe("private request metrics HTTP boundary", () => {
       "10",
       "+Inf",
     ])
-    // The handler waited at least 300 ms, so lower buckets stay empty.
+    // The handler waited about 300 ms, so the 0.25 s and lower buckets stay empty.
     expect(bucket("0.25")).toBe(0)
     expect(bucket("2")).toBe(1)
     expect(bucket("5")).toBe(1)
@@ -192,7 +198,9 @@ describe("private request metrics HTTP boundary", () => {
         /mtogo_http_request_duration_seconds_sum\{method="GET",route="\/store\/products"\} (\S+)/,
       )?.[1],
     )
-    expect(sum).toBeGreaterThanOrEqual(0.3)
+    // Node timers use libuv's millisecond loop clock, so a 300 ms wait can
+    // measure a fraction of a millisecond short by hrtime (0.2999 s on CI).
+    expect(sum).toBeGreaterThanOrEqual(0.29)
     expect(sum).toBeLessThan(10)
     expect(metrics).not.toContain("secret")
   })
@@ -358,14 +366,14 @@ describe("private request metrics HTTP boundary", () => {
     })
     const metrics = await scrape()
     if (expectedLabels) expect(metrics).toContain(`{${expectedLabels}} 1`)
-    else expect(metrics).toBe(baseline)
+    else expect(requestSeries(metrics)).toBe(requestSeries(baseline))
     expect(metrics).not.toMatch(/secret|PROPFIND/)
   })
 
   it("excludes a product-shaped request to the exporter listener", async () => {
     const baseline = await scrape()
     await fetch(`http://127.0.0.1:${port}/store/products`)
-    expect(await scrape()).toBe(baseline)
+    expect(requestSeries(await scrape())).toBe(requestSeries(baseline))
   })
 
   it("does not turn an interrupted response into a completed status", async () => {
@@ -386,7 +394,107 @@ describe("private request metrics HTTP boundary", () => {
     const metrics = await scrape()
     expect(metrics).not.toMatch(/status="200"} 1/)
     // An interrupted response contributes no completed-response duration.
-    expect(metrics).not.toMatch(/_duration_seconds_count\{[^}]*\} [1-9]/)
+    expect(metrics).not.toMatch(
+      /mtogo_http_request_duration_seconds_count\{[^}]*\} [1-9]/,
+    )
+  })
+
+  describe("process collectors for the HTTP-serving process", () => {
+    const sample = (metrics: string, name: string) => {
+      const line = metrics.split("\n").find((l) => l.startsWith(`${name} `))
+      return line === undefined ? undefined : Number(line.split(" ")[1])
+    }
+    // Synchronously occupy this process's thread: CPU and event-loop delay.
+    const blockFor = (ms: number) => {
+      const until = Date.now() + ms
+      while (Date.now() < until);
+    }
+
+    it.each([
+      {
+        name: "process_resident_memory_bytes",
+        type: "gauge",
+        reason: "EP: resident memory in bytes",
+      },
+      {
+        name: "nodejs_heap_size_used_bytes",
+        type: "gauge",
+        reason: "EP: heap used in bytes",
+      },
+      {
+        name: "nodejs_heap_size_total_bytes",
+        type: "gauge",
+        reason: "EP: heap total in bytes",
+      },
+      {
+        name: "process_cpu_seconds_total",
+        type: "counter",
+        reason: "EP: CPU time as a counter, so a rate is cores used",
+      },
+      {
+        name: "nodejs_eventloop_lag_p50_seconds",
+        type: "gauge",
+        reason: "EP: typical event-loop delay in seconds",
+      },
+      {
+        name: "nodejs_eventloop_lag_p99_seconds",
+        type: "gauge",
+        reason: "EP: tail event-loop delay in seconds",
+      },
+      {
+        name: "nodejs_eventloop_lag_max_seconds",
+        type: "gauge",
+        reason: "EP: worst event-loop delay in seconds",
+      },
+    ])(
+      "$reason: exports $name as an unlabelled $type",
+      async ({ name, type }) => {
+        const metrics = await scrape()
+        expect(metrics).toContain(`# TYPE ${name} ${type}\n`)
+        expect(sample(metrics, name)).toBeGreaterThanOrEqual(0)
+      },
+    )
+
+    it("reports resident and heap memory as plausible byte counts", async () => {
+      const metrics = await scrape()
+      const resident = sample(metrics, "process_resident_memory_bytes")!
+      const heapUsed = sample(metrics, "nodejs_heap_size_used_bytes")!
+      const heapTotal = sample(metrics, "nodejs_heap_size_total_bytes")!
+      // A running Node process holds at least a megabyte; bytes, not MB.
+      expect(heapUsed).toBeGreaterThan(1024 * 1024)
+      expect(heapUsed).toBeLessThanOrEqual(heapTotal)
+      expect(heapTotal).toBeLessThan(resident)
+    })
+
+    it("counts CPU seconds the process consumes between scrapes", async () => {
+      const before = sample(await scrape(), "process_cpu_seconds_total")!
+      // Burn CPU time, not wall time: a shared CI runner can deschedule the
+      // process, so a wall-clock spin may consume far less than it lasts.
+      const start = process.cpuUsage()
+      let burnt = 0
+      while (burnt < 300_000) {
+        const used = process.cpuUsage(start)
+        burnt = used.user + used.system
+      }
+      const after = sample(await scrape(), "process_cpu_seconds_total")!
+      // Seconds of CPU time: at least 300 ms of work is 0.3 or more, never 300.
+      expect(after - before).toBeGreaterThanOrEqual(0.3)
+      expect(after - before).toBeLessThan(5)
+    })
+
+    it("shows a blocked event loop as delay in seconds since the last scrape", async () => {
+      await scrape()
+      // After a reset, Node's delay monitor needs one 10 ms sample to resume.
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      blockFor(250)
+      const blocked = await scrape()
+      const max = sample(blocked, "nodejs_eventloop_lag_max_seconds")
+      expect(max).toBeGreaterThanOrEqual(0.2)
+      expect(max).toBeLessThan(5)
+      // Each scrape resets the window, so the block is not reported twice.
+      const next = await scrape()
+      expect(sample(next, "nodejs_eventloop_lag_max_seconds")).toBeLessThan(0.2)
+    })
   })
 
   it("releases its listener and subscription on repeated disposal", async () => {

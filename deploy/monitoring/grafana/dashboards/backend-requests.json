@@ -1,9 +1,9 @@
 {
   "uid": "mtogo-backend-requests",
-  "title": "MTOGO — backend API requests",
-  "description": "Slices #169/#170/#194/#171: completed ordinary API responses, 5xx proportion and p95 latency from one HTTP-serving Medusa process, with explicit unavailable states. No business counts.",
+  "title": "MTOGO — backend API requests and process",
+  "description": "Slices #169/#170/#194/#171/#172: completed ordinary API responses, 5xx proportion, p95 latency and process CPU, memory and event-loop delay from one HTTP-serving Medusa process, with explicit unavailable states. No business counts.",
   "schemaVersion": 41,
-  "version": 4,
+  "version": 5,
   "editable": false,
   "refresh": "30s",
   "timezone": "browser",
@@ -46,7 +46,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**HTTP responses, not Customers or Orders.** Latency is server-side seconds from request start to response finish for one HTTP request. It is **not Order processing time** (Feature #54) or any business measure. Every query uses a rolling five-minute window; counts are extrapolated estimates. **Unavailable** means no valid evidence: target DOWN or absent, fewer than two scrapes, zero completed responses (no 5xx proportion) or no duration observations (no p95). Check the observation count before trusting a p95; p95 is capped at the 10 s bucket. Rates handle counter resets. Runtime, SSE, interruptions and warning controls are deferred."
+        "content": "**HTTP responses, not Customers or Orders.** Latency is server-side seconds from request start to response finish for one HTTP request. It is **not Order processing time** (Feature #54) or any business measure. Every query uses a rolling five-minute window; counts are extrapolated estimates. **Unavailable** means no valid evidence: target DOWN or absent, fewer than two scrapes, zero completed responses (no 5xx proportion) or no duration observations (no p95). Check the observation count before trusting a p95; p95 is capped at the 10 s bucket. Rates handle counter resets. SSE, interruptions and warning controls are deferred."
       }
     },
     {
@@ -572,7 +572,9 @@
             "spanNulls": false
           },
           "noValue": "Unavailable",
-          "unit": "percentunit"
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1
         },
         "overrides": []
       },
@@ -675,6 +677,334 @@
           "refId": "A",
           "expr": "histogram_quantile(0.95, sum by (le, method, route) (rate(mtogo_http_request_duration_seconds_bucket{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))) and on(method, route) (sum by (method, route) (increase(mtogo_http_request_duration_seconds_count{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) > 0)",
           "legendFormat": "{{method}} {{route}}",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 16,
+      "title": "HTTP-serving process scope",
+      "type": "text",
+      "gridPos": {
+        "x": 0,
+        "y": 42,
+        "w": 24,
+        "h": 5
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**One HTTP-serving backend Node process**, the same target `backend-metrics:9464` (job `mtogo-backend`) as the request panels: the local demo backend, or the staging `backend` container. Values come from the Prometheus client's standard process collectors on each scrape. **CPU** is cores used by this process (1 = one full CPU core), **not host utilization**: the Droplet has other processes and cores. **Memory** is bytes: resident set and V8 heap. **Event-loop delay** is seconds between 10 ms sampling ticks, over the window since the previous scrape; about 0.01 s is the healthy floor. Not covered: a separate worker process, the Next.js storefront and partner apps, the host or container, PostgreSQL and Redis. CPU seconds count from exporter start; a restart resets them and rates handle it."
+      }
+    },
+    {
+      "id": 17,
+      "title": "HTTP-serving process CPU — cores used, rolling 5 minutes",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 47,
+        "w": 8,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "rate(process_cpu_seconds_total[5m]): user plus system CPU seconds this one Node process used per second. 1 = one full core; it is not host utilization and has no 100% ceiling. Unavailable with fewer than two scrapes or no current evidence.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B8BEC9"
+          },
+          "noValue": "Unavailable",
+          "unit": "suffix: cores",
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(process_cpu_seconds_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 18,
+      "title": "HTTP-serving process memory — bytes",
+      "type": "stat",
+      "gridPos": {
+        "x": 8,
+        "y": 47,
+        "w": 8,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Current resident memory (RSS): bytes the OS holds in RAM for this process, including code, V8 heap, buffers and native memory. The time series beside it also shows V8 heap used/total.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B8BEC9"
+          },
+          "noValue": "Unavailable",
+          "unit": "bytes",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "process_resident_memory_bytes{job=\"mtogo-backend\"} and on(job, instance) (up{job=\"mtogo-backend\"} == 1)",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 19,
+      "title": "HTTP-serving process event-loop delay — seconds, per scrape window",
+      "type": "stat",
+      "gridPos": {
+        "x": 16,
+        "y": 47,
+        "w": 8,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "p99 over the window since the previous scrape. Collector-defined statistics of the time between ticks of Node's 10 ms event-loop sampling timer, in seconds, over the window since the previous Prometheus scrape (~15 s); every scrape resets them. A healthy process reads about 0.01 s, the sampling resolution itself; only time above that is delay. Sustained p99 above about 0.1 s means requests wait for the event loop.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B8BEC9"
+          },
+          "noValue": "Unavailable",
+          "unit": "s",
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "nodejs_eventloop_lag_p99_seconds{job=\"mtogo-backend\"} and on(job, instance) (up{job=\"mtogo-backend\"} == 1)",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 20,
+      "title": "HTTP-serving process CPU — cores used, rolling 5 minutes",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 52,
+        "w": 8,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "rate(process_cpu_seconds_total[5m]): user plus system CPU seconds this one Node process used per second. 1 = one full core; it is not host utilization and has no 100% ceiling. Unavailable with fewer than two scrapes or no current evidence.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false
+          },
+          "noValue": "Unavailable",
+          "unit": "suffix: cores",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(process_cpu_seconds_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)",
+          "legendFormat": "cores used ({{instance}})",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 21,
+      "title": "HTTP-serving process memory — bytes",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 8,
+        "y": 52,
+        "w": 8,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Resident memory (RSS, bytes the OS holds in RAM for this process) and V8 heap used/total (JavaScript objects). Resident is larger: it also covers code, buffers and native memory.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false
+          },
+          "noValue": "Unavailable",
+          "unit": "bytes",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "process_resident_memory_bytes{job=\"mtogo-backend\"} and on(job, instance) (up{job=\"mtogo-backend\"} == 1)",
+          "legendFormat": "resident ({{instance}})",
+          "range": true,
+          "instant": false
+        },
+        {
+          "refId": "B",
+          "expr": "nodejs_heap_size_total_bytes{job=\"mtogo-backend\"} and on(job, instance) (up{job=\"mtogo-backend\"} == 1)",
+          "legendFormat": "heap total ({{instance}})",
+          "range": true,
+          "instant": false
+        },
+        {
+          "refId": "C",
+          "expr": "nodejs_heap_size_used_bytes{job=\"mtogo-backend\"} and on(job, instance) (up{job=\"mtogo-backend\"} == 1)",
+          "legendFormat": "heap used ({{instance}})",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 22,
+      "title": "HTTP-serving process event-loop delay — seconds, per scrape window",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 16,
+        "y": 52,
+        "w": 8,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Collector-defined statistics of the time between ticks of Node's 10 ms event-loop sampling timer, in seconds, over the window since the previous Prometheus scrape (~15 s); every scrape resets them. A healthy process reads about 0.01 s, the sampling resolution itself; only time above that is delay. Sustained p99 above about 0.1 s means requests wait for the event loop.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false
+          },
+          "noValue": "Unavailable",
+          "unit": "s",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "nodejs_eventloop_lag_p50_seconds{job=\"mtogo-backend\"} and on(job, instance) (up{job=\"mtogo-backend\"} == 1)",
+          "legendFormat": "p50 ({{instance}})",
+          "range": true,
+          "instant": false
+        },
+        {
+          "refId": "B",
+          "expr": "nodejs_eventloop_lag_p99_seconds{job=\"mtogo-backend\"} and on(job, instance) (up{job=\"mtogo-backend\"} == 1)",
+          "legendFormat": "p99 ({{instance}})",
+          "range": true,
+          "instant": false
+        },
+        {
+          "refId": "C",
+          "expr": "nodejs_eventloop_lag_max_seconds{job=\"mtogo-backend\"} and on(job, instance) (up{job=\"mtogo-backend\"} == 1)",
+          "legendFormat": "max ({{instance}})",
           "range": true,
           "instant": false
         }

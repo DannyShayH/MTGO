@@ -215,7 +215,7 @@ sudo ss -tlnp | grep -E ':(3300|9090|9464)\b'
 ```
 
 Then sign in at the Grafana hostname as a Viewer and open the dashboard
-**MTOGO → MTOGO — backend API requests**. Generate an early rejection and an
+**MTOGO → MTOGO — backend API requests and process**. Generate an early rejection and an
 unknown URL from your machine:
 
 ```bash
@@ -231,12 +231,25 @@ pattern. The **Request coverage** panel describes the staging `backend`
 container. As a Viewer, the dashboard offers no save, and the data source and
 the Administration pages are not available.
 
-Staging reuses the same provisioned dashboard. Once a backend release with
-the duration histogram (#171) is deployed, it also shows the data state,
-response rate, 5xx proportion and p95 panels described in
-[local request monitoring](/MTGO/quality/local-request-monitoring/). Until
-then, the p95 and observation panels on staging honestly read **Unavailable**.
+Staging reuses the same provisioned dashboard. Deploys do not update it:
+after a release that changes the dashboard or Prometheus configuration, run
+`sudo mtogo-deploy.sh monitoring up` to install that release's files
+(`monitoring status` names the release they came from). From #171 it shows
+the data state, response rate, 5xx proportion and p95 panels described in
+[local request monitoring](/MTGO/quality/local-request-monitoring/).
 Deliberate failure tests stay on the local stack, never on staging.
+
+From a release with #172, the bottom row shows the CPU (in cores), resident
+and heap memory (bytes) and event-loop delay (seconds) of the staging
+`backend` container's Node process. The CPU value is not the Droplet's
+utilization: the host also runs the storefront, partner app, Redis and the
+non-MTOGO containers, which no panel covers. Compare resident memory with the
+backend's `docker stats` reading. They are close but not equal: one is the
+process's resident set, the other the memory the container's cgroup is
+charged for. The meaning and useful range of each
+value are in
+[local request monitoring](/MTGO/quality/local-request-monitoring/#http-serving-process-cpu-memory-and-event-loop-delay-172).
+The process collectors add a few dozen bounded series to Prometheus.
 
 ### 7. Memory readings after activation and during a deploy
 
@@ -325,18 +338,18 @@ Check afterwards that the application is unaffected:
 
 To be filled in by the repository admin. No secrets or passwords belong here.
 
-| Reading or check                                             | Date and result                                                                                                                                                         |
-| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `free -m` available before activation                        | 20 November 2026: 883 MB available of 1,963 MB; swap 194 of 2,047 MB. Immediately before `monitoring up`: 893 MB available; swap 195 MB                                 |
-| `docker stats` before activation (MTOGO total)               | 20 November 2026: backend 260 MiB, storefront 124, partner 102, redis 8 (about 494 MiB)                                                                                 |
-| `free -m` available after activation                         | 20 November 2026, right after `monitoring up`: 826 MB available (67 MB less); swap 207 MB                                                                               |
-| `docker stats` prometheus / grafana after activation         | 20 November 2026: prometheus 49.9 MiB of 192 MiB (26%), grafana 187.5 MiB of 256 MiB (73%). MTOGO apps unchanged: backend 265, storefront 145, partner 102, redis 8 MiB |
-| Lowest `free -m` available during one deploy                 |                                                                                                                                                                         |
-| `docker stats` at that moment                                |                                                                                                                                                                         |
-| Floor agreed with the team, and whether every reading met it |                                                                                                                                                                         |
-| Exporter, Prometheus and admin API unreachable (step 6)      |                                                                                                                                                                         |
-| Viewer sees real traffic and an early rejection (step 6)     |                                                                                                                                                                         |
-| Rollback steps 1 and 3 rehearsed, application unaffected     |                                                                                                                                                                         |
+| Reading or check                                             | Date and result                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `free -m` available before activation                        | 20 November 2026: 883 MB available of 1,963 MB; swap 194 of 2,047 MB. Immediately before `monitoring up`: 893 MB available; swap 195 MB                                                                                                                                                                                                                                                                                                  |
+| `docker stats` before activation (MTOGO total)               | 20 November 2026: backend 260 MiB, storefront 124, partner 102, redis 8 (about 494 MiB)                                                                                                                                                                                                                                                                                                                                                  |
+| `free -m` available after activation                         | 20 November 2026, right after `monitoring up`: 826 MB available (67 MB less); swap 207 MB                                                                                                                                                                                                                                                                                                                                                |
+| `docker stats` prometheus / grafana after activation         | 20 November 2026: prometheus 49.9 MiB of 192 MiB (26%), grafana 187.5 MiB of 256 MiB (73%). MTOGO apps unchanged: backend 265, storefront 145, partner 102, redis 8 MiB                                                                                                                                                                                                                                                                  |
+| Lowest `free -m` available during one deploy                 |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `docker stats` at that moment                                |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Floor agreed with the team, and whether every reading met it |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Exporter, Prometheus and admin API unreachable (step 6)      |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Viewer sees real traffic and an early rejection (step 6)     | 20 November 2026, about 18:55, #171 dashboard: UP — traffic observed, real traffic by route pattern (for example `GET /store/collections` 200, `GET /store/orders` 401, 404s), 0.081 req/s, 5xx 0.0%, p95 96 ms from 24 observations. Checked signed in as the admin (the page offered **Make editable**), not as a Viewer, and before the step 6 `curl` commands, so the Viewer sign-in and the `early_rejection` series are still open |
+| Rollback steps 1 and 3 rehearsed, application unaffected     |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 Activation on 20 November 2026 (release `e6736400`): the Droplet still ran
 the deploy script from before #194, so `help` listed no `monitoring` command.
@@ -358,6 +371,12 @@ the release it copies):
 ```bash
 sudo docker update --memory 448m --memory-swap 448m mtogo-staging-monitoring-grafana-1
 ```
+
+The same check showed the **5xx proportion** chart with a 0–10000% axis while
+every value was 0%: the ratio panel had no axis bounds. #172 fixes it to
+0–100%. The **p95 by route pattern** chart showed some routes near 4 s and
+one near 9 s between 18:50 and 18:55 while the overall p95 later fell to
+96 ms; identify those routes before treating it as a regression.
 
 ## Verification in the repository
 

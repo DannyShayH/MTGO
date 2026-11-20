@@ -42,7 +42,7 @@ streams (a 2xx on a listed stream endpoint, currently
 `/partner/orders/stream`) are excluded explicitly. A stream request refused
 before establishment keeps its ordinary outcome. Add new SSE endpoints to the
 stream list. Interrupted responses are excluded from this counter. Separate
-interruption, SSE and runtime measurements belong to later slices.
+interruption and SSE measurements belong to later slices.
 
 `mtogo_http_request_duration_seconds{method,route}` is a histogram of the
 server-side seconds from the diagnostics channel's request start to response
@@ -61,6 +61,27 @@ establish a baseline. Other status series appear on first observation. Counter
 resets follow process restarts; five-minute `increase`/`rate` queries operate
 per series before aggregation, and require sufficient scrape history. They
 cannot recover responses between scrapes or an unseen series' first increment.
+
+The same registry runs the client's standard `collectDefaultMetrics`
+collectors for the HTTP-serving process, without a prefix or extra labels:
+`process_cpu_seconds_total` (user plus system CPU seconds since the exporter
+started; a rate is cores used, not host utilization),
+`process_resident_memory_bytes`, `nodejs_heap_size_{used,total}_bytes` and
+`nodejs_eventloop_lag_{min,max,mean,stddev,p50,p90,p99}_seconds`. The delay
+statistics come from `perf_hooks.monitorEventLoopDelay` at 10 ms resolution:
+the time between sampling ticks, so a healthy process reads about 0.01 s and
+only time above that is delay. They reset on every scrape, so they cover the
+window since the previous scrape.
+Node needs one sample after a reset, so a block starting within about 10 ms of
+a scrape can go unreported. The client's other default series (CPU user/system
+split, virtual memory, process heap, start time, external memory,
+`nodejs_eventloop_lag_seconds`, GC, handles, resources, file descriptors,
+heap spaces, event-loop utilization, version)
+are bounded and exported but not on the dashboard. The client offers no
+teardown for its event-loop monitor, GC observer and 100 ms utilization
+timer. They do not keep the process alive and stop at process exit; `stop` clears the registry,
+so their series disappear. Separate-worker, Next.js, host, container,
+database and Redis runtimes are not covered.
 
 The [local monitoring runbook](../../../docs/src/content/docs/quality/local-request-monitoring.md)
 owns setup and the acceptance record. Unit tests exercise real Node HTTP and

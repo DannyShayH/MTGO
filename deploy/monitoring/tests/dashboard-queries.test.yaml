@@ -347,3 +347,170 @@ tests:
         exp_samples:
           - labels: "{}"
             value: 10
+  # HTTP-serving process: CPU as cores used, memory bytes, event-loop seconds
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-backend",instance="backend-metrics:9464"}'
+        values: "1x40"
+      - series: 'process_cpu_seconds_total{job="mtogo-backend",instance="backend-metrics:9464"}'
+        values: "0+3x40"
+      - series: 'process_resident_memory_bytes{job="mtogo-backend",instance="backend-metrics:9464"}'
+        values: "180000000x40"
+      - series: 'nodejs_heap_size_total_bytes{job="mtogo-backend",instance="backend-metrics:9464"}'
+        values: "90000000x40"
+      - series: 'nodejs_heap_size_used_bytes{job="mtogo-backend",instance="backend-metrics:9464"}'
+        values: "60000000x40"
+      - series: 'nodejs_eventloop_lag_p50_seconds{job="mtogo-backend",instance="backend-metrics:9464"}'
+        values: "0.011x40"
+      - series: 'nodejs_eventloop_lag_p99_seconds{job="mtogo-backend",instance="backend-metrics:9464"}'
+        values: "0.025x40"
+      - series: 'nodejs_eventloop_lag_max_seconds{job="mtogo-backend",instance="backend-metrics:9464"}'
+        values: "0.31x40"
+      # Another job's process is never shown as the backend's.
+      - series: 'process_cpu_seconds_total{job="unrelated",instance="elsewhere:9100"}'
+        values: "0+15x40"
+    promql_expr_test:
+      - expr: 'rate(process_cpu_seconds_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="backend-metrics:9464", job="mtogo-backend"}'
+            value: 0.2
+      - expr: 'process_resident_memory_bytes{job="mtogo-backend"} and on(job, instance) (up{job="mtogo-backend"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: 'process_resident_memory_bytes{instance="backend-metrics:9464", job="mtogo-backend"}'
+            value: 180000000
+      - expr: 'nodejs_heap_size_total_bytes{job="mtogo-backend"} and on(job, instance) (up{job="mtogo-backend"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: 'nodejs_heap_size_total_bytes{instance="backend-metrics:9464", job="mtogo-backend"}'
+            value: 90000000
+      - expr: 'nodejs_heap_size_used_bytes{job="mtogo-backend"} and on(job, instance) (up{job="mtogo-backend"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: 'nodejs_heap_size_used_bytes{instance="backend-metrics:9464", job="mtogo-backend"}'
+            value: 60000000
+      - expr: 'nodejs_eventloop_lag_p50_seconds{job="mtogo-backend"} and on(job, instance) (up{job="mtogo-backend"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: 'nodejs_eventloop_lag_p50_seconds{instance="backend-metrics:9464", job="mtogo-backend"}'
+            value: 0.011
+      - expr: 'nodejs_eventloop_lag_p99_seconds{job="mtogo-backend"} and on(job, instance) (up{job="mtogo-backend"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: 'nodejs_eventloop_lag_p99_seconds{instance="backend-metrics:9464", job="mtogo-backend"}'
+            value: 0.025
+      - expr: 'nodejs_eventloop_lag_max_seconds{job="mtogo-backend"} and on(job, instance) (up{job="mtogo-backend"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: 'nodejs_eventloop_lag_max_seconds{instance="backend-metrics:9464", job="mtogo-backend"}'
+            value: 0.31
+  # process target DOWN: last memory, CPU and delay values are not shown as current
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-backend",instance="backend-metrics:9464"}'
+        values: "1x20 0x20"
+      - series: 'process_cpu_seconds_total{job="mtogo-backend",instance="backend-metrics:9464"}'
+        values: "0+3x20 stale"
+      - series: 'process_resident_memory_bytes{job="mtogo-backend",instance="backend-metrics:9464"}'
+        values: "180000000x20 stale"
+      - series: 'nodejs_heap_size_total_bytes{job="mtogo-backend",instance="backend-metrics:9464"}'
+        values: "90000000x20 stale"
+      - series: 'nodejs_heap_size_used_bytes{job="mtogo-backend",instance="backend-metrics:9464"}'
+        values: "60000000x20 stale"
+      - series: 'nodejs_eventloop_lag_p50_seconds{job="mtogo-backend",instance="backend-metrics:9464"}'
+        values: "0.011x20 stale"
+      - series: 'nodejs_eventloop_lag_p99_seconds{job="mtogo-backend",instance="backend-metrics:9464"}'
+        values: "0.025x20 stale"
+      - series: 'nodejs_eventloop_lag_max_seconds{job="mtogo-backend",instance="backend-metrics:9464"}'
+        values: "0.31x20 stale"
+    promql_expr_test:
+      - expr: 'rate(process_cpu_seconds_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'process_resident_memory_bytes{job="mtogo-backend"} and on(job, instance) (up{job="mtogo-backend"} == 1)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'nodejs_heap_size_total_bytes{job="mtogo-backend"} and on(job, instance) (up{job="mtogo-backend"} == 1)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'nodejs_heap_size_used_bytes{job="mtogo-backend"} and on(job, instance) (up{job="mtogo-backend"} == 1)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'nodejs_eventloop_lag_p50_seconds{job="mtogo-backend"} and on(job, instance) (up{job="mtogo-backend"} == 1)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'nodejs_eventloop_lag_p99_seconds{job="mtogo-backend"} and on(job, instance) (up{job="mtogo-backend"} == 1)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'nodejs_eventloop_lag_max_seconds{job="mtogo-backend"} and on(job, instance) (up{job="mtogo-backend"} == 1)'
+        eval_time: 10m
+        exp_samples: []
+  # process target absent: an unrelated job's process is not shown
+  - interval: 15s
+    input_series:
+      - series: 'up{job="unrelated",instance="elsewhere:9100"}'
+        values: "1x40"
+      - series: 'process_cpu_seconds_total{job="unrelated",instance="elsewhere:9100"}'
+        values: "0+15x40"
+      - series: 'process_resident_memory_bytes{job="unrelated",instance="elsewhere:9100"}'
+        values: "900000000x40"
+    promql_expr_test:
+      - expr: 'rate(process_cpu_seconds_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'process_resident_memory_bytes{job="mtogo-backend"} and on(job, instance) (up{job="mtogo-backend"} == 1)'
+        eval_time: 10m
+        exp_samples: []
+  # one process scrape: a current gauge is evidence, a CPU rate needs two samples
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-backend",instance="backend-metrics:9464"}'
+        values: "_x39 1"
+      - series: 'process_cpu_seconds_total{job="mtogo-backend",instance="backend-metrics:9464"}'
+        values: "_x39 5"
+      - series: 'process_resident_memory_bytes{job="mtogo-backend",instance="backend-metrics:9464"}'
+        values: "_x39 180000000"
+    promql_expr_test:
+      - expr: 'rate(process_cpu_seconds_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'process_resident_memory_bytes{job="mtogo-backend"} and on(job, instance) (up{job="mtogo-backend"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: 'process_resident_memory_bytes{instance="backend-metrics:9464", job="mtogo-backend"}'
+            value: 180000000
+  # process restart resets CPU seconds: the rate stays cores used, never negative
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-backend",instance="backend-metrics:9464"}'
+        values: "1x40"
+      - series: 'process_cpu_seconds_total{job="mtogo-backend",instance="backend-metrics:9464"}'
+        values: "0+3x30 3+3x9"
+    promql_expr_test:
+      - expr: 'rate(process_cpu_seconds_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="backend-metrics:9464", job="mtogo-backend"}'
+            value: 0.2
+  # process collection gap inside the window: only post-recovery evidence is current
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-backend",instance="backend-metrics:9464"}'
+        values: "1x24 0x5 1x10"
+      # The process kept running through the gap, so its CPU seconds continue.
+      - series: 'process_cpu_seconds_total{job="mtogo-backend",instance="backend-metrics:9464"}'
+        values: "0+3x24 stale _x5 93+3x9"
+      - series: 'process_resident_memory_bytes{job="mtogo-backend",instance="backend-metrics:9464"}'
+        values: "180000000x24 stale _x5 200000000x9"
+    promql_expr_test:
+      - expr: 'rate(process_cpu_seconds_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="backend-metrics:9464", job="mtogo-backend"}'
+            value: 0.2
+      - expr: 'process_resident_memory_bytes{job="mtogo-backend"} and on(job, instance) (up{job="mtogo-backend"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: 'process_resident_memory_bytes{instance="backend-metrics:9464", job="mtogo-backend"}'
+            value: 200000000
