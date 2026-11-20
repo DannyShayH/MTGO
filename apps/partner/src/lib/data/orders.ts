@@ -14,7 +14,10 @@ export type OrderState =
   "awaiting_acceptance" | "accepted" | "preparing" | "ready" | "cancelled"
 
 export type CancellationCategory =
-  "restaurant_rejected" | "acceptance_timeout" | "customer_cancelled"
+  | "restaurant_rejected"
+  | "acceptance_timeout"
+  | "customer_cancelled"
+  | "unassigned_timeout"
 
 /** What the backend decided about the acceptance window at `server_time`. */
 export type AcceptanceWindow = "open" | "elapsed" | "unavailable"
@@ -82,6 +85,12 @@ export type RestaurantOrder = {
     status: "pending" | "failed" | "succeeded"
     amount_including_vat: number
     currency_code: string
+  } | null
+  /** The MTOGO-funded prepared-food credit owed to the Restaurant (#162). */
+  food_credit: {
+    amount_excluding_vat: number
+    currency_code: string
+    funded_by: "mtogo"
   } | null
   currency_code: string
   total_including_vat: number

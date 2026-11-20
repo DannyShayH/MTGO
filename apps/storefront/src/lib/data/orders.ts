@@ -111,7 +111,10 @@ export type OrderProgress = {
   available_actions: "cancel"[]
   cancellation: {
     category:
-      "restaurant_rejected" | "acceptance_timeout" | "customer_cancelled"
+      | "restaurant_rejected"
+      | "acceptance_timeout"
+      | "customer_cancelled"
+      | "unassigned_timeout"
     cancelled_at: string
     /** When it took effect: the deadline for a timeout, else `cancelled_at`. */
     effective_at: string

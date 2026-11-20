@@ -23,7 +23,8 @@ const money = (amount: number, currency: string, locale: Locale) =>
 /**
  * A cancelled Order's outcome (#143): why and when it was cancelled, the
  * staff member's own reason when one was given, and the refund kept apart
- * from the cancellation. A failed refund reads as still owed.
+ * from the cancellation. A failed refund reads as still owed. A prepared-food
+ * credit MTOGO owes the Restaurant (#162) is shown separately again.
  */
 export function CancellationOutcome({
   order,
@@ -32,7 +33,7 @@ export function CancellationOutcome({
   order: RestaurantOrder
   locale: Locale
 }) {
-  const { cancellation, refund } = order
+  const { cancellation, refund, food_credit } = order
   if (!cancellation) return null
   const text = ORDER_TEXT[locale]
   const amount =
@@ -84,6 +85,17 @@ export function CancellationOutcome({
           </Text>
         )}
       </div>
+      {food_credit && (
+        <Text size="small" className="max-w-prose">
+          {formatText(text.food_credit_mtogo, {
+            amount: money(
+              food_credit.amount_excluding_vat,
+              food_credit.currency_code,
+              locale,
+            ),
+          })}
+        </Text>
+      )}
     </section>
   )
 }

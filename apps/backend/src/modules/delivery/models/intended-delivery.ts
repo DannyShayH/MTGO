@@ -111,6 +111,11 @@ const IntendedDelivery = model
       unique: true,
       where: "handover_request_id IS NOT NULL",
     },
+    // The recovery sweep's read of unassigned work past its deadline (#162).
+    {
+      on: ["claim_deadline", "id"],
+      where: "assigned_agent_id IS NULL AND terminal_outcome IS NULL",
+    },
     // The recovery sweep's read of native fulfillment still owed.
     {
       on: ["native_sync_queued_at"],

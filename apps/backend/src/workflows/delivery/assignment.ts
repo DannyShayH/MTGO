@@ -17,6 +17,8 @@ import type { AssignmentSource } from "../../modules/delivery/models/intended-de
 import { ORDER_OPERATION_MODULE } from "../../modules/order-operation"
 import type OrderOperationModuleService from "../../modules/order-operation/service"
 import { orderOperationLock } from "../order-operations/locks"
+import { commitUnassignedCancellation } from "../order-operations/unassigned-cancellation"
+import { settleCancellation } from "../order-operations/cancellation"
 import {
   ASSIGNMENT_CONFLICTS,
   isActiveOrderState,
@@ -68,7 +70,10 @@ async function orderIsActive(container: MedusaContainer, order_id: string) {
  * future terminal transitions take), always in that order, through Medusa's
  * locking module, so separate server and worker processes serialize on
  * Redis. Under them it reads the Order's state and lets the delivery module
- * commit responsibility and capacity atomically. A committed assignment is
+ * commit responsibility and capacity atomically. A request refused because
+ * unassigned work reached its claim deadline commits the unassigned
+ * cancellation under the same guard (#162), so the outcome never waits for
+ * the sweep. A committed assignment is
  * authoritative and has no compensation: nothing here releases it.
  */
 export const assignDeliveryStep = createStep(
@@ -84,12 +89,25 @@ export const assignDeliveryStep = createStep(
         const order_active = await orderIsActive(container, input.order_id)
         // Decided at the guarded moment, not when the request arrived.
         const now = input.now ? new Date(input.now) : new Date()
-        return container
+        const assigned = await container
           .resolve<DeliveryModuleService>(DELIVERY_MODULE)
           .assignDelivery({ ...input, order_active, now }, decideAssignment)
+        // Too late for unassigned work: under the same guard the Order is
+        // cancelled now, before any sweep has run (#162).
+        const expiry =
+          assigned.outcome.outcome === "refused" &&
+          assigned.outcome.code === "claim_deadline_passed"
+            ? await commitUnassignedCancellation(container, {
+                order_id: input.order_id,
+                now,
+              })
+            : null
+        return { ...assigned, expiry }
       },
       { timeout: 10 },
     )
+    if (result.expiry?.outcome === "cancelled")
+      await settleCancellation(container, input.order_id)
     if (result.outcome.outcome === "refused")
       throw refusal(result.outcome.code as AssignmentRefusal, input.source)
     const record = result.delivery

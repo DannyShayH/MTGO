@@ -4,15 +4,17 @@ Registered as `orderOperations` (spec #47). Owns the operational side of a paid
 Order, separate from Medusa's payment, fulfillment and Order status. Issue #140
 adds the first part: one durable record per paid Order. Issue #142 adds the
 acceptance milestone, #143 the cancellation and its full-refund
-obligation, and #146 the preparation-start and readiness milestones.
+obligation, #146 the preparation-start and readiness milestones, and #162
+the thirty-minute unassigned cancellation and its prepared-food credit.
 
 ## Data model
 
-| Model              | Owns                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `OrderOperation`   | `order_id` (unique), `restaurant_id`, `placed_at`, `acceptance_deadline`, `state` (`awaiting_acceptance`, `accepted`, `preparing`, `ready` or `cancelled`, default `awaiting_acceptance`), `revision` (default 1), `purchased_items` (JSON, nullable), `accepted_at` and `accepted_by` (both `null` until accepted), `preparation_started_at`/`preparation_started_by` and `ready_at`/`ready_by` (each `null` until recorded), `cancelled_at`, `cancelled_by` (staff or Customer id, or `system`), `cancellation_category` (`restaurant_rejected`, `acceptance_timeout` or `customer_cancelled`), `cancellation_note` and `native_cancelled_at` (all `null` until cancelled) |
-| `RefundObligation` | `order_id` (unique), `payment_id`, `amount` (captured minus already refunded, incl. VAT), `currency_code`, `idempotency_key` (unique, `mtogo-full-refund:{order_id}`), `status` (`pending`, `failed` or `succeeded`), `attempt_count`, `last_attempted_at`, `failure_code` (a safe class, never a provider message), `refund_id` and `succeeded_at`                                                                                                                                                                                                                                                                                                                          |
-| `PurchaseReview`   | `cart_id` (unique), `items` (JSON) and `reviewed_at`: the kitchen facts of the cart's last server-validated review                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Model              | Owns                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OrderOperation`   | `order_id` (unique), `restaurant_id`, `placed_at`, `acceptance_deadline`, `state` (`awaiting_acceptance`, `accepted`, `preparing`, `ready` or `cancelled`, default `awaiting_acceptance`), `revision` (default 1), `purchased_items` (JSON, nullable), `accepted_at` and `accepted_by` (both `null` until accepted), `preparation_started_at`/`preparation_started_by` and `ready_at`/`ready_by` (each `null` until recorded), `cancelled_at`, `cancelled_by` (staff or Customer id, or `system`), `cancellation_category` (`restaurant_rejected`, `acceptance_timeout`, `customer_cancelled` or `unassigned_timeout`), `cancellation_note` and `native_cancelled_at` (all `null` until cancelled) |
+| `RefundObligation` | `order_id` (unique), `payment_id`, `amount` (captured minus already refunded, incl. VAT), `currency_code`, `idempotency_key` (unique, `mtogo-full-refund:{order_id}`), `status` (`pending`, `failed` or `succeeded`), `attempt_count`, `last_attempted_at`, `failure_code` (a safe class, never a provider message), `refund_id` and `succeeded_at`                                                                                                                                                                                                                                                                                                                                                |
+| `FoodCredit`       | `order_id` (unique), `restaurant_id`, `amount` (full food value excl. VAT), `currency_code`, `commission_amount` (always 0), `funded_by` (`mtogo`), `reason` (the cancellation category) and the copied preparation evidence `preparation_started_at` and `ready_at` (#162)                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `PurchaseReview`   | `cart_id` (unique), `items` (JSON) and `reviewed_at`: the kitchen facts of the cart's last server-validated review                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 - **The record is the paid-placement fact.** The placement workflow creates it
   last, after capture and the Restaurant link, so an Order is placed exactly
@@ -157,6 +159,46 @@ a newer revision, so the kitchen feed (#148) announces the change.
   taken least recently updated first, so one that stays in progress cannot
   starve the rest.
 
+- **Unassigned timeout** (#162; ADR-0011): accepted work still unassigned
+  at its claim deadline (the durable acceptance time plus thirty minutes,
+  stored on the delivery as `claim_deadline`) is cancelled as
+  `unassigned_timeout` by `system`. `commitUnassignedCancellation` in
+  `unassigned-cancellation.ts` runs under the Order's guard
+  (`order-operation:{order_id}`), the key the claim and the operator's
+  initial assignment hold while they decide, so one of them is always first:
+  an assignment strictly before the deadline prevents the cancellation, and
+  no claim survives a committed cancellation. The rule is
+  `decideUnassignedCancellation` in `unassigned-cancellation-rules.ts`. The
+  write is `cancelWithRefundObligation`, guarded by the revision and the
+  accepted, preparing or ready state it read, which commits the
+  cancellation, the full-refund obligation and, when `preparation_started_at`
+  is recorded strictly before the claim deadline, the one `FoodCredit` in one
+  transaction. Mere acceptance is not evidence of prepared food, so it owes no
+  credit. The credit is
+  `preparedFoodCredit`: the purchased lines' unit price times quantity,
+  divided by 1.25 (the assumed 25% VAT included in menu prices), rounded once
+  to two decimals with halves away from zero; MTOGO funds it and no
+  commission is charged (ADR-0006). Settlement is the shared
+  `settleCancellation`.
+
+  It happens at whichever comes first: a claim or operator assignment refused
+  with `claim_deadline_passed` commits it under the guard it already holds, a
+  kitchen milestone (start preparation, ready) commits it before deciding and
+  is refused with `order_cancelled`, or the recovery sweep. The claim settles
+  at once; the kitchen request leaves settlement to the next sweep so the
+  Order's lock is never held during a provider call. In the same guarded
+  section the commit ends the delivery as `cancelled` by `system` through the
+  shared terminal boundary (`endDeliveryForOrder`, #161); an Order that had
+  already ended by another path has its unassigned delivery ended the same
+  way, while work that already ended keeps its outcome. The sweep reads
+  deliveries with `assigned_agent_id` and `terminal_outcome` unset and
+  `claim_deadline <= now`, earliest first, `RECOVERY_BATCH_SIZE` per tick, so
+  a processed deadline is never read again. A lost race or an error (which is
+  logged) leaves it for the next tick. `cancelled_at` is the processing
+  time and `effective_at` the deadline, so downtime grants no new window.
+  Staff reads add `food_credit`; the Customer never sees it. Statements and
+  payouts are #52.
+
 ## Link
 
 `src/links/order-order-operation.ts` is a read-only, one-to-one link from the Order
@@ -225,6 +267,17 @@ fulfilment, the milestones in the Customer's progress without actors, repeated
 and competing milestones, out-of-order and cancelled refusals, closed and
 deactivated Restaurants, client-supplied fields and signed-out, Customer,
 foreign and revoked callers.
+`integration-tests/http/delivery-unassigned-cancellation.spec.ts` (#162)
+covers the sweep 1 ms before and exactly at acceptance plus thirty minutes,
+the prepared-food credit (amount, evidence, no commission, one record across
+repeated sweeps), assigned work never cancelled, recovery after downtime, a
+claim exactly at the boundary cancelling before any sweep, an HTTP claim and
+an operator assignment racing the sweep (one cancellation, one refund), a
+claim 1 ms before the deadline racing the sweep at it, a failing mock
+provider, an interrupted refund resumed without a second movement or credit,
+and attention, available and unclaimed lists after the cancellation.
+`unassigned-cancellation-rules.unit.spec.ts` covers the decision table and
+the credit amount.
 `integration-tests/http/customer-order-cancellation.spec.ts` (#145) covers
 the owning Customer's cancellation and its one refund, foreign, unknown and
 signed-out callers without effects, refused client fields, refusal after

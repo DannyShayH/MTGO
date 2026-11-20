@@ -18,6 +18,15 @@ after acceptance plus thirty minutes) or `delivery_outside_approved_areas`
 access; `401` without an agent bearer. Refusals carry no Customer or agent
 details. Preparation state does not gate claiming.
 
+A claim or operator assignment refused with `claim_deadline_passed` on work
+that is still unassigned also cancels the Order at once, under the same Order
+guard (#162): `cancellation_category: unassigned_timeout` by `system`, the
+Customer's full-refund obligation and, when preparation had started, one
+MTOGO-funded prepared-food credit. The outcome therefore never waits for the
+recovery sweep, which does the same for work nobody tried to claim. A claim
+that wins strictly before the deadline prevents the cancellation; a claim that
+loses the race is refused with `delivery_not_active`.
+
 `GET /partner/delivery-agent/current` returns `{ delivery, server_time }`,
 where `delivery` is `null` or the agent's one active delivery: intended
 delivery and Order IDs, reference, Restaurant, pickup address, preparation
@@ -413,13 +422,15 @@ signed out is `401`.
 ```
 
 The Customer sees the cancellation's category (`restaurant_rejected`,
-`acceptance_timeout` or `customer_cancelled`), never the Restaurant's
-free-text reason or a staff identity. A `failed` refund is still owed.
+`acceptance_timeout`, `customer_cancelled` or `unassigned_timeout`), never
+the Restaurant's free-text reason, a staff identity or the Restaurant's food
+credit. A `failed` refund is still owed.
 `cancellation` and `refund` are `null` while the Order is active.
 `cancelled_at` is when the server processed the cancellation and
-`effective_at` when it took effect. They differ only for an
-`acceptance_timeout` that recovery processed after downtime (#144):
-`effective_at` is then the acceptance deadline, which is never moved.
+`effective_at` when it took effect. They differ only for an automatic
+cancellation that recovery processed later (#144, #162): `effective_at` is
+then the acceptance deadline for an `acceptance_timeout`, or acceptance plus
+thirty minutes for an `unassigned_timeout`; neither is ever moved.
 `preparation_started_at` and `ready_at` (#146) are the recorded kitchen
 milestone times, `null` until recorded, for the Customer's food-progress
 timeline; readiness never implies pickup or delivery.
@@ -1682,8 +1693,14 @@ as `GET /partner/orders/{id}` returns it, now with:
 
 `cancellation` and `refund` are `null` until the Order is cancelled, on every
 partner Order read. `note` is shown to the Restaurant's own staff only.
-`effective_at` is the acceptance deadline for an `acceptance_timeout` and
+`effective_at` is the acceptance deadline for an `acceptance_timeout`,
+acceptance plus thirty minutes for an `unassigned_timeout` (#162) and
 `cancelled_at` otherwise; `cancelled_at` is always the processing time (#144).
+`food_credit` (#162) is `null` unless the Order owes the Restaurant a
+prepared-food credit: `{ amount_excluding_vat, currency_code, funded_by:
+"mtogo" }`, the full purchased food value excluding the assumed 25% VAT, with
+no commission. It is an obligation for the later monthly statement, not a
+bank payout.
 
 | Status | When                                                                                                             |
 | ------ | ---------------------------------------------------------------------------------------------------------------- |

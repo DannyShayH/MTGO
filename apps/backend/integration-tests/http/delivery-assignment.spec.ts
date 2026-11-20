@@ -18,7 +18,8 @@ medusaIntegrationTestRunner({
   env: { JWT_SECRET: "ci-only-delivery-assignment-secret", REDIS_URL: "" },
   testSuite: ({ api, getContainer, dbUtils }) => {
     const harness = restaurantOrdersHarness({ api, getContainer, dbUtils })
-    const { operations, placePaidOrder, signInAsStaffOf, accept } = harness
+    const { operations, placePaidOrder, signInAsStaffOf, accept, recordOf } =
+      harness
     let admin: { authorization: string }
     let pizzeriaId: string
     let staff: Record<string, string>
@@ -266,23 +267,29 @@ medusaIntegrationTestRunner({
       })
 
       it("decides the deadline at the server's time, refusing exactly at acceptance plus thirty minutes", async () => {
+        const late = await acceptedOrder()
         const order = await acceptedOrder()
         const agent = await agentFor()
-        const { claim_deadline } = await assignmentsOf(order.id)
-        const deadline = new Date(claim_deadline).getTime()
-        const run = (now: number) =>
-          claimDeliveryWorkflow(getContainer()).run({
+        const run = async (order_id: string, offset: number) => {
+          const { claim_deadline } = await assignmentsOf(order_id)
+          const now = new Date(claim_deadline).getTime() + offset
+          return claimDeliveryWorkflow(getContainer()).run({
             input: {
-              order_id: order.id,
+              order_id,
               agent_id: agent.id,
-              request_id: `boundary-${now}`,
+              request_id: `boundary-${order_id}-${now}`,
               now: new Date(now).toISOString(),
             },
             throwOnError: false,
           })
-        const exactly = await run(deadline)
+        }
+        const exactly = await run(late.id, 0)
         expect(exactly.errors[0]?.error.message).toBe("claim_deadline_passed")
-        const before = await run(deadline - 1)
+        // Too late is final: the unassigned work was cancelled (#162).
+        expect((await recordOf(late.id)).cancellation_category).toBe(
+          "unassigned_timeout",
+        )
+        const before = await run(order.id, -1)
         expect(before.errors).toEqual([])
         expect((await assignmentsOf(order.id)).assigned_agent_id).toBe(agent.id)
       })

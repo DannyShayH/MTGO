@@ -13,6 +13,7 @@ import {
   TransitionRefusal,
 } from "../rules"
 import { orderNotFound, readRestaurantOrder } from "./read-restaurant-orders"
+import { commitUnassignedCancellation } from "../unassigned-cancellation"
 
 export type TransitionRestaurantOrderInput = {
   restaurant_id: string
@@ -84,6 +85,20 @@ export const transitionRestaurantOrderStep = createStep(
     )) as unknown as Guarded[]
     if (!record) throw orderNotFound()
     const now = new Date()
+    // Work still unassigned at its claim deadline is cancelled first, under
+    // this same guard, so no kitchen milestone (or food credit) is recorded
+    // after the cutoff, even before the sweep runs (#162). The sweep settles
+    // the refund on its next tick.
+    if (
+      input.action !== "accept" &&
+      (
+        await commitUnassignedCancellation(container, {
+          order_id: input.order_id,
+          now,
+        })
+      ).outcome === "cancelled"
+    )
+      throw await refuseWithCurrent(container, input, "order_cancelled")
     const decision = decideTransition(input.action, record, now)
     if (decision.outcome === "refused")
       throw await refuseWithCurrent(container, input, decision.code)

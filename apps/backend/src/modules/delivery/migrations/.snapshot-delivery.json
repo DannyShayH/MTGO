@@ -1385,6 +1385,15 @@
           "expression": "CREATE UNIQUE INDEX IF NOT EXISTS \"IDX_intended_delivery_handover_request_id_unique\" ON \"intended_delivery\" (\"handover_request_id\") WHERE handover_request_id IS NOT NULL AND deleted_at IS NULL"
         },
         {
+          "keyName": "IDX_intended_delivery_claim_deadline_id",
+          "columnNames": [],
+          "composite": false,
+          "constraint": false,
+          "primary": false,
+          "unique": false,
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_intended_delivery_claim_deadline_id\" ON \"intended_delivery\" (\"claim_deadline\", \"id\") WHERE assigned_agent_id IS NULL AND terminal_outcome IS NULL AND deleted_at IS NULL"
+        },
+        {
           "keyName": "IDX_intended_delivery_native_sync_queued_at",
           "columnNames": [],
           "composite": false,

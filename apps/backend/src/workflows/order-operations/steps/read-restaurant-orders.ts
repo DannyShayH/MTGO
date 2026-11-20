@@ -20,6 +20,8 @@ import {
   iso,
   cancellationOutcome,
   CancellationOutcome,
+  foodCreditsOf,
+  type FoodCreditView,
   refundOutcomesOf,
   RefundOutcomeView,
 } from "../outcomes"
@@ -78,6 +80,8 @@ export type RestaurantOrder = {
     | null
   /** The owed full refund's outcome, independent of the provider's refund rows. */
   refund: RefundOutcomeView
+  /** The MTOGO-funded prepared-food credit this Order owes the Restaurant (#162). */
+  food_credit: FoodCreditView
   currency_code: string
   /** Menu prices include VAT (ADR-0012), so purchased amounts do too. */
   total_including_vat: number
@@ -129,6 +133,7 @@ function toRestaurantOrder(
   order: OrderRow,
   refund: RefundOutcomeView | undefined,
   now: Date,
+  food_credit: FoodCreditView | undefined = null,
 ): RestaurantOrder {
   const cancellation = cancellationOutcome(operation)
   return {
@@ -150,6 +155,7 @@ function toRestaurantOrder(
       note: operation.cancellation_note,
     },
     refund: refund ?? null,
+    food_credit: food_credit ?? null,
     currency_code: order.currency_code,
     // The purchased total: a cancellation's refund credit line lowers the
     // native `total` to zero, which must not rewrite the purchase.
@@ -208,14 +214,13 @@ export const listRestaurantOrdersStep = createStep(
         },
       )
     const rows = operations as unknown as OperationRow[]
-    const [orders, refunds] = await Promise.all([
+    const cancelled = rows
+      .filter(({ state }) => state === "cancelled")
+      .map((r) => r.order_id)
+    const [orders, refunds, credits] = await Promise.all([
       readOrders(container, rows),
-      refundOutcomesOf(
-        container,
-        rows
-          .filter(({ state }) => state === "cancelled")
-          .map((r) => r.order_id),
-      ),
+      refundOutcomesOf(container, cancelled),
+      foodCreditsOf(container, cancelled),
     ])
     const now = new Date()
     return new StepResponse({
@@ -227,6 +232,7 @@ export const listRestaurantOrdersStep = createStep(
             orders.get(operation.order_id)!,
             refunds.get(operation.order_id),
             now,
+            credits.get(operation.order_id),
           ),
         ),
       count,
@@ -261,10 +267,19 @@ export async function readRestaurantOrder(
   const row = operation as unknown as OperationRow | undefined
   const order = row && (await readOrders(container, [row])).get(row.order_id)
   if (!row || !order) throw orderNotFound()
-  const refunds = await refundOutcomesOf(container, [row.order_id])
+  const [refunds, credits] = await Promise.all([
+    refundOutcomesOf(container, [row.order_id]),
+    foodCreditsOf(container, [row.order_id]),
+  ])
   const now = new Date()
   return {
-    order: toRestaurantOrder(row, order, refunds.get(row.order_id), now),
+    order: toRestaurantOrder(
+      row,
+      order,
+      refunds.get(row.order_id),
+      now,
+      credits.get(row.order_id),
+    ),
     server_time: now.toISOString(),
   }
 }

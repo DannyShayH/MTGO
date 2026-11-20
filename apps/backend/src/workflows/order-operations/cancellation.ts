@@ -21,12 +21,13 @@ import { orderSettlementLock } from "./locks"
 import { logRecoveryFailure } from "./recovery-log"
 
 /**
- * The one cancellation and refund engine (#143, #144). Staff rejection and
- * the acceptance-timeout recovery commit through
- * `commitPreAcceptanceCancellation` and carry out the effects through
- * `settleCancellation`; nothing else owes or attempts a full refund. The
- * categories already include `customer_cancelled` for the Customer
- * cancellation slice, which is to use the same two functions.
+ * The one cancellation and refund engine (#143, #144, #145, #162). Staff
+ * rejection, Customer cancellation and the acceptance-timeout recovery commit
+ * through `commitPreAcceptanceCancellation`; the thirty-minute unassigned
+ * cancellation commits through `commitUnassignedCancellation`
+ * (`unassigned-cancellation.ts`) with the same guarded module write. All
+ * carry out the effects through `settleCancellation`; nothing else owes or
+ * attempts a full refund.
  */
 
 type GuardedRecord = {
@@ -60,7 +61,7 @@ export type CancellationCommit =
     }
 
 /** The Order's payments as Query reads them, reduced to what is owed. */
-async function owedRefund(container: MedusaContainer, order_id: string) {
+export async function owedRefund(container: MedusaContainer, order_id: string) {
   const { data } = await container
     .resolve(ContainerRegistrationKeys.QUERY)
     .graph({
@@ -123,6 +124,7 @@ export async function commitPreAcceptanceCancellation(
     id: record.id,
     order_id: request.order_id,
     revision: record.revision,
+    state: record.state,
     cancelled_at: request.now,
     cancelled_by: actor.cancelled_by,
     category: decision.category,

@@ -90,6 +90,8 @@ type OrderText = Record<
   | "cancelled_restaurant_rejected"
   | "cancelled_acceptance_timeout"
   | "cancelled_customer_cancelled"
+  | "cancelled_unassigned_timeout"
+  | "food_credit_mtogo"
   | "cancellation_note"
   | "refund"
   | "refund_pending"
@@ -219,6 +221,10 @@ export const ORDER_TEXT: Record<Locale, OrderText> = {
     cancelled_acceptance_timeout:
       "Annulleret automatisk, fordi fristen for accept udløb {time} (registreret {processed})",
     cancelled_customer_cancelled: "Annulleret af kunden {time}",
+    cancelled_unassigned_timeout:
+      "Annulleret automatisk, fordi intet bud tog leveringen inden {time} (registreret {processed})",
+    food_credit_mtogo:
+      "MTOGO godskriver jeres restaurant {amount} ekskl. moms for den tilberedte mad. Der trækkes ingen kommission.",
     cancellation_note: "Jeres begrundelse",
     refund: "Refusion",
     refund_pending: "Refusion af {amount} til kunden er i gang.",
@@ -348,6 +354,10 @@ export const ORDER_TEXT: Record<Locale, OrderText> = {
     cancelled_acceptance_timeout:
       "Cancelled automatically because the acceptance deadline passed at {time} (recorded {processed})",
     cancelled_customer_cancelled: "Cancelled by the Customer at {time}",
+    cancelled_unassigned_timeout:
+      "Cancelled automatically because no Delivery agent took the delivery by {time} (recorded {processed})",
+    food_credit_mtogo:
+      "MTOGO credits your Restaurant {amount} excluding VAT for the prepared food. No commission is charged.",
     cancellation_note: "Your reason",
     refund: "Refund",
     refund_pending: "Refund of {amount} to the Customer is in progress.",

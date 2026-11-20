@@ -96,6 +96,14 @@ terminal outcome. Nothing
 releases a committed assignment: there is no compensation, release or
 reassignment; alerts and repeats leave it in place. Revocation keeps it.
 
+A claim or assignment refused with `claim_deadline_passed` on unassigned work
+cancels the Order under the same held guard (#162; see the Order Operations
+module). In the same guarded section the unassigned delivery ends as
+`cancelled` through `endDeliveryForOrder`, the terminal boundary below, so
+the recovery sweep reads each expired delivery once (partial index on
+`claim_deadline, id` where unassigned and not ended). It held no capacity,
+and the ended Order resolves its attention as `order_ended`.
+
 `integration-tests/http/delivery-assignment.spec.ts` covers claims and their
 Customer-contact privacy, retries and reused retry identities, two agents
 racing for one delivery and one agent for two, refusals (areas, deadline,

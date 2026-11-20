@@ -180,7 +180,9 @@ medusaIntegrationTestRunner({
         const order = await placePaidOrder(pizzeriaId)
         expect((await accept(staff.headers, order.id)).status).toBe(200)
 
-        const swept = await recover(new Date(Date.now() + 60 * 60 * 1000))
+        // Well past the acceptance deadline, still before the thirty-minute
+        // unassigned cancellation (#162), which is a separate outcome.
+        const swept = await recover(new Date(Date.now() + 20 * 60 * 1000))
 
         expect(swept.result.expired).toEqual([])
         expect((await recordOf(order.id)).state).toBe("accepted")

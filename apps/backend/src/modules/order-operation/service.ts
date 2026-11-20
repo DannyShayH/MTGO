@@ -8,7 +8,9 @@ import {
 } from "@medusajs/framework/utils"
 import OrderOperation, {
   type CancellationCategory,
+  type OrderOperationState,
 } from "./models/order-operation"
+import FoodCredit from "./models/food-credit"
 import PurchaseReview from "./models/purchase-review"
 import RefundObligation from "./models/refund-obligation"
 
@@ -17,6 +19,8 @@ export type CancellationCommand = {
   id: string
   order_id: string
   revision: number
+  /** The state the decision was made in, repeated by the guarded write. */
+  state: OrderOperationState
   cancelled_at: Date
   cancelled_by: string
   category: CancellationCategory
@@ -28,19 +32,31 @@ export type CancellationCommand = {
     amount: string
     currency_code: string
   } | null
+  /** The prepared-food credit owed with this cancellation (#162), if any. */
+  food_credit?: {
+    restaurant_id: string
+    /** Exact decimal string, excluding VAT. */
+    amount: string
+    currency_code: string
+    reason: CancellationCategory
+    preparation_started_at: Date
+    ready_at: Date | null
+  } | null
 }
 
 class OrderOperationModuleService extends MedusaService({
   OrderOperation,
   PurchaseReview,
   RefundObligation,
+  FoodCredit,
 }) {
   /**
-   * Commits a business cancellation and its full-refund obligation together
-   * (#143), before any provider is contacted. The update's selector repeats
-   * the revision and awaiting state the caller read, so a stale decision
-   * writes nothing and returns false. The obligation's unique `order_id`
-   * keeps a second cancellation from owing a second refund.
+   * Commits a business cancellation, its full-refund obligation and any
+   * prepared-food credit together (#143, #162), before any provider is
+   * contacted. The update's selector repeats the revision and state the
+   * caller read, so a stale decision writes nothing and returns false. The
+   * unique `order_id` of each obligation keeps a second cancellation from
+   * owing a second refund or credit.
    */
   @InjectManager()
   @InjectTransactionManager()
@@ -53,7 +69,7 @@ class OrderOperationModuleService extends MedusaService({
         selector: {
           id: command.id,
           revision: command.revision,
-          state: "awaiting_acceptance",
+          state: command.state,
         },
         data: {
           state: "cancelled",
@@ -78,6 +94,19 @@ class OrderOperationModuleService extends MedusaService({
           currency_code: command.refund.currency_code,
           // Stable for the Order's one obligation: every attempt sends it.
           idempotency_key: `mtogo-full-refund:${command.order_id}`,
+        },
+        context,
+      )
+    if (command.food_credit)
+      await this.createFoodCredits(
+        {
+          order_id: command.order_id,
+          ...command.food_credit,
+          amount: new BigNumber(
+            command.food_credit.amount,
+          ) as unknown as number,
+          commission_amount: new BigNumber(0) as unknown as number,
+          funded_by: "mtogo",
         },
         context,
       )
