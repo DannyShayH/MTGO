@@ -12,6 +12,15 @@ and, for the Droplet,
 join the explicitly created internal `mtogo-local-metrics` network. Only the
 API and Grafana have loopback host ports.
 
+## Query tests
+
+`tests/dashboard-queries.test.yaml` is a `promtool test rules` file holding
+every dashboard expression verbatim, evaluated against synthetic series:
+healthy zero traffic, only 4xx, 5xx, DOWN and absent targets, insufficient
+history, a missing duration histogram and a counter reset. The backend unit
+test `src/observability/__tests__/dashboard-queries.unit.spec.ts` fails when a
+dashboard query is not in that file. Change both together.
+
 ## Staging
 
 `compose.staging.yaml` runs the same Prometheus configuration, data source and

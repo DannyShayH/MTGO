@@ -257,13 +257,23 @@ them whenever they change in the repository: the workflow never copies them,
 so the Droplet runs only scripts the admin has read. Fetch them at the commit
 you reviewed, read them, then install:
 
+Work in a scratch folder in your home directory, not in `/srv/mtogo-staging`.
+`curl -O` saves each file there under its own name.
+
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/DannyShayH/MTGO/<sha>/deploy/staging/mtogo-deploy.sh
-curl -fsSLO https://raw.githubusercontent.com/DannyShayH/MTGO/<sha>/deploy/staging/mtogo-deploy-ssh.sh
-curl -fsSLO https://raw.githubusercontent.com/DannyShayH/MTGO/<sha>/deploy/staging/sudoers.example
-sudo install -o root -g root -m 755 deploy/staging/mtogo-deploy.sh /usr/local/sbin/mtogo-deploy.sh
-sudo install -o root -g root -m 755 deploy/staging/mtogo-deploy-ssh.sh /usr/local/sbin/mtogo-deploy-ssh
+mkdir -p ~/mtogo-scripts && cd ~/mtogo-scripts
+sha=<the commit you reviewed>
+curl -fsSLO "https://raw.githubusercontent.com/DannyShayH/MTGO/$sha/deploy/staging/mtogo-deploy.sh"
+curl -fsSLO "https://raw.githubusercontent.com/DannyShayH/MTGO/$sha/deploy/staging/mtogo-deploy-ssh.sh"
+curl -fsSLO "https://raw.githubusercontent.com/DannyShayH/MTGO/$sha/deploy/staging/sudoers.example"
+less mtogo-deploy.sh mtogo-deploy-ssh.sh sudoers.example
+sudo install -o root -g root -m 755 mtogo-deploy.sh /usr/local/sbin/mtogo-deploy.sh
+sudo install -o root -g root -m 755 mtogo-deploy-ssh.sh /usr/local/sbin/mtogo-deploy-ssh
+sudo mtogo-deploy.sh help
 ```
+
+A deploy updates images and the release's Compose file, never these scripts.
+When only `mtogo-deploy.sh` changed, install just that one.
 
 ### SSH access for the deploy workflow
 

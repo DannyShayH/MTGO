@@ -1,15 +1,19 @@
 ---
 title: Local backend request monitoring
-description: Completed ordinary backend API responses, including early refusals, through a private exporter, Prometheus and a provisioned Grafana Viewer dashboard.
+description: Completed ordinary backend API responses, including early refusals, 5xx proportion and p95 latency, through a private exporter, Prometheus and a provisioned Grafana Viewer dashboard.
 ---
 
 This implements the local journeys of
-[#169](https://github.com/DannyShayH/MTGO/issues/169) and
-[#170](https://github.com/DannyShayH/MTGO/issues/170), under
+[#169](https://github.com/DannyShayH/MTGO/issues/169),
+[#170](https://github.com/DannyShayH/MTGO/issues/170) and
+[#171](https://github.com/DannyShayH/MTGO/issues/171), under
 [#167](https://github.com/DannyShayH/MTGO/issues/167). It measures every
 completed ordinary API response from one backend process, including
 authentication, publishable-key and body refusals before application
-middleware. It does not count Customers or Orders. Business state, logging
+middleware, with its server-side duration. It shows rates, five-minute
+counts, the 5xx proportion and ordinary API p95, and states plainly when
+evidence is unavailable. It does not count Customers or Orders, and HTTP
+latency is not Order processing time. Business state, logging
 and request correlation retain their existing contracts.
 
 ## Scope and boundaries
@@ -38,8 +42,8 @@ Monitoring is disabled unless `MTOGO_METRICS_ENABLED=1`. The supported
 For a native development server, use `PORT` rather than a CLI `--port`
 override and keep the default exporter bind at `127.0.0.1`.
 
-This slice has no application-log collection, latency/process panels,
-SSE/interruption counters or adjustable warning thresholds.
+There is no application-log collection, process panels,
+SSE/interruption counters or adjustable warning thresholds yet.
 The [confirmed discovery](/MTGO/quality/prometheus-monitoring-discovery/)
 describes the later work. Seven-day Prometheus retention is a time policy,
 not a storage quota or evidence that the full four-component stack fits staging.
@@ -90,6 +94,7 @@ docker compose -f compose.application.yaml up -d backend
 curl --fail --retry 60 --retry-all-errors --retry-delay 2 http://127.0.0.1:9000/health
 docker compose config --quiet
 docker compose run --rm --no-deps --entrypoint /bin/promtool prometheus check config /etc/prometheus/prometheus.yaml
+docker compose run --rm --no-deps -v ./tests:/etc/prometheus/tests:ro --entrypoint /bin/promtool prometheus test rules /etc/prometheus/tests/dashboard-queries.test.yaml
 docker compose up -d
 ```
 
@@ -194,12 +199,66 @@ leave rolling values unavailable. Raw process counters are the acceptance
 oracle for an exact first response. See the
 [Prometheus query function semantics](https://prometheus.io/docs/prometheus/latest/querying/functions/).
 
-Traffic queries require a successful `up` sample within the 15-second scrape
-interval. The dedicated Prometheus instance sets its instant-selector lookback
-to that interval so old samples expire through collection outages. Failed or
+Traffic queries require a successful `up` sample within the last 30 seconds,
+two 15-second scrape intervals. The dedicated Prometheus instance sets its
+instant-selector lookback to 30 seconds so old samples expire through
+collection outages, while one slightly late scrape does not blank the whole
+dashboard. A failed scrape still records `up=0` at once, so DOWN is not
+delayed; only a stopped Prometheus takes up to 30 seconds to show as
+unavailable. Failed or
 missing scrapes yield unavailable traffic. Plots leave gaps at the chart's
 query resolution. `up` describes scrape availability. Allow one scrape plus
 dashboard refresh for a failure to appear. Backend restart resets its raw count.
+
+## Latency, 5xx proportion and data states (#171)
+
+`mtogo_http_request_duration_seconds{method,route}` records one observation
+per completed ordinary response, in seconds, with the same labels and
+exclusions as the counter. Buckets run from 5 ms to 10 s and include the
+agreed 2 s browsing/status and 5 s Order-submission boundaries, plus `+Inf`.
+It measures one HTTP request inside the backend process, not network time in
+the browser and **not Order processing time** (Feature #54).
+
+Every rolling query uses a five-minute window. Prometheus scrapes every 15
+seconds and the dashboard refreshes every 30 seconds. **Unavailable** always
+means there is no valid evidence; it never stands for zero.
+
+| Panel                            | Query meaning                                                                                             | Unavailable when                                               |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Data state                       | DOWN, insufficient history (fewer than two successful scrapes), UP quiet (0 responses) or UP with traffic | No `up` series for the target: never scraped or not configured |
+| Completed response rate          | Responses per second, `rate` per series before `sum`                                                      | DOWN, absent target or fewer than two samples                  |
+| 5xx proportion                   | 5xx rate divided by all completed responses. With traffic but no 5xx series yet, it is 0%.                | Zero completed responses (no denominator), DOWN or absent      |
+| Ordinary API p95                 | `histogram_quantile(0.95, …)` over buckets summed across series, never an average of percentiles          | No duration observations in the window, DOWN or absent         |
+| Duration observations behind p95 | Estimated number of durations in the window; read it before trusting a p95                                | No histogram (for example an older, uninstrumented release)    |
+| p95 by route pattern             | The same estimate per `method`/`route`, drawn only for routes with observations                           | As above, per route                                            |
+
+A p95 that lands in the overflow bucket is shown as 10 s, meaning "at or above
+10 s". A counter reset after a backend restart is absorbed by `rate` and
+`increase`; it never makes traffic negative. A 5xx response whose series was
+not seen before the window starts can be missed, as described above.
+
+The semantics are tested against the pinned Prometheus query engine with
+synthetic series in `deploy/monitoring/tests/dashboard-queries.test.yaml`
+(the `test rules` command above): healthy zero traffic, only 4xx, a 25% 5xx
+share, DOWN, absent target, one scrape of history, requests without any
+duration histogram, a collection gap inside the window and a counter reset
+inside the window. A backend unit test
+fails when a dashboard query is missing from that file, uses a window other
+than five minutes or the refresh/scrape timing changes. `promtool` evaluates
+with its default five-minute lookback, not the dashboard Prometheus's 30
+seconds, so the DOWN case uses Prometheus's stale markers as a real failed
+scrape does.
+
+To see a server failure locally without a crash endpoint, make the disposable
+database unavailable, send a read, then restore it. Record the returned status
+and how long it took: the backend may wait for its database connection before
+answering, which also shows a slow response in the p95.
+
+```bash
+docker compose -f compose.application.yaml stop postgres
+curl --silent --output /dev/null --write-out '%{http_code} %{time_total}s\n' 'http://127.0.0.1:9000/store/regions'
+docker compose -f compose.application.yaml start postgres
+```
 
 ## Operation, failure and cleanup
 
@@ -249,6 +308,10 @@ docker compose down
 | Health is OK, scrape fails                         | API health and exporter availability are independent. Check exporter bind/configuration and private DNS.                                                          |
 | Exporter warning                                   | Check port collision, a valid integer port and bind address. API startup continues; restart the backend after fixing configuration.                               |
 | Grafana login fails after `.env` changes           | Stored credentials survive recreation. Restore the original local file or deliberately reset disposable volumes.                                                  |
+| p95 or 5xx proportion Unavailable while UP         | Expected with no completed responses or no duration observations in five minutes. Check **Data state** and the observation count; send a real read.               |
+| Data state shows Insufficient history              | Fewer than two successful scrapes in five minutes, for example right after Prometheus or the backend started. Wait 30 seconds.                                    |
+| p95 shows exactly 10 s                             | The 95th percentile is in the overflow bucket: at least 10 s. Investigate the slow route in **p95 by route pattern**.                                             |
+| `test rules` fails after a dashboard change        | Update the expression and expected values in `tests/dashboard-queries.test.yaml` together; the backend unit test names any query the file lacks.                  |
 | Dashboard absent                                   | Check Grafana provisioning logs and the mounted dashboard/provider/data-source paths; keep the pinned versions together.                                          |
 | `docker: command not found`                        | Rebuild and reopen the devcontainer with the Docker-in-Docker feature, then check `docker version` and `docker compose version`.                                  |
 | Docker client exists but cannot reach its server   | Check the feature startup log `/tmp/dockerd.log` and host support for privileged development containers; a client alone cannot run the journey.                   |
@@ -348,3 +411,38 @@ No staging capacity, combined four-component budget or activation acceptance is
 claimed by this local slice. Staging metrics (#194) reuse the same dashboard,
 now titled **MTOGO — backend API requests**, and record their own acceptance on
 the [staging request monitoring](/MTGO/quality/staging-request-monitoring/) page.
+
+### Latency and 5xx proportion (#171)
+
+The unit suite sends real Node HTTP requests, including one that waits 300 ms,
+and reads the exported histogram: bucket boundaries, an empty 0.25 s bucket,
+counts in the 2 s, 5 s and `+Inf` buckets, a sum of at least 0.3 s, no
+duration for an interrupted response and no query values in labels. The real
+Medusa suite reads `/store/regions` (200), causes a test-only 500 by making the
+region module's read reject once inside the process, and sends an invalid
+`limit` (400). It asserts one counter increase per status and three duration
+observations, with no error text or query value exported.
+
+Agent verification on 20 November 2026, on the uncommitted #171 working tree:
+
+| Boundary                | Observed result                                                                                                                                                     |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Node HTTP/exporter      | **55 request-metrics unit tests passed**, including the duration histogram and interrupted-response cases.                                                          |
+| Dashboard queries       | **29 dashboard-query unit tests passed**: every query is in the promtool file, uses `[5m]`, refresh is 30 s and scrape is 15 s.                                     |
+| Medusa HTTP suite       | **6 tests passed** in `request-metrics.spec.ts`, including the controlled 500 through `/store/regions`.                                                             |
+| Prometheus query engine | **Not run by the agent.** The devcontainer had no Docker engine and downloading `promtool` was not permitted. Run the `test rules` command above before acceptance. |
+| Grafana Viewer          | **Not run by the agent**, for the same reason. This is the developer's manual acceptance below.                                                                     |
+
+Repeat the startup above, run the `test rules` command, then check as a Viewer:
+
+- **Data state** reads _UP — quiet, 0 responses_ after startup; 5xx proportion
+  and p95 are **Unavailable**, the observation count is 0.
+- After a few real reads, the state is _UP — traffic observed_, the 5xx
+  proportion is 0% and p95 has a value with its observation count beside it.
+- A keyless read (400) does not change the 5xx proportion.
+- The stopped-database read above raises the 5xx proportion; record its
+  status and duration and the resulting p95.
+- Stopping the backend shows _DOWN — no current evidence_, and every rolling
+  value becomes Unavailable rather than 0. After restart, rates stay positive.
+- The **Interpret the observations** panel says latency is not Order
+  processing time.

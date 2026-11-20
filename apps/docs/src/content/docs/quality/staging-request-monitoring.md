@@ -81,9 +81,16 @@ The idle snapshot on 20 November 2026: 1,963 MB RAM, 883 MB available,
 | Container  | Hard cap | Go memory limit | Persistent state                                 |
 | ---------- | -------- | --------------- | ------------------------------------------------ |
 | prometheus | 192 MB   | 160 MiB         | Volume `prometheus-data`: 7 days, at most 512 MB |
-| grafana    | 256 MB   | 220 MiB         | Volume `grafana-data`: users, sessions           |
+| grafana    | 448 MB   | 220 MiB         | Volume `grafana-data`: users, sessions           |
 
-The caps add at most 448 MB. Each cap also limits swap (`memswap_limit` equals
+The caps add at most 640 MB. Grafana's first cap of 256 MB (Go limit 220 MiB)
+was too small for Grafana 13: on 20 November 2026 it sat at 99% of the cap
+with 28% CPU, spending its time on garbage collection, and pages took 3 to
+90 seconds or failed with 500. It was not killed. With the cap raised to
+384 MB (Go limit unchanged) it settled at 326 MiB and 1.5% CPU, and health
+answered in 0.11 s: about 100 MiB of Grafana's use is outside the Go heap. The
+cap is now 448 MB with the Go limit kept at 220 MiB, leaving roughly 120 MiB
+of headroom over that reading. Each cap also limits swap (`memswap_limit` equals
 the memory limit), so a container cannot grow into the host's swap. The Go
 memory limits make both collect garbage before the kernel enforces the cap.
 The tightest moment is a deploy: the migration container and the new backend
@@ -171,7 +178,12 @@ grafana.staging.example.org {
 }
 ```
 
-### 5. Viewer accounts
+### 5. Admin sign-in and Viewer accounts
+
+The admin account is `staging-admin`, with the `GRAFANA_ADMIN_PASSWORD` from
+`/srv/mtogo-staging/.env`. Sign in at `https://<grafana hostname>/login`. Use it
+only for checks the Viewer cannot do; Caddy answers 404 for the server
+administration pages, so manage people with the commands below, not in the UI.
 
 One command per team member. It prints a generated first password once; hand
 it over through the password manager, not chat or an issue. Each person then
@@ -218,6 +230,13 @@ and `GET unmatched — HTTP 404`, next to the real staging traffic by route
 pattern. The **Request coverage** panel describes the staging `backend`
 container. As a Viewer, the dashboard offers no save, and the data source and
 the Administration pages are not available.
+
+Staging reuses the same provisioned dashboard. Once a backend release with
+the duration histogram (#171) is deployed, it also shows the data state,
+response rate, 5xx proportion and p95 panels described in
+[local request monitoring](/MTGO/quality/local-request-monitoring/). Until
+then, the p95 and observation panels on staging honestly read **Unavailable**.
+Deliberate failure tests stay on the local stack, never on staging.
 
 ### 7. Memory readings after activation and during a deploy
 
@@ -289,34 +308,56 @@ Check afterwards that the application is unaffected:
 
 ## Troubleshooting
 
-| Symptom                                  | Check/action                                                                                                                                                                                                                  |
-| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `unknown command: monitoring`            | The installed deploy script is older. Re-install it from the #194 commit.                                                                                                                                                     |
-| `release ... has no staging monitoring`  | The live release predates #194. Wait for the deploy of a release that contains it.                                                                                                                                            |
-| Target DOWN                              | `STAGING_METRICS_ENABLED=1`, then `monitoring up` again (it recreates the backend). Check backend logs for the constant metrics warning. Never publish 9464.                                                                  |
-| Caddy returns 502 for Grafana            | `monitoring status`; the Caddy upstream must match `STAGING_BIND_ADDRESS:STAGING_GRAFANA_PORT`. With Caddy in a container, use the `docker0` gateway address.                                                                 |
-| `viewer-add` fails                       | The login already exists, or `GRAFANA_ADMIN_PASSWORD` differs from the one Grafana stored on its first start.                                                                                                                 |
-| Admin password from `.env` does not work | Reset Grafana to a new value and put the same value in `.env`: `openssl rand -hex 24 \| tee /dev/tty \| sudo docker exec -i mtogo-staging-monitoring-grafana-1 grafana cli admin reset-admin-password --password-from-stdin`. |
-| "Too many login attempts"                | Brute-force protection locked the login for a few minutes. Wait, then sign in with the right password.                                                                                                                        |
-| A container restarts with exit code 137  | It reached its memory cap. Record `docker stats`, then raise the cap only within the floor above, or roll back.                                                                                                               |
-| Dashboard or data source missing         | Check Grafana's logs for provisioning errors, then `monitoring up` again so all files come from one release.                                                                                                                  |
+| Symptom                                    | Check/action                                                                                                                                                                                                                                                    |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `unknown command: monitoring`              | The installed deploy script is older: deploys never replace it. Re-install it from the live release commit ([staging deployment, step 4](/MTGO/quality/staging-deployment/#4-scripts)); `sudo mtogo-deploy.sh help \| grep monitoring` then lists the commands. |
+| `release ... has no staging monitoring`    | The live release predates #194. Wait for the deploy of a release that contains it.                                                                                                                                                                              |
+| Target DOWN                                | `STAGING_METRICS_ENABLED=1`, then `monitoring up` again (it recreates the backend). Check backend logs for the constant metrics warning. Never publish 9464.                                                                                                    |
+| Caddy returns 502 for Grafana              | `monitoring status`; the Caddy upstream must match `STAGING_BIND_ADDRESS:STAGING_GRAFANA_PORT`. With Caddy in a container, use the `docker0` gateway address.                                                                                                   |
+| `viewer-add` fails                         | The login already exists, or `GRAFANA_ADMIN_PASSWORD` differs from the one Grafana stored on its first start.                                                                                                                                                   |
+| Admin password from `.env` does not work   | Reset Grafana to a new value and put the same value in `.env`: `openssl rand -hex 24 \| tee /dev/tty \| sudo docker exec -i mtogo-staging-monitoring-grafana-1 grafana cli admin reset-admin-password --password-from-stdin`.                                   |
+| "Too many login attempts"                  | Brute-force protection locked the login for a few minutes. Wait, then sign in with the right password.                                                                                                                                                          |
+| Grafana pages hang or `/login` returns 500 | `docker stats`: Grafana near its cap with steady CPU means garbage-collection thrashing, not a crash. Raise the cap (above) and check `available` stays above the floor.                                                                                        |
+| A container restarts with exit code 137    | It reached its memory cap. Record `docker stats`, then raise the cap only within the floor above, or roll back.                                                                                                                                                 |
+| Dashboard or data source missing           | Check Grafana's logs for provisioning errors, then `monitoring up` again so all files come from one release.                                                                                                                                                    |
 
 ## Manual acceptance record
 
 To be filled in by the repository admin. No secrets or passwords belong here.
 
-| Reading or check                                             | Date and result                                                                         |
-| ------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
-| `free -m` available before activation                        | 20 November 2026: 883 MB available of 1,963 MB; swap 194 of 2,047 MB                    |
-| `docker stats` before activation (MTOGO total)               | 20 November 2026: backend 260 MiB, storefront 124, partner 102, redis 8 (about 494 MiB) |
-| `free -m` available after activation                         |                                                                                         |
-| `docker stats` prometheus / grafana after activation         |                                                                                         |
-| Lowest `free -m` available during one deploy                 |                                                                                         |
-| `docker stats` at that moment                                |                                                                                         |
-| Floor agreed with the team, and whether every reading met it |                                                                                         |
-| Exporter, Prometheus and admin API unreachable (step 6)      |                                                                                         |
-| Viewer sees real traffic and an early rejection (step 6)     |                                                                                         |
-| Rollback steps 1 and 3 rehearsed, application unaffected     |                                                                                         |
+| Reading or check                                             | Date and result                                                                                                                                                         |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `free -m` available before activation                        | 20 November 2026: 883 MB available of 1,963 MB; swap 194 of 2,047 MB. Immediately before `monitoring up`: 893 MB available; swap 195 MB                                 |
+| `docker stats` before activation (MTOGO total)               | 20 November 2026: backend 260 MiB, storefront 124, partner 102, redis 8 (about 494 MiB)                                                                                 |
+| `free -m` available after activation                         | 20 November 2026, right after `monitoring up`: 826 MB available (67 MB less); swap 207 MB                                                                               |
+| `docker stats` prometheus / grafana after activation         | 20 November 2026: prometheus 49.9 MiB of 192 MiB (26%), grafana 187.5 MiB of 256 MiB (73%). MTOGO apps unchanged: backend 265, storefront 145, partner 102, redis 8 MiB |
+| Lowest `free -m` available during one deploy                 |                                                                                                                                                                         |
+| `docker stats` at that moment                                |                                                                                                                                                                         |
+| Floor agreed with the team, and whether every reading met it |                                                                                                                                                                         |
+| Exporter, Prometheus and admin API unreachable (step 6)      |                                                                                                                                                                         |
+| Viewer sees real traffic and an early rejection (step 6)     |                                                                                                                                                                         |
+| Rollback steps 1 and 3 rehearsed, application unaffected     |                                                                                                                                                                         |
+
+Activation on 20 November 2026 (release `e6736400`): the Droplet still ran
+the deploy script from before #194, so `help` listed no `monitoring` command.
+Re-installing it from the release commit fixed that. `monitoring up` then
+recreated the backend with the exporter on, created both volumes, pulled the
+pinned images and reported Prometheus and Grafana healthy. The Droplet also
+runs non-MTOGO containers (a Java service, PostgreSQL, a static site,
+Watchtower and Caddy, about 200 MiB together), so record whole-host
+`available`, not only the MTOGO containers. Grafana started at 73% of its cap;
+watch it in the deploy reading and after a few days of use.
+
+About 15 minutes later Grafana reached 253.9 MiB of 256 MiB with 28% CPU; the
+site no longer loaded and `/login` returned 500 after 45 to 92 seconds. Host
+`available` was 618 MB, load average 2.16, so the host itself was not
+exhausted. The cap was raised to 448 MB in Git. Until a release carries it,
+raise it on the running container (`monitoring up` would restore the cap of
+the release it copies):
+
+```bash
+sudo docker update --memory 448m --memory-swap 448m mtogo-staging-monitoring-grafana-1
+```
 
 ## Verification in the repository
 

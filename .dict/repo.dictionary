@@ -111,3 +111,6 @@ Rømersgade
 preflights
 unrouted
 memswap
+promql
+reqps
+subsecond

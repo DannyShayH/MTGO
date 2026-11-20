@@ -1,0 +1,349 @@
+# promtool unit tests for every query in grafana/dashboards/backend-requests.json.
+# Generated expressions must match the dashboard exactly; a backend unit test
+# (src/observability/__tests__/dashboard-queries.unit.spec.ts) checks that.
+# Run: see apps/docs/src/content/docs/quality/local-request-monitoring.md
+# Synthetic series are scraped every 15s. Evaluation at 10m uses the five-minute
+# window (5m, 10m], which holds 20 scrapes.
+rule_files: []
+evaluation_interval: 15s
+tests:
+  # healthy zero traffic: count 0, proportion and p95 unavailable
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-backend",instance="backend-metrics:9464"}'
+        values: "1x40"
+      - series: 'mtogo_http_requests_total{job="mtogo-backend",instance="backend-metrics:9464",method="GET",route="/store/products",status="200"}'
+        values: "0x40"
+      - series: 'mtogo_http_request_duration_seconds_bucket{job="mtogo-backend",instance="backend-metrics:9464",le="0.1",method="GET",route="/store/products"}'
+        values: "0x40"
+      - series: 'mtogo_http_request_duration_seconds_bucket{job="mtogo-backend",instance="backend-metrics:9464",le="1",method="GET",route="/store/products"}'
+        values: "0x40"
+      - series: 'mtogo_http_request_duration_seconds_bucket{job="mtogo-backend",instance="backend-metrics:9464",le="2",method="GET",route="/store/products"}'
+        values: "0x40"
+      - series: 'mtogo_http_request_duration_seconds_bucket{job="mtogo-backend",instance="backend-metrics:9464",le="5",method="GET",route="/store/products"}'
+        values: "0x40"
+      - series: 'mtogo_http_request_duration_seconds_bucket{job="mtogo-backend",instance="backend-metrics:9464",le="10",method="GET",route="/store/products"}'
+        values: "0x40"
+      - series: 'mtogo_http_request_duration_seconds_bucket{job="mtogo-backend",instance="backend-metrics:9464",le="+Inf",method="GET",route="/store/products"}'
+        values: "0x40"
+      - series: 'mtogo_http_request_duration_seconds_count{job="mtogo-backend",instance="backend-metrics:9464",method="GET",route="/store/products"}'
+        values: "0x40"
+    promql_expr_test:
+      - expr: 'up{job="mtogo-backend"}'
+        eval_time: 10m
+        exp_samples:
+          - labels: 'up{instance="backend-metrics:9464", job="mtogo-backend"}'
+            value: 1
+      - expr: '((up{job="mtogo-backend"} == 0) + 0) or on(job, instance) (((up{job="mtogo-backend"} == 1) + 0) unless on(job, instance) (sum_over_time(up{job="mtogo-backend"}[5m]) >= 2)) or on(job, instance) (((up{job="mtogo-backend"} == 1) + 1) and on(job, instance) (sum by (job, instance) (increase(mtogo_http_requests_total{job="mtogo-backend"}[5m])) == 0)) or on(job, instance) (((up{job="mtogo-backend"} == 1) + 2) and on(job, instance) (sum by (job, instance) (increase(mtogo_http_requests_total{job="mtogo-backend"}[5m])) > 0))'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="backend-metrics:9464", job="mtogo-backend"}'
+            value: 2
+      - expr: 'sum(increase(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+      - expr: 'sum(mtogo_http_requests_total{job="mtogo-backend"} and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+      - expr: 'sum(rate(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+      - expr: '(sum(rate(mtogo_http_requests_total{job="mtogo-backend",status=~"5.."}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) or (0 * sum(rate(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)))) / (sum(rate(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) > 0)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'histogram_quantile(0.95, sum by (le) (rate(mtogo_http_request_duration_seconds_bucket{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))) and on() (sum(increase(mtogo_http_request_duration_seconds_count{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) > 0)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(increase(mtogo_http_request_duration_seconds_count{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+      - expr: 'histogram_quantile(0.95, sum by (le, method, route) (rate(mtogo_http_request_duration_seconds_bucket{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))) and on(method, route) (sum by (method, route) (increase(mtogo_http_request_duration_seconds_count{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) > 0)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum by (method, route, status) (mtogo_http_requests_total{job="mtogo-backend"} and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{method="GET", route="/store/products", status="200"}'
+            value: 0
+      - expr: 'sum by (status) (rate(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{status="200"}'
+            value: 0
+  # only expected refusals: no 5xx series means 0 when traffic exists
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-backend",instance="backend-metrics:9464"}'
+        values: "1x40"
+      - series: 'mtogo_http_requests_total{job="mtogo-backend",instance="backend-metrics:9464",method="GET",route="/store/products",status="200"}'
+        values: "0x40"
+      - series: 'mtogo_http_requests_total{job="mtogo-backend",instance="backend-metrics:9464",method="GET",route="early_rejection",status="400"}'
+        values: "0+1x40"
+      - series: 'mtogo_http_request_duration_seconds_bucket{job="mtogo-backend",instance="backend-metrics:9464",le="0.1",method="GET",route="early_rejection"}'
+        values: "0+9x40"
+      - series: 'mtogo_http_request_duration_seconds_bucket{job="mtogo-backend",instance="backend-metrics:9464",le="1",method="GET",route="early_rejection"}'
+        values: "0+9x40"
+      - series: 'mtogo_http_request_duration_seconds_bucket{job="mtogo-backend",instance="backend-metrics:9464",le="2",method="GET",route="early_rejection"}'
+        values: "0+10x40"
+      - series: 'mtogo_http_request_duration_seconds_bucket{job="mtogo-backend",instance="backend-metrics:9464",le="5",method="GET",route="early_rejection"}'
+        values: "0+10x40"
+      - series: 'mtogo_http_request_duration_seconds_bucket{job="mtogo-backend",instance="backend-metrics:9464",le="10",method="GET",route="early_rejection"}'
+        values: "0+10x40"
+      - series: 'mtogo_http_request_duration_seconds_bucket{job="mtogo-backend",instance="backend-metrics:9464",le="+Inf",method="GET",route="early_rejection"}'
+        values: "0+10x40"
+      - series: 'mtogo_http_request_duration_seconds_count{job="mtogo-backend",instance="backend-metrics:9464",method="GET",route="early_rejection"}'
+        values: "0+10x40"
+    promql_expr_test:
+      - expr: '((up{job="mtogo-backend"} == 0) + 0) or on(job, instance) (((up{job="mtogo-backend"} == 1) + 0) unless on(job, instance) (sum_over_time(up{job="mtogo-backend"}[5m]) >= 2)) or on(job, instance) (((up{job="mtogo-backend"} == 1) + 1) and on(job, instance) (sum by (job, instance) (increase(mtogo_http_requests_total{job="mtogo-backend"}[5m])) == 0)) or on(job, instance) (((up{job="mtogo-backend"} == 1) + 2) and on(job, instance) (sum by (job, instance) (increase(mtogo_http_requests_total{job="mtogo-backend"}[5m])) > 0))'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="backend-metrics:9464", job="mtogo-backend"}'
+            value: 3
+      - expr: 'sum(increase(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 20
+      - expr: '(sum(rate(mtogo_http_requests_total{job="mtogo-backend",status=~"5.."}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) or (0 * sum(rate(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)))) / (sum(rate(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) > 0)'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+      - expr: 'histogram_quantile(0.95, sum by (le) (rate(mtogo_http_request_duration_seconds_bucket{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))) and on() (sum(increase(mtogo_http_request_duration_seconds_count{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) > 0)'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 1.5
+      - expr: 'sum(increase(mtogo_http_request_duration_seconds_count{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 200
+      - expr: 'histogram_quantile(0.95, sum by (le, method, route) (rate(mtogo_http_request_duration_seconds_bucket{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))) and on(method, route) (sum by (method, route) (increase(mtogo_http_request_duration_seconds_count{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) > 0)'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{method="GET", route="early_rejection"}'
+            value: 1.5
+  # server failures relative to all completed responses
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-backend",instance="backend-metrics:9464"}'
+        values: "1x40"
+      - series: 'mtogo_http_requests_total{job="mtogo-backend",instance="backend-metrics:9464",method="GET",route="/store/regions",status="200"}'
+        values: "0+3x40"
+      - series: 'mtogo_http_requests_total{job="mtogo-backend",instance="backend-metrics:9464",method="GET",route="/store/regions",status="500"}'
+        values: "0+1x40"
+    promql_expr_test:
+      - expr: 'sum(increase(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 80
+      - expr: 'sum(rate(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0.26666666666666666
+      - expr: '(sum(rate(mtogo_http_requests_total{job="mtogo-backend",status=~"5.."}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) or (0 * sum(rate(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)))) / (sum(rate(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) > 0)'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0.25
+      - expr: 'sum by (status) (rate(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{status="200"}'
+            value: 0.2
+          - labels: '{status="500"}'
+            value: 0.06666666666666667
+      - expr: 'histogram_quantile(0.95, sum by (le) (rate(mtogo_http_request_duration_seconds_bucket{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))) and on() (sum(increase(mtogo_http_request_duration_seconds_count{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) > 0)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(increase(mtogo_http_request_duration_seconds_count{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+  # target DOWN: no traffic, proportion or p95 is fabricated
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-backend",instance="backend-metrics:9464"}'
+        values: "1x20 0x20"
+      - series: 'mtogo_http_requests_total{job="mtogo-backend",instance="backend-metrics:9464",method="GET",route="/store/products",status="200"}'
+        values: "0+1x20 stale"
+      - series: 'mtogo_http_requests_total{job="mtogo-backend",instance="backend-metrics:9464",method="GET",route="/store/products",status="500"}'
+        values: "0+1x20 stale"
+      - series: 'mtogo_http_request_duration_seconds_bucket{job="mtogo-backend",instance="backend-metrics:9464",le="1",method="GET",route="/store/products"}'
+        values: "0+10x20 stale"
+      - series: 'mtogo_http_request_duration_seconds_bucket{job="mtogo-backend",instance="backend-metrics:9464",le="+Inf",method="GET",route="/store/products"}'
+        values: "0+10x20 stale"
+      - series: 'mtogo_http_request_duration_seconds_count{job="mtogo-backend",instance="backend-metrics:9464",method="GET",route="/store/products"}'
+        values: "0+10x20 stale"
+    promql_expr_test:
+      - expr: 'up{job="mtogo-backend"}'
+        eval_time: 10m
+        exp_samples:
+          - labels: 'up{instance="backend-metrics:9464", job="mtogo-backend"}'
+            value: 0
+      - expr: '((up{job="mtogo-backend"} == 0) + 0) or on(job, instance) (((up{job="mtogo-backend"} == 1) + 0) unless on(job, instance) (sum_over_time(up{job="mtogo-backend"}[5m]) >= 2)) or on(job, instance) (((up{job="mtogo-backend"} == 1) + 1) and on(job, instance) (sum by (job, instance) (increase(mtogo_http_requests_total{job="mtogo-backend"}[5m])) == 0)) or on(job, instance) (((up{job="mtogo-backend"} == 1) + 2) and on(job, instance) (sum by (job, instance) (increase(mtogo_http_requests_total{job="mtogo-backend"}[5m])) > 0))'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="backend-metrics:9464", job="mtogo-backend"}'
+            value: 0
+      - expr: 'sum(increase(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(mtogo_http_requests_total{job="mtogo-backend"} and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(rate(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: '(sum(rate(mtogo_http_requests_total{job="mtogo-backend",status=~"5.."}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) or (0 * sum(rate(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)))) / (sum(rate(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) > 0)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'histogram_quantile(0.95, sum by (le) (rate(mtogo_http_request_duration_seconds_bucket{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))) and on() (sum(increase(mtogo_http_request_duration_seconds_count{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) > 0)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(increase(mtogo_http_request_duration_seconds_count{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum by (method, route, status) (mtogo_http_requests_total{job="mtogo-backend"} and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+  # absent target: every panel is unavailable
+  - interval: 15s
+    input_series:
+      - series: 'up{job="unrelated",instance="elsewhere:9100"}'
+        values: "1x40"
+    promql_expr_test:
+      - expr: 'up{job="mtogo-backend"}'
+        eval_time: 10m
+        exp_samples: []
+      - expr: '((up{job="mtogo-backend"} == 0) + 0) or on(job, instance) (((up{job="mtogo-backend"} == 1) + 0) unless on(job, instance) (sum_over_time(up{job="mtogo-backend"}[5m]) >= 2)) or on(job, instance) (((up{job="mtogo-backend"} == 1) + 1) and on(job, instance) (sum by (job, instance) (increase(mtogo_http_requests_total{job="mtogo-backend"}[5m])) == 0)) or on(job, instance) (((up{job="mtogo-backend"} == 1) + 2) and on(job, instance) (sum by (job, instance) (increase(mtogo_http_requests_total{job="mtogo-backend"}[5m])) > 0))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(increase(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(mtogo_http_requests_total{job="mtogo-backend"} and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(rate(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: '(sum(rate(mtogo_http_requests_total{job="mtogo-backend",status=~"5.."}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) or (0 * sum(rate(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)))) / (sum(rate(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) > 0)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'histogram_quantile(0.95, sum by (le) (rate(mtogo_http_request_duration_seconds_bucket{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))) and on() (sum(increase(mtogo_http_request_duration_seconds_count{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) > 0)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(increase(mtogo_http_request_duration_seconds_count{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+  # insufficient scrape history: one sample gives no rolling values
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-backend",instance="backend-metrics:9464"}'
+        values: "_x39 1"
+      - series: 'mtogo_http_requests_total{job="mtogo-backend",instance="backend-metrics:9464",method="GET",route="/store/products",status="200"}'
+        values: "_x39 0"
+      - series: 'mtogo_http_request_duration_seconds_bucket{job="mtogo-backend",instance="backend-metrics:9464",le="0.1",method="GET",route="/store/products"}'
+        values: "_x39 0"
+      - series: 'mtogo_http_request_duration_seconds_bucket{job="mtogo-backend",instance="backend-metrics:9464",le="1",method="GET",route="/store/products"}'
+        values: "_x39 0"
+      - series: 'mtogo_http_request_duration_seconds_bucket{job="mtogo-backend",instance="backend-metrics:9464",le="2",method="GET",route="/store/products"}'
+        values: "_x39 0"
+      - series: 'mtogo_http_request_duration_seconds_bucket{job="mtogo-backend",instance="backend-metrics:9464",le="5",method="GET",route="/store/products"}'
+        values: "_x39 0"
+      - series: 'mtogo_http_request_duration_seconds_bucket{job="mtogo-backend",instance="backend-metrics:9464",le="10",method="GET",route="/store/products"}'
+        values: "_x39 0"
+      - series: 'mtogo_http_request_duration_seconds_bucket{job="mtogo-backend",instance="backend-metrics:9464",le="+Inf",method="GET",route="/store/products"}'
+        values: "_x39 0"
+      - series: 'mtogo_http_request_duration_seconds_count{job="mtogo-backend",instance="backend-metrics:9464",method="GET",route="/store/products"}'
+        values: "_x39 0"
+    promql_expr_test:
+      - expr: '((up{job="mtogo-backend"} == 0) + 0) or on(job, instance) (((up{job="mtogo-backend"} == 1) + 0) unless on(job, instance) (sum_over_time(up{job="mtogo-backend"}[5m]) >= 2)) or on(job, instance) (((up{job="mtogo-backend"} == 1) + 1) and on(job, instance) (sum by (job, instance) (increase(mtogo_http_requests_total{job="mtogo-backend"}[5m])) == 0)) or on(job, instance) (((up{job="mtogo-backend"} == 1) + 2) and on(job, instance) (sum by (job, instance) (increase(mtogo_http_requests_total{job="mtogo-backend"}[5m])) > 0))'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="backend-metrics:9464", job="mtogo-backend"}'
+            value: 1
+      - expr: 'sum(increase(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(rate(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: '(sum(rate(mtogo_http_requests_total{job="mtogo-backend",status=~"5.."}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) or (0 * sum(rate(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)))) / (sum(rate(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) > 0)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'histogram_quantile(0.95, sum by (le) (rate(mtogo_http_request_duration_seconds_bucket{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))) and on() (sum(increase(mtogo_http_request_duration_seconds_count{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) > 0)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(increase(mtogo_http_request_duration_seconds_count{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(mtogo_http_requests_total{job="mtogo-backend"} and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+  # historical collection gap inside the window: current evidence only after recovery
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-backend",instance="backend-metrics:9464"}'
+        values: "1x24 0x5 1x10"
+      - series: 'mtogo_http_requests_total{job="mtogo-backend",instance="backend-metrics:9464",method="GET",route="/store/products",status="200"}'
+        values: "0+1x24 stale _x5 25+1x9"
+    promql_expr_test:
+      - expr: '((up{job="mtogo-backend"} == 0) + 0) or on(job, instance) (((up{job="mtogo-backend"} == 1) + 0) unless on(job, instance) (sum_over_time(up{job="mtogo-backend"}[5m]) >= 2)) or on(job, instance) (((up{job="mtogo-backend"} == 1) + 1) and on(job, instance) (sum by (job, instance) (increase(mtogo_http_requests_total{job="mtogo-backend"}[5m])) == 0)) or on(job, instance) (((up{job="mtogo-backend"} == 1) + 2) and on(job, instance) (sum by (job, instance) (increase(mtogo_http_requests_total{job="mtogo-backend"}[5m])) > 0))'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="backend-metrics:9464", job="mtogo-backend"}'
+            value: 3
+      - expr: 'sum(increase(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 13.68421052631579
+      - expr: 'sum(mtogo_http_requests_total{job="mtogo-backend"} and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 34
+  # counter reset after a backend restart: no negative traffic
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-backend",instance="backend-metrics:9464"}'
+        values: "1x40"
+      - series: 'mtogo_http_requests_total{job="mtogo-backend",instance="backend-metrics:9464",method="GET",route="/store/products",status="200"}'
+        values: "0+1x30 1+1x9"
+      - series: 'mtogo_http_requests_total{job="mtogo-backend",instance="backend-metrics:9464",method="GET",route="/store/products",status="500"}'
+        values: "0x40"
+    promql_expr_test:
+      - expr: 'sum(increase(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 20
+      - expr: 'sum(rate(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0.06666666666666667
+      - expr: '(sum(rate(mtogo_http_requests_total{job="mtogo-backend",status=~"5.."}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) or (0 * sum(rate(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)))) / (sum(rate(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) > 0)'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+      - expr: 'sum(mtogo_http_requests_total{job="mtogo-backend"} and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 10

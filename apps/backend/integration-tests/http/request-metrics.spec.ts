@@ -4,6 +4,7 @@ import {
   createSalesChannelsWorkflow,
   linkSalesChannelsToApiKeyWorkflow,
 } from "@medusajs/medusa/core-flows"
+import { Modules } from "@medusajs/framework/utils"
 import { register } from "../../instrumentation"
 
 jest.setTimeout(120000)
@@ -76,8 +77,11 @@ medusaIntegrationTestRunner({
     }
 
     it("exports a real product read once, including early refusals with bounded labels", async () => {
-      expect(await scrape()).toContain(
-        'route="/store/products",status="200"} 0',
+      const initial = await scrape()
+      expect(initial).toContain('route="/store/products",status="200"} 0')
+      // No observations yet is a zero count, never a fabricated duration.
+      expect(initial).toContain(
+        'mtogo_http_request_duration_seconds_count{method="GET",route="/store/products"} 0',
       )
       const headers = await publishableHeaders()
       const read = await api.get("/store/products?limit=1", { headers })
@@ -214,6 +218,63 @@ medusaIntegrationTestRunner({
       })
       expect(preflight.status).toBe(204)
       expect(seriesValue(await scrape(), labels)).toBe(before + 1)
+    })
+
+    it("separates a controlled server failure from success and refusal, with a duration for each completed response", async () => {
+      const headers = await publishableHeaders()
+      const durationCount = (metrics: string, labels: string) =>
+        Number(
+          metrics
+            .split("\n")
+            .find((line) =>
+              line.startsWith(
+                `mtogo_http_request_duration_seconds_count{${labels}} `,
+              ),
+            )
+            ?.split(" ")[1] ?? 0,
+        )
+      const regionLabels = 'method="GET",route="/store/regions"'
+      const before = await scrape()
+
+      expect((await api.get("/store/regions", { headers })).status).toBe(200)
+      // Test-only failure inside the process: the region read rejects once,
+      // so the real route and Medusa's error handler produce the 5xx.
+      const regionService = getContainer().resolve(Modules.REGION)
+      const regionReadFailure = jest
+        .spyOn(regionService, "listAndCountRegions")
+        .mockRejectedValueOnce(new Error("synthetic-region-failure"))
+      try {
+        const failed = await api.get("/store/regions?q=secret_marker", {
+          headers,
+          validateStatus: () => true,
+        })
+        expect(failed.status).toBe(500)
+        expect(regionReadFailure).toHaveBeenCalledTimes(1)
+      } finally {
+        regionReadFailure.mockRestore()
+      }
+      expect(
+        (
+          await api.get("/store/regions", {
+            headers,
+            params: { limit: "not-a-number" },
+            validateStatus: () => true,
+          })
+        ).status,
+      ).toBe(400)
+
+      const after = await scrape()
+      for (const status of ["200", "500", "400"])
+        expect(seriesValue(after, `${regionLabels},status="${status}"`)).toBe(
+          seriesValue(before, `${regionLabels},status="${status}"`) + 1,
+        )
+      expect(durationCount(after, regionLabels)).toBe(
+        durationCount(before, regionLabels) + 3,
+      )
+      expect(after).toMatch(
+        /mtogo_http_request_duration_seconds_bucket\{le="5",method="GET",route="\/store\/regions"\} \d+/,
+      )
+      expect(after).not.toMatch(/synthetic-region-failure|secret_marker/)
     })
 
     it("counts an unauthenticated admin request once as an early rejection", async () => {

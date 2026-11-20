@@ -96,7 +96,13 @@ describe("private request metrics HTTP boundary", () => {
       }
       // The final status can differ from an earlier handler's tentative status.
       res.statusCode = 200
-      res.writeHead(Number(req.headers["test-status"] || 200)).end("synthetic")
+      const respond = () =>
+        res
+          .writeHead(Number(req.headers["test-status"] || 200))
+          .end("synthetic")
+      const delay = Number(req.headers["test-delay"] || 0)
+      if (delay) setTimeout(respond, delay)
+      else respond()
     })
     apiPort = await listen(app)
     port = await freePort()
@@ -135,6 +141,60 @@ describe("private request metrics HTTP boundary", () => {
     )
     expect(metrics).not.toContain("secret")
     expect(await scrape()).toBe(metrics)
+  })
+
+  it("exports a completed response duration in seconds with buckets including the 2s and 5s boundaries", async () => {
+    await scrape()
+    await fetch(`http://127.0.0.1:${apiPort}/store/products?secret=discard`, {
+      headers: { "test-route": "/store/products", "test-delay": "300" },
+    })
+    const metrics = await scrape()
+    const series =
+      'mtogo_http_request_duration_seconds_bucket{le="%s",method="GET",route="/store/products"}'
+    const bucket = (le: string) =>
+      Number(
+        metrics
+          .split("\n")
+          .find((line) => line.startsWith(series.replace("%s", le) + " "))
+          ?.split(" ")[1],
+      )
+    expect(
+      metrics
+        .split("\n")
+        .filter((line) =>
+          line.startsWith("mtogo_http_request_duration_seconds_bucket{"),
+        )
+        .map((line) => line.match(/le="([^"]+)"/)?.[1]),
+    ).toEqual([
+      "0.005",
+      "0.01",
+      "0.025",
+      "0.05",
+      "0.1",
+      "0.25",
+      "0.5",
+      "1",
+      "2",
+      "5",
+      "10",
+      "+Inf",
+    ])
+    // The handler waited at least 300 ms, so lower buckets stay empty.
+    expect(bucket("0.25")).toBe(0)
+    expect(bucket("2")).toBe(1)
+    expect(bucket("5")).toBe(1)
+    expect(bucket("+Inf")).toBe(1)
+    expect(metrics).toMatch(
+      /mtogo_http_request_duration_seconds_count\{method="GET",route="\/store\/products"\} 1/,
+    )
+    const sum = Number(
+      metrics.match(
+        /mtogo_http_request_duration_seconds_sum\{method="GET",route="\/store\/products"\} (\S+)/,
+      )?.[1],
+    )
+    expect(sum).toBeGreaterThanOrEqual(0.3)
+    expect(sum).toBeLessThan(10)
+    expect(metrics).not.toContain("secret")
   })
 
   it("aggregates different IDs into one product detail series", async () => {
@@ -323,7 +383,10 @@ describe("private request metrics HTTP boundary", () => {
         .on("error", reject)
         .end()
     })
-    expect(await scrape()).not.toMatch(/status="200"} 1/)
+    const metrics = await scrape()
+    expect(metrics).not.toMatch(/status="200"} 1/)
+    // An interrupted response contributes no completed-response duration.
+    expect(metrics).not.toMatch(/_duration_seconds_count\{[^}]*\} [1-9]/)
   })
 
   it("releases its listener and subscription on repeated disposal", async () => {

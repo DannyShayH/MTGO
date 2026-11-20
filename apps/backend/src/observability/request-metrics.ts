@@ -4,7 +4,7 @@ import {
   type IncomingMessage,
   type ServerResponse,
 } from "node:http"
-import { Counter, Registry } from "@prometheus-io/client"
+import { Counter, Histogram, Registry } from "@prometheus-io/client"
 import { MedusaError } from "@medusajs/framework/utils"
 
 type RequestStart = {
@@ -78,6 +78,15 @@ function routeLabel(request: RoutedRequest, status: number): string {
   return status >= 400 ? EARLY_REJECTION : UNROUTED
 }
 
+/**
+ * Seconds. Subsecond resolution, the agreed two-second browsing/status and
+ * five-second Order-submission exercise boundaries, one bucket above five
+ * seconds and the implicit +Inf overflow.
+ */
+const DURATION_BUCKETS_SECONDS = [
+  0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10,
+]
+
 /** Owns an isolated registry, diagnostic subscription and private exporter. */
 export function startRequestMetrics({
   host,
@@ -114,6 +123,15 @@ export function startRequestMetrics({
   // A baseline lets the first successful read be visible to increase(), provided
   // Prometheus has scraped before the request. Other outcomes appear on use.
   completed.inc({ method: "GET", route: "/store/products", status: "200" }, 0)
+  const duration = new Histogram({
+    name: "mtogo_http_request_duration_seconds",
+    help: "Server-side duration of completed ordinary backend API responses, from request start to response finish",
+    labelNames: ["method", "route"] as const,
+    buckets: DURATION_BUCKETS_SECONDS,
+    registers: [registry],
+  })
+  // A zero baseline separates "no duration observations" from a missing series.
+  duration.zero({ method: "GET", route: "/store/products" })
 
   let isStopped = false
   const pending = new Set<() => void>()
@@ -125,6 +143,7 @@ export function startRequestMetrics({
     // Read before routing: Express may rewrite request.url while dispatching.
     const url = request.url || ""
     if (isExcludedPath(url)) return
+    const startedAt = process.hrtime.bigint()
     const method = ALLOWED_HTTP_METHODS.has(request.method || "")
       ? request.method!
       : "OTHER"
@@ -138,12 +157,13 @@ export function startRequestMetrics({
       if (isStopped) return
       const status = response.statusCode
       if (isEstablishedStream(url, status)) return
-      completed.inc({
-        method,
-        // Express decorates the same request object Node handed to the channel.
-        route: routeLabel(request as RoutedRequest, status),
-        status: String(status),
-      })
+      // Express decorates the same request object Node handed to the channel.
+      const route = routeLabel(request as RoutedRequest, status)
+      completed.inc({ method, route, status: String(status) })
+      duration.observe(
+        { method, route },
+        Number(process.hrtime.bigint() - startedAt) / 1e9,
+      )
     }
     pending.add(cleanup)
     response.once("finish", finish)

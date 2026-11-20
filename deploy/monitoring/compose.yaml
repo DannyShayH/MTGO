@@ -8,7 +8,7 @@ services:
       - --config.file=/etc/prometheus/prometheus.yaml
       - --storage.tsdb.path=/prometheus
       - --storage.tsdb.retention.time=7d
-      - --query.lookback-delta=15s
+      - --query.lookback-delta=30s
     volumes:
       - ./prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
       - prometheus-data:/prometheus

@@ -42,7 +42,19 @@ streams (a 2xx on a listed stream endpoint, currently
 `/partner/orders/stream`) are excluded explicitly. A stream request refused
 before establishment keeps its ordinary outcome. Add new SSE endpoints to the
 stream list. Interrupted responses are excluded from this counter. Separate
-interruption, SSE, latency and runtime measurements belong to later slices.
+interruption, SSE and runtime measurements belong to later slices.
+
+`mtogo_http_request_duration_seconds{method,route}` is a histogram of the
+server-side seconds from the diagnostics channel's request start to response
+`finish`, observed once for exactly the responses the counter counts, with the
+same `method` and `route` labels (no status, to keep the series bounded).
+Buckets are `0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10` and
+`+Inf`: subsecond resolution, the agreed two-second browsing/status and
+five-second Order-submission boundaries, one bucket above five seconds and
+overflow. Interrupted responses, excluded paths and established streams add
+no duration. The `GET /store/products` histogram starts at zero, so "no
+observations" exports a zero count rather than a missing series. This is HTTP
+latency, not Order processing time (Feature #54).
 
 The successful product-list series starts at zero so a pre-request scrape can
 establish a baseline. Other status series appear on first observation. Counter
@@ -54,5 +66,8 @@ The [local monitoring runbook](../../../docs/src/content/docs/quality/local-requ
 owns setup and the acceptance record. Unit tests exercise real Node HTTP and
 exporter boundaries; `integration-tests/http/request-metrics.spec.ts` uses the
 real Medusa HTTP runner and the same instrumentation hook, driving genuine
-authentication, missing-key, malformed-body and invalid-body refusals. Existing business
+authentication, missing-key, malformed-body and invalid-body refusals, and a
+controlled 5xx: the test makes the region module's read reject once inside
+the process, so the real `/store/regions` route and Medusa's error handler
+answer 500. No public crash endpoint exists. Existing business
 and request-logging behavior is unchanged.

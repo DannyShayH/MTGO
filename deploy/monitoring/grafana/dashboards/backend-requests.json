@@ -1,9 +1,9 @@
 {
   "uid": "mtogo-backend-requests",
   "title": "MTOGO — backend API requests",
-  "description": "Slices #169/#170/#194: completed ordinary API responses from one HTTP-serving Medusa process, by matched route pattern or fixed fallback. No business counts.",
+  "description": "Slices #169/#170/#194/#171: completed ordinary API responses, 5xx proportion and p95 latency from one HTTP-serving Medusa process, with explicit unavailable states. No business counts.",
   "schemaVersion": 41,
-  "version": 3,
+  "version": 4,
   "editable": false,
   "refresh": "30s",
   "timezone": "browser",
@@ -46,7 +46,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**HTTP responses, not Customers or Orders.** Raw counts reset on restart. Five-minute counts are estimates requiring two scrapes; a new status may miss its first response. DOWN/missing history is unavailable. Latency, runtime, SSE, interruptions and warning controls are deferred."
+        "content": "**HTTP responses, not Customers or Orders.** Latency is server-side seconds from request start to response finish for one HTTP request. It is **not Order processing time** (Feature #54) or any business measure. Every query uses a rolling five-minute window; counts are extrapolated estimates. **Unavailable** means no valid evidence: target DOWN or absent, fewer than two scrapes, zero completed responses (no 5xx proportion) or no duration observations (no p95). Check the observation count before trusting a p95; p95 is capped at the 10 s bucket. Rates handle counter resets. Runtime, SSE, interruptions and warning controls are deferred."
       }
     },
     {
@@ -66,6 +66,10 @@
       "description": "1 = scrape succeeded; 0 = scrape failed; no data = no target observations. Does not prove database or API readiness.",
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B8BEC9"
+          },
           "noValue": "Unavailable",
           "mappings": [
             {
@@ -89,7 +93,75 @@
         {
           "refId": "A",
           "expr": "up{job=\"mtogo-backend\"}",
-          "legendFormat": "{{status}}",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Data state — rolling 5 minutes",
+      "type": "stat",
+      "gridPos": {
+        "x": 6,
+        "y": 8,
+        "w": 6,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Separates a quiet healthy service from collection failure. Insufficient history = fewer than two successful scrapes in five minutes.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B8BEC9"
+          },
+          "noValue": "Unavailable — no target observations",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "DOWN — no current evidence",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "Insufficient history",
+                  "color": "orange"
+                },
+                "2": {
+                  "text": "UP — quiet, 0 responses",
+                  "color": "#B8BEC9"
+                },
+                "3": {
+                  "text": "UP — traffic observed",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "((up{job=\"mtogo-backend\"} == 0) + 0) or on(job, instance) (((up{job=\"mtogo-backend\"} == 1) + 0) unless on(job, instance) (sum_over_time(up{job=\"mtogo-backend\"}[5m]) >= 2)) or on(job, instance) (((up{job=\"mtogo-backend\"} == 1) + 1) and on(job, instance) (sum by (job, instance) (increase(mtogo_http_requests_total{job=\"mtogo-backend\"}[5m])) == 0)) or on(job, instance) (((up{job=\"mtogo-backend\"} == 1) + 2) and on(job, instance) (sum by (job, instance) (increase(mtogo_http_requests_total{job=\"mtogo-backend\"}[5m])) > 0))",
+          "legendFormat": "",
           "range": false,
           "instant": true
         }
@@ -110,9 +182,9 @@
       "title": "Estimated completed responses — rolling 5 minutes",
       "type": "stat",
       "gridPos": {
-        "x": 6,
+        "x": 12,
         "y": 8,
-        "w": 9,
+        "w": 6,
         "h": 5
       },
       "datasource": {
@@ -126,10 +198,8 @@
             "mode": "fixed",
             "fixedColor": "#B8BEC9"
           },
-          "custom": {
-            "spanNulls": false
-          },
-          "noValue": "Unavailable"
+          "noValue": "Unavailable",
+          "decimals": 1
         },
         "overrides": []
       },
@@ -137,7 +207,7 @@
         {
           "refId": "A",
           "expr": "sum(increase(mtogo_http_requests_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))",
-          "legendFormat": "{{status}}",
+          "legendFormat": "",
           "range": false,
           "instant": true
         }
@@ -158,9 +228,9 @@
       "title": "Observed completed responses since process start",
       "type": "stat",
       "gridPos": {
-        "x": 15,
+        "x": 18,
         "y": 8,
-        "w": 9,
+        "w": 6,
         "h": 5
       },
       "datasource": {
@@ -174,9 +244,6 @@
             "mode": "fixed",
             "fixedColor": "#B8BEC9"
           },
-          "custom": {
-            "spanNulls": false
-          },
           "noValue": "Unavailable"
         },
         "overrides": []
@@ -185,7 +252,194 @@
         {
           "refId": "A",
           "expr": "sum(mtogo_http_requests_total{job=\"mtogo-backend\"} and on(job, instance) (up{job=\"mtogo-backend\"} == 1))",
-          "legendFormat": "{{status}}",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 9,
+      "title": "Completed response rate — rolling 5 minutes",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 6,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Completed ordinary API responses per second, per-series rate before aggregation.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B8BEC9"
+          },
+          "noValue": "Unavailable",
+          "unit": "reqps",
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(mtogo_http_requests_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 10,
+      "title": "5xx proportion — rolling 5 minutes",
+      "type": "stat",
+      "gridPos": {
+        "x": 6,
+        "y": 13,
+        "w": 6,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Server-failure responses divided by all completed responses. A missing 5xx series counts as zero only when completed responses exist; zero traffic is unavailable, not 0%. A 5xx series appears on its first failure, so that first failure on a new route/status can still read 0% until the next one.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B8BEC9"
+          },
+          "noValue": "Unavailable",
+          "unit": "percentunit",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum(rate(mtogo_http_requests_total{job=\"mtogo-backend\",status=~\"5..\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) or (0 * sum(rate(mtogo_http_requests_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)))) / (sum(rate(mtogo_http_requests_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) > 0)",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 11,
+      "title": "Ordinary API p95 response time — rolling 5 minutes",
+      "type": "stat",
+      "gridPos": {
+        "x": 12,
+        "y": 13,
+        "w": 6,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Estimated from aggregated histogram buckets (0.005–10 s). Unavailable without duration observations. A value of 10 s means at or above the top bucket.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B8BEC9"
+          },
+          "noValue": "Unavailable",
+          "unit": "s",
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(mtogo_http_request_duration_seconds_bucket{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))) and on() (sum(increase(mtogo_http_request_duration_seconds_count{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) > 0)",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 12,
+      "title": "Duration observations behind the p95 — rolling 5 minutes",
+      "type": "stat",
+      "gridPos": {
+        "x": 18,
+        "y": 13,
+        "w": 6,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Estimated completed responses with a duration in the window. A p95 from a handful of observations is weak evidence.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B8BEC9"
+          },
+          "noValue": "Unavailable",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(mtogo_http_request_duration_seconds_count{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))",
+          "legendFormat": "",
           "range": false,
           "instant": true
         }
@@ -207,7 +461,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 13,
+        "y": 18,
         "w": 24,
         "h": 8
       },
@@ -249,12 +503,12 @@
     },
     {
       "id": 6,
-      "title": "Completed response rate — rolling 5 minutes (responses/second)",
+      "title": "Completed response rate by status — rolling 5 minutes (responses/second)",
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 21,
-        "w": 24,
+        "y": 26,
+        "w": 12,
         "h": 8
       },
       "datasource": {
@@ -270,7 +524,8 @@
           "custom": {
             "spanNulls": false
           },
-          "noValue": "Unavailable"
+          "noValue": "Unavailable",
+          "unit": "reqps"
         },
         "overrides": []
       },
@@ -279,6 +534,147 @@
           "refId": "A",
           "expr": "sum by (status) (rate(mtogo_http_requests_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))",
           "legendFormat": "HTTP {{status}}",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 13,
+      "title": "5xx proportion — rolling 5 minutes",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 26,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Gaps mean zero completed responses or no current evidence, never 0%.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false
+          },
+          "noValue": "Unavailable",
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum(rate(mtogo_http_requests_total{job=\"mtogo-backend\",status=~\"5..\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) or (0 * sum(rate(mtogo_http_requests_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)))) / (sum(rate(mtogo_http_requests_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) > 0)",
+          "legendFormat": "5xx share",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 14,
+      "title": "Ordinary API p95 — all routes, rolling 5 minutes",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 34,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Gaps mean no duration observations or no current evidence. HTTP latency, not Order processing time.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false
+          },
+          "noValue": "Unavailable",
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(mtogo_http_request_duration_seconds_bucket{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))) and on() (sum(increase(mtogo_http_request_duration_seconds_count{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) > 0)",
+          "legendFormat": "p95",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 15,
+      "title": "Ordinary API p95 by route pattern — rolling 5 minutes",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 34,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Only route patterns with duration observations in the window are drawn. Sparse routes give weak estimates.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false
+          },
+          "noValue": "Unavailable",
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, method, route) (rate(mtogo_http_request_duration_seconds_bucket{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))) and on(method, route) (sum by (method, route) (increase(mtogo_http_request_duration_seconds_count{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) > 0)",
+          "legendFormat": "{{method}} {{route}}",
           "range": true,
           "instant": false
         }

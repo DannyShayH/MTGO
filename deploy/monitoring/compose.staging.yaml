@@ -28,7 +28,7 @@ services:
       - --storage.tsdb.path=/prometheus
       - --storage.tsdb.retention.time=7d
       - --storage.tsdb.retention.size=512MB
-      - --query.lookback-delta=15s
+      - --query.lookback-delta=30s
     environment:
       # Lets the Go runtime collect garbage before the hard cap is reached.
       GOMEMLIMIT: 160MiB
@@ -81,11 +81,11 @@ services:
       - loopback
       - metrics
     logging: *logging
-    memswap_limit: 256m
+    memswap_limit: 448m
     deploy:
       resources:
         limits:
-          memory: 256m
+          memory: 448m
 
 networks:
   # Internal scrape network owned by the mtogo-staging application project.
