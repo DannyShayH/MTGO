@@ -63,7 +63,11 @@ export type AttentionRuleFacts = {
     raised_at: Date | string | null
     resolved_at: Date | string | null
   }
-  delivery: { assigned_agent_id: string | null }
+  delivery: {
+    assigned_agent_id: string | null
+    picked_up_at: Date | string | null
+    terminal_outcome: TerminalOutcome | null
+  }
   order_active: boolean
 }
 
@@ -96,6 +100,8 @@ export type AssignmentCommand = {
   /** Decided under the Order's guard by the caller. */
   order_active: boolean
   now: Date
+  /** When assigned work without pickup needs attention, from its acceptance (#163). */
+  pickup_attention_due_at: (accepted_at: Date | string) => Date
 }
 
 /** What the pickup rule needs, read under the delivery row lock. */
@@ -123,6 +129,8 @@ export type PickupCommand = {
   /** The Order's state and readiness, read under the Order's guard by the caller. */
   order: { state: string; ready_at: Date | string | null }
   now: Date
+  /** When the collected work without delivery needs attention (#163). */
+  transit_attention_due_at: Date
 }
 
 /** What a terminal rule needs, read under the delivery row lock. */
@@ -498,15 +506,23 @@ class DeliveryModuleService extends MedusaService({
         } as AssignmentOutcome,
         delivery: record,
       }
-    // The valid assignment ends the unassigned condition in the same commit.
-    await this.updateDeliveryAttentions(
+    // The valid assignment ends the unassigned condition and begins the
+    // stalled-collection obligation (#163) in the same commit, so no
+    // committed assignment lacks it. Assignment happens once per Order.
+    await this.resolveAttention(
       {
-        selector: {
-          order_id: command.order_id,
-          type: "unassigned",
-          resolved_at: null,
-        },
-        data: { resolved_at: command.now, resolution: "assigned" },
+        order_id: command.order_id,
+        type: ["unassigned"],
+        now: command.now,
+        resolution: "assigned",
+      },
+      context,
+    )
+    await this.createDeliveryAttentions(
+      {
+        order_id: command.order_id,
+        type: "assigned_without_pickup",
+        due_at: command.pickup_attention_due_at(record.accepted_at),
       },
       context,
     )
@@ -536,6 +552,30 @@ class DeliveryModuleService extends MedusaService({
       context,
     )
     return record
+  }
+
+  /** Resolve the Order's outstanding attention, of the given types or all. */
+  @InjectTransactionManager()
+  private async resolveAttention(
+    input: {
+      order_id: string
+      type?: AttentionType[]
+      now: Date
+      resolution: AttentionResolution
+    },
+    @MedusaContext() context: Context = {},
+  ) {
+    await this.updateDeliveryAttentions(
+      {
+        selector: {
+          order_id: input.order_id,
+          resolved_at: null,
+          ...(input.type ? { type: input.type } : {}),
+        },
+        data: { resolved_at: input.now, resolution: input.resolution },
+      },
+      context,
+    )
   }
 
   /**
@@ -606,14 +646,21 @@ class DeliveryModuleService extends MedusaService({
     )
     const [record] = await this.listIntendedDeliveries(
       { order_id: attention.order_id },
-      { take: 1, select: ["assigned_agent_id"] },
+      {
+        take: 1,
+        select: ["assigned_agent_id", "picked_up_at", "terminal_outcome"],
+      },
       context,
     )
     const decision = decide(
       {
         attention: current,
         // Attention without its delivery cannot be assigned work.
-        delivery: { assigned_agent_id: record?.assigned_agent_id ?? null },
+        delivery: {
+          assigned_agent_id: record?.assigned_agent_id ?? null,
+          picked_up_at: record?.picked_up_at ?? null,
+          terminal_outcome: record?.terminal_outcome ?? null,
+        },
         order_active: input.order_active && !!record,
       },
       input.now,
@@ -711,6 +758,25 @@ class DeliveryModuleService extends MedusaService({
         } as PickupOutcome,
         delivery: record,
       }
+    // Collection ends stalled-collection attention and begins the transit
+    // obligation (#163) in the same commit. Pickup is recorded once.
+    await this.resolveAttention(
+      {
+        order_id: command.order_id,
+        type: ["assigned_without_pickup"],
+        now: command.now,
+        resolution: "picked_up",
+      },
+      context,
+    )
+    await this.createDeliveryAttentions(
+      {
+        order_id: command.order_id,
+        type: "in_transit_without_delivery",
+        due_at: command.transit_attention_due_at,
+      },
+      context,
+    )
     return { outcome, delivery: updated }
   }
 
@@ -836,6 +902,16 @@ class DeliveryModuleService extends MedusaService({
         } as TerminalDecision,
         delivery: record,
       }
+    // Ended work makes every outstanding condition obsolete (#163). The
+    // outcome itself is never derived from attention.
+    await this.resolveAttention(
+      {
+        order_id: command.order_id,
+        now: command.now,
+        resolution: delivered ? "delivered" : "order_ended",
+      },
+      context,
+    )
     return { decision, delivery: updated }
   }
 

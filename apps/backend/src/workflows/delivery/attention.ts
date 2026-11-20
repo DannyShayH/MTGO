@@ -8,12 +8,19 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 import { DELIVERY_MODULE } from "../../modules/delivery"
 import type DeliveryModuleService from "../../modules/delivery/service"
 import type { AttentionType } from "../../modules/delivery/models/delivery-attention"
-import type { AssignmentSource } from "../../modules/delivery/models/intended-delivery"
+import type {
+  AssignmentSource,
+  TerminalOutcome,
+} from "../../modules/delivery/models/intended-delivery"
 import { ORDER_OPERATION_MODULE } from "../../modules/order-operation"
 import type OrderOperationModuleService from "../../modules/order-operation/service"
 import { logRecoveryFailure } from "../order-operations/recovery-log"
 import { isActiveOrderState } from "./assignment-rules"
-import { decideAttention, unassignedAttentionDueAt } from "./attention-rules"
+import {
+  decideAttention,
+  stalledAttentionDueAt,
+  unassignedAttentionDueAt,
+} from "./attention-rules"
 
 /** Attention records read per query. */
 const ATTENTION_BATCH_SIZE = 50
@@ -22,25 +29,58 @@ const MAX_SWEEP_BATCHES = 10
 /** Queries per list read, so one request is bounded however many Orders ended. */
 const MAX_LIST_BATCHES = 20
 
+/** The obligation the delivery's current stage owes, or none once it ended. */
+function findOwedAttention(record: {
+  accepted_at: Date | string
+  assigned_agent_id: string | null
+  picked_up_at: Date | string | null
+  terminal_outcome: TerminalOutcome | null
+}): { type: AttentionType; due_at: Date } | null {
+  if (record.terminal_outcome) return null
+  if (!record.assigned_agent_id)
+    return {
+      type: "unassigned",
+      due_at: unassignedAttentionDueAt(record.accepted_at),
+    }
+  if (!record.picked_up_at)
+    return {
+      type: "assigned_without_pickup",
+      due_at: stalledAttentionDueAt(record.accepted_at),
+    }
+  return {
+    type: "in_transit_without_delivery",
+    due_at: stalledAttentionDueAt(record.picked_up_at),
+  }
+}
+
 /**
- * Store the unassigned obligation for accepted work (#158), due at its
- * durable acceptance plus ten minutes. Repeats keep the first record and its
- * deadline. Assigned work, and work without reliable delivery facts, gets none.
+ * Store the obligation the delivery's current stage owes (#158, #163), from
+ * its durable acceptance or pickup time: unassigned at acceptance plus ten
+ * minutes, uncollected at acceptance plus thirty, undelivered at pickup plus
+ * thirty. Repeats keep the first record and its deadline. Ended work, and
+ * work without reliable delivery facts, gets none.
  */
-export const scheduleUnassignedAttentionStep = createStep(
-  "schedule-unassigned-attention",
+export const scheduleOwedDeliveryAttentionStep = createStep(
+  "schedule-owed-delivery-attention",
   async (input: { order_id: string }, { container }) => {
     const delivery = container.resolve<DeliveryModuleService>(DELIVERY_MODULE)
     const [record] = await delivery.listIntendedDeliveries(
       { order_id: input.order_id },
-      { take: 1, select: ["accepted_at", "assigned_agent_id"] },
+      {
+        take: 1,
+        select: [
+          "accepted_at",
+          "assigned_agent_id",
+          "picked_up_at",
+          "terminal_outcome",
+        ],
+      },
     )
-    if (!record || record.assigned_agent_id)
-      return new StepResponse(null, null as string | null)
+    const owed = record ? findOwedAttention(record) : null
+    if (!owed) return new StepResponse(null, null as string | null)
     const { attention, isCreated } = await delivery.scheduleAttention({
       order_id: input.order_id,
-      type: "unassigned",
-      due_at: unassignedAttentionDueAt(record.accepted_at),
+      ...owed,
     })
     return new StepResponse(
       { id: attention.id, due_at: new Date(attention.due_at).toISOString() },
@@ -58,9 +98,42 @@ export const scheduleUnassignedAttentionStep = createStep(
 export const scheduleDeliveryAttentionWorkflow = createWorkflow(
   "schedule-delivery-attention",
   function (input: { order_id: string }) {
-    return new WorkflowResponse(scheduleUnassignedAttentionStep(input))
+    return new WorkflowResponse(scheduleOwedDeliveryAttentionStep(input))
   },
 )
+
+/** Deliveries read per backfill query. */
+const BACKFILL_BATCH_SIZE = 100
+
+/**
+ * Schedule the owed attention for every delivery matching `filters`, for
+ * migration scripts backfilling work that predates a condition. Pages by id
+ * rather than offset, so deliveries that leave the filter while it runs (an
+ * assignment, a terminal outcome) never make it skip others. Safe to repeat.
+ */
+export async function backfillDeliveryAttention(
+  container: MedusaContainer,
+  filters: Record<string, unknown>,
+) {
+  const delivery = container.resolve<DeliveryModuleService>(DELIVERY_MODULE)
+  let after: string | null = null
+  while (true) {
+    const batch = await delivery.listIntendedDeliveries(
+      after ? { ...filters, id: { $gt: after } } : filters,
+      {
+        select: ["id", "order_id"],
+        order: { id: "ASC" },
+        take: BACKFILL_BATCH_SIZE,
+      },
+    )
+    for (const { order_id } of batch)
+      await scheduleDeliveryAttentionWorkflow(container).run({
+        input: { order_id },
+      })
+    if (batch.length < BACKFILL_BATCH_SIZE) return
+    after = batch[batch.length - 1].id
+  }
+}
 
 /** Accepted and nonterminal, per the Order's durable operation record. */
 async function activeOrders(container: MedusaContainer, orderIds: string[]) {
@@ -239,6 +312,8 @@ export type AttentionItem = {
   destination_postal_code: string
   preparation_status: string
   accepted_at: string
+  /** The recorded pickup (#160), the origin of in-transit attention. */
+  picked_up_at: string | null
   due_at: string
   raised_at: string
   claim_deadline: string
@@ -250,7 +325,7 @@ export type AttentionItem = {
 }
 
 /**
- * The operator's bounded attention list (#158): raised, unresolved attention
+ * The operator's bounded attention list (#158, #163): raised, unresolved attention
  * on active Orders, oldest deadline first, with the Order's real acceptance
  * time and assignment facts. It reads only; it never investigates or corrects
  * (#49). An Order that ended since the last sweep is left out at once.
@@ -353,6 +428,7 @@ const listDeliveryAttentionStep = createStep(
           destination_postal_code: record.destination_postal_code,
           preparation_status: state,
           accepted_at: iso(record.accepted_at),
+          picked_up_at: record.picked_up_at ? iso(record.picked_up_at) : null,
           due_at: iso(attention.due_at),
           raised_at: iso(attention.raised_at as Date),
           claim_deadline: iso(record.claim_deadline),

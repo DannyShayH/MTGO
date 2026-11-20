@@ -34,7 +34,11 @@ type UnclaimedPage = {
 
 type Attention = {
   id: string
-  type: "unassigned" | "access_revoked"
+  type:
+    | "unassigned"
+    | "access_revoked"
+    | "assigned_without_pickup"
+    | "in_transit_without_delivery"
   order_id: string
   order_reference: number
   restaurant_name: string
@@ -42,6 +46,7 @@ type Attention = {
   destination_postal_code: string
   preparation_status: Unclaimed["preparation_status"]
   accepted_at: string
+  picked_up_at: string | null
   due_at: string
   raised_at: string
   claim_deadline: string
@@ -73,7 +78,26 @@ const ATTENTION: Record<Attention["type"], { label: string; detail: string }> =
       detail:
         "The responsible agent's access was revoked. The delivery stays assigned to them and still counts as their active delivery until it ends.",
     },
+    assigned_without_pickup: {
+      label: "Not picked up after 30 min",
+      detail:
+        "The assigned agent has not confirmed pickup thirty minutes after acceptance. The delivery stays assigned to them; nothing is cancelled.",
+    },
+    in_transit_without_delivery: {
+      label: "Not delivered 30 min after pickup",
+      detail:
+        "The agent has not confirmed handover thirty minutes after pickup. The delivery stays assigned to them and is not marked delivered.",
+    },
   }
+
+/** When each condition began and when it became due, as one line. */
+const describeTiming = (item: Attention) => {
+  if (item.type === "access_revoked")
+    return `Accepted ${time(item.accepted_at)} · access revoked ${time(item.raised_at)}`
+  if (item.type === "in_transit_without_delivery" && item.picked_up_at)
+    return `Picked up ${time(item.picked_up_at)} · due ${time(item.due_at)}`
+  return `Accepted ${time(item.accepted_at)} · due ${time(item.due_at)}`
+}
 
 const REFUSALS: Record<string, string> = {
   delivery_already_assigned:
@@ -266,9 +290,10 @@ function DeliveryRow({
 }
 
 /**
- * Outstanding operator attention (#158): conditions the backend raised from
- * durable deadlines, oldest first. It only shows them; an assignment in the
- * list below removes unassigned attention, and nothing here cancels work.
+ * Outstanding operator attention (#158, #163): conditions the backend raised
+ * from durable deadlines, oldest first. It only shows them; an assignment in
+ * the list below removes unassigned attention, the agent's pickup or
+ * handover removes stalled-work attention, and nothing here cancels work.
  */
 function AttentionList({ limit }: Readonly<{ limit: number }>) {
   const [offset, setOffset] = useState(0)
@@ -294,7 +319,8 @@ function AttentionList({ limit }: Readonly<{ limit: number }>) {
         </div>
         <Text size="small" leading="compact" className="text-ui-fg-subtle">
           Deliveries past an attention deadline, oldest first. Attention only
-          shows the problem: assign an agent below before the claim deadline.
+          shows the problem: it never cancels, releases or completes a delivery.
+          Assign unassigned work below before the claim deadline.
         </Text>
       </div>
       {list.isLoading && (
@@ -377,9 +403,7 @@ function AttentionList({ limit }: Readonly<{ limit: number }>) {
                 leading="compact"
                 className="text-ui-fg-subtle"
               >
-                {item.type === "access_revoked"
-                  ? `Accepted ${time(item.accepted_at)} · access revoked ${time(item.raised_at)}`
-                  : `Accepted ${time(item.accepted_at)} · due ${time(item.due_at)}`}
+                {describeTiming(item)}
               </Text>
               {item.type === "unassigned" && (
                 <Text

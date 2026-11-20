@@ -81,6 +81,10 @@ export const DELIVERY_AGENT_TEXT = {
     pickupWaiting:
       "Du kan bekræfte afhentning, når restauranten har meldt maden klar.",
     pickedUpAt: "Hentet kl.",
+    stalledPickup: "Ingen afhentning bekræftet kl. {time}",
+    stalledHandover: "Ingen aflevering bekræftet kl. {time}",
+    stalledHint:
+      "MTOGO har fået besked. Leveringen er stadig din, så fortsæt som normalt.",
     routeToPickup: "Rute til afhentning",
     routeToCustomer: "Rute til kunden",
     appleMaps: "Apple Maps",
@@ -221,6 +225,10 @@ export const DELIVERY_AGENT_TEXT = {
     pickupWaiting:
       "You can confirm pickup once the Restaurant marks the food ready.",
     pickedUpAt: "Collected at",
+    stalledPickup: "No pickup confirmed by {time}",
+    stalledHandover: "No handover confirmed by {time}",
+    stalledHint:
+      "MTOGO has been notified. The delivery is still yours, so carry on as normal.",
     routeToPickup: "Route to pickup",
     routeToCustomer: "Route to the Customer",
     appleMaps: "Apple Maps",

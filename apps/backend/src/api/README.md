@@ -33,7 +33,10 @@ delivery and Order IDs, reference, Restaurant, pickup address, preparation
 state, acceptance and assignment times, `assignment_source`
 (`agent_claim` or `operator_assignment`) and `customer` (name, phone,
 `address_1`, `address_2`, postal code, city) from the Order's purchased
-shipping address, plus `picked_up_at` (null before pickup) and
+shipping address, plus `picked_up_at` (null before pickup), `attention`
+(`null`, or `{ type, due_at }` while operator attention for unconfirmed pickup,
+`assigned_without_pickup`, or unconfirmed handover, `in_transit_without_delivery`,
+is raised and outstanding, #163; it changes nothing the agent may do) and
 `allowed_actions`: `["confirm_pickup"]` while the food is ready and not yet
 collected, `["confirm_handover"]` once collected (#161), otherwise `[]`. After
 handover, cancellation or failure the delivery is no longer current and
@@ -146,12 +149,15 @@ source } }` with the claim's refusal codes; a revoked or pending agent is
 release, replacement or reassignment route.
 
 `GET /admin/deliveries/attention?limit=20&offset=0` (limit 1-50, offset
-at most 500, #158)
+at most 500, #158, #163)
 returns `{ attention, has_more, limit, offset, server_time }`: raised,
 unresolved operator attention on active Orders, oldest `due_at` first. Each
-item has `id`, `type` (`unassigned` or `access_revoked`), `order_id`, `order_reference`,
-`restaurant_name`, `pickup_postal_code`, `destination_postal_code`,
-`preparation_status`, the real `accepted_at`, the effective deadline `due_at`,
+item has `id`, `type` (`unassigned`, `access_revoked`,
+`assigned_without_pickup` at acceptance plus thirty minutes without pickup, or
+`in_transit_without_delivery` at pickup plus thirty minutes without delivery),
+`order_id`, `order_reference`, `restaurant_name`, `pickup_postal_code`,
+`destination_postal_code`, `preparation_status`, the real `accepted_at`,
+`picked_up_at` (or `null`), the effective deadline `due_at`,
 the processing time `raised_at`, `claim_deadline` and `assignment` (`null`, or
 `{ agent: { id, name, agent_access: "authorized" | "revoked" }, assigned_at,
 source }`). It omits Customer details and

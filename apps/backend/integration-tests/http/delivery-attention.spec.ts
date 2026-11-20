@@ -8,18 +8,28 @@ import { DELIVERY_MODULE } from "../../src/modules/delivery"
 import type DeliveryModuleService from "../../src/modules/delivery/service"
 import { recoverDeliveryAttentionWorkflow } from "../../src/workflows/delivery/attention"
 import scheduleDeliveryAttention from "../../src/migration-scripts/schedule-delivery-attention"
+import scheduleStalledDeliveryAttention from "../../src/migration-scripts/schedule-stalled-delivery-attention"
+import { endDeliveryWorkflow } from "../../src/workflows/delivery/terminal"
 import { restaurantOrdersHarness } from "../helpers/restaurant-orders"
 
 jest.setTimeout(240000)
 
 const TEN_MINUTES = 10 * 60 * 1000
+const THIRTY_MINUTES = 30 * 60 * 1000
 
 medusaIntegrationTestRunner({
   dbName: "medusa_ci_delivery_attention_http",
   env: { JWT_SECRET: "ci-only-delivery-attention-secret", REDIS_URL: "" },
   testSuite: ({ api, getContainer, dbUtils }) => {
     const harness = restaurantOrdersHarness({ api, getContainer, dbUtils })
-    const { operations, placePaidOrder, signInAsStaffOf, accept } = harness
+    const {
+      operations,
+      placePaidOrder,
+      signInAsStaffOf,
+      accept,
+      startPreparation,
+      markReady,
+    } = harness
     let admin: { authorization: string }
     let pizzeriaId: string
     let staff: Record<string, string>
@@ -121,6 +131,7 @@ medusaIntegrationTestRunner({
           destination_postal_code: "2200",
           preparation_status: "accepted",
           accepted_at: new Date(acceptedAt).toISOString(),
+          picked_up_at: null,
           due_at: new Date(due).toISOString(),
           raised_at: new Date(due).toISOString(),
           claim_deadline: new Date(acceptedAt + 3 * TEN_MINUTES).toISOString(),
@@ -261,7 +272,285 @@ medusaIntegrationTestRunner({
       })
     })
 
+    const pickup = (headers: Record<string, string>, orderId: string) =>
+      api.post(
+        `/partner/deliveries/${orderId}/pickup`,
+        { request_id: `attention-pickup-${++requests}` },
+        { headers, validateStatus: () => true },
+      )
+    const deliver = (headers: Record<string, string>, orderId: string) =>
+      api.post(
+        `/partner/deliveries/${orderId}/deliver`,
+        { request_id: `attention-deliver-${++requests}` },
+        { headers, validateStatus: () => true },
+      )
+    const current = async (headers: Record<string, string>) => {
+      const response = await api.get("/partner/delivery-agent/current", {
+        headers,
+      })
+      return response.data.delivery as Record<string, unknown>
+    }
+    /** Accepted work an agent claimed and, when asked, collected. */
+    const assignedOrder = async ({ collect = false } = {}) => {
+      const accepted = await acceptedOrder()
+      const agent = await agentFor()
+      expect((await claim(agent.headers, accepted.order.id)).status).toBe(200)
+      if (!collect) return { ...accepted, agent, pickedUpAt: 0 }
+      expect((await startPreparation(staff, accepted.order.id)).status).toBe(
+        200,
+      )
+      expect((await markReady(staff, accepted.order.id)).status).toBe(200)
+      expect((await pickup(agent.headers, accepted.order.id)).status).toBe(200)
+      const [record] = await delivery().listIntendedDeliveries({
+        order_id: accepted.order.id,
+      })
+      return {
+        ...accepted,
+        agent,
+        pickedUpAt: new Date(record.picked_up_at as Date).getTime(),
+      }
+    }
+    const attentionOf = (order_id: string, type: string) =>
+      delivery().listDeliveryAttentions({ order_id, type })
+
+    describe("stalled assigned work (#163)", () => {
+      it("raises assigned-without-pickup attention exactly at acceptance plus thirty minutes, keeping the assignment", async () => {
+        const { order, acceptedAt, agent } = await assignedOrder()
+        const due = acceptedAt + THIRTY_MINUTES
+        await sweep(due - 1)
+        expect(await listed()).toEqual([])
+        await sweep(due)
+        await sweep(due + 1)
+        await sweep(due + 60_000)
+        const [raised, ...rest] = await listed()
+        expect(rest).toEqual([])
+        expect(raised).toMatchObject({
+          type: "assigned_without_pickup",
+          order_id: order.id,
+          accepted_at: new Date(acceptedAt).toISOString(),
+          due_at: new Date(due).toISOString(),
+          raised_at: new Date(due).toISOString(),
+          picked_up_at: null,
+          assignment: {
+            agent: { id: agent.id, agent_access: "authorized" },
+            source: "agent_claim",
+          },
+        })
+        expect(
+          await attentionOf(order.id, "assigned_without_pickup"),
+        ).toHaveLength(1)
+        // Never cancels, frees, reassigns or completes the work.
+        const [operation] = await operations().listOrderOperations({
+          order_id: order.id,
+        })
+        expect(operation.state).toBe("accepted")
+        const [record] = await delivery().listIntendedDeliveries({
+          order_id: order.id,
+        })
+        expect(record).toMatchObject({
+          assigned_agent_id: agent.id,
+          active_agent_id: agent.id,
+          picked_up_at: null,
+          terminal_outcome: null,
+        })
+        expect(await current(agent.headers)).toMatchObject({
+          order_id: order.id,
+          attention: {
+            type: "assigned_without_pickup",
+            due_at: new Date(due).toISOString(),
+          },
+        })
+      })
+
+      it("an operator's initial assignment is due from acceptance, not from the assignment", async () => {
+        const { order, acceptedAt } = await acceptedOrder()
+        const agent = await agentFor()
+        expect((await assign(order.id, agent.id)).status).toBe(200)
+        const [scheduled] = await attentionOf(
+          order.id,
+          "assigned_without_pickup",
+        )
+        expect(new Date(scheduled.due_at).getTime()).toBe(
+          acceptedAt + THIRTY_MINUTES,
+        )
+      })
+
+      it("pickup resolves stalled collection and starts the transit clock from the pickup", async () => {
+        const { order, acceptedAt, agent } = await assignedOrder()
+        await sweep(acceptedAt + THIRTY_MINUTES)
+        expect(await listed()).toHaveLength(1)
+        expect((await startPreparation(staff, order.id)).status).toBe(200)
+        expect((await markReady(staff, order.id)).status).toBe(200)
+        expect((await pickup(agent.headers, order.id)).status).toBe(200)
+        expect(await listed()).toEqual([])
+        const [collection] = await attentionOf(
+          order.id,
+          "assigned_without_pickup",
+        )
+        expect(collection.resolution).toBe("picked_up")
+        expect((await current(agent.headers)).attention).toBeNull()
+
+        const [record] = await delivery().listIntendedDeliveries({
+          order_id: order.id,
+        })
+        const due =
+          new Date(record.picked_up_at as Date).getTime() + THIRTY_MINUTES
+        await sweep(due - 1)
+        expect(await listed()).toEqual([])
+        await sweep(due)
+        await sweep(due + 1)
+        const [raised, ...rest] = await listed()
+        expect(rest).toEqual([])
+        expect(raised).toMatchObject({
+          type: "in_transit_without_delivery",
+          order_id: order.id,
+          due_at: new Date(due).toISOString(),
+          raised_at: new Date(due).toISOString(),
+          picked_up_at: new Date(record.picked_up_at as Date).toISOString(),
+        })
+        expect(await current(agent.headers)).toMatchObject({
+          attention: { type: "in_transit_without_delivery" },
+          allowed_actions: ["confirm_handover"],
+        })
+      })
+
+      it("pickup before the deadline means collection attention is never raised", async () => {
+        const { order, acceptedAt } = await assignedOrder({ collect: true })
+        await sweep(acceptedAt + THIRTY_MINUTES)
+        expect(await listed()).toEqual([])
+        const [collection] = await attentionOf(
+          order.id,
+          "assigned_without_pickup",
+        )
+        expect(collection).toMatchObject({
+          raised_at: null,
+          resolution: "picked_up",
+        })
+      })
+
+      it("handover resolves stalled transit at once", async () => {
+        const { order, agent, pickedUpAt } = await assignedOrder({
+          collect: true,
+        })
+        await sweep(pickedUpAt + THIRTY_MINUTES)
+        expect(await listed()).toHaveLength(1)
+        expect((await deliver(agent.headers, order.id)).status).toBe(200)
+        expect(await listed()).toEqual([])
+        const [transit] = await attentionOf(
+          order.id,
+          "in_transit_without_delivery",
+        )
+        expect(transit.resolution).toBe("delivered")
+        await sweep(pickedUpAt + THIRTY_MINUTES + 60_000)
+        expect(await listed()).toEqual([])
+      })
+
+      it("an authoritative failure resolves outstanding attention, including revoked access", async () => {
+        const { order, acceptedAt, agent } = await assignedOrder()
+        expect(
+          (
+            await api.post(
+              `/admin/delivery-agents/${agent.id}/revoke`,
+              {},
+              { headers: admin },
+            )
+          ).status,
+        ).toBe(200)
+        await sweep(acceptedAt + THIRTY_MINUTES)
+        expect(await listed()).toHaveLength(2)
+        await endDeliveryWorkflow(getContainer()).run({
+          input: { order_id: order.id, outcome: "failed", actor_id: "user_op" },
+        })
+        expect(await listed()).toEqual([])
+        const records = await delivery().listDeliveryAttentions({
+          order_id: order.id,
+          type: ["assigned_without_pickup", "access_revoked"],
+        })
+        expect(records.map(({ resolution }) => resolution)).toEqual([
+          "order_ended",
+          "order_ended",
+        ])
+      })
+
+      it("leaves one consistent outcome when a sweep races the pickup", async () => {
+        const { order, acceptedAt, agent } = await assignedOrder()
+        expect((await startPreparation(staff, order.id)).status).toBe(200)
+        expect((await markReady(staff, order.id)).status).toBe(200)
+        const [collected] = await Promise.all([
+          pickup(agent.headers, order.id),
+          sweep(acceptedAt + THIRTY_MINUTES),
+        ])
+        expect(collected.status).toBe(200)
+        const [collection] = await attentionOf(
+          order.id,
+          "assigned_without_pickup",
+        )
+        expect(collection.resolution).toBe("picked_up")
+        expect(
+          (await listed()).filter(
+            ({ type }) => type === "assigned_without_pickup",
+          ),
+        ).toEqual([])
+      })
+    })
+
+    describe("stalled transit racing the handover (#163)", () => {
+      it("leaves one consistent outcome when a sweep races the handover", async () => {
+        const { order, agent, pickedUpAt } = await assignedOrder({
+          collect: true,
+        })
+        const [delivered] = await Promise.all([
+          deliver(agent.headers, order.id),
+          sweep(pickedUpAt + THIRTY_MINUTES),
+        ])
+        expect(delivered.status).toBe(200)
+        expect(await listed()).toEqual([])
+        const [transit] = await attentionOf(
+          order.id,
+          "in_transit_without_delivery",
+        )
+        expect(transit.resolution).toBe("delivered")
+      })
+    })
+
     describe("recovery of work accepted before attention existed", () => {
+      it("schedules stalled attention for assigned work from its acceptance or pickup time", async () => {
+        const waiting = await assignedOrder()
+        const moving = await assignedOrder({ collect: true })
+        const scheduled = await delivery().listDeliveryAttentions({
+          order_id: [waiting.order.id, moving.order.id],
+          type: ["assigned_without_pickup", "in_transit_without_delivery"],
+          resolved_at: null,
+        })
+        await delivery().deleteDeliveryAttentions(scheduled.map(({ id }) => id))
+        const run = () =>
+          scheduleStalledDeliveryAttention({
+            container: getContainer() as MedusaContainer,
+          })
+        await run()
+        await run()
+        await sweep(moving.pickedUpAt + THIRTY_MINUTES)
+        const items = await listed()
+        expect(
+          items.map(({ order_id, type, due_at }) => ({
+            order_id,
+            type,
+            due_at,
+          })),
+        ).toEqual([
+          {
+            order_id: waiting.order.id,
+            type: "assigned_without_pickup",
+            due_at: new Date(waiting.acceptedAt + THIRTY_MINUTES).toISOString(),
+          },
+          {
+            order_id: moving.order.id,
+            type: "in_transit_without_delivery",
+            due_at: new Date(moving.pickedUpAt + THIRTY_MINUTES).toISOString(),
+          },
+        ])
+      })
+
       it("schedules the obligation for unassigned work from its acceptance time", async () => {
         const { order, acceptedAt } = await acceptedOrder()
         const [scheduled] = await delivery().listDeliveryAttentions({

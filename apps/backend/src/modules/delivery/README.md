@@ -145,21 +145,39 @@ On the phone, any 403 from the agent routes sends the agent to
 access has ended and that any delivery stays assigned and MTOGO has been alerted.
 `integration-tests/http/delivery-agent-revocation.spec.ts` covers it.
 
-## Operator attention (#158)
+## Operator attention (#158, #163)
 
 `DeliveryAttention` is the reusable durable obligation behind operator
 attention: one record per Order and condition (unique `order_id, type`), with
 the effective deadline `due_at`, the sweep's processing time `raised_at`, and
-`resolved_at` with a `resolution` (`assigned` or `order_ended`). Later
-conditions (assigned without pickup, in transit, unreachable recipient) add a
-`type` and the moment that schedules them; they reuse the same sweep, rule
-and list.
+`resolved_at` with a `resolution` (`assigned`, `picked_up`, `delivered` or
+`order_ended`). Each `type` has the moment that schedules it and reuses the
+same sweep, rule and list; a later unreachable-recipient condition adds its
+own.
+
+| `type`                        | Scheduled by                     | Due at                       | Ends with                    |
+| ----------------------------- | -------------------------------- | ---------------------------- | ---------------------------- |
+| `unassigned`                  | acceptance (`establishDelivery`) | acceptance plus ten minutes  | assignment                   |
+| `access_revoked`              | revocation of an agent with work | at once (raised immediately) | the Order or delivery ending |
+| `assigned_without_pickup`     | assignment (`assignDelivery`)    | acceptance plus thirty min   | pickup                       |
+| `in_transit_without_delivery` | pickup (`recordPickup`)          | pickup plus thirty minutes   | handover or another terminal |
+
+The two stalled-work conditions (#163) are attention thresholds, not promised
+times: they never cancel, free, reassign or mark handover. Each is created in
+the same transaction as the milestone that begins it, and pickup resolves
+`assigned_without_pickup` in that same commit. `endDelivery` resolves every
+outstanding attention of the Order in the terminal transaction (`delivered`
+for a handover, `order_ended` for cancellation or failure), and the rule
+resolves the same way for any record a sweep reaches after a terminal
+outcome.
 
 Acceptance creates the delivery record and its `unassigned` attention, due at
 the durable acceptance time plus ten minutes, in one transaction
 (`establishDelivery`), so no committed delivery lacks its obligation. The
 `schedule-delivery-attention` migration script schedules it for work accepted
-before #158. The `recover-delivery-attention` job runs
+before #158; `schedule-stalled-delivery-attention` schedules the owed
+stalled-work condition for assigned, unended work from before #163, from its
+recorded acceptance or pickup time. The `recover-delivery-attention` job runs
 `recoverDeliveryAttentionWorkflow` every minute, so its first tick after a
 worker starts is the startup reconciliation. A sweep reads at most ten pages
 of fifty per phase. Phase one raises or resolves obligations due at or before
@@ -172,16 +190,19 @@ never moves, so downtime only delays processing.
 twenty pages; `offset` is limited to 500.
 
 `reconcileAttention` locks the delivery row and then the attention row, and
-`assignDelivery` resolves the unassigned attention in its own transaction after
-the same delivery-row lock, so a sweep racing an assignment cannot leave
-attention outstanding on assigned work. Attention never cancels, releases or
+`assignDelivery`, `recordPickup` and `endDelivery` resolve attention in their
+own transactions after the same delivery-row lock, so a sweep racing a
+milestone cannot leave obsolete attention outstanding. Attention never cancels, releases or
 assigns work, and the list does not investigate or correct (#49).
 
 `integration-tests/http/delivery-attention.spec.ts` covers 1 ms before and
 exactly at acceptance plus ten minutes, downtime and repeated or concurrent
 sweeps, claims and operator assignments before and after raising, a sweep
 racing an assignment, ended Orders, paging, operator-only access and the
-backfill. `src/workflows/delivery/__tests__/attention-rules.unit.spec.ts`
+backfill; for #163 it covers 1 ms before, exactly at and after acceptance or
+pickup plus thirty minutes, repeat sweeps, operator assignment, pickup,
+handover and failure resolving attention, a sweep racing pickup, the agent's
+current view and the stalled-work backfill. `src/workflows/delivery/__tests__/attention-rules.unit.spec.ts`
 covers the decision table.
 
 ## Distances (#191)

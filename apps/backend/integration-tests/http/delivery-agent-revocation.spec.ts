@@ -193,7 +193,10 @@ medusaIntegrationTestRunner({
             now: new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString(),
           },
         })
-        expect(await attention()).toHaveLength(1)
+        // Hours later the uncollected work is also overdue (#163).
+        expect(
+          (await attention()).map(({ type }: { type: string }) => type),
+        ).toEqual(["access_revoked", "assigned_without_pickup"])
         expect(await record(order.id)).toMatchObject({
           assigned_agent_id: agent.id,
           active_agent_id: agent.id,

@@ -13,6 +13,7 @@ import type OrderOperationModuleService from "../../modules/order-operation/serv
 import { orderOperationLock } from "../order-operations/locks"
 import { deliveryAgentAccessRevoked } from "./agent-access"
 import { readCurrentDeliveryStep } from "./assignment"
+import { stalledAttentionDueAt } from "./attention-rules"
 import { deliveryAgentLockKey } from "./locks"
 import { settleNativeFulfillment } from "./native-fulfillment"
 import {
@@ -55,6 +56,8 @@ export const recordPickupStep = createStep(
     const result = await container.resolve(Modules.LOCKING).execute(
       keys,
       async () => {
+        // Decided at the guarded moment, not when the request arrived.
+        const now = new Date()
         const [operation] = await container
           .resolve<OrderOperationModuleService>(ORDER_OPERATION_MODULE)
           .listOrderOperations(
@@ -67,8 +70,8 @@ export const recordPickupStep = createStep(
             {
               ...input,
               order: operation ?? { state: "cancelled", ready_at: null },
-              // Decided at the guarded moment, not when the request arrived.
-              now: new Date(),
+              now,
+              transit_attention_due_at: stalledAttentionDueAt(now),
             },
             decidePickup,
           )

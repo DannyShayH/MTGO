@@ -312,6 +312,7 @@ medusaIntegrationTestRunner({
             request_id: "stale-decision",
             order: { state: "ready", ready_at: new Date() },
             now: new Date(Date.now() + 60000),
+            transit_attention_due_at: new Date(Date.now() + 60000),
           },
           () => ({ outcome: "pick_up" }),
         )

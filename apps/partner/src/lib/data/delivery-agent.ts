@@ -64,6 +64,15 @@ export type CurrentDelivery = {
   picked_up_at: string | null
   /** The route distance from pickup to the Customer (#191), or null. */
   trip_distance_km: number | null
+  /**
+   * Raised stalled-work attention (#163): the operator was told pickup or
+   * handover was still unconfirmed at `due_at`, an attention threshold
+   * rather than a promise. It changes nothing the agent may do.
+   */
+  attention: {
+    type: "assigned_without_pickup" | "in_transit_without_delivery"
+    due_at: string
+  } | null
   /** What the agent may do now: pickup once the food is ready, then handover. */
   allowed_actions: ("confirm_pickup" | "confirm_handover")[]
   customer: {

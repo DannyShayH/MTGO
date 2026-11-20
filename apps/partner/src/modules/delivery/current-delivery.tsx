@@ -1,6 +1,6 @@
-import { CheckCircleSolid, Phone } from "@medusajs/icons"
+import { CheckCircleSolid, Clock, Phone } from "@medusajs/icons"
 import { Button } from "@medusajs/ui"
-import type { Locale } from "@dtc/i18n"
+import { formatText, type Locale } from "@dtc/i18n"
 import type { CurrentDelivery } from "@lib/data/delivery-agent"
 import { ConfirmMilestone } from "./confirm-milestone"
 import { CARD, PRESSABLE, type DeliveryCopy } from "./copy"
@@ -17,7 +17,9 @@ import { RouteStops } from "./route-stops"
  * and phone. Before collection the primary action is confirming pickup,
  * offered only once the server allows it (food ready); afterwards the card
  * shows the recorded pickup time (#160) and the primary action is confirming
- * handover (#161), after which the delivery leaves this card. There is no
+ * handover (#161), after which the delivery leaves this card. Pickup or handover
+ * still unconfirmed thirty minutes on (#163) shows as a notice that changes
+ * nothing. There is no
  * release control.
  */
 export function CurrentDeliveryCard({
@@ -92,6 +94,25 @@ export function CurrentDeliveryCard({
           }
         />
         <RouteLinksPanel delivery={delivery} copy={copy} />
+        {delivery.attention && (
+          <div
+            role="status"
+            className="bg-mtogo-status-warning-surface text-mtogo-status-warning-text flex items-start gap-2 rounded-lg p-3 text-base"
+          >
+            <Clock aria-hidden className="mt-0.5 shrink-0" />
+            <span className="flex min-w-0 flex-col gap-0.5">
+              <span className="font-medium tabular-nums">
+                {formatText(
+                  delivery.attention.type === "assigned_without_pickup"
+                    ? copy.stalledPickup
+                    : copy.stalledHandover,
+                  { time: formatTime(delivery.attention.due_at) },
+                )}
+              </span>
+              <span>{copy.stalledHint}</span>
+            </span>
+          </div>
+        )}
         {delivery.picked_up_at ? (
           <>
             <div

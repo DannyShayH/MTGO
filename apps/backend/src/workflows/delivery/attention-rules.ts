@@ -14,13 +14,30 @@ export const UNASSIGNED_ATTENTION_MS = 10 * 60 * 1000
 export const unassignedAttentionDueAt = (acceptedAt: Date | string) =>
   new Date(new Date(acceptedAt).getTime() + UNASSIGNED_ATTENTION_MS)
 
+/**
+ * Assigned work needs operator attention thirty minutes after its origin:
+ * acceptance while uncollected, pickup while undelivered (#163). These are
+ * attention thresholds, never promised times or automatic outcomes.
+ */
+export const STALLED_ATTENTION_MS = 30 * 60 * 1000
+
+/** The conditions of stalled assigned work, shown on the agent's phone. */
+export const STALLED_ATTENTION_TYPES = [
+  "assigned_without_pickup",
+  "in_transit_without_delivery",
+] as const satisfies readonly AttentionType[]
+export type StalledAttentionType = (typeof STALLED_ATTENTION_TYPES)[number]
+
+export const stalledAttentionDueAt = (origin: Date | string) =>
+  new Date(new Date(origin).getTime() + STALLED_ATTENTION_MS)
+
 /** Read under the delivery and attention row locks, at the sweep's time. */
 export type { AttentionRuleFacts, AttentionRuleDecision }
 
 /**
  * When each condition stops applying, whatever its deadline. A later
- * condition (assigned without pickup, in transit, unreachable recipient)
- * adds its own entry and the facts it needs.
+ * condition (unreachable recipient) adds its own entry and the facts it
+ * needs. A terminal outcome ends every condition first (see below).
  */
 const CONDITION_ENDED: Record<
   AttentionType,
@@ -31,10 +48,14 @@ const CONDITION_ENDED: Record<
   // Revoked access is never restored and the assignment is never released,
   // so only the Order ending (checked by the rule) stops this condition.
   access_revoked: () => null,
+  assigned_without_pickup: ({ delivery }) =>
+    delivery.picked_up_at ? "picked_up" : null,
+  // Only the terminal outcome ends transit.
+  in_transit_without_delivery: () => null,
 }
 
 /**
- * The one attention rule (#158; spec #48 stories 42, 48). Attention only
+ * The one attention rule (#158, #163; spec #48 stories 42, 48-50). Attention only
  * becomes visible or stops being outstanding: it never cancels, releases or
  * completes work. An ended condition or Order takes precedence over the
  * deadline, so a valid assignment removes unassigned attention whether or not
@@ -47,6 +68,14 @@ export function decideAttention(
 ): AttentionRuleDecision {
   const { attention } = facts
   if (attention.resolved_at) return { action: "keep" }
+  const { terminal_outcome } = facts.delivery
+  // Ended work makes every condition obsolete, a handover included (#161).
+  if (terminal_outcome)
+    return {
+      action: "resolve",
+      resolution:
+        terminal_outcome === "delivered" ? "delivered" : "order_ended",
+    }
   const ended = CONDITION_ENDED[attention.type](facts)
   if (ended) return { action: "resolve", resolution: ended }
   if (!facts.order_active)

@@ -25,6 +25,11 @@ import {
   decideAssignment,
   type AssignmentRefusal,
 } from "./assignment-rules"
+import {
+  STALLED_ATTENTION_TYPES,
+  stalledAttentionDueAt,
+  type StalledAttentionType,
+} from "./attention-rules"
 import { scanAvailablePage } from "./available"
 import {
   deliveryAgentAccessRevoked,
@@ -91,7 +96,15 @@ export const assignDeliveryStep = createStep(
         const now = input.now ? new Date(input.now) : new Date()
         const assigned = await container
           .resolve<DeliveryModuleService>(DELIVERY_MODULE)
-          .assignDelivery({ ...input, order_active, now }, decideAssignment)
+          .assignDelivery(
+            {
+              ...input,
+              order_active,
+              now,
+              pickup_attention_due_at: stalledAttentionDueAt,
+            },
+            decideAssignment,
+          )
         // Too late for unassigned work: under the same guard the Order is
         // cancelled now, before any sweep has run (#162).
         const expiry =
@@ -147,6 +160,13 @@ export type CurrentDelivery = {
   picked_up_at: string | null
   /** The route distance from pickup to the Customer (#191), or null. */
   trip_distance_km: number | null
+  /**
+   * Raised, outstanding stalled-work attention on this delivery (#163): the
+   * operator was told collection or handover is still unconfirmed thirty
+   * minutes on, an attention threshold rather than a promise. It changes nothing
+   * the agent may do.
+   */
+  attention: { type: StalledAttentionType; due_at: string } | null
   /**
    * What the agent may do now: confirm pickup once the food is ready, then
    * confirm handover once pickup is recorded (#161).
@@ -223,6 +243,15 @@ export const readCurrentDeliveryStep = createStep(
         ],
         filters: { id: record.order_id },
       })
+    const [stalled] = await delivery.listDeliveryAttentions(
+      {
+        order_id: record.order_id,
+        type: [...STALLED_ATTENTION_TYPES],
+        raised_at: { $ne: null },
+        resolved_at: null,
+      },
+      { take: 1, select: ["type", "due_at"], order: { due_at: "DESC" } },
+    )
     // Placement requires a reviewed shipping address, so the Order has one.
     const address = (data[0] as { shipping_address: CustomerAddress })
       .shipping_address
@@ -243,6 +272,12 @@ export const readCurrentDeliveryStep = createStep(
           ? new Date(record.picked_up_at).toISOString()
           : null,
         trip_distance_km: distanceKm(record.trip_distance_m),
+        attention: stalled
+          ? {
+              type: stalled.type as StalledAttentionType,
+              due_at: new Date(stalled.due_at).toISOString(),
+            }
+          : null,
         allowed_actions: allowedActions(operation.state, record.picked_up_at),
         customer: {
           name: [address.first_name, address.last_name]

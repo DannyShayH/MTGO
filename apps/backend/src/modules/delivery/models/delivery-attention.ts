@@ -2,15 +2,27 @@ import { model } from "@medusajs/framework/utils"
 
 /**
  * The outstanding conditions an operator must notice (spec #48 stories 42,
- * 48). Later slices add assigned-without-pickup, in-transit, unreachable
- * recipient conditions to the same record. `access_revoked` (#159) is raised
- * at once when an operator revokes an agent who still holds a delivery.
+ * 48-50). A later slice adds the unreachable recipient condition to the same
+ * record. `access_revoked` (#159) is raised at once when an operator revokes
+ * an agent who still holds a delivery. `assigned_without_pickup` and
+ * `in_transit_without_delivery` (#163) are stalled assigned work, due at
+ * acceptance or pickup plus thirty minutes.
  */
-export const ATTENTION_TYPES = ["unassigned", "access_revoked"] as const
+export const ATTENTION_TYPES = [
+  "unassigned",
+  "access_revoked",
+  "assigned_without_pickup",
+  "in_transit_without_delivery",
+] as const
 export type AttentionType = (typeof ATTENTION_TYPES)[number]
 
 /** Why an attention stopped being outstanding. It never changes the Order. */
-export const ATTENTION_RESOLUTIONS = ["assigned", "order_ended"] as const
+export const ATTENTION_RESOLUTIONS = [
+  "assigned",
+  "picked_up",
+  "delivered",
+  "order_ended",
+] as const
 export type AttentionResolution = (typeof ATTENTION_RESOLUTIONS)[number]
 
 /**

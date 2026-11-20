@@ -596,7 +596,12 @@
           "scale": null,
           "default": null,
           "comment": null,
-          "enumItems": ["unassigned", "access_revoked"],
+          "enumItems": [
+            "unassigned",
+            "access_revoked",
+            "assigned_without_pickup",
+            "in_transit_without_delivery"
+          ],
           "mappedType": "enum"
         },
         "due_at": {
@@ -660,7 +665,7 @@
           "scale": null,
           "default": null,
           "comment": null,
-          "enumItems": ["assigned", "order_ended"],
+          "enumItems": ["assigned", "picked_up", "delivered", "order_ended"],
           "mappedType": "enum"
         },
         "created_at": {
