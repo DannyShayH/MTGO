@@ -1,14 +1,15 @@
 ---
 title: Local backend request monitoring
-description: A disposable Medusa product read through a private exporter, Prometheus and a provisioned Grafana Viewer dashboard.
+description: Completed ordinary backend API responses, including early refusals, through a private exporter, Prometheus and a provisioned Grafana Viewer dashboard.
 ---
 
-This implements the first local journey of
-[#169](https://github.com/DannyShayH/MTGO/issues/169), under
-[#167](https://github.com/DannyShayH/MTGO/issues/167). It measures completed HTTP
-responses from one backend process on `/store/products` and
-`/store/products/:id`, including early refusals on those paths. It does not
-represent all backend traffic, Customers or Orders. Business state, logging
+This implements the local journeys of
+[#169](https://github.com/DannyShayH/MTGO/issues/169) and
+[#170](https://github.com/DannyShayH/MTGO/issues/170), under
+[#167](https://github.com/DannyShayH/MTGO/issues/167). It measures every
+completed ordinary API response from one backend process, including
+authentication, publishable-key and body refusals before application
+middleware. It does not count Customers or Orders. Business state, logging
 and request correlation retain their existing contracts.
 
 ## Scope and boundaries
@@ -38,7 +39,7 @@ For a native development server, use `PORT` rather than a CLI `--port`
 override and keep the default exporter bind at `127.0.0.1`.
 
 This slice has no application-log collection, latency/process panels,
-SSE/interruption counters, whole-API coverage or adjustable warning thresholds.
+SSE/interruption counters or adjustable warning thresholds.
 The [confirmed discovery](/MTGO/quality/prometheus-monitoring-discovery/)
 describes the later work. Seven-day Prometheus retention is a time policy,
 not a storage quota or evidence that the full four-component stack fits staging.
@@ -152,13 +153,38 @@ make that status's increase/rate observable as well.
 curl --silent --output /dev/null --write-out '%{http_code}\n' 'http://127.0.0.1:9000/store/products?synthetic=one'
 ```
 
+To see the wider API coverage, send synthetic refusals and unknown traffic.
+After the next scrape, expect `GET early_rejection — HTTP 401` for the admin
+read, `POST early_rejection — HTTP 400` for the malformed body, and
+`GET unmatched — HTTP 404` twice for the unknown URLs. The different IDs and
+query strings do not create new series.
+
+```bash
+curl --silent --output /dev/null --write-out '%{http_code}\n' 'http://127.0.0.1:9000/admin/orders/order_synthetic'
+curl --silent --output /dev/null --write-out '%{http_code}\n' -X POST -H 'content-type: application/json' --data '{"synthetic":' 'http://127.0.0.1:9000/store/carts'
+curl --silent --output /dev/null --write-out '%{http_code}\n' 'http://127.0.0.1:9000/no-such-route-one?q=1'
+curl --silent --output /dev/null --write-out '%{http_code}\n' 'http://127.0.0.1:9000/no-such-route-two'
+```
+
 ## Interpret the view
 
 `mtogo_http_requests_total{method,route,status}` increments only after response
 `finish`. A subsequent close does not add a duplicate. An interrupted response
-does not invent a completion or HTTP 500. IDs/query strings are discarded;
-route labels are the two constants above, and methods use a fixed allowlist
-plus OTHER. Health, exporter, Admin/static and other routes are excluded.
+does not invent a completion or HTTP 500. IDs/query strings are discarded.
+
+| `route` label                        | Meaning                                                                                                                                    |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| A pattern, e.g. `/store/carts/:id`   | The last registered route matched: the route file, or a route middleware that declares methods, such as body validation.                   |
+| A wildcard, e.g. `/store/carts/:id*` | A route middleware registered with a wildcard and methods answered the request.                                                            |
+| `early_rejection`                    | Refused (status 400 or above, not 404) before any route matched: publishable key, namespace or method-less authentication, malformed body. |
+| `unmatched`                          | HTTP 404 with no matched route: usually an unknown URL, but also a 404 sent by method-less middleware.                                     |
+| `unrouted`                           | Successful or redirect status with no matched route, such as a CORS preflight answered by Medusa's CORS middleware.                        |
+
+Methods use a fixed allowlist plus OTHER. Health, `/metrics`, `/app`
+Admin pages and assets, `/static`, exporter scrapes and established SSE
+streams are excluded. A stream request refused before the stream opens keeps
+its ordinary outcome. Labels come from Express's documented `req.route`; the
+collector does not read private router stacks or patch installed packages.
 
 Queries apply `increase(...[5m])` or `rate(...[5m])` **before** summing series,
 which handles counter resets. The first successful-list series has a zero
@@ -215,19 +241,19 @@ docker compose down
 
 ## Troubleshooting
 
-| Symptom                                            | Check/action                                                                                                                                           |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Target DOWN                                        | Check backend logs for the constant metrics warning, backend startup, port 9464 and the shared network alias. Never publish 9464 to fix connectivity.  |
-| Raw 0 after read                                   | Confirm the read returned 200, the API uses `PORT=9000`, metrics is enabled and the next scrape occurred. Other routes are intentionally excluded.     |
-| Rolling count unavailable or surprising            | Wait for two scrapes; generate another request. Inspect raw count and `up`. Increases are estimates and new series lack earlier history.               |
-| Health is OK, scrape fails                         | API health and exporter availability are independent. Check exporter bind/configuration and private DNS.                                               |
-| Exporter warning                                   | Check port collision, a valid integer port and bind address. API startup continues; restart the backend after fixing configuration.                    |
-| Grafana login fails after `.env` changes           | Stored credentials survive recreation. Restore the original local file or deliberately reset disposable volumes.                                       |
-| Dashboard absent                                   | Check Grafana provisioning logs and the mounted dashboard/provider/data-source paths; keep the pinned versions together.                               |
-| `docker: command not found`                        | Rebuild and reopen the devcontainer with the Docker-in-Docker feature, then check `docker version` and `docker compose version`.                       |
-| Docker client exists but cannot reach its server   | Check the feature startup log `/tmp/dockerd.log` and host support for privileged development containers; a client alone cannot run the journey.        |
-| No configuration file found                        | Run the monitoring commands from `deploy/monitoring`, not the repository root.                                                                         |
-| PostgreSQL refuses `localhost:5432` for HTTP tests | Rebuild the repository devcontainer. Do not redirect tests to `postgres`, which causes Medusa SSL problems. The Compose demo owns a separate database. |
+| Symptom                                            | Check/action                                                                                                                                                      |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Target DOWN                                        | Check backend logs for the constant metrics warning, backend startup, port 9464 and the shared network alias. Never publish 9464 to fix connectivity.             |
+| Raw 0 after read                                   | Confirm the read returned 200, the API uses `PORT=9000`, metrics is enabled and the next scrape occurred. Excluded paths and established streams are not counted. |
+| Rolling count unavailable or surprising            | Wait for two scrapes; generate another request. Inspect raw count and `up`. Increases are estimates and new series lack earlier history.                          |
+| Health is OK, scrape fails                         | API health and exporter availability are independent. Check exporter bind/configuration and private DNS.                                                          |
+| Exporter warning                                   | Check port collision, a valid integer port and bind address. API startup continues; restart the backend after fixing configuration.                               |
+| Grafana login fails after `.env` changes           | Stored credentials survive recreation. Restore the original local file or deliberately reset disposable volumes.                                                  |
+| Dashboard absent                                   | Check Grafana provisioning logs and the mounted dashboard/provider/data-source paths; keep the pinned versions together.                                          |
+| `docker: command not found`                        | Rebuild and reopen the devcontainer with the Docker-in-Docker feature, then check `docker version` and `docker compose version`.                                  |
+| Docker client exists but cannot reach its server   | Check the feature startup log `/tmp/dockerd.log` and host support for privileged development containers; a client alone cannot run the journey.                   |
+| No configuration file found                        | Run the monitoring commands from `deploy/monitoring`, not the repository root.                                                                                    |
+| PostgreSQL refuses `localhost:5432` for HTTP tests | Rebuild the repository devcontainer. Do not redirect tests to `postgres`, which causes Medusa SSL problems. The Compose demo owns a separate database.            |
 
 ## Verification and manual acceptance record
 
@@ -291,6 +317,32 @@ for wrapup. Use this checklist to repeat the acceptance run:
 - Viewer cannot overwrite the provisioned dashboard or data source.
 - Prometheus/Grafana stoppage leaves the real read usable; collection gaps remain visible.
 - Backend restart resets raw counts; normal monitoring recreation retains history.
+
+### Ordinary API coverage (#170)
+
+The real Medusa suite drives a genuine unauthenticated admin read (401), a
+missing publishable key (400), a malformed JSON body (400) and a Zod-invalid
+cart body (400). It also sends repeated IDs and query strings, unknown URLs, an
+unknown method, a CORS preflight, health, Admin and stream traffic. It asserts the exact
+exported series and that no ID, query value or raw method appears. The unit
+suite covers label choice, the fixed fallbacks, regular-expression matchers
+and established-versus-refused stream requests through real Node HTTP.
+
+Agent verification on 20 November 2026, on the uncommitted #170 working tree:
+
+| Boundary           | Observed result                                                                                                                                                            |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Node HTTP/exporter | **48 unit tests passed**, including `unmatched`, `early_rejection`, `unrouted`, the 400 and stream 2xx boundaries, regular-expression labels and excluded paths.           |
+| Medusa HTTP suite  | **5 tests passed** in `request-metrics.spec.ts`: 401, missing key, malformed and invalid bodies, ID/query collapse, unknown routes/methods, CORS preflight and exclusions. |
+
+The Grafana Viewer run for this slice is the developer's manual acceptance.
+Repeat the startup above and check:
+
+- The **Request coverage** panel describes ordinary API coverage and the fallbacks.
+- The admin, malformed-body and unknown-URL commands above each add one
+  response to the expected `early_rejection` or `unmatched` series.
+- Repeating a command with a different ID or query string adds to the same series.
+- Health, `/app` and the scrape itself leave the totals unchanged.
 
 No staging capacity, combined four-component budget or activation acceptance is
 claimed by this local slice.

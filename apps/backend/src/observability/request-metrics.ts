@@ -22,12 +22,60 @@ const ALLOWED_HTTP_METHODS = new Set([
   "OPTIONS",
 ])
 
-/** Deliberately limited coverage until the wider API collection slice. */
-function productRoute(url: string): string | undefined {
-  const path = url.split("?")[0]
-  if (/^\/store\/products\/?$/i.test(path)) return "/store/products"
-  if (/^\/store\/products\/[^/]+\/?$/i.test(path)) return "/store/products/:id"
-  return undefined
+/**
+ * Monitoring, probe and static traffic never enters the ordinary API totals.
+ * Matched on the raw path before any label is chosen.
+ */
+const EXCLUDED_PATHS = [
+  /^\/health\/?$/i,
+  /^\/metrics\/?$/i,
+  /^\/app(\/|$)/i,
+  /^\/static\//i,
+]
+
+/** Server-sent event endpoints; their established streams are measured apart. */
+const STREAM_PATHS = [/^\/partner\/orders\/stream\/?$/i]
+
+const pathOf = (url: string) => url.split("?")[0]
+
+/** Health, scrape, Admin and static paths, ignoring any query string. */
+function isExcludedPath(url: string): boolean {
+  return EXCLUDED_PATHS.some((pattern) => pattern.test(pathOf(url)))
+}
+
+/**
+ * A successful response on a stream endpoint is an established stream, not an
+ * ordinary API response. A refusal before establishment keeps its outcome.
+ */
+function isEstablishedStream(url: string, status: number): boolean {
+  return (
+    status >= 200 &&
+    status < 300 &&
+    STREAM_PATHS.some((pattern) => pattern.test(pathOf(url)))
+  )
+}
+
+/** Fixed route categories for responses that no registered route pattern matched. */
+const UNMATCHED = "unmatched"
+const EARLY_REJECTION = "early_rejection"
+const UNROUTED = "unrouted"
+
+/** The request object Node emits, once Express has decorated it. */
+type RoutedRequest = IncomingMessage & { route?: { path?: unknown } }
+
+/**
+ * Express's documented `req.route` holds the last registered route pattern that
+ * matched, so the value set is bounded by the application's own registrations.
+ * Method-less middleware (`app.use`: publishable key, namespace authentication,
+ * body parsing, CORS) finishes before any route matches and uses a fixed
+ * category: 404 is unmatched, other refusals are early rejections and a
+ * successful response, such as a CORS preflight, is unrouted.
+ */
+function routeLabel(request: RoutedRequest, status: number): string {
+  const path = request.route?.path
+  if (typeof path === "string" || path instanceof RegExp) return String(path)
+  if (status === 404) return UNMATCHED
+  return status >= 400 ? EARLY_REJECTION : UNROUTED
 }
 
 /** Owns an isolated registry, diagnostic subscription and private exporter. */
@@ -59,7 +107,7 @@ export function startRequestMetrics({
   const registry = new Registry()
   const completed = new Counter({
     name: "mtogo_http_requests_total",
-    help: "Completed backend product API responses; initial limited route coverage",
+    help: "Completed ordinary backend API responses by matched route pattern or fixed fallback",
     labelNames: ["method", "route", "status"] as const,
     registers: [registry],
   })
@@ -74,8 +122,9 @@ export function startRequestMetrics({
     // Diagnostics channels are process-wide. Never measure the exporter or an
     // unrelated listener, even when it serves a product-shaped URL.
     if (request.socket.localPort !== apiPort) return
-    const route = productRoute(request.url || "")
-    if (!route) return
+    // Read before routing: Express may rewrite request.url while dispatching.
+    const url = request.url || ""
+    if (isExcludedPath(url)) return
     const method = ALLOWED_HTTP_METHODS.has(request.method || "")
       ? request.method!
       : "OTHER"
@@ -87,7 +136,14 @@ export function startRequestMetrics({
     const finish = () => {
       cleanup()
       if (isStopped) return
-      completed.inc({ method, route, status: String(response.statusCode) })
+      const status = response.statusCode
+      if (isEstablishedStream(url, status)) return
+      completed.inc({
+        method,
+        // Express decorates the same request object Node handed to the channel.
+        route: routeLabel(request as RoutedRequest, status),
+        status: String(status),
+      })
     }
     pending.add(cleanup)
     response.once("finish", finish)

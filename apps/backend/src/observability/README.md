@@ -19,15 +19,29 @@ this slice. The process-wide diagnostics subscriber filters by that listener's
 local port, so other HTTP servers are excluded. The built-in Node diagnostic
 channel is experimental; retain HTTP-boundary tests when upgrading Node.
 
-`mtogo_http_requests_total{method,route,status}` counts once on response `finish`
-using final status, including parser and publishable-key refusals. Only the
-constant `/store/products` and `/store/products/:id` categories are emitted.
-Methods are GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS or OTHER. Raw IDs,
-URLs, headers and query strings are never labels. Node validates emitted HTTP
-status codes. Health probes, static/Admin assets, scrapes and other endpoints
-are excluded by the route allowlist. Interrupted responses are excluded from
-this counter; separate interruption/SSE/latency/runtime measurements belong to
-later slices. Product endpoints do not establish SSE streams.
+`mtogo_http_requests_total{method,route,status}` counts every completed
+ordinary API response once on `finish`, using the final status. The
+diagnostics channel fires before Express runs, so refusals by namespace
+middleware are included. `route` is Express's documented `req.route.path` at
+completion: the last registered pattern that matched, such as
+`/store/products/:id`. The set is bounded by the application's registrations.
+Medusa applies publishable-key, namespace authentication, body parsing, CORS
+and every `defineMiddlewares` entry without `method` with `app.use`, before any
+route matches. A response finished there uses a fixed category: `unmatched` for
+404, `early_rejection` for other statuses of 400 or above, and `unrouted`
+for a success such as a CORS preflight. Route-level middlewares that declare
+methods, such as body validation, keep their pattern. A refusal by a wildcard route middleware shows that wildcard, not
+the exact endpoint, so a label is not always the final route file. Methods are
+GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS or OTHER. Raw IDs, URLs, headers
+and query strings are never labels. Node validates emitted HTTP status codes.
+
+Health probes, `/metrics`, `/app` Admin pages and assets, `/static` files and
+scrapes on the exporter listener are excluded by raw path. Established SSE
+streams (a 2xx on a listed stream endpoint, currently
+`/partner/orders/stream`) are excluded explicitly. A stream request refused
+before establishment keeps its ordinary outcome. Add new SSE endpoints to the
+stream list. Interrupted responses are excluded from this counter. Separate
+interruption, SSE, latency and runtime measurements belong to later slices.
 
 The successful product-list series starts at zero so a pre-request scrape can
 establish a baseline. Other status series appear on first observation. Counter
@@ -38,5 +52,6 @@ cannot recover responses between scrapes or an unseen series' first increment.
 The [local monitoring runbook](../../../docs/src/content/docs/quality/local-request-monitoring.md)
 owns setup and the acceptance record. Unit tests exercise real Node HTTP and
 exporter boundaries; `integration-tests/http/request-metrics.spec.ts` uses the
-real Medusa HTTP runner and the same instrumentation hook. Existing business
+real Medusa HTTP runner and the same instrumentation hook, driving genuine
+authentication, missing-key, malformed-body and invalid-body refusals. Existing business
 and request-logging behavior is unchanged.

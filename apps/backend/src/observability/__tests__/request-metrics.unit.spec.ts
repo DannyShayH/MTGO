@@ -85,6 +85,10 @@ describe("private request metrics HTTP boundary", () => {
 
   beforeEach(async () => {
     app = createServer((req, res) => {
+      // Mirrors Express's documented decoration of the same request object.
+      const route = req.headers["test-route"]
+      if (route === "regexp") Object.assign(req, { route: { path: /^\/x$/ } })
+      else if (route) Object.assign(req, { route: { path: route } })
       if (req.url === "/store/products/interrupted") {
         res.writeHead(200)
         res.write("partial")
@@ -120,7 +124,10 @@ describe("private request metrics HTTP boundary", () => {
   ])("$reason", async ({ status }) => {
     await scrape()
     await fetch(`http://127.0.0.1:${apiPort}/store/products?secret=discard`, {
-      headers: { "test-status": String(status) },
+      headers: {
+        "test-status": String(status),
+        "test-route": "/store/products",
+      },
     })
     const metrics = await scrape()
     expect(metrics).toContain(
@@ -136,7 +143,9 @@ describe("private request metrics HTTP boundary", () => {
       "/store/products/secret-one?q=secret-query",
       "/store/products/secret-two",
     ])
-      await fetch(`http://127.0.0.1:${apiPort}${path}`)
+      await fetch(`http://127.0.0.1:${apiPort}${path}`, {
+        headers: { "test-route": "/store/products/:id" },
+      })
     const metrics = await scrape()
     expect(metrics).toContain(
       'method="GET",route="/store/products/:id",status="200"} 2',
@@ -148,31 +157,111 @@ describe("private request metrics HTTP boundary", () => {
     {
       path: "/store/products?secret=query",
       method: "GET",
-      expectedLabels: 'method="GET",route="/store/products"',
-      reason: "EP: list query strings are discarded",
-    },
-    {
-      path: "/store/products/secret-id",
-      method: "GET",
-      expectedLabels: 'method="GET",route="/store/products/:id"',
-      reason: "EP: product IDs are replaced by a route parameter",
+      route: "/store/products",
+      expectedLabels: 'method="GET",route="/store/products",status="200"',
+      reason: "EP: query strings are discarded from a matched pattern",
     },
     {
       path: "/store/products",
       method: "POST",
-      expectedLabels: 'method="POST",route="/store/products"',
+      route: "/store/products",
+      expectedLabels: 'method="POST",route="/store/products",status="200"',
       reason: "EP: an allowed method keeps its label",
     },
     {
       path: "/store/products",
       method: "PROPFIND",
-      expectedLabels: 'method="OTHER",route="/store/products"',
+      route: "/store/products",
+      expectedLabels: 'method="OTHER",route="/store/products",status="200"',
       reason: "EP: methods outside the allowlist are grouped",
+    },
+    {
+      path: "/x",
+      method: "GET",
+      route: "regexp",
+      expectedLabels: 'method="GET",route="/^\\\\/x$/",status="200"',
+      reason: "EP: a registered regular-expression matcher is a bounded label",
+    },
+    {
+      path: "/store/unknown-secret",
+      method: "GET",
+      status: 404,
+      expectedLabels: 'method="GET",route="unmatched",status="404"',
+      reason: "EP: no matched route and 404 is the unmatched category",
+    },
+    {
+      path: "/store/products?secret=missing-key",
+      method: "GET",
+      status: 400,
+      expectedLabels: 'method="GET",route="early_rejection",status="400"',
+      reason: "EP: a refusal before any route match is an early rejection",
+    },
+    {
+      path: "/store/products",
+      method: "OPTIONS",
+      status: 204,
+      expectedLabels: 'method="OPTIONS",route="unrouted",status="204"',
+      reason: "EP: a successful response with no matched route is unrouted",
+    },
+    {
+      path: "/store/redirect-secret",
+      method: "GET",
+      status: 399,
+      expectedLabels: 'method="GET",route="unrouted",status="399"',
+      reason: "BVA: below the refusal boundary is still unrouted",
+    },
+    {
+      path: "/store/products?secret=forbidden",
+      method: "GET",
+      status: 403,
+      expectedLabels: 'method="GET",route="early_rejection",status="403"',
+      reason: "EP: a non-404 refusal before any route match is early",
+    },
+    {
+      path: "/store/products?secret=refused",
+      method: "GET",
+      status: 400,
+      expectedLabels: 'method="GET",route="early_rejection",status="400"',
+      reason: "BVA: the refusal boundary is an early rejection",
+    },
+    {
+      path: "/partner/orders/stream",
+      method: "GET",
+      route: "/partner/orders/stream",
+      status: 300,
+      expectedLabels:
+        'method="GET",route="/partner/orders/stream",status="300"',
+      reason: "BVA: above the successful range is not an established stream",
+    },
+    {
+      path: "/partner/orders/stream",
+      method: "GET",
+      route: "/partner/orders/stream",
+      status: 299,
+      reason: "BVA: the top of the successful range is an established stream",
+    },
+    {
+      path: "/partner/orders/stream",
+      method: "GET",
+      status: 401,
+      expectedLabels: 'method="GET",route="early_rejection",status="401"',
+      reason: "EP: a stream refused before establishment keeps its outcome",
+    },
+    {
+      path: "/partner/orders/stream?secret=1",
+      method: "GET",
+      route: "/partner/orders/stream",
+      reason: "EP: an established stream is excluded",
     },
     {
       path: "/health",
       method: "GET",
       reason: "EP: health traffic is excluded",
+    },
+    {
+      path: "/app",
+      method: "GET",
+      reason: "EP: the Admin entry page is excluded",
     },
     {
       path: "/app/assets/secret.js",
@@ -189,24 +278,26 @@ describe("private request metrics HTTP boundary", () => {
       method: "GET",
       reason: "EP: API metrics path is excluded",
     },
-    {
-      path: "/store/unknown-secret",
-      method: "GET",
-      reason: "EP: unrelated store routes are excluded",
-    },
-  ])("$reason", async ({ path, method, expectedLabels }) => {
+  ])("$reason", async ({ path, method, route, status, expectedLabels }) => {
     const baseline = await scrape()
+    const headers: Record<string, string> = {
+      "test-status": String(status ?? 200),
+    }
+    if (route) headers["test-route"] = route
     await new Promise<void>((resolve, reject) => {
-      request(`http://127.0.0.1:${apiPort}${path}`, { method }, (res) => {
-        res.resume()
-        res.on("end", resolve)
-      })
+      request(
+        `http://127.0.0.1:${apiPort}${path}`,
+        { method, headers },
+        (res) => {
+          res.resume()
+          res.on("end", resolve)
+        },
+      )
         .on("error", reject)
         .end()
     })
     const metrics = await scrape()
-    if (expectedLabels)
-      expect(metrics).toContain(`${expectedLabels},status="200"} 1`)
+    if (expectedLabels) expect(metrics).toContain(`{${expectedLabels}} 1`)
     else expect(metrics).toBe(baseline)
     expect(metrics).not.toMatch(/secret|PROPFIND/)
   })
@@ -232,7 +323,7 @@ describe("private request metrics HTTP boundary", () => {
         .on("error", reject)
         .end()
     })
-    expect(await scrape()).not.toContain('route="/store/products/:id"')
+    expect(await scrape()).not.toMatch(/status="200"} 1/)
   })
 
   it("releases its listener and subscription on repeated disposal", async () => {

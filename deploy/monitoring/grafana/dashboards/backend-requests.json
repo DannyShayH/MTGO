@@ -1,9 +1,9 @@
 {
   "uid": "mtogo-backend-requests",
-  "title": "MTOGO — local backend product requests",
-  "description": "Slice #169: one HTTP-serving Medusa process; only /store/products and /store/products/:id. No whole-API or business counts.",
+  "title": "MTOGO — local backend API requests",
+  "description": "Slices #169/#170: completed ordinary API responses from one HTTP-serving Medusa process, by matched route pattern or fixed fallback. No business counts.",
   "schemaVersion": 41,
-  "version": 1,
+  "version": 2,
   "editable": false,
   "refresh": "30s",
   "timezone": "browser",
@@ -11,7 +11,7 @@
     "from": "now-15m",
     "to": "now"
   },
-  "tags": ["mtogo", "local", "limited-coverage"],
+  "tags": ["mtogo", "local", "ordinary-api"],
   "annotations": {
     "list": []
   },
@@ -21,7 +21,7 @@
   "panels": [
     {
       "id": 1,
-      "title": "Initial request coverage",
+      "title": "Request coverage",
       "type": "text",
       "gridPos": {
         "x": 0,
@@ -31,7 +31,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**LOCAL / LIMITED:** one HTTP-serving backend process, target `backend-metrics:9464`. Only `/store/products` and `/store/products/:id`, including early refusals. IDs/query strings never become labels. Health, static/Admin traffic, scrapes and all other routes are excluded."
+        "content": "**LOCAL:** one HTTP-serving backend process, target `backend-metrics:9464`. Every completed ordinary API response, labelled by its matched route pattern. Responses finished by method-less middleware before any route matches show fixed categories: refusals (publishable key, namespace or method-less authentication, malformed body) as `early_rejection`, 404s as `unmatched` and successes such as CORS preflights as `unrouted`; unknown methods as `OTHER`. A wildcard middleware refusal shows its wildcard pattern. IDs/query strings never become labels. Health, `/app` Admin assets, `/static`, scrapes and established SSE streams are excluded."
       }
     },
     {
