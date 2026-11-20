@@ -30,6 +30,13 @@
 #   mtogo-deploy.sh seed              Run the synthetic Restaurant and menu seeds once.
 #   mtogo-deploy.sh psql [args...]    psql as the restricted staging database user.
 #   mtogo-deploy.sh compose [args...] Any docker compose command for the current release.
+#   mtogo-deploy.sh monitoring up      Private request metrics (#194): turn on the
+#       backend exporter, copy deploy/monitoring/ from the current release and
+#       (re)start Prometheus and Grafana. Needs STAGING_METRICS_ENABLED=1.
+#   mtogo-deploy.sh monitoring down    Stop Prometheus and Grafana; history is kept.
+#   mtogo-deploy.sh monitoring status  Monitoring containers and their source release.
+#   mtogo-deploy.sh monitoring viewer-add <login>     Grafana Viewer, prints its first password.
+#   mtogo-deploy.sh monitoring viewer-remove <login>  Delete that Grafana account.
 #
 # A GHCR token may be passed on the first line of stdin for private packages;
 # it is used for one Docker login in a temporary config and then discarded.
@@ -43,6 +50,9 @@ readonly LOCK_FILE="$STAGING_DIR/.deploy.lock"
 readonly BACKUPS_TO_KEEP=10
 readonly COMPOSE_PATH_IN_IMAGE=/app/deploy/staging/compose.yaml
 readonly APP_SERVICES_WITHOUT_WORKER=(backend partner storefront)
+readonly MONITORING_DIR=/srv/mtogo-monitoring
+readonly MONITORING_PATH_IN_IMAGE=/app/deploy/monitoring
+readonly GRAFANA_ADMIN_USER=staging-admin
 
 log() { printf '[mtogo-deploy] %s\n' "$*" >&2; }
 die() {
@@ -489,6 +499,129 @@ cmd_compose() {
   compose "$(current_release)" "$@"
 }
 
+# Prometheus and Grafana: a separate Compose project, never touched by
+# prepare, release or rollback (deploy/monitoring/compose.staging.yaml).
+monitoring_compose() {
+  docker compose --project-name mtogo-staging-monitoring \
+    --project-directory "$MONITORING_DIR/config" \
+    --env-file "$ENV_FILE" \
+    --file "$MONITORING_DIR/config/compose.staging.yaml" "$@"
+}
+
+check_monitoring_env() {
+  [[ "$(env_optional STAGING_METRICS_ENABLED)" == "1" ]] ||
+    die "set STAGING_METRICS_ENABLED=1 in $ENV_FILE first"
+  env_value STAGING_GRAFANA_URL > /dev/null
+  [[ "$(env_value GRAFANA_ADMIN_PASSWORD)" =~ ^[A-Za-z0-9]{24,}$ ]] ||
+    die "GRAFANA_ADMIN_PASSWORD must be at least 24 letters and digits (openssl rand -hex 24)"
+}
+
+# The monitoring files of the given release, swapped in as one folder. The old
+# folder stays until the next swap, because running containers still mount it.
+install_monitoring_config() {
+  local sha=$1 new="$MONITORING_DIR/config.new"
+  install -d -o root -g root -m 755 "$MONITORING_DIR"
+  rm -rf -- "$new"
+  install -d -o root -g root -m 755 "$new"
+  docker run --rm --entrypoint tar "$(image_prefix)-backend:$sha" \
+    -C "$MONITORING_PATH_IN_IMAGE" -cf - . | tar -xf - --no-same-owner -C "$new"
+  [[ -f "$new/compose.staging.yaml" ]] ||
+    die "release $sha has no staging monitoring (deliver #194 first)"
+  printf '%s\n' "$sha" > "$new/SOURCE_RELEASE"
+  rm -rf -- "$MONITORING_DIR/config.old"
+  if [[ -d "$MONITORING_DIR/config" ]]; then
+    mv -- "$MONITORING_DIR/config" "$MONITORING_DIR/config.old"
+  fi
+  mv -- "$new" "$MONITORING_DIR/config"
+}
+
+# Grafana's HTTP API on its published port, as the staging admin. The
+# credentials and the body travel through file descriptors, never through
+# the process list.
+grafana_api() {
+  local method=$1 path=$2 body=${3:-} address port url
+  address=$(env_optional STAGING_BIND_ADDRESS)
+  port=$(env_optional STAGING_GRAFANA_PORT)
+  url="http://${address:-127.0.0.1}:${port:-3300}$path"
+  local args=(--silent --show-error --fail -X "$method" -H "content-type: application/json")
+  if [[ -n "$body" ]]; then
+    curl "${args[@]}" \
+      -K <(printf 'user = "%s:%s"\n' "$GRAFANA_ADMIN_USER" "$(env_value GRAFANA_ADMIN_PASSWORD)") \
+      --data-binary @<(printf '%s' "$body") "$url"
+  else
+    curl "${args[@]}" \
+      -K <(printf 'user = "%s:%s"\n' "$GRAFANA_ADMIN_USER" "$(env_value GRAFANA_ADMIN_PASSWORD)") "$url"
+  fi
+}
+
+require_viewer_login() {
+  [[ "${1:-}" =~ ^[a-z0-9][a-z0-9._-]{1,39}$ ]] ||
+    die "a login of 2-40 lower-case letters, digits, dots, dashes or underscores is required"
+  [[ "$1" != "$GRAFANA_ADMIN_USER" ]] || die "$GRAFANA_ADMIN_USER is not a Viewer"
+}
+
+cmd_monitoring() {
+  local action=${1:-status}
+  shift || true
+  check_env_file
+  case "$action" in
+    up)
+      [[ $# -eq 0 ]] || die "monitoring up takes no arguments"
+      check_monitoring_env
+      take_lock
+      local sha
+      sha=$(current_release)
+      # Creates the internal scrape network and applies the exporter setting;
+      # recreates the backend only when its configuration changed.
+      log "applying the exporter setting to the backend"
+      compose "$sha" up -d --wait backend
+      log "installing the monitoring configuration of $sha"
+      install_monitoring_config "$sha"
+      monitoring_compose config --quiet
+      monitoring_compose run --rm --no-deps --entrypoint /bin/promtool \
+        prometheus check config /etc/prometheus/prometheus.yaml > /dev/null
+      log "starting Prometheus and Grafana"
+      monitoring_compose up -d --wait --force-recreate
+      monitoring_compose ps --format 'table {{.Service}}\t{{.Status}}\t{{.Image}}'
+      ;;
+    down)
+      [[ $# -eq 0 ]] || die "monitoring down takes no arguments"
+      [[ -f "$MONITORING_DIR/config/compose.staging.yaml" ]] || die "monitoring is not installed"
+      monitoring_compose down
+      log "stopped; history and accounts are kept. Set STAGING_METRICS_ENABLED=0 to turn the exporter off at the next deploy"
+      ;;
+    status)
+      [[ -f "$MONITORING_DIR/config/compose.staging.yaml" ]] || die "monitoring is not installed"
+      printf 'monitoring configuration from release: %s\n' "$(cat "$MONITORING_DIR/config/SOURCE_RELEASE")"
+      monitoring_compose ps --format 'table {{.Service}}\t{{.Status}}\t{{.Image}}'
+      ;;
+    viewer-add)
+      require_viewer_login "${1:-}"
+      [[ $# -eq 1 ]] || die "monitoring viewer-add takes one login"
+      check_monitoring_env
+      local login=$1 password
+      password=$(head -c 18 /dev/urandom | od -An -tx1 | tr -d ' \n')
+      grafana_api POST /api/admin/users \
+        "{\"name\":\"$login\",\"login\":\"$login\",\"password\":\"$password\"}" > /dev/null ||
+        die "Grafana refused the new account (does $login already exist?)"
+      printf 'Viewer %s created. First password, shown once; hand it over through the password manager:\n%s\n' \
+        "$login" "$password"
+      ;;
+    viewer-remove)
+      require_viewer_login "${1:-}"
+      [[ $# -eq 1 ]] || die "monitoring viewer-remove takes one login"
+      check_monitoring_env
+      local id
+      id=$(grafana_api GET "/api/users/lookup?loginOrEmail=$1" | grep -oE '"id":[0-9]+' | head -n 1 | cut -d: -f2) ||
+        die "no Grafana account $1"
+      [[ -n "$id" ]] || die "no Grafana account $1"
+      grafana_api DELETE "/api/admin/users/$id" > /dev/null
+      log "removed Grafana account $1"
+      ;;
+    *) die "unknown monitoring action: $action (up, down, status, viewer-add, viewer-remove)" ;;
+  esac
+}
+
 main() {
   require_root
   classify_caller
@@ -507,7 +640,8 @@ main() {
     seed) cmd_seed ;;
     psql) cmd_psql "$@" ;;
     compose) cmd_compose "$@" ;;
-    help | --help | -h) sed -n '2,37p' "$0" ;;
+    monitoring) cmd_monitoring "$@" ;;
+    help | --help | -h) sed -n '2,42p' "$0" ;;
     *) die "unknown command: $command (try: help)" ;;
   esac
 }

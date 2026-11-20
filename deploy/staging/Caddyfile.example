@@ -27,3 +27,14 @@ partner.staging.example.org {
 	encode gzip
 	reverse_proxy 127.0.0.1:8100
 }
+
+# Optional request monitoring (#194): Grafana only, behind its own login.
+# Prometheus and the backend exporter never get a route. The upstream is
+# STAGING_BIND_ADDRESS and STAGING_GRAFANA_PORT. Server administration answers
+# 404 here; the admin manages Viewers with `mtogo-deploy.sh monitoring`.
+grafana.staging.example.org {
+	encode gzip
+	@server_admin path /admin /admin/* /api/admin/*
+	respond @server_admin 404
+	reverse_proxy 127.0.0.1:3300
+}

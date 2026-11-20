@@ -122,7 +122,7 @@ NODE
 ```
 
 Log into Grafana as `local-viewer` using the ignored local Viewer password.
-Open `http://127.0.0.1:3000/d/mtogo-backend-requests`. The provisioned dashboard
+Open `http://127.0.0.1:3000/d/mtogo-backend-requests` (**MTOGO — backend API requests**). The provisioned dashboard
 and data source are managed in Git; a Viewer cannot overwrite them. These
 disposable accounts are not staging team-access provisioning.
 
@@ -226,8 +226,8 @@ Normal recreation preserves named monitoring volumes. Application restart,
 recreation or `docker compose -f compose.application.yaml down` does not remove
 monitoring history. Data generated while Prometheus is stopped is not guaranteed
 recoverable, especially across backend restart. Rollback to an uninstrumented
-app would leave collection unavailable; this slice does not activate rollback
-or persistence guarantees on staging.
+app would leave collection unavailable. Staging activation, persistence and
+rollback are in [staging request monitoring](/MTGO/quality/staging-request-monitoring/).
 
 To stop this demonstration, run both `down` commands without `--volumes`.
 Only when intentionally discarding **local synthetic history**, add
@@ -345,4 +345,6 @@ Repeat the startup above and check:
 - Health, `/app` and the scrape itself leave the totals unchanged.
 
 No staging capacity, combined four-component budget or activation acceptance is
-claimed by this local slice.
+claimed by this local slice. Staging metrics (#194) reuse the same dashboard,
+now titled **MTOGO — backend API requests**, and record their own acceptance on
+the [staging request monitoring](/MTGO/quality/staging-request-monitoring/) page.

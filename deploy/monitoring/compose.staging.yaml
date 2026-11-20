@@ -1,0 +1,100 @@
+# Staging request monitoring on the Droplet (issue #194). Run only through
+# `mtogo-deploy.sh monitoring up`, which copies this folder from the current
+# release's backend image and supplies /srv/mtogo-staging/.env; see
+# apps/docs/src/content/docs/quality/staging-request-monitoring.md.
+#
+# Separate project from the application (mtogo-staging): deploys never start,
+# stop or recreate these containers, and this file never touches the
+# application, Caddy or PostgreSQL. The scrape network is created by the
+# application project (deploy/staging/compose.yaml); this project only joins it.
+#
+# Exposure: Prometheus and the backend exporter publish no ports and have no
+# Caddy route. Grafana publishes one port on STAGING_BIND_ADDRESS for Caddy,
+# which serves it over HTTPS with a login (no anonymous access, no sign-up).
+name: mtogo-staging-monitoring
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "2"
+
+services:
+  prometheus:
+    image: prom/prometheus:v3.16.0
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yaml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+      - --storage.tsdb.retention.size=512MB
+      - --query.lookback-delta=15s
+    environment:
+      # Lets the Go runtime collect garbage before the hard cap is reached.
+      GOMEMLIMIT: 160MiB
+    volumes:
+      - ./prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - metrics
+    logging: *logging
+    # Same value as the memory limit: no additional swap, so the cap is hard.
+    memswap_limit: 192m
+    deploy:
+      resources:
+        limits:
+          memory: 192m
+
+  grafana:
+    image: grafana/grafana:13.3.1
+    restart: unless-stopped
+    environment:
+      GOMEMLIMIT: 220MiB
+      GF_SERVER_ROOT_URL: ${STAGING_GRAFANA_URL:?STAGING_GRAFANA_URL is missing in .env}
+      # Applied only when Grafana creates its database on the first start.
+      GF_SECURITY_ADMIN_USER: staging-admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is missing in .env}
+      GF_SECURITY_COOKIE_SECURE: "true"
+      GF_SECURITY_COOKIE_SAMESITE: strict
+      GF_SECURITY_DISABLE_GRAVATAR: "true"
+      GF_SECURITY_DISABLE_BRUTE_FORCE_LOGIN_PROTECTION: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_USERS_ALLOW_ORG_CREATE: "false"
+      GF_USERS_AUTO_ASSIGN_ORG_ROLE: Viewer
+      GF_USERS_VIEWERS_CAN_EDIT: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_SNAPSHOTS_EXTERNAL_ENABLED: "false"
+      GF_PUBLIC_DASHBOARDS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+    ports:
+      # Never 0.0.0.0: only Caddy (and an administrator's SSH tunnel) reach it.
+      - "${STAGING_BIND_ADDRESS:-127.0.0.1}:${STAGING_GRAFANA_PORT:-3300}:3000"
+    volumes:
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    networks:
+      - loopback
+      - metrics
+    logging: *logging
+    memswap_limit: 256m
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+
+networks:
+  # Internal scrape network owned by the mtogo-staging application project.
+  metrics:
+    external: true
+    name: mtogo-staging-metrics
+  # Publishes Grafana's single port for Caddy (same role as in compose.yaml).
+  loopback:
+
+volumes:
+  prometheus-data:
+  grafana-data:

@@ -7,6 +7,10 @@
 # (it forwards to the three published loopback ports) and the PostgreSQL 16
 # container "db" of the existing Compose stack, reached on its existing Docker
 # network (STAGING_DB_NETWORK) with the restricted mtogo_staging user.
+#
+# Optional private request monitoring (Prometheus and Grafana) is a separate
+# Compose project that the admin runs by hand; see
+# apps/docs/src/content/docs/quality/staging-request-monitoring.md.
 name: mtogo-staging
 
 x-logging: &logging
@@ -134,6 +138,11 @@ services:
     environment:
       <<: *backend-environment
       MEDUSA_WORKER_MODE: ${STAGING_BACKEND_MODE:-shared}
+      # Private request metrics (#194): "1" opens the exporter on the internal
+      # metrics network only. Off by default; a failure never blocks startup.
+      MTOGO_METRICS_ENABLED: ${STAGING_METRICS_ENABLED:-0}
+      MTOGO_METRICS_HOST: backend-metrics
+      MTOGO_METRICS_PORT: "9464"
     volumes:
       - backend-static:/app/apps/backend/.medusa/server/static
     ports:
@@ -142,9 +151,11 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - private
-      - database
-      - web
+      private:
+      database:
+      web:
+      metrics:
+        aliases: [backend-metrics]
     healthcheck:
       test:
         [
@@ -259,6 +270,13 @@ networks:
     external: true
     name: ${STAGING_DB_NETWORK:?STAGING_DB_NETWORK is missing in .env}
   web:
+  # Scrape network for the separate monitoring project
+  # (deploy/monitoring/compose.staging.yaml), which joins it by this fixed name.
+  # No published ports, no internet. Created here so deploys never depend on
+  # the monitoring stack.
+  metrics:
+    internal: true
+    name: mtogo-staging-metrics
 
 volumes:
   backend-static:

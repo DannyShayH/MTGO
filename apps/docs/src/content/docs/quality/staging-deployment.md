@@ -60,6 +60,10 @@ set `STAGING_SPLIT_WORKER=true`: the next deploy runs the backend in `server`
 mode and starts a `worker` container (cap 512 MB). If the backend is killed for
 memory (`dmesg | grep -i kill`), lower `BACKEND_HEAP_MB` before resizing.
 
+The optional [request monitoring](/MTGO/quality/staging-request-monitoring/)
+adds Prometheus (cap 192 MB) and Grafana (cap 256 MB) as a separate Compose
+project, with its own memory readings and floor.
+
 ### Decisions recorded for issue #35
 
 - **Repository secrets, not a protected GitHub Environment.** The SSH
@@ -364,6 +368,7 @@ issue.
 | Droplet `.env`               | `JWT_SECRET`, `COOKIE_SECRET`, `STAGING_SPLIT_WORKER`, `BACKEND_HEAP_MB`                                                     | Medusa secrets, worker mode and memory                      |
 | Droplet `.env`               | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` (optional)                                                                             | Customer verification emails via Resend (`corral.dk`)       |
 | Droplet `.env`               | `ORS_API_KEY` (optional)                                                                                                     | Delivery distances via openrouteservice                     |
+| Droplet `.env`               | `STAGING_METRICS_ENABLED`, `STAGING_GRAFANA_URL`, `STAGING_GRAFANA_PORT`, `GRAFANA_ADMIN_PASSWORD` (optional)                | Private request monitoring (`mtogo-deploy.sh monitoring`)   |
 | Storefront image, build time | `NEXT_PUBLIC_MEDUSA_BACKEND_URL`, `NEXT_PUBLIC_BASE_URL`, `NEXT_PUBLIC_DEFAULT_REGION`, `NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY` | Returned by `prepare`, inlined by Next.js                   |
 
 Missing or malformed values fail visibly: Compose refuses to start with a
@@ -526,7 +531,9 @@ exist in GHCR.
 
 ## What this slice does not include
 
-No zero-downtime deployment, no off-Droplet backups, no monitoring or
-dashboards, no production environment and no Terraform. Logging conventions
+No zero-downtime deployment, no off-Droplet backups, no production
+environment and no Terraform. Request metrics and their Grafana dashboard are
+a separate, optional stack: see
+[staging request monitoring](/MTGO/quality/staging-request-monitoring/). Logging conventions
 are in the [logging guide](/MTGO/quality/logging/). The release practice for
 SemVer tags is issue #68.

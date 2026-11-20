@@ -1,9 +1,9 @@
 {
   "uid": "mtogo-backend-requests",
-  "title": "MTOGO — local backend API requests",
-  "description": "Slices #169/#170: completed ordinary API responses from one HTTP-serving Medusa process, by matched route pattern or fixed fallback. No business counts.",
+  "title": "MTOGO — backend API requests",
+  "description": "Slices #169/#170/#194: completed ordinary API responses from one HTTP-serving Medusa process, by matched route pattern or fixed fallback. No business counts.",
   "schemaVersion": 41,
-  "version": 2,
+  "version": 3,
   "editable": false,
   "refresh": "30s",
   "timezone": "browser",
@@ -11,7 +11,7 @@
     "from": "now-15m",
     "to": "now"
   },
-  "tags": ["mtogo", "local", "ordinary-api"],
+  "tags": ["mtogo", "ordinary-api"],
   "annotations": {
     "list": []
   },
@@ -31,7 +31,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**LOCAL:** one HTTP-serving backend process, target `backend-metrics:9464`. Every completed ordinary API response, labelled by its matched route pattern. Responses finished by method-less middleware before any route matches show fixed categories: refusals (publishable key, namespace or method-less authentication, malformed body) as `early_rejection`, 404s as `unmatched` and successes such as CORS preflights as `unrouted`; unknown methods as `OTHER`. A wildcard middleware refusal shows its wildcard pattern. IDs/query strings never become labels. Health, `/app` Admin assets, `/static`, scrapes and established SSE streams are excluded."
+        "content": "**One HTTP-serving backend process**, target `backend-metrics:9464`: the local demo, or the staging `backend` container with browser and server-side calls from the storefront and partner app (a split staging worker serves no HTTP). Every completed ordinary API response, by matched route pattern. Method-less middleware finishing before any route matches gives fixed categories: refusals (publishable key, namespace or method-less authentication, malformed body) as `early_rejection`, 404s as `unmatched`, successes such as CORS preflights as `unrouted`; unknown methods as `OTHER`. A wildcard middleware refusal shows its wildcard. IDs/query strings never become labels. Health, `/app` Admin assets, `/static`, scrapes and established SSE streams are excluded."
       }
     },
     {

@@ -8,7 +8,8 @@ do not invoke that hook. Worker mode and Node cluster children skip it.
 
 Monitoring is opt-in with `MTOGO_METRICS_ENABLED=1`. The listener defaults to
 `127.0.0.1:9464`; only `GET /metrics` exposes Prometheus text format 0.0.4.
-The disposable container setup binds internally without publishing this port.
+The disposable container setup and staging (`STAGING_METRICS_ENABLED=1`) bind
+it to an internal network alias without publishing this port.
 An invalid configuration or exporter bind failure warns with constant text and
 leaves application startup usable. Shutdown removes subscriptions, pending
 response listeners and signal handlers and closes exporter connections.
