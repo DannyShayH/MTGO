@@ -143,5 +143,14 @@ module.exports = defineConfig({
     { resolve: "./src/modules/food-catalogue" },
     { resolve: "./src/modules/order-operation" },
     { resolve: "./src/modules/delivery" },
+    {
+      // Trip and pickup distances (#191). Without a key every distance is
+      // unavailable and nothing is sent to openrouteservice.
+      resolve: "./src/modules/routing",
+      options: {
+        api_key: process.env.ORS_API_KEY,
+        base_url: process.env.ORS_BASE_URL,
+      },
+    },
   ],
 })

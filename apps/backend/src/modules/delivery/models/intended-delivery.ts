@@ -53,6 +53,19 @@ const IntendedDelivery = model
      * first, so a lasting failure cannot hold back newer pickups.
      */
     native_sync_queued_at: model.dateTime().nullable(),
+    /**
+     * The trip (#191), measured once after acceptance: geocoded pickup and
+     * destination, and the route distance rounded to 100 m. The destination
+     * coordinates never leave the backend. `trip_measured_at` marks the one
+     * attempt, so a retry never calls the provider again; null distance
+     * after it (or on legacy work) shows as unavailable.
+     */
+    pickup_latitude: model.float().nullable(),
+    pickup_longitude: model.float().nullable(),
+    destination_latitude: model.float().nullable(),
+    destination_longitude: model.float().nullable(),
+    trip_distance_m: model.number().nullable(),
+    trip_measured_at: model.dateTime().nullable(),
   })
   .indexes([
     { on: ["order_id"], unique: true },

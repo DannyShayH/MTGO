@@ -15,11 +15,16 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 import { requireAuthorizedDeliveryAgent } from "./agent-access"
 import { CLAIM_WINDOW_MS, isActiveOrderState } from "./assignment-rules"
 import { unassignedAttentionDueAt } from "./attention-rules"
+import { distanceKm } from "./distance"
 
 type DeliveryRecord = Awaited<
   ReturnType<DeliveryModuleService["listIntendedDeliveries"]>
 >[number]
-type ScanInput = { limit: number; offset: number; order_id?: string }
+type ScanInput = {
+  limit: number
+  offset: number
+  order_id?: string | string[]
+}
 
 /**
  * Unassigned work before its deadline on active accepted Orders, oldest
@@ -212,6 +217,8 @@ const listAvailableStep = createStep(
         preparation_status: state,
         accepted_at: new Date(record.accepted_at).toISOString(),
         claim_deadline: new Date(record.claim_deadline).toISOString(),
+        // Only the distance: the destination's coordinates stay here (#191).
+        trip_distance_km: distanceKm(record.trip_distance_m),
       })),
       has_more: page.length > input.limit,
       limit: input.limit,

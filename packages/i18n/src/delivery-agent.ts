@@ -90,6 +90,22 @@ export const DELIVERY_AGENT_TEXT = {
     pickupCheckingHint:
       "Vi ved endnu ikke, om afhentningen blev registreret. Vi tjekker igen, når forbindelsen er tilbage.",
     pickupNotConfirmed: "Afhentningen blev ikke registreret. Prøv igen.",
+    tripDistance: "Turen",
+    fromYou: "fra dig",
+    distanceUnavailable: "Afstand ikke tilgængelig",
+    shareLocation: "Del min position",
+    shareLocationHint:
+      "Viser, hvor langt du har til hver afhentning. Din position bruges kun til at beregne afstanden, gemmes ikke og sendes kun, mens siden er åben.",
+    locating: "Finder din position…",
+    locationDenied:
+      "Telefonen giver ikke siden lov til at bruge din position. Du kan tillade det i browserens indstillinger for siden.",
+    locationUnavailable:
+      "Din position kunne ikke findes lige nu. Afstande til afhentning vises ikke.",
+    sortBy: "Sortér",
+    sortOldest: "Ældste først",
+    sortNearest: "Nærmeste afhentning",
+    distanceAttribution:
+      "Afstande: © openrouteservice.org | OpenStreetMap contributors",
     accessEnded:
       "Din adgang som leveringspartner er afsluttet. Hvis du har en levering, er den stadig tildelt dig, og MTOGO er gjort opmærksom på den. Kontakt MTOGO.",
   },
@@ -184,6 +200,22 @@ export const DELIVERY_AGENT_TEXT = {
     pickupCheckingHint:
       "We do not know yet whether your pickup was recorded. We check again when the connection is back.",
     pickupNotConfirmed: "Your pickup was not recorded. Please try again.",
+    tripDistance: "Trip",
+    fromYou: "from you",
+    distanceUnavailable: "Distance unavailable",
+    shareLocation: "Share my location",
+    shareLocationHint:
+      "Shows how far each pickup is from you. Your position is used only to work out the distance, is never stored and is sent only while this page is open.",
+    locating: "Finding your location…",
+    locationDenied:
+      "Your phone is not letting this page use your location. You can allow it in the browser's settings for this site.",
+    locationUnavailable:
+      "Your location could not be found right now. Distances to pickups are not shown.",
+    sortBy: "Sort",
+    sortOldest: "Oldest first",
+    sortNearest: "Nearest pickup",
+    distanceAttribution:
+      "Distances: © openrouteservice.org | OpenStreetMap contributors",
     accessEnded:
       "Your delivery agent access has ended. If you hold a delivery, it stays assigned to you and MTOGO has been alerted. Contact MTOGO.",
   },

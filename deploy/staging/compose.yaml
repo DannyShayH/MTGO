@@ -39,6 +39,8 @@ x-backend-environment: &backend-environment
   # Customer verification emails. Without a key the backend only logs them.
   RESEND_API_KEY: ${RESEND_API_KEY:-}
   RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
+  # Delivery distances (openrouteservice). Without a key they show as unavailable.
+  ORS_API_KEY: ${ORS_API_KEY:-}
   STOREFRONT_PUBLIC_URL: ${STAGING_STOREFRONT_URL:?}
   PARTNER_PUBLIC_URL: ${STAGING_PARTNER_URL:?}
   MEDUSA_TELEMETRY_DISABLED: "1"

@@ -679,6 +679,37 @@ class DeliveryModuleService extends MedusaService({
     return { outcome, delivery: updated }
   }
 
+  /**
+   * Records the one trip measurement (#191). The selector requires it to be
+   * unmeasured, so a retry or a concurrent attempt never changes it.
+   */
+  @InjectManager()
+  async recordTrip(
+    input: {
+      order_id: string
+      pickup: { latitude: number; longitude: number } | null
+      destination: { latitude: number; longitude: number } | null
+      trip_distance_m: number | null
+      measured_at: Date
+    },
+    @MedusaContext() context: Context = {},
+  ) {
+    await this.updateIntendedDeliveries(
+      {
+        selector: { order_id: input.order_id, trip_measured_at: null },
+        data: {
+          pickup_latitude: input.pickup?.latitude ?? null,
+          pickup_longitude: input.pickup?.longitude ?? null,
+          destination_latitude: input.destination?.latitude ?? null,
+          destination_longitude: input.destination?.longitude ?? null,
+          trip_distance_m: input.trip_distance_m,
+          trip_measured_at: input.measured_at,
+        },
+      },
+      context,
+    )
+  }
+
   /** Records the native fulfillment once; a later write never replaces it. */
   @InjectManager()
   async recordNativePickup(

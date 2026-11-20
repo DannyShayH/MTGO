@@ -70,6 +70,17 @@ export const PostConfirmPickupSchema = z.strictObject({
 })
 export type PostConfirmPickupBody = z.infer<typeof PostConfirmPickupSchema>
 
+/**
+ * The agent's own position, only to measure distances to pickups in view
+ * (#191). Never stored or logged; no accuracy, time or heading is accepted.
+ */
+export const PostPickupDistancesSchema = z.strictObject({
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+  order_ids: z.array(z.string().min(1).max(64)).min(1).max(25),
+})
+export type PostPickupDistancesBody = z.infer<typeof PostPickupDistancesSchema>
+
 export type GetAvailableDeliveriesQuery = z.infer<
   typeof GetAvailableDeliveriesSchema
 >

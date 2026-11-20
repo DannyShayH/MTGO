@@ -3,6 +3,8 @@ import { formatText, type Locale } from "@dtc/i18n"
 import type { AvailableDelivery } from "@lib/data/delivery-agent"
 import { ClaimDelivery } from "./claim-delivery"
 import { CARD, type DeliveryCopy } from "./copy"
+import { TripLeg } from "./distance-facts"
+import { PickupDistance } from "./location-sharing"
 import { PreparationBadge } from "./preparation-badge"
 import { RouteStops } from "./route-stops"
 
@@ -58,6 +60,20 @@ export function AvailableCard({
       <RouteStops
         pickupLabel={copy.pickupAt}
         pickup={delivery.pickup_address}
+        pickupAside={
+          <PickupDistance
+            orderId={delivery.order_id}
+            copy={copy}
+            locale={locale}
+          />
+        }
+        leg={
+          <TripLeg
+            tripDistanceKm={delivery.trip_distance_km}
+            copy={copy}
+            locale={locale}
+          />
+        }
         dropoffLabel={copy.destination}
         dropoff={
           <>

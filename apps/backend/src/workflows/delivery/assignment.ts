@@ -29,6 +29,7 @@ import {
   requireAuthorizedDeliveryAgent,
 } from "./agent-access"
 import { deliveryAgentLockKey } from "./locks"
+import { distanceKm } from "./distance"
 
 type AssignInput = {
   order_id: string
@@ -126,6 +127,8 @@ export type CurrentDelivery = {
   assignment_source: AssignmentSource | null
   /** The recorded pickup milestone (#160), or null before collection. */
   picked_up_at: string | null
+  /** The route distance from pickup to the Customer (#191), or null. */
+  trip_distance_km: number | null
   /** What the agent may do now: confirm pickup once the food is ready. */
   allowed_actions: DeliveryAction[]
   customer: {
@@ -205,6 +208,7 @@ export const readCurrentDeliveryStep = createStep(
         picked_up_at: record.picked_up_at
           ? new Date(record.picked_up_at).toISOString()
           : null,
+        trip_distance_km: distanceKm(record.trip_distance_m),
         allowed_actions:
           operation.state === "ready" && !record.picked_up_at
             ? ["confirm_pickup"]

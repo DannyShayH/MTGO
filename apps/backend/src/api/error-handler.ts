@@ -173,6 +173,25 @@ function photoRefusalBody(
 }
 
 /**
+ * The agent's position must never be echoed or logged (#191). Medusa's
+ * validation message repeats the rejected value and its handler logs it, so
+ * every refusal before the route answers with one code and no log.
+ */
+function pickupDistancesRefusalBody(
+  url: string,
+  statusCode: number,
+  body: { type?: string },
+) {
+  if (
+    (statusCode !== 400 && statusCode !== 413) ||
+    !/^\/partner\/delivery-agent\/pickup-distances\/?$/.test(url.split("?")[0])
+  )
+    return undefined
+  const code = statusCode === 413 ? "position_too_large" : "position_invalid"
+  return { type: body.type, code, message: code }
+}
+
+/**
  * Preserve Medusa responses and additional refusal fields. The correlated
  * sign-in path handles failures safely and logs once when the response ends.
  */
@@ -233,6 +252,7 @@ export function mtogoErrorHandler(): MedusaErrorHandlerFunction {
       : undefined
     if (stableErrorCode) body.code = stableErrorCode
     const categoryBody =
+      pickupDistancesRefusalBody(req.originalUrl, statusCode, body) ??
       photoRefusalBody(error, req.originalUrl, statusCode, body) ??
       arrangementRefusalBody(
         error,

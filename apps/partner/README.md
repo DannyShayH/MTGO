@@ -20,8 +20,8 @@ slices.
 `/delivery` is one column at every width: **Your current delivery** first,
 then **Available deliveries**, with the language switch at the bottom. Cards
 share one surface (`CARD` in `src/modules/delivery/copy.ts`) and show the
-journey as two stops (`RouteStops`): a hollow dot for the pickup, a filled
-one for the Customer. The preparation state is a labelled pill
+journey as two stops (`RouteStops`): a storefront in an outlined teal circle for
+the pickup, a pin in a filled one for the Customer. The preparation state is a labelled pill
 (`PreparationBadge`), so its text, not its colour, carries it.
 
 The current delivery has a teal outline and a "You are responsible" band. It
@@ -88,6 +88,35 @@ current delivery with the same backoff and return events as claiming
 (`useStatusChecks`). After pickup the card shows **Collected at HH:MM** and
 the next step, taking the food to the Customer. No location permission,
 photo or GPS is involved.
+
+### Distances (#191)
+
+Every available card, the detail page and the current delivery show the
+trip as a pill with the Directions icon on the line between the two stops:
+**≈ 3.2 km** (Danish "Turen ≈ 3,2 km"), the
+cycling route from the pickup to the Customer measured once by the backend
+at acceptance, or **Distance unavailable** without a key, after a provider
+failure or for older work. A missing distance never hides or disables a claim
+or pickup. The footer then credits "© openrouteservice.org | OpenStreetMap
+contributors".
+
+**Share my location**, its own card at the top of the workspace, is off every time the page
+loads and explains what it is for. Only switching it on makes the browser ask
+for permission. While it is on and the page is visible, `LocationSharing`
+(`modules/delivery/location-sharing.tsx`) watches the position and sends it
+through the `measurePickupDistances` server action to
+`POST /partner/delivery-agent/pickup-distances` with the IDs on screen: the
+available cards and the current delivery until pickup. It sends the first
+position, then again after 200 m or a minute (`shouldSendPosition` in
+`modules/delivery/pickup-distance.ts`). Each card then shows a teal **≈ 0.8 km from you** pill with a target icon
+beside the pickup label, and **Sort** offers **Oldest first** (the default) or **Nearest
+pickup**, which reorders the cards on this page only and puts unmeasured
+work last. Turning it off, hiding the page or leaving it (signing out) clears
+the watch and drops answers still on their way; turning it off also restores
+oldest first. A refused permission says how to allow it in the browser's
+settings and turns the switch off; an unavailable position says that pickup
+distances are not shown. The position is never stored in the browser, a
+cookie or a URL, and claiming works the same with sharing on or off.
 
 ## What it does
 

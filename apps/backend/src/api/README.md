@@ -95,6 +95,54 @@ the processing time `raised_at`, `claim_deadline` and `assignment` (`null`, or
 source }`). It omits Customer details and
 only reads: attention never cancels, releases or assigns work.
 
+## Distances (#191)
+
+The available list, the detail route and the current delivery include
+`trip_distance_km`: the cycling route from pickup to the Customer, measured
+once at acceptance, to one decimal, or `null` when unavailable. No projection
+contains coordinates.
+
+### POST /partner/delivery-agent/pickup-distances
+
+Returns route distances from the agent's position to the pickups of the
+listed deliveries that are in the agent's view: their current delivery and
+work available to them now. Other IDs are left out without saying why. The
+position is used for one openrouteservice call and is never stored, logged or
+linked to the agent record. The body is limited to 2 KB.
+
+**Actor:** authorized Delivery agent (`delivery_agent` bearer)
+
+| Field       | Type     | Required | Rules                                   |
+| ----------- | -------- | -------- | --------------------------------------- |
+| `latitude`  | number   | yes      | −90 to 90                               |
+| `longitude` | number   | yes      | −180 to 180                             |
+| `order_ids` | string[] | yes      | 1 to 25 Order IDs of 1 to 64 characters |
+
+No other field is accepted.
+
+```json
+{
+  "latitude": 55.6812,
+  "longitude": 12.5712,
+  "order_ids": ["order_01JQ8ZK3W7", "order_01JQ8ZM5R2"]
+}
+```
+
+**Success:** `200` with
+`{ "distances": [{ "order_id": "order_01JQ8ZK3W7", "distance_km": 0.8 }] }`,
+in the order asked. `distance_km` is `null` without a provider key, on a
+provider error, timeout or over-quota answer, and for work without pickup
+coordinates.
+
+| Status | When                                                                             |
+| ------ | -------------------------------------------------------------------------------- |
+| `400`  | `position_invalid`: a field is missing, out of range, of the wrong type or extra |
+| `401`  | No `delivery_agent` bearer                                                       |
+| `403`  | `delivery_agent_access_revoked`                                                  |
+| `413`  | `position_too_large`: the body is over 2 KB                                      |
+
+Refusals never repeat the submitted values.
+
 ## Available deliveries (#156)
 
 `GET /partner/delivery-agent/available?limit=20&offset=0&postal_codes=2200`

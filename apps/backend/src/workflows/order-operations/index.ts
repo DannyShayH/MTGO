@@ -12,6 +12,7 @@ import {
 } from "./steps/read-restaurant-orders"
 import { transitionRestaurantOrderStep } from "./steps/transition-restaurant-order"
 import { establishIntendedDeliveryStep } from "../delivery/available"
+import { measureTripStep } from "../delivery/trip"
 import { recordLegacyPlacementsStep } from "./steps/record-legacy-placements"
 import { findUnmarkedPlacementsStep } from "./steps/find-unmarked-placements"
 import { markPaidPlacementsStep } from "./steps/mark-paid-placements"
@@ -124,10 +125,13 @@ export const acceptPartnerOrderWorkflow = createWorkflow(
       action: "accept" as const,
     }))
     transitionRestaurantOrderStep(command)
-    establishIntendedDeliveryStep(
-      transform({ input }, ({ input }) => ({ order_id: input.order_id })),
-    )
+    const delivery = transform({ input }, ({ input }) => ({
+      order_id: input.order_id,
+    }))
+    establishIntendedDeliveryStep(delivery)
     releaseLockStep(lock)
+    // Outside the lock: the provider never holds acceptance up (#191).
+    measureTripStep(delivery)
     const scope = transform({ command }, ({ command }) => ({
       restaurant_id: command.restaurant_id,
       order_id: command.order_id,

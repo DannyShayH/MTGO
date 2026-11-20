@@ -78,6 +78,11 @@ export default async function DeliveryDetail({
           ) : current ? (
             <p className="text-mtogo-text-secondary text-sm">{copy.busy}</p>
           ) : null}
+          {result.delivery.trip_distance_km !== null && (
+            <p className="text-mtogo-text-secondary mt-4 text-center text-xs">
+              {copy.distanceAttribution}
+            </p>
+          )}
         </>
       )}
     </main>

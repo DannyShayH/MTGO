@@ -40,6 +40,7 @@ import {
   GetAvailableDeliveriesSchema,
   PostClaimDeliverySchema,
   PostConfirmPickupSchema,
+  PostPickupDistancesSchema,
   PostPartnerOrderActionSchema,
   PostPartnerRejectOrderSchema,
 } from "./partner/validators"
@@ -494,6 +495,17 @@ export default defineMiddlewares({
       matcher: "/partner/delivery-agent/available/:id/claim",
       method: "POST",
       middlewares: [validateAndTransformBody(PostClaimDeliverySchema)],
+    },
+    {
+      // The agent's position, for distances to pickups only (#191): a small
+      // body, never stored or logged.
+      matcher: "/partner/delivery-agent/pickup-distances",
+      method: "POST",
+      bodyParser: { sizeLimit: "2kb" },
+      middlewares: [
+        authenticate(DELIVERY_AGENT_ACTOR, "bearer"),
+        validateAndTransformBody(PostPickupDistancesSchema),
+      ],
     },
     {
       matcher: "/partner/deliveries/:id/pickup",

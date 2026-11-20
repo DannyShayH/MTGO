@@ -43,6 +43,8 @@ export type AvailableDelivery = {
   preparation_status: "accepted" | "preparing" | "ready"
   accepted_at: string
   claim_deadline: string
+  /** The route distance from pickup to the Customer (#191), or null. */
+  trip_distance_km: number | null
 }
 
 /** The responsible agent's current delivery, with the Customer's contact. */
@@ -58,6 +60,8 @@ export type CurrentDelivery = {
   assignment_source: "agent_claim" | "operator_assignment" | null
   /** The recorded pickup (#160), or null before collection. */
   picked_up_at: string | null
+  /** The route distance from pickup to the Customer (#191), or null. */
+  trip_distance_km: number | null
   /** What the agent may do now; pickup only once the food is ready. */
   allowed_actions: "confirm_pickup"[]
   customer: {
@@ -243,6 +247,84 @@ export async function checkDeliveryClaim(
     // `redirect` signals by throwing; let a signed-out session leave.
     unstable_rethrow(error)
     return "uncertain"
+  }
+}
+
+export type PickupDistances =
+  | { status: "measured"; distances: Record<string, number | null> }
+  /** No answer: distances are simply not shown. */
+  | { status: "unavailable" }
+
+const ORDER_ID = /^[A-Za-z0-9_-]{1,64}$/
+
+/**
+ * Distances from the agent's position to the listed pickups (#191), only
+ * while the agent shares their location. The position goes straight to the
+ * backend in the request body and is never stored, logged or put in a URL
+ * here. The backend answers only for deliveries in the agent's own view.
+ */
+export async function measurePickupDistances(
+  position: { latitude: number; longitude: number },
+  orderIds: string[],
+): Promise<PickupDistances> {
+  const { latitude, longitude } = position ?? {}
+  // A server action is a public endpoint: check what the browser sent.
+  if (
+    typeof latitude !== "number" ||
+    typeof longitude !== "number" ||
+    !Array.isArray(orderIds) ||
+    !orderIds.length ||
+    orderIds.length > 25 ||
+    !orderIds.every((id) => typeof id === "string" && ORDER_ID.test(id))
+  )
+    return { status: "unavailable" }
+  const token = (await cookies()).get(PARTNER_TOKEN_COOKIE)?.value
+  if (!token) redirect("/delivery-sign-in")
+  const correlationId = requestId((await headers()).get("x-request-id"))
+  const route = "/partner/delivery-agent/pickup-distances"
+  let response: Response
+  try {
+    response = await fetch(new URL(route, BACKEND_URL), {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json",
+        "x-request-id": correlationId,
+      },
+      body: JSON.stringify({ latitude, longitude, order_ids: orderIds }),
+    })
+  } catch {
+    log("upstream.request.failed", {
+      request_id: correlationId,
+      route,
+      method: "POST",
+    })
+    return { status: "unavailable" }
+  }
+  if (response.status === 403) redirect(AGENT_ACCESS_ENDED_PATH)
+  if (response.status === 401) redirect("/delivery-sign-in")
+  if (!response.ok) {
+    log("upstream.request.failed", {
+      request_id: correlationId,
+      route,
+      method: "POST",
+      status: response.status,
+    })
+    return { status: "unavailable" }
+  }
+  const body = (await response.json().catch(() => null)) as {
+    distances?: { order_id: string; distance_km: number | null }[]
+  } | null
+  if (!Array.isArray(body?.distances)) return { status: "unavailable" }
+  return {
+    status: "measured",
+    distances: Object.fromEntries(
+      body.distances.map(({ order_id, distance_km }) => [
+        order_id,
+        distance_km,
+      ]),
+    ),
   }
 }
 

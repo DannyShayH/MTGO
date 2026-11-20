@@ -47,6 +47,9 @@ postal-code register; an empty list grants no operating area.
 - `GET /partner/delivery-agent/me` requires an authorized agent bearer and
   returns the current approved codes as `postal_codes` and, with their
   register town names, `areas: [{ postal_code, name }]` (#157).
+- `POST /partner/delivery-agent/pickup-distances` accepts the agent's
+  position and the listed Order IDs and returns route distances to their
+  pickups (#191; see Distances below).
 
 The partner website keeps the bearer in its httpOnly cookie. Its saved area
 filter is intersected with current permissions and cannot grant access. Progress after
@@ -172,6 +175,44 @@ sweeps, claims and operator assignments before and after raising, a sweep
 racing an assignment, ended Orders, paging, operator-only access and the
 backfill. `src/workflows/delivery/__tests__/attention-rules.unit.spec.ts`
 covers the decision table.
+
+## Distances (#191)
+
+Acceptance measures the trip once, after the Order's lock is released
+(`measureTripStep` in `src/workflows/delivery/trip.ts`): it geocodes the
+Restaurant's address and the Order's shipping address through the routing
+module and asks for the cycling route between them. `recordTrip` stores
+`pickup_latitude`, `pickup_longitude`, `destination_latitude`,
+`destination_longitude`, `trip_distance_m` (rounded to 100 m) and
+`trip_measured_at` in one update whose selector requires
+`trip_measured_at IS NULL`. So a retried acceptance never calls the provider
+again or changes the trip, and a failed attempt stays without a distance.
+Without `ORS_API_KEY` nothing is called or recorded. Legacy work and the
+`db:migrate` backfill are not measured. The step never fails acceptance.
+
+The available list, the detail route and the current delivery add
+`trip_distance_km` (one decimal, or `null`). No projection contains
+coordinates; destination coordinates never leave the backend.
+
+`POST /partner/delivery-agent/pickup-distances` takes
+`{ latitude, longitude, order_ids }` (−90 to 90, −180 to 180, 1 to 25 IDs of
+at most 64 characters, no other fields, a 2 KB body) from an authorized agent
+and returns `{ distances: [{ order_id, distance_km }] }` for the requested
+deliveries in the agent's view only: their current delivery and work that is
+available to them now (unassigned, before the deadline, active, both postal
+codes approved). Others are left out without saying why. One matrix call
+measures them all; `distance_km` is `null` on a provider failure or for work
+without pickup coordinates. `listPickupPointsWorkflow` authorizes and finds the
+pickups without seeing the position; the route uses the position for the one
+provider call and drops it, so it is never stored, logged, part of a workflow's
+input or linked to the agent record. Refusals answer `position_invalid` (400)
+or `position_too_large` (413) without echoing or logging the body. A revoked
+agent is refused with `delivery_agent_access_revoked` (403).
+
+`integration-tests/http/delivery-distance.spec.ts` covers the stored trip, a
+retried acceptance, provider errors and over-quota answers, legacy work, the
+distance endpoint's view restriction, actors, validation and size limit, and
+that no coordinate appears in a log, a record or a refusal.
 
 ## Pickup (#160)
 
