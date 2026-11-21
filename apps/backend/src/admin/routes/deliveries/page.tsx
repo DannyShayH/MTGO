@@ -39,6 +39,7 @@ type Attention = {
     | "access_revoked"
     | "assigned_without_pickup"
     | "in_transit_without_delivery"
+    | "arrived_without_handover"
   order_id: string
   order_reference: number
   restaurant_name: string
@@ -47,6 +48,8 @@ type Attention = {
   preparation_status: Unclaimed["preparation_status"]
   accepted_at: string
   picked_up_at: string | null
+  arrived_at: string | null
+  contact_attempts: { count: number; last_attempted_at: string | null }
   due_at: string
   raised_at: string
   claim_deadline: string
@@ -88,12 +91,27 @@ const ATTENTION: Record<Attention["type"], { label: string; detail: string }> =
       detail:
         "The agent has not confirmed handover thirty minutes after pickup. The delivery stays assigned to them and is not marked delivered.",
     },
+    arrived_without_handover: {
+      label: "Customer unreachable 10 min after arrival",
+      detail:
+        "The agent recorded arriving at the Customer, but no handover followed within ten minutes. Escalate: contact the agent and the Customer. The delivery stays assigned to the agent and is not marked delivered.",
+    },
   }
+
+/** The agent's recorded attempts to reach the Customer (#164). */
+const describeAttempts = ({ contact_attempts }: Attention) => {
+  const { count, last_attempted_at } = contact_attempts
+  if (!count || !last_attempted_at) return "no contact attempts recorded"
+  const noun = count === 1 ? "attempt" : "attempts"
+  return `${count} contact ${noun}, last ${time(last_attempted_at)}`
+}
 
 /** When each condition began and when it became due, as one line. */
 const describeTiming = (item: Attention) => {
   if (item.type === "access_revoked")
     return `Accepted ${time(item.accepted_at)} · access revoked ${time(item.raised_at)}`
+  if (item.type === "arrived_without_handover" && item.arrived_at)
+    return `Arrived ${time(item.arrived_at)} · due ${time(item.due_at)} · ${describeAttempts(item)}`
   if (item.type === "in_transit_without_delivery" && item.picked_up_at)
     return `Picked up ${time(item.picked_up_at)} · due ${time(item.due_at)}`
   return `Accepted ${time(item.accepted_at)} · due ${time(item.due_at)}`

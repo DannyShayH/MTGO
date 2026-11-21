@@ -33,12 +33,17 @@ delivery and Order IDs, reference, Restaurant, pickup address, preparation
 state, acceptance and assignment times, `assignment_source`
 (`agent_claim` or `operator_assignment`) and `customer` (name, phone,
 `address_1`, `address_2`, postal code, city) from the Order's purchased
-shipping address, plus `picked_up_at` (null before pickup), `attention`
+shipping address, plus `picked_up_at` (null before pickup), `arrived_at`
+(null before the explicit arrival, #164), `contact_attempts`
+(`[{ attempted_at }]`, oldest first, #164), `attention`
 (`null`, or `{ type, due_at }` while operator attention for unconfirmed pickup,
-`assigned_without_pickup`, or unconfirmed handover, `in_transit_without_delivery`,
-is raised and outstanding, #163; it changes nothing the agent may do) and
-`allowed_actions`: `["confirm_pickup"]` while the food is ready and not yet
-collected, `["confirm_handover"]` once collected (#161), otherwise `[]`. After
+`assigned_without_pickup`, unconfirmed handover, `in_transit_without_delivery`
+(#163), or no handover ten minutes after arrival, `arrived_without_handover`
+(#164, shown first), is raised and outstanding; it changes nothing the agent
+may do) and `allowed_actions`: `["confirm_pickup"]` while the food is ready and
+not yet collected, `["record_arrival", "confirm_handover"]` once collected
+(#161), `["record_contact_attempt", "confirm_handover"]` once arrived (#164),
+otherwise `[]`. After
 handover, cancellation or failure the delivery is no longer current and
 `delivery` is `null`. Checkout records no separate delivery
 instructions, so none are returned. Responsibility, not the current areas, grants this read;
@@ -84,6 +89,65 @@ item through Medusa's `createOrderFulfillmentWorkflow` and
 option is configured with. The Order's `fulfillment_status` becomes `shipped`,
 not `delivered`. A failure there never fails the request: the delivery module
 keeps the obligation and the `recover-delivery-fulfillments` job finishes it.
+
+## Arrival and contact attempts (#164)
+
+### POST /partner/deliveries/{order_id}/arrive
+
+Records that the responsible agent reached the destination. The time and
+agent come from the server; no coordinate is accepted, and no location ever
+records arrival. Allowed only for the agent responsible for an active delivery
+with a recorded pickup. A repeat, with the same or a new `request_id`, returns
+the original `arrived_at`. Arrival starts the unreachable-Customer clock: the
+same commit stores `arrived_without_handover` attention due at arrival plus
+ten minutes. It is never handover, and handover never requires it.
+
+**Actor:** authorized Delivery agent (`delivery_agent` bearer)
+
+| Field        | Type   | Required | Rules                                                                                  |
+| ------------ | ------ | -------- | -------------------------------------------------------------------------------------- |
+| `request_id` | string | yes      | 1-100 characters `A-Z a-z 0-9 . _ : -`; one per intended arrival, kept for its retries |
+
+**Success:** `200` with the current-delivery projection
+`{ "delivery": { ..., "arrived_at": "...", "allowed_actions": ["record_contact_attempt", "confirm_handover"] }, "server_time": "..." }`
+
+| Status | When                                                                              |
+| ------ | --------------------------------------------------------------------------------- |
+| `400`  | `pickup_not_recorded`; `delivery_not_responsible` (another agent's or unassigned) |
+| `400`  | `delivery_not_active` (cancelled, failed or ended work, even on a repeat)         |
+| `400`  | Invalid body or unknown fields (a time, coordinate or agent)                      |
+| `401`  | No `delivery_agent` bearer                                                        |
+| `403`  | `delivery_agent_access_revoked`                                                   |
+| `404`  | `delivery_not_found` (no accepted delivery for the Order)                         |
+| `409`  | `arrival_request_reused` (`request_id` first used for another delivery or agent)  |
+| `409`  | `delivery_changed` (the delivery changed between the guarded read and the write)  |
+
+### POST /partner/deliveries/{order_id}/contact-attempts
+
+Records one attempt by the responsible agent to reach the Customer after
+arrival, with the server's time. An attempt has no outcome: it never says the
+Customer was reached, and opening the phone's dialer records nothing. Each new
+`request_id` is a new attempt; repeating one returns the view without adding
+another. At most 20 attempts are kept per delivery.
+
+**Actor:** authorized Delivery agent (`delivery_agent` bearer)
+
+| Field        | Type   | Required | Rules                                                                         |
+| ------------ | ------ | -------- | ----------------------------------------------------------------------------- |
+| `request_id` | string | yes      | 1-100 characters `A-Z a-z 0-9 . _ : -`; one per attempt, kept for its retries |
+
+**Success:** `200` with the current-delivery projection, its
+`contact_attempts` including this one.
+
+| Status | When                                                                                     |
+| ------ | ---------------------------------------------------------------------------------------- |
+| `400`  | `arrival_not_recorded`; `delivery_not_responsible`; `contact_attempt_limit_reached`      |
+| `400`  | `delivery_not_active` (cancelled, failed or ended work, even on a repeat)                |
+| `400`  | Invalid body or unknown fields (a time or an outcome)                                    |
+| `401`  | No `delivery_agent` bearer                                                               |
+| `403`  | `delivery_agent_access_revoked`                                                          |
+| `404`  | `delivery_not_found` (no accepted delivery for the Order)                                |
+| `409`  | `contact_attempt_request_reused` (`request_id` first used for another delivery or agent) |
 
 ## Handover and completed history (#161)
 
@@ -149,15 +213,18 @@ source } }` with the claim's refusal codes; a revoked or pending agent is
 release, replacement or reassignment route.
 
 `GET /admin/deliveries/attention?limit=20&offset=0` (limit 1-50, offset
-at most 500, #158, #163)
+at most 500, #158, #163, #164)
 returns `{ attention, has_more, limit, offset, server_time }`: raised,
 unresolved operator attention on active Orders, oldest `due_at` first. Each
 item has `id`, `type` (`unassigned`, `access_revoked`,
 `assigned_without_pickup` at acceptance plus thirty minutes without pickup, or
-`in_transit_without_delivery` at pickup plus thirty minutes without delivery),
+`in_transit_without_delivery` at pickup plus thirty minutes without delivery,
+or `arrived_without_handover` at the explicit arrival plus ten minutes without
+handover: an unreachable Customer that requires operator escalation),
 `order_id`, `order_reference`, `restaurant_name`, `pickup_postal_code`,
 `destination_postal_code`, `preparation_status`, the real `accepted_at`,
-`picked_up_at` (or `null`), the effective deadline `due_at`,
+`picked_up_at` and `arrived_at` (or `null`), `contact_attempts`
+(`{ count, last_attempted_at }`), the effective deadline `due_at`,
 the processing time `raised_at`, `claim_deadline` and `assignment` (`null`, or
 `{ agent: { id, name, agent_access: "authorized" | "revoked" }, assigned_at,
 source }`). It omits Customer details and

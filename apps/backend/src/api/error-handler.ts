@@ -32,6 +32,12 @@ import {
   HANDOVER_CONFLICTS,
   HANDOVER_REFUSALS,
 } from "../workflows/delivery/terminal-rules"
+import {
+  ARRIVAL_CONFLICTS,
+  ARRIVAL_REFUSALS,
+  CONTACT_ATTEMPT_CONFLICTS,
+  CONTACT_ATTEMPT_REFUSALS,
+} from "../workflows/delivery/arrival-rules"
 
 const CATEGORY_ROUTE =
   /^\/partner\/restaurants\/[^/]+\/categories(?:\/[^/]+)?\/?$/
@@ -226,6 +232,10 @@ export function mtogoErrorHandler(): MedusaErrorHandlerFunction {
     ...PICKUP_CONFLICTS,
     ...HANDOVER_REFUSALS,
     ...HANDOVER_CONFLICTS,
+    ...ARRIVAL_REFUSALS,
+    ...ARRIVAL_CONFLICTS,
+    ...CONTACT_ATTEMPT_REFUSALS,
+    ...CONTACT_ATTEMPT_CONFLICTS,
   ])
   return (error, req, res, next) => {
     if (error.message === "customer_identity_exists") {

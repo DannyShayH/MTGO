@@ -263,6 +263,66 @@ describe("Delivery attention decision", () => {
       reason:
         "Decision table: a recorded handover makes revoked access obsolete",
     },
+    // Unreachable Customer (#164): arrival at 12:50 makes attention due at
+    // 13:00 (story 38). Contact attempts and elapsed time never end it.
+    {
+      now: "2026-11-19T12:59:59.999Z",
+      given: {
+        type: "arrived_without_handover" as const,
+        due_at: "2026-11-19T13:00:00.000Z",
+        assigned_agent_id: "dagt_1",
+        picked_up_at: pickedUp,
+      },
+      expected: { action: "wait" },
+      reason: "BVA: 1 ms before arrival plus ten minutes",
+    },
+    {
+      now: "2026-11-19T13:00:00.000Z",
+      given: {
+        type: "arrived_without_handover" as const,
+        due_at: "2026-11-19T13:00:00.000Z",
+        assigned_agent_id: "dagt_1",
+        picked_up_at: pickedUp,
+      },
+      expected: { action: "raise" },
+      reason: "BVA: exactly at arrival plus ten minutes",
+    },
+    {
+      now: "2026-11-19T13:00:00.001Z",
+      given: {
+        type: "arrived_without_handover" as const,
+        due_at: "2026-11-19T13:00:00.000Z",
+        assigned_agent_id: "dagt_1",
+        picked_up_at: pickedUp,
+      },
+      expected: { action: "raise" },
+      reason: "BVA: 1 ms after arrival plus ten minutes",
+    },
+    {
+      now: "2026-11-19T15:00:00.000Z",
+      given: {
+        type: "arrived_without_handover" as const,
+        due_at: "2026-11-19T13:00:00.000Z",
+        assigned_agent_id: "dagt_1",
+        picked_up_at: pickedUp,
+        raised_at: raised,
+      },
+      expected: { action: "keep" },
+      reason: "Decision table: time alone never ends an unreachable Customer",
+    },
+    {
+      now: "2026-11-19T13:05:00.000Z",
+      given: {
+        type: "arrived_without_handover" as const,
+        due_at: "2026-11-19T13:00:00.000Z",
+        assigned_agent_id: "dagt_1",
+        picked_up_at: pickedUp,
+        terminal_outcome: "delivered" as const,
+        raised_at: raised,
+      },
+      expected: { action: "resolve", resolution: "delivered" },
+      reason: "Decision table: the actual handover ends it",
+    },
   ])("$reason → $expected.action", ({ now, given, expected }) => {
     expect(decideAttention(facts(given), new Date(now))).toEqual(expected)
   })

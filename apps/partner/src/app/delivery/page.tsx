@@ -175,8 +175,9 @@ export default async function DeliveryPage({
           className="flex flex-col gap-3"
           aria-labelledby="available-title"
         >
-          <div className="flex items-center justify-between gap-3">
-            <h2 id="available-title" className={SECTION_TITLE}>
+          {/* Refresh wraps below the title at high zoom instead of leaving the screen. */}
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+            <h2 id="available-title" className={`${SECTION_TITLE} min-w-0`}>
               {copy.available}
               {deliveries && deliveries.deliveries.length > 0 && (
                 <span className="text-mtogo-text-secondary ml-2 text-base font-normal tabular-nums">

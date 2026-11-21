@@ -28,7 +28,6 @@ import {
 import {
   STALLED_ATTENTION_TYPES,
   stalledAttentionDueAt,
-  type StalledAttentionType,
 } from "./attention-rules"
 import { scanAvailablePage } from "./available"
 import {
@@ -144,7 +143,18 @@ type CustomerAddress = {
   phone?: string | null
 }
 
-export type DeliveryAction = "confirm_pickup" | "confirm_handover"
+export type DeliveryAction =
+  | "confirm_pickup"
+  | "record_arrival"
+  | "record_contact_attempt"
+  | "confirm_handover"
+
+/** Raised attention the agent's phone shows (#163, #164). */
+const AGENT_ATTENTION_TYPES = [
+  ...STALLED_ATTENTION_TYPES,
+  "arrived_without_handover",
+] as const
+export type AgentAttentionType = (typeof AGENT_ATTENTION_TYPES)[number]
 
 export type CurrentDelivery = {
   id: string
@@ -158,18 +168,24 @@ export type CurrentDelivery = {
   assignment_source: AssignmentSource | null
   /** The recorded pickup milestone (#160), or null before collection. */
   picked_up_at: string | null
+  /** The explicitly recorded arrival (#164), or null. */
+  arrived_at: string | null
+  /** The agent's recorded attempts to reach the Customer, oldest first (#164). */
+  contact_attempts: { attempted_at: string }[]
   /** The route distance from pickup to the Customer (#191), or null. */
   trip_distance_km: number | null
   /**
-   * Raised, outstanding stalled-work attention on this delivery (#163): the
-   * operator was told collection or handover is still unconfirmed thirty
-   * minutes on, an attention threshold rather than a promise. It changes nothing
-   * the agent may do.
+   * Raised, outstanding attention on this delivery: collection or handover
+   * still unconfirmed thirty minutes on (#163), or no handover ten minutes
+   * after arrival (#164), shown first. The operator was told; these are
+   * attention thresholds rather than promises, and change nothing the agent
+   * may do.
    */
-  attention: { type: StalledAttentionType; due_at: string } | null
+  attention: { type: AgentAttentionType; due_at: string } | null
   /**
-   * What the agent may do now: confirm pickup once the food is ready, then
-   * confirm handover once pickup is recorded (#161).
+   * What the agent may do now: confirm pickup once the food is ready; once
+   * pickup is recorded, record arrival and then contact attempts (#164), and
+   * confirm handover (#161), which never requires arrival.
    */
   allowed_actions: DeliveryAction[]
   customer: {
@@ -182,15 +198,23 @@ export type CurrentDelivery = {
   }
 }
 /**
- * The next step of active work: pickup once the food is ready, then
- * handover once pickup is recorded (#161). An ended Order allows nothing.
+ * The next steps of active work: pickup once the food is ready; after it,
+ * arrival then contact attempts, beside handover (#161, #164). An ended
+ * Order allows nothing.
  */
 function allowedActions(
   state: string,
-  picked_up_at: Date | string | null,
+  record: {
+    picked_up_at: Date | string | null
+    arrived_at: Date | string | null
+  },
 ): DeliveryAction[] {
   if (!isActiveOrderState(state)) return []
-  if (picked_up_at) return ["confirm_handover"]
+  if (record.picked_up_at)
+    return [
+      record.arrived_at ? "record_contact_attempt" : "record_arrival",
+      "confirm_handover",
+    ]
   return state === "ready" ? ["confirm_pickup"] : []
 }
 
@@ -243,14 +267,26 @@ export const readCurrentDeliveryStep = createStep(
         ],
         filters: { id: record.order_id },
       })
-    const [stalled] = await delivery.listDeliveryAttentions(
+    const raised = await delivery.listDeliveryAttentions(
       {
         order_id: record.order_id,
-        type: [...STALLED_ATTENTION_TYPES],
+        type: [...AGENT_ATTENTION_TYPES],
         raised_at: { $ne: null },
         resolved_at: null,
       },
-      { take: 1, select: ["type", "due_at"], order: { due_at: "DESC" } },
+      { take: null, select: ["type", "due_at"], order: { due_at: "DESC" } },
+    )
+    // An unreachable Customer is the most specific; otherwise the latest.
+    const shown =
+      raised.find(({ type }) => type === "arrived_without_handover") ??
+      raised[0]
+    const attempts = await delivery.listDeliveryContactAttempts(
+      { order_id: record.order_id },
+      {
+        take: null,
+        select: ["attempted_at"],
+        order: { attempted_at: "ASC", id: "ASC" },
+      },
     )
     // Placement requires a reviewed shipping address, so the Order has one.
     const address = (data[0] as { shipping_address: CustomerAddress })
@@ -271,14 +307,20 @@ export const readCurrentDeliveryStep = createStep(
         picked_up_at: record.picked_up_at
           ? new Date(record.picked_up_at).toISOString()
           : null,
+        arrived_at: record.arrived_at
+          ? new Date(record.arrived_at).toISOString()
+          : null,
+        contact_attempts: attempts.map(({ attempted_at }) => ({
+          attempted_at: new Date(attempted_at).toISOString(),
+        })),
         trip_distance_km: distanceKm(record.trip_distance_m),
-        attention: stalled
+        attention: shown
           ? {
-              type: stalled.type as StalledAttentionType,
-              due_at: new Date(stalled.due_at).toISOString(),
+              type: shown.type as AgentAttentionType,
+              due_at: new Date(shown.due_at).toISOString(),
             }
           : null,
-        allowed_actions: allowedActions(operation.state, record.picked_up_at),
+        allowed_actions: allowedActions(operation.state, record),
         customer: {
           name: [address.first_name, address.last_name]
             .filter(Boolean)

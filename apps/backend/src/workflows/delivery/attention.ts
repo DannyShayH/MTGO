@@ -16,6 +16,7 @@ import { ORDER_OPERATION_MODULE } from "../../modules/order-operation"
 import type OrderOperationModuleService from "../../modules/order-operation/service"
 import { logRecoveryFailure } from "../order-operations/recovery-log"
 import { isActiveOrderState } from "./assignment-rules"
+import { arrivalAttentionDueAt } from "./arrival-rules"
 import {
   decideAttention,
   stalledAttentionDueAt,
@@ -29,35 +30,52 @@ const MAX_SWEEP_BATCHES = 10
 /** Queries per list read, so one request is bounded however many Orders ended. */
 const MAX_LIST_BATCHES = 20
 
-/** The obligation the delivery's current stage owes, or none once it ended. */
+/**
+ * The obligations the delivery's current stage owes, none once it ended. Arrived
+ * work owes the unreachable-Customer clock (#164) beside stalled transit.
+ */
 function findOwedAttention(record: {
   accepted_at: Date | string
   assigned_agent_id: string | null
   picked_up_at: Date | string | null
+  arrived_at: Date | string | null
   terminal_outcome: TerminalOutcome | null
-}): { type: AttentionType; due_at: Date } | null {
-  if (record.terminal_outcome) return null
+}): { type: AttentionType; due_at: Date }[] {
+  if (record.terminal_outcome) return []
   if (!record.assigned_agent_id)
-    return {
-      type: "unassigned",
-      due_at: unassignedAttentionDueAt(record.accepted_at),
-    }
+    return [
+      {
+        type: "unassigned",
+        due_at: unassignedAttentionDueAt(record.accepted_at),
+      },
+    ]
   if (!record.picked_up_at)
-    return {
-      type: "assigned_without_pickup",
-      due_at: stalledAttentionDueAt(record.accepted_at),
-    }
-  return {
-    type: "in_transit_without_delivery",
+    return [
+      {
+        type: "assigned_without_pickup",
+        due_at: stalledAttentionDueAt(record.accepted_at),
+      },
+    ]
+  const transit = {
+    type: "in_transit_without_delivery" as const,
     due_at: stalledAttentionDueAt(record.picked_up_at),
   }
+  if (!record.arrived_at) return [transit]
+  return [
+    transit,
+    {
+      type: "arrived_without_handover",
+      due_at: arrivalAttentionDueAt(record.arrived_at),
+    },
+  ]
 }
 
 /**
- * Store the obligation the delivery's current stage owes (#158, #163), from
- * its durable acceptance or pickup time: unassigned at acceptance plus ten
- * minutes, uncollected at acceptance plus thirty, undelivered at pickup plus
- * thirty. Repeats keep the first record and its deadline. Ended work, and
+ * Store the obligations the delivery's current stage owes (#158, #163, #164),
+ * from its durable acceptance, pickup or arrival time: unassigned at
+ * acceptance plus ten minutes, uncollected at acceptance plus thirty,
+ * undelivered at pickup plus thirty and, once arrived, unreachable at arrival
+ * plus ten. Repeats keep the first record and its deadline. Ended work, and
  * work without reliable delivery facts, gets none.
  */
 export const scheduleOwedDeliveryAttentionStep = createStep(
@@ -72,26 +90,31 @@ export const scheduleOwedDeliveryAttentionStep = createStep(
           "accepted_at",
           "assigned_agent_id",
           "picked_up_at",
+          "arrived_at",
           "terminal_outcome",
         ],
       },
     )
-    const owed = record ? findOwedAttention(record) : null
-    if (!owed) return new StepResponse(null, null as string | null)
-    const { attention, isCreated } = await delivery.scheduleAttention({
-      order_id: input.order_id,
-      ...owed,
-    })
-    return new StepResponse(
-      { id: attention.id, due_at: new Date(attention.due_at).toISOString() },
-      isCreated ? attention.id : null,
-    )
+    const scheduled: { id: string; due_at: string }[] = []
+    const created: string[] = []
+    for (const owed of record ? findOwedAttention(record) : []) {
+      const { attention, isCreated } = await delivery.scheduleAttention({
+        order_id: input.order_id,
+        ...owed,
+      })
+      scheduled.push({
+        id: attention.id,
+        due_at: new Date(attention.due_at).toISOString(),
+      })
+      if (isCreated) created.push(attention.id)
+    }
+    return new StepResponse(scheduled, created)
   },
-  async (createdId: string | null, { container }) => {
-    if (createdId)
+  async (created: string[] | undefined, { container }) => {
+    if (created?.length)
       await container
         .resolve<DeliveryModuleService>(DELIVERY_MODULE)
-        .deleteDeliveryAttentions(createdId)
+        .deleteDeliveryAttentions(created)
   },
 )
 
@@ -314,6 +337,10 @@ export type AttentionItem = {
   accepted_at: string
   /** The recorded pickup (#160), the origin of in-transit attention. */
   picked_up_at: string | null
+  /** The explicit arrival (#164), the origin of unreachable-Customer attention. */
+  arrived_at: string | null
+  /** The agent's recorded attempts to reach the Customer (#164). */
+  contact_attempts: { count: number; last_attempted_at: string | null }
   due_at: string
   raised_at: string
   claim_deadline: string
@@ -324,8 +351,34 @@ export type AttentionItem = {
   } | null
 }
 
+/** Each Order's recorded contact attempts (#164): how many, and the latest. */
+async function summarizeContactAttempts(
+  delivery: DeliveryModuleService,
+  orderIds: string[],
+) {
+  const summary = new Map<
+    string,
+    { count: number; last_attempted_at: string }
+  >()
+  if (!orderIds.length) return summary
+  const attempts = await delivery.listDeliveryContactAttempts(
+    { order_id: orderIds },
+    {
+      take: null,
+      select: ["order_id", "attempted_at"],
+      order: { attempted_at: "ASC" },
+    },
+  )
+  for (const { order_id, attempted_at } of attempts)
+    summary.set(order_id, {
+      count: (summary.get(order_id)?.count ?? 0) + 1,
+      last_attempted_at: new Date(attempted_at).toISOString(),
+    })
+  return summary
+}
+
 /**
- * The operator's bounded attention list (#158, #163): raised, unresolved attention
+ * The operator's bounded attention list (#158, #163, #164): raised, unresolved attention
  * on active Orders, oldest deadline first, with the Order's real acceptance
  * time and assignment facts. It reads only; it never investigates or corrects
  * (#49). An Order that ended since the last sweep is left out at once.
@@ -384,6 +437,10 @@ const listDeliveryAttentionStep = createStep(
         )
       : []
     const byOrder = new Map(records.map((record) => [record.order_id, record]))
+    const attempts = await summarizeContactAttempts(
+      delivery,
+      records.map(({ order_id }) => order_id),
+    )
     const agentIds = [
       ...new Set(
         records.flatMap(({ assigned_agent_id }) =>
@@ -429,6 +486,11 @@ const listDeliveryAttentionStep = createStep(
           preparation_status: state,
           accepted_at: iso(record.accepted_at),
           picked_up_at: record.picked_up_at ? iso(record.picked_up_at) : null,
+          arrived_at: record.arrived_at ? iso(record.arrived_at) : null,
+          contact_attempts: attempts.get(record.order_id) ?? {
+            count: 0,
+            last_attempted_at: null,
+          },
           due_at: iso(attention.due_at),
           raised_at: iso(attention.raised_at as Date),
           claim_deadline: iso(record.claim_deadline),

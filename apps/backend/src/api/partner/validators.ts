@@ -90,6 +90,23 @@ export const PostConfirmHandoverSchema = z.strictObject({
 })
 export type PostConfirmHandoverBody = z.infer<typeof PostConfirmHandoverSchema>
 
+/** Arrival takes only its retry identity: never a time, agent or location (#164). */
+export const PostRecordArrivalSchema = z.strictObject({
+  request_id: RetryIdentity,
+})
+export type PostRecordArrivalBody = z.infer<typeof PostRecordArrivalSchema>
+
+/**
+ * A contact attempt takes only its own retry identity: never a time or an
+ * outcome such as the Customer having answered (#164).
+ */
+export const PostRecordContactAttemptSchema = z.strictObject({
+  request_id: RetryIdentity,
+})
+export type PostRecordContactAttemptBody = z.infer<
+  typeof PostRecordContactAttemptSchema
+>
+
 /** One page of the agent's own completed history. */
 export const GetCompletedDeliveriesSchema = z.strictObject({
   limit: z.coerce.number().int().min(1).max(50).default(20),

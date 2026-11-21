@@ -132,6 +132,8 @@ medusaIntegrationTestRunner({
           preparation_status: "accepted",
           accepted_at: new Date(acceptedAt).toISOString(),
           picked_up_at: null,
+          arrived_at: null,
+          contact_attempts: { count: 0, last_attempted_at: null },
           due_at: new Date(due).toISOString(),
           raised_at: new Date(due).toISOString(),
           claim_deadline: new Date(acceptedAt + 3 * TEN_MINUTES).toISOString(),
@@ -410,7 +412,7 @@ medusaIntegrationTestRunner({
         })
         expect(await current(agent.headers)).toMatchObject({
           attention: { type: "in_transit_without_delivery" },
-          allowed_actions: ["confirm_handover"],
+          allowed_actions: ["record_arrival", "confirm_handover"],
         })
       })
 

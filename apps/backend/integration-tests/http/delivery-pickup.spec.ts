@@ -150,7 +150,7 @@ medusaIntegrationTestRunner({
         // Once collected, the next step is handover (#161).
         expect(picked.data.delivery).toMatchObject({
           order_id: order.id,
-          allowed_actions: ["confirm_handover"],
+          allowed_actions: ["record_arrival", "confirm_handover"],
         })
         expect((await current(agent.headers)).data.delivery).toEqual(
           picked.data.delivery,

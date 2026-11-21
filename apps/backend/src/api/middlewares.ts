@@ -40,6 +40,8 @@ import {
   GetAvailableDeliveriesSchema,
   PostClaimDeliverySchema,
   PostConfirmPickupSchema,
+  PostRecordArrivalSchema,
+  PostRecordContactAttemptSchema,
   PostPickupDistancesSchema,
   PostConfirmHandoverSchema,
   GetCompletedDeliveriesSchema,
@@ -515,6 +517,22 @@ export default defineMiddlewares({
       middlewares: [
         authenticate(DELIVERY_AGENT_ACTOR, "bearer"),
         validateAndTransformBody(PostConfirmPickupSchema),
+      ],
+    },
+    {
+      matcher: "/partner/deliveries/:id/arrive",
+      method: "POST",
+      middlewares: [
+        authenticate(DELIVERY_AGENT_ACTOR, "bearer"),
+        validateAndTransformBody(PostRecordArrivalSchema),
+      ],
+    },
+    {
+      matcher: "/partner/deliveries/:id/contact-attempts",
+      method: "POST",
+      middlewares: [
+        authenticate(DELIVERY_AGENT_ACTOR, "bearer"),
+        validateAndTransformBody(PostRecordContactAttemptSchema),
       ],
     },
     {

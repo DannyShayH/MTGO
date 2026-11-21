@@ -121,6 +121,32 @@ export const DELIVERY_AGENT_TEXT = {
     handoverCheckingHint:
       "Vi ved endnu ikke, om afleveringen blev registreret. Vi tjekker igen, når forbindelsen er tilbage.",
     handoverNotConfirmed: "Afleveringen blev ikke registreret. Prøv igen.",
+    recordArrival: "Jeg er fremme hos kunden",
+    recordArrivalTitle: "Er du fremme ved kundens adresse?",
+    recordArrivalHint:
+      "Meld kun din ankomst, når du står ved adressen. Tidspunktet registreres og kan ikke ændres. Det er ikke det samme som aflevering.",
+    confirmArrived: "Ja, jeg er fremme",
+    recordingArrival: "Registrerer ankomst…",
+    arrivalCheckingHint:
+      "Vi ved endnu ikke, om din ankomst blev registreret. Vi tjekker igen, når forbindelsen er tilbage.",
+    arrivalNotConfirmed: "Din ankomst blev ikke registreret. Prøv igen.",
+    arrivedAt: "Fremme kl.",
+    arrivedHint:
+      "Får du ikke fat i kunden, så ring og registrér hvert forsøg. MTOGO underrettes, hvis maden ikke er afleveret 10 minutter efter din ankomst.",
+    contactAttempts: "Kontaktforsøg",
+    contactAttemptsNone: "Ingen kontaktforsøg registreret endnu.",
+    contactAttemptAt: "Forsøg kl. {time}",
+    recordContactAttempt: "Registrér kontaktforsøg",
+    recordContactAttemptHint:
+      "Tryk efter hvert forsøg på at nå kunden, fx et opkald uden svar. Det betyder ikke, at du har talt med kunden.",
+    recordingContactAttempt: "Registrerer kontaktforsøg…",
+    contactAttemptRecorded: "Kontaktforsøget er registreret.",
+    contactAttemptChecking:
+      "Vi ved endnu ikke, om forsøget blev registreret. Prøv igen; det samme forsøg tælles kun én gang.",
+    unreachableCustomer:
+      "Ingen aflevering 10 minutter efter ankomst (kl. {time})",
+    unreachableHint:
+      "MTOGO er underrettet og hjælper videre. Leveringen er stadig din, så bliv ved med at prøve at nå kunden.",
     completedTitle: "Levering afsluttet",
     completedAt: "Afleveret kl. {time}",
     completedNext: "Du kan nu påtage dig en ny levering.",
@@ -265,6 +291,31 @@ export const DELIVERY_AGENT_TEXT = {
     handoverCheckingHint:
       "We do not know yet whether your handover was recorded. We check again when the connection is back.",
     handoverNotConfirmed: "Your handover was not recorded. Please try again.",
+    recordArrival: "I have arrived at the Customer",
+    recordArrivalTitle: "Are you at the Customer's address?",
+    recordArrivalHint:
+      "Only record your arrival once you are at the address. The time is recorded and cannot be changed. It is not the same as handover.",
+    confirmArrived: "Yes, I have arrived",
+    recordingArrival: "Recording arrival…",
+    arrivalCheckingHint:
+      "We do not know yet whether your arrival was recorded. We check again when the connection is back.",
+    arrivalNotConfirmed: "Your arrival was not recorded. Please try again.",
+    arrivedAt: "Arrived at",
+    arrivedHint:
+      "If you cannot reach the Customer, call and record each attempt. MTOGO is notified if the food has not been handed over 10 minutes after your arrival.",
+    contactAttempts: "Contact attempts",
+    contactAttemptsNone: "No contact attempts recorded yet.",
+    contactAttemptAt: "Attempt at {time}",
+    recordContactAttempt: "Record a contact attempt",
+    recordContactAttemptHint:
+      "Tap after each try to reach the Customer, such as an unanswered call. It does not mean you spoke to the Customer.",
+    recordingContactAttempt: "Recording contact attempt…",
+    contactAttemptRecorded: "The contact attempt has been recorded.",
+    contactAttemptChecking:
+      "We do not know yet whether the attempt was recorded. Try again; the same attempt is only counted once.",
+    unreachableCustomer: "No handover 10 minutes after arrival ({time})",
+    unreachableHint:
+      "MTOGO has been notified and will help. The delivery is still yours, so keep trying to reach the Customer.",
     completedTitle: "Delivery completed",
     completedAt: "Handed over at {time}",
     completedNext: "You can now claim a new delivery.",
@@ -431,6 +482,101 @@ export const DELIVERY_HANDOVER_ERRORS: Record<
       "The action could not be completed. Refresh the page and try again.",
     delivery_changed:
       "This delivery has changed. Refresh the page and try again.",
+    unknown_error: "The action could not be completed. Please try again.",
+  },
+}
+
+/** Codes an arrival can be refused with; `unknown_error` covers the rest. */
+export const DELIVERY_ARRIVAL_ERROR_CODES = [
+  "pickup_not_recorded",
+  "delivery_not_responsible",
+  "delivery_not_active",
+  "delivery_not_found",
+  "arrival_request_reused",
+  "delivery_changed",
+  "unknown_error",
+] as const
+export type DeliveryArrivalErrorCode =
+  (typeof DELIVERY_ARRIVAL_ERROR_CODES)[number]
+
+export function isDeliveryArrivalErrorCode(
+  value: unknown,
+): value is DeliveryArrivalErrorCode {
+  return DELIVERY_ARRIVAL_ERROR_CODES.some((code) => code === value)
+}
+
+export const DELIVERY_ARRIVAL_ERRORS: Record<
+  "da" | "en",
+  Record<DeliveryArrivalErrorCode, string>
+> = {
+  da: {
+    pickup_not_recorded: "Bekræft afhentning, før du melder din ankomst.",
+    delivery_not_responsible: "Du er ikke ansvarlig for denne levering.",
+    delivery_not_active: "Leveringen er ikke længere aktiv.",
+    delivery_not_found: "Leveringen findes ikke længere.",
+    arrival_request_reused:
+      "Handlingen kunne ikke gennemføres. Opdater siden, og prøv igen.",
+    delivery_changed: "Leveringen er ændret. Opdater siden, og prøv igen.",
+    unknown_error: "Handlingen kunne ikke gennemføres. Prøv igen.",
+  },
+  en: {
+    pickup_not_recorded: "Confirm pickup before recording your arrival.",
+    delivery_not_responsible: "You are not responsible for this delivery.",
+    delivery_not_active: "This delivery is no longer active.",
+    delivery_not_found: "This delivery no longer exists.",
+    arrival_request_reused:
+      "The action could not be completed. Refresh the page and try again.",
+    delivery_changed:
+      "This delivery has changed. Refresh the page and try again.",
+    unknown_error: "The action could not be completed. Please try again.",
+  },
+}
+
+/** Codes a contact attempt can be refused with; `unknown_error` covers the rest. */
+export const DELIVERY_CONTACT_ATTEMPT_ERROR_CODES = [
+  "arrival_not_recorded",
+  "delivery_not_responsible",
+  "delivery_not_active",
+  "delivery_not_found",
+  "contact_attempt_limit_reached",
+  "contact_attempt_request_reused",
+  "unknown_error",
+] as const
+export type DeliveryContactAttemptErrorCode =
+  (typeof DELIVERY_CONTACT_ATTEMPT_ERROR_CODES)[number]
+
+export function isDeliveryContactAttemptErrorCode(
+  value: unknown,
+): value is DeliveryContactAttemptErrorCode {
+  return DELIVERY_CONTACT_ATTEMPT_ERROR_CODES.some((code) => code === value)
+}
+
+export const DELIVERY_CONTACT_ATTEMPT_ERRORS: Record<
+  "da" | "en",
+  Record<DeliveryContactAttemptErrorCode, string>
+> = {
+  da: {
+    arrival_not_recorded:
+      "Meld din ankomst, før du registrerer et kontaktforsøg.",
+    delivery_not_responsible: "Du er ikke ansvarlig for denne levering.",
+    delivery_not_active: "Leveringen er ikke længere aktiv.",
+    delivery_not_found: "Leveringen findes ikke længere.",
+    contact_attempt_limit_reached:
+      "Der kan ikke registreres flere kontaktforsøg. MTOGO er underrettet.",
+    contact_attempt_request_reused:
+      "Handlingen kunne ikke gennemføres. Opdater siden, og prøv igen.",
+    unknown_error: "Handlingen kunne ikke gennemføres. Prøv igen.",
+  },
+  en: {
+    arrival_not_recorded:
+      "Record your arrival before recording a contact attempt.",
+    delivery_not_responsible: "You are not responsible for this delivery.",
+    delivery_not_active: "This delivery is no longer active.",
+    delivery_not_found: "This delivery no longer exists.",
+    contact_attempt_limit_reached:
+      "No more contact attempts can be recorded. MTOGO has been notified.",
+    contact_attempt_request_reused:
+      "The action could not be completed. Refresh the page and try again.",
     unknown_error: "The action could not be completed. Please try again.",
   },
 }

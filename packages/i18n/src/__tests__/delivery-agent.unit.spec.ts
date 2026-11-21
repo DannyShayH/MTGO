@@ -11,6 +11,12 @@ import {
   DELIVERY_HANDOVER_ERROR_CODES,
   DELIVERY_HANDOVER_ERRORS,
   isDeliveryHandoverErrorCode,
+  DELIVERY_ARRIVAL_ERROR_CODES,
+  DELIVERY_ARRIVAL_ERRORS,
+  isDeliveryArrivalErrorCode,
+  DELIVERY_CONTACT_ATTEMPT_ERROR_CODES,
+  DELIVERY_CONTACT_ATTEMPT_ERRORS,
+  isDeliveryContactAttemptErrorCode,
 } from "../delivery-agent.ts"
 
 test("Danish and English have the same Delivery agent texts, none of them blank", () => {
@@ -84,4 +90,28 @@ test("only known handover refusal codes are recognised", () => {
     false,
   )
   assert.equal(isDeliveryHandoverErrorCode(undefined), false)
+})
+
+test("every refusal of an arrival or a contact attempt has a Danish and an English text", () => {
+  const tables = [
+    [DELIVERY_ARRIVAL_ERRORS, DELIVERY_ARRIVAL_ERROR_CODES],
+    [DELIVERY_CONTACT_ATTEMPT_ERRORS, DELIVERY_CONTACT_ATTEMPT_ERROR_CODES],
+  ] as const
+  for (const [errors, codes] of tables)
+    for (const locale of ["da", "en"] as const) {
+      assert.deepEqual(Object.keys(errors[locale]).sort(), [...codes].sort())
+      for (const [code, text] of Object.entries(errors[locale]))
+        assert.ok(text.trim(), `${locale}.${code}`)
+    }
+})
+
+test("only known arrival and contact-attempt refusal codes are recognised", () => {
+  assert.equal(isDeliveryArrivalErrorCode("pickup_not_recorded"), true)
+  assert.equal(isDeliveryArrivalErrorCode("arrival_not_recorded"), false)
+  assert.equal(isDeliveryContactAttemptErrorCode("arrival_not_recorded"), true)
+  assert.equal(
+    isDeliveryContactAttemptErrorCode("delivery_agent_access_revoked"),
+    false,
+  )
+  assert.equal(isDeliveryContactAttemptErrorCode(undefined), false)
 })

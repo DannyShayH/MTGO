@@ -136,6 +136,27 @@ the Restaurant, reference and handover time above the now empty current
 section; available work becomes claimable again. A `completed` value that is
 not the agent's own delivered work shows nothing.
 
+### Arrival and contact attempts (#164)
+
+After pickup, when `allowed_actions` includes `record_arrival`, the card offers
+**I have arrived at the Customer** as a secondary button above handover, using
+the same `ConfirmMilestone` (`milestone="arrival"`): the first tap asks **Are
+you at the Customer's address?**, and `recordArrival` sends only the retry
+identity; no location is read. Once arrived the card shows **Arrived at**
+with the time, the recorded **Contact attempts** and, while `allowed_actions`
+includes `record_contact_attempt`, **Record a contact attempt**
+(`RecordContactAttempt` in `src/modules/delivery/record-contact-attempt.tsx`).
+Tapping the call link records nothing; the agent taps the button after each
+try. Each attempt gets its own `crypto.randomUUID()` identity, kept until the
+server answers, so retrying an uncertain attempt never counts it twice.
+Refusals show `DELIVERY_ARRIVAL_ERRORS` and `DELIVERY_CONTACT_ATTEMPT_ERRORS`.
+Once pickup is recorded the card no longer shows the kitchen's preparation
+badge, and on every delivery card the badge wraps below a long Restaurant name
+or at high zoom instead of squeezing it. Ten minutes after arrival without handover, the operator is alerted and the
+card shows **No handover 10 minutes after arrival** with a note that the
+delivery is still the agent's. Handover stays available throughout and never
+requires arrival.
+
 `/delivery/history` lists the agent's ended deliveries, newest first, twenty
 per page from `GET /partner/delivery-agent/history`: Restaurant, reference,
 end time and an outcome pill (Delivered, Cancelled or Not delivered).

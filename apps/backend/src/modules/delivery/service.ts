@@ -20,6 +20,7 @@ import DeliveryAttention, {
   type AttentionResolution,
   type AttentionType,
 } from "./models/delivery-attention"
+import DeliveryContactAttempt from "./models/delivery-contact-attempt"
 
 /** What the shared assignment rule needs, read under both row locks. */
 export type AssignmentFacts = {
@@ -133,6 +134,56 @@ export type PickupCommand = {
   transit_attention_due_at: Date
 }
 
+/** What the arrival rule needs, read under the delivery row lock (#164). */
+export type ArrivalFacts = {
+  agent: { id: string; status: "pending" | "authorized" | "revoked" }
+  delivery: {
+    order_id: string
+    assigned_agent_id: string | null
+    active_agent_id: string | null
+    picked_up_at: Date | string | null
+    arrived_at: Date | string | null
+    terminal_outcome: TerminalOutcome | null
+  }
+  order_active: boolean
+  request_holder: { order_id: string; agent_id: string } | null
+}
+
+export type ArrivalOutcome =
+  | { outcome: "arrive" }
+  | { outcome: "already_arrived" }
+  | { outcome: "refused"; code: string }
+
+/** Milestone commands decided under the Order's guard by the caller. */
+export type ArrivalCommand = {
+  order_id: string
+  agent_id: string
+  request_id: string
+  order_active: boolean
+  now: Date
+  /** When an unreachable Customer needs attention: arrival plus ten minutes. */
+  arrival_attention_due_at: Date
+}
+
+/** What the contact-attempt rule needs, read under the delivery row lock (#164). */
+export type ContactAttemptFacts = ArrivalFacts & {
+  /** How many attempts are already recorded on this delivery. */
+  attempt_count: number
+}
+
+export type ContactAttemptOutcome =
+  | { outcome: "record" }
+  | { outcome: "already_recorded" }
+  | { outcome: "refused"; code: string }
+
+export type ContactAttemptCommand = {
+  order_id: string
+  agent_id: string
+  request_id: string
+  order_active: boolean
+  now: Date
+}
+
 /** What a terminal rule needs, read under the delivery row lock. */
 export type TerminalFacts = {
   agent: { id: string; status: "pending" | "authorized" | "revoked" } | null
@@ -173,6 +224,7 @@ class DeliveryModuleService extends MedusaService({
   DeliveryAgentInvitation,
   IntendedDelivery,
   DeliveryAttention,
+  DeliveryContactAttempt,
 }) {
   /** Fence credential creation against consumption and revocation, even if a lease is lost. */
   @InjectManager()
@@ -778,6 +830,152 @@ class DeliveryModuleService extends MedusaService({
       context,
     )
     return { outcome, delivery: updated }
+  }
+
+  /** Lock the delivery row and read it with the agent, for a milestone rule. */
+  @InjectTransactionManager()
+  private async lockMilestoneFacts(
+    command: { order_id: string; agent_id: string; order_active: boolean },
+    @MedusaContext() context: Context = {},
+  ) {
+    const manager = context.transactionManager as EntityManager
+    const locked = await manager.findOne(
+      "IntendedDelivery",
+      { order_id: command.order_id, deleted_at: null },
+      { lockMode: LockMode.PESSIMISTIC_WRITE },
+    )
+    if (!locked)
+      throw new MedusaError(
+        MedusaError.Types.NOT_FOUND,
+        "delivery_not_found",
+        "delivery_not_found",
+      )
+    const [record] = await this.listIntendedDeliveries(
+      { order_id: command.order_id },
+      { take: 1 },
+      context,
+    )
+    const [agent] = await this.listDeliveryAgents(
+      { id: command.agent_id },
+      { take: 1, select: ["id", "status"] },
+      context,
+    )
+    return {
+      record,
+      facts: {
+        agent: agent ?? { id: command.agent_id, status: "revoked" as const },
+        delivery: record,
+        order_active: command.order_active,
+      },
+    }
+  }
+
+  /**
+   * The one guarded arrival write (#164). In one transaction it locks the
+   * delivery row, re-reads responsibility, the recorded milestone and the
+   * retry identity, lets `decide` apply the shared rule and records the
+   * milestone in one update whose selector requires it to be unrecorded and
+   * the agent to still hold the delivery. The same commit stores the
+   * unreachable-Customer obligation, so no committed arrival lacks it.
+   */
+  @InjectManager()
+  @InjectTransactionManager()
+  async recordArrival(
+    command: ArrivalCommand,
+    decide: (facts: ArrivalFacts) => ArrivalOutcome,
+    @MedusaContext() context: Context = {},
+  ) {
+    const { record, facts } = await this.lockMilestoneFacts(command, context)
+    const [holder] = await this.listIntendedDeliveries(
+      { arrival_request_id: command.request_id },
+      { take: 1, select: ["order_id", "arrived_by"] },
+      context,
+    )
+    const outcome = decide({
+      ...facts,
+      // A retry identity is only ever stored with its arrival.
+      request_holder: holder
+        ? { order_id: holder.order_id, agent_id: holder.arrived_by as string }
+        : null,
+    })
+    if (outcome.outcome !== "arrive") return { outcome, delivery: record }
+    const [updated] = await this.updateIntendedDeliveries(
+      {
+        selector: {
+          id: record.id,
+          arrived_at: null,
+          terminal_outcome: null,
+          active_agent_id: command.agent_id,
+        },
+        data: {
+          arrived_at: command.now,
+          arrived_by: command.agent_id,
+          arrival_request_id: command.request_id,
+        },
+      },
+      context,
+    )
+    if (!updated)
+      return {
+        outcome: {
+          outcome: "refused",
+          code: "delivery_changed",
+        } as ArrivalOutcome,
+        delivery: record,
+      }
+    // Arrival is recorded once, so is its obligation.
+    await this.createDeliveryAttentions(
+      {
+        order_id: command.order_id,
+        type: "arrived_without_handover",
+        due_at: command.arrival_attention_due_at,
+      },
+      context,
+    )
+    return { outcome, delivery: updated }
+  }
+
+  /**
+   * Records one contact attempt (#164). Under the delivery row lock it
+   * re-reads responsibility, the attempts so far and the retry identity and
+   * lets `decide` apply the shared rule, so competing repeats of one attempt
+   * store it once and the bound holds. The unique `request_id` index backs
+   * it even if a lock is lost.
+   */
+  @InjectManager()
+  @InjectTransactionManager()
+  async recordContactAttempt(
+    command: ContactAttemptCommand,
+    decide: (facts: ContactAttemptFacts) => ContactAttemptOutcome,
+    @MedusaContext() context: Context = {},
+  ) {
+    const { facts } = await this.lockMilestoneFacts(command, context)
+    const [holder] = await this.listDeliveryContactAttempts(
+      { request_id: command.request_id },
+      { take: 1, select: ["order_id", "agent_id"] },
+      context,
+    )
+    const [, attempt_count] = await this.listAndCountDeliveryContactAttempts(
+      { order_id: command.order_id },
+      { take: 1, select: ["id"] },
+      context,
+    )
+    const outcome = decide({
+      ...facts,
+      attempt_count,
+      request_holder: holder ?? null,
+    })
+    if (outcome.outcome === "record")
+      await this.createDeliveryContactAttempts(
+        {
+          order_id: command.order_id,
+          agent_id: command.agent_id,
+          request_id: command.request_id,
+          attempted_at: command.now,
+        },
+        context,
+      )
+    return { outcome }
   }
 
   /**

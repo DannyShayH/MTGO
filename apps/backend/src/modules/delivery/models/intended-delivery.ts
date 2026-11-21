@@ -61,6 +61,16 @@ const IntendedDelivery = model
      */
     native_sync_queued_at: model.dateTime().nullable(),
     /**
+     * The arrival milestone (#164): the server time the responsible agent
+     * explicitly recorded reaching the destination, once and never moved.
+     * It starts the unreachable-Customer clock; no location creates it and
+     * handover never requires it.
+     */
+    arrived_at: model.dateTime().nullable(),
+    arrived_by: model.text().nullable(),
+    /** The retry identity of the request that recorded arrival. */
+    arrival_request_id: model.text().nullable(),
+    /**
      * The trip (#191), measured once after acceptance: geocoded pickup and
      * destination, and the route distance rounded to 100 m. The destination
      * coordinates never leave the backend. `trip_measured_at` marks the one
@@ -105,6 +115,11 @@ const IntendedDelivery = model
       on: ["pickup_request_id"],
       unique: true,
       where: "pickup_request_id IS NOT NULL",
+    },
+    {
+      on: ["arrival_request_id"],
+      unique: true,
+      where: "arrival_request_id IS NOT NULL",
     },
     {
       on: ["handover_request_id"],

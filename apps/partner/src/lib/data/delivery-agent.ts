@@ -6,10 +6,14 @@ import { revalidatePath } from "next/cache"
 import { FetchError } from "@medusajs/js-sdk"
 import { requestId } from "@dtc/logging"
 import {
+  isDeliveryArrivalErrorCode,
   isDeliveryClaimErrorCode,
+  isDeliveryContactAttemptErrorCode,
   isDeliveryHandoverErrorCode,
   isDeliveryPickupErrorCode,
+  type DeliveryArrivalErrorCode,
   type DeliveryClaimErrorCode,
+  type DeliveryContactAttemptErrorCode,
   type DeliveryHandoverErrorCode,
   type DeliveryPickupErrorCode,
 } from "@dtc/i18n"
@@ -62,19 +66,35 @@ export type CurrentDelivery = {
   assignment_source: "agent_claim" | "operator_assignment" | null
   /** The recorded pickup (#160), or null before collection. */
   picked_up_at: string | null
+  /** The explicitly recorded arrival (#164), or null. */
+  arrived_at: string | null
+  /** The agent's recorded attempts to reach the Customer, oldest first (#164). */
+  contact_attempts: { attempted_at: string }[]
   /** The route distance from pickup to the Customer (#191), or null. */
   trip_distance_km: number | null
   /**
-   * Raised stalled-work attention (#163): the operator was told pickup or
-   * handover was still unconfirmed at `due_at`, an attention threshold
-   * rather than a promise. It changes nothing the agent may do.
+   * Raised attention: pickup or handover still unconfirmed (#163), or no
+   * handover ten minutes after arrival (#164). The operator was told at
+   * `due_at`, an attention threshold rather than a promise. It changes
+   * nothing the agent may do.
    */
   attention: {
-    type: "assigned_without_pickup" | "in_transit_without_delivery"
+    type:
+      | "assigned_without_pickup"
+      | "in_transit_without_delivery"
+      | "arrived_without_handover"
     due_at: string
   } | null
-  /** What the agent may do now: pickup once the food is ready, then handover. */
-  allowed_actions: ("confirm_pickup" | "confirm_handover")[]
+  /**
+   * What the agent may do now: pickup once the food is ready; then arrival,
+   * then contact attempts, beside handover.
+   */
+  allowed_actions: (
+    | "confirm_pickup"
+    | "record_arrival"
+    | "record_contact_attempt"
+    | "confirm_handover"
+  )[]
   customer: {
     name: string
     phone: string | null
@@ -259,6 +279,76 @@ export async function checkPickup(
     unstable_rethrow(error)
     return "uncertain"
   }
+}
+
+export type ArrivalResult =
+  | { status: "arrived" }
+  | { status: "refused"; code: DeliveryArrivalErrorCode }
+  /** No answer, or a server failure: arrival may or may not have been recorded. */
+  | { status: "uncertain" }
+
+/**
+ * Records the agent's explicit arrival at the Customer (#164). The server
+ * records the time; a repeat with the same retry identity keeps it. No
+ * location is sent.
+ */
+export async function recordArrival(
+  orderId: string,
+  retryIdentity: string,
+): Promise<ArrivalResult> {
+  const result = await postAgentAction({
+    orderId,
+    retryIdentity,
+    path: (id) => `/partner/deliveries/${encodeURIComponent(id)}/arrive`,
+    route: "/partner/deliveries/:id/arrive",
+    isKnownCode: isDeliveryArrivalErrorCode,
+  })
+  return result.status === "done" ? { status: "arrived" } : result
+}
+
+/**
+ * Reconciles an uncertain arrival from the authoritative current delivery:
+ * arrived only if the server shows the milestone on this delivery.
+ */
+export async function checkArrival(
+  orderId: string,
+): Promise<"arrived" | "not_arrived" | "uncertain"> {
+  try {
+    const current = await getCurrentDelivery()
+    revalidatePath("/delivery", "layout")
+    return current?.order_id === orderId && current.arrived_at
+      ? "arrived"
+      : "not_arrived"
+  } catch (error) {
+    unstable_rethrow(error)
+    return "uncertain"
+  }
+}
+
+export type ContactAttemptResult =
+  | { status: "recorded" }
+  | { status: "refused"; code: DeliveryContactAttemptErrorCode }
+  /** No answer, or a server failure: the attempt may or may not have been recorded. */
+  | { status: "uncertain" }
+
+/**
+ * Records one attempt to reach the Customer after arrival (#164). Each
+ * attempt has its own retry identity; resending it after a lost response
+ * keeps one attempt. It claims nothing about whether the Customer answered.
+ */
+export async function recordContactAttempt(
+  orderId: string,
+  retryIdentity: string,
+): Promise<ContactAttemptResult> {
+  const result = await postAgentAction({
+    orderId,
+    retryIdentity,
+    path: (id) =>
+      `/partner/deliveries/${encodeURIComponent(id)}/contact-attempts`,
+    route: "/partner/deliveries/:id/contact-attempts",
+    isKnownCode: isDeliveryContactAttemptErrorCode,
+  })
+  return result.status === "done" ? { status: "recorded" } : result
 }
 
 export type HandoverResult =

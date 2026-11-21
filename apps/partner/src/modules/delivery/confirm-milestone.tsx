@@ -4,21 +4,24 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Alert, Button } from "@medusajs/ui"
 import {
+  DELIVERY_ARRIVAL_ERRORS,
   DELIVERY_HANDOVER_ERRORS,
   DELIVERY_PICKUP_ERRORS,
   formatText,
   type Locale,
 } from "@dtc/i18n"
 import {
+  checkArrival,
   checkHandover,
   checkPickup,
   confirmHandover,
   confirmPickup,
+  recordArrival,
 } from "@lib/data/delivery-agent"
 import { PRESSABLE, type DeliveryCopy as Copy } from "./copy"
 import { SETTLED_AFTER_MS, useStatusChecks } from "./use-status-checks"
 
-export type Milestone = "pickup" | "handover"
+export type Milestone = "pickup" | "arrival" | "handover"
 
 type State =
   | { kind: "idle" }
@@ -32,6 +35,12 @@ const ACTION = `focus-visible:ring-mtogo-focus-ring min-h-12 w-full text-base fo
 
 type Outcome =
   { status: "done" | "uncertain" } | { status: "refused"; message: string }
+
+/** A reconciled check: the milestone's own word for recorded, else not, unless unknown. */
+const settledAs = (result: string, recorded: string) => {
+  if (result === recorded) return "done" as const
+  return result === "uncertain" ? ("uncertain" as const) : ("not_done" as const)
+}
 
 /** The server actions of each confirmation, in one shape. */
 const ACTIONS: Record<
@@ -57,11 +66,22 @@ const ACTIONS: Record<
     },
     check: async (orderId) => {
       const result = await checkPickup(orderId)
-      return result === "picked_up"
-        ? "done"
-        : result === "uncertain"
-          ? "uncertain"
-          : "not_done"
+      return settledAs(result, "picked_up")
+    },
+  },
+  arrival: {
+    send: async (orderId, identity, locale) => {
+      const result = await recordArrival(orderId, identity)
+      if (result.status === "refused")
+        return {
+          status: "refused",
+          message: DELIVERY_ARRIVAL_ERRORS[locale][result.code],
+        }
+      return { status: result.status === "arrived" ? "done" : "uncertain" }
+    },
+    check: async (orderId) => {
+      const result = await checkArrival(orderId)
+      return settledAs(result, "arrived")
     },
   },
   handover: {
@@ -76,44 +96,50 @@ const ACTIONS: Record<
     },
     check: async (orderId) => {
       const result = await checkHandover(orderId)
-      return result === "delivered"
-        ? "done"
-        : result === "uncertain"
-          ? "uncertain"
-          : "not_done"
+      return settledAs(result, "delivered")
     },
   },
 }
 
 /** The texts of each confirmation. */
 function textsOf(milestone: Milestone, copy: Copy, restaurantName: string) {
-  return milestone === "pickup"
-    ? {
-        open: copy.confirmPickup,
-        title: copy.confirmPickupTitle,
-        hint: formatText(copy.confirmPickupHint, {
-          restaurant: restaurantName,
-        }),
-        confirm: copy.confirmCollected,
-        pending: copy.confirmingPickup,
-        checkingHint: copy.pickupCheckingHint,
-        notConfirmed: copy.pickupNotConfirmed,
-      }
-    : {
-        open: copy.confirmHandover,
-        title: copy.confirmHandoverTitle,
-        hint: copy.confirmHandoverHint,
-        confirm: copy.confirmDelivered,
-        pending: copy.confirmingHandover,
-        checkingHint: copy.handoverCheckingHint,
-        notConfirmed: copy.handoverNotConfirmed,
-      }
+  return {
+    pickup: {
+      open: copy.confirmPickup,
+      title: copy.confirmPickupTitle,
+      hint: formatText(copy.confirmPickupHint, { restaurant: restaurantName }),
+      confirm: copy.confirmCollected,
+      pending: copy.confirmingPickup,
+      checkingHint: copy.pickupCheckingHint,
+      notConfirmed: copy.pickupNotConfirmed,
+    },
+    arrival: {
+      open: copy.recordArrival,
+      title: copy.recordArrivalTitle,
+      hint: copy.recordArrivalHint,
+      confirm: copy.confirmArrived,
+      pending: copy.recordingArrival,
+      checkingHint: copy.arrivalCheckingHint,
+      notConfirmed: copy.arrivalNotConfirmed,
+    },
+    handover: {
+      open: copy.confirmHandover,
+      title: copy.confirmHandoverTitle,
+      hint: copy.confirmHandoverHint,
+      confirm: copy.confirmDelivered,
+      pending: copy.confirmingHandover,
+      checkingHint: copy.handoverCheckingHint,
+      notConfirmed: copy.handoverNotConfirmed,
+    },
+  }[milestone]
 }
 
 /**
  * Confirms a delivery milestone the agent alone can witness: collecting
  * ready food (#160; spec #48 stories 33-35) or handing it over to the
- * Customer or their designated recipient (#161; stories 39, 40). The first
+ * Customer or their designated recipient (#161; stories 39, 40), and
+ * arriving at the destination, which starts the unreachable-Customer clock
+ * and is never handover (#164; story 36). The first
  * tap only asks; the agent then confirms, and only then is the milestone
  * sent. The retry identity is fixed for the card, so a double tap or a
  * retry after a lost response keeps the original time. Without a server
@@ -129,6 +155,7 @@ export function ConfirmMilestone({
   locale,
   copy,
   donePath,
+  secondary = false,
 }: {
   milestone: Milestone
   orderId: string
@@ -138,6 +165,8 @@ export function ConfirmMilestone({
   copy: Copy
   /** Where to go once recorded; by default the refreshed current view. */
   donePath?: string
+  /** A secondary opener, when another action on the card is the main one. */
+  secondary?: boolean
 }) {
   const router = useRouter()
   // A background refresh renders a new prop; a retry must reuse the first.
@@ -274,6 +303,7 @@ export function ConfirmMilestone({
         ref={opener}
         type="button"
         size="large"
+        variant={secondary ? "secondary" : "primary"}
         onClick={() => setState({ kind: "confirming" })}
         disabled={state.kind === "checking"}
         className={ACTION}

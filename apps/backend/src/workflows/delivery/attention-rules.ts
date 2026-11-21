@@ -35,9 +35,8 @@ export const stalledAttentionDueAt = (origin: Date | string) =>
 export type { AttentionRuleFacts, AttentionRuleDecision }
 
 /**
- * When each condition stops applying, whatever its deadline. A later
- * condition (unreachable recipient) adds its own entry and the facts it
- * needs. A terminal outcome ends every condition first (see below).
+ * When each condition stops applying, whatever its deadline. A terminal
+ * outcome ends every condition first (see below).
  */
 const CONDITION_ENDED: Record<
   AttentionType,
@@ -52,10 +51,13 @@ const CONDITION_ENDED: Record<
     delivery.picked_up_at ? "picked_up" : null,
   // Only the terminal outcome ends transit.
   in_transit_without_delivery: () => null,
+  // An unreachable Customer (#164) ends only with handover or another
+  // terminal outcome: contact attempts and elapsed time never end it.
+  arrived_without_handover: () => null,
 }
 
 /**
- * The one attention rule (#158, #163; spec #48 stories 42, 48-50). Attention only
+ * The one attention rule (#158, #163, #164; spec #48 stories 42, 48-50). Attention only
  * becomes visible or stops being outstanding: it never cancels, releases or
  * completes work. An ended condition or Order takes precedence over the
  * deadline, so a valid assignment removes unassigned attention whether or not

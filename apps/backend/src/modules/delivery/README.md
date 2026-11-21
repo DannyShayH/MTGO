@@ -53,8 +53,8 @@ postal-code register; an empty list grants no operating area.
 
 The partner website keeps the bearer in its httpOnly cookie. Its saved area
 filter is intersected with current permissions and cannot grant access. Progress after
-assignment (pickup, arrival, handover) and terminal release of capacity are
-later slices of Feature #48; pickup is described below.
+assignment (pickup, arrival, contact attempts, handover) and the terminal release of
+capacity are described below.
 
 ## Demo login (#157)
 
@@ -145,15 +145,14 @@ On the phone, any 403 from the agent routes sends the agent to
 access has ended and that any delivery stays assigned and MTOGO has been alerted.
 `integration-tests/http/delivery-agent-revocation.spec.ts` covers it.
 
-## Operator attention (#158, #163)
+## Operator attention (#158, #163, #164)
 
 `DeliveryAttention` is the reusable durable obligation behind operator
 attention: one record per Order and condition (unique `order_id, type`), with
 the effective deadline `due_at`, the sweep's processing time `raised_at`, and
 `resolved_at` with a `resolution` (`assigned`, `picked_up`, `delivered` or
 `order_ended`). Each `type` has the moment that schedules it and reuses the
-same sweep, rule and list; a later unreachable-recipient condition adds its
-own.
+same sweep, rule and list.
 
 | `type`                        | Scheduled by                     | Due at                       | Ends with                    |
 | ----------------------------- | -------------------------------- | ---------------------------- | ---------------------------- |
@@ -161,6 +160,7 @@ own.
 | `access_revoked`              | revocation of an agent with work | at once (raised immediately) | the Order or delivery ending |
 | `assigned_without_pickup`     | assignment (`assignDelivery`)    | acceptance plus thirty min   | pickup                       |
 | `in_transit_without_delivery` | pickup (`recordPickup`)          | pickup plus thirty minutes   | handover or another terminal |
+| `arrived_without_handover`    | arrival (`recordArrival`)        | arrival plus ten minutes     | handover or another terminal |
 
 The two stalled-work conditions (#163) are attention thresholds, not promised
 times: they never cancel, free, reassign or mark handover. Each is created in
@@ -346,3 +346,58 @@ never over a delivered outcome, no delivery), recovery after an interruption,
 history paging, privacy and ownership, and the Customer's progress
 milestones. `src/workflows/delivery/__tests__/terminal-rules.unit.spec.ts`
 covers the decision tables.
+
+## Arrival and contact attempts (#164)
+
+`IntendedDelivery` records the arrival milestone: `arrived_at` (server time),
+`arrived_by` (the agent) and `arrival_request_id` (the retry identity, unique
+when set). Only the agent's explicit action records it; no location, distance
+or timer does. It is the origin of the unreachable-Customer clock and nothing
+else: handover never requires it and it never marks anything delivered.
+
+`recordArrival` is the only arrival write. `recordArrivalStep`
+(`src/workflows/delivery/arrival.ts`) holds `delivery-agent:{agent_id}` then
+`order-operation:{order_id}`, as pickup and handover do, reads whether the
+Order is still active and takes the server's time under them. The service
+locks the delivery row, applies `decideArrival`
+(`src/workflows/delivery/arrival-rules.ts`): the responsible, authorized agent
+still holding active, collected work. It writes in one update whose selector
+requires the arrival unrecorded, the work unended and the agent still holding
+the capacity. The same commit stores `arrived_without_handover` attention due
+at arrival plus ten minutes, so no committed arrival lacks its obligation. A
+repeat returns the original arrival; ended work refuses even a repeat.
+
+`DeliveryContactAttempt` stores one attempt to reach the Customer: `order_id`,
+`agent_id`, `request_id` (unique) and `attempted_at` (server time). It has no
+outcome field, so an attempt never claims that the Customer was reached, and
+the phone's call link records nothing. `recordContactAttempt` takes the same
+locks and the delivery row lock, re-reads the retry identity and the number of
+attempts and applies `decideContactAttempt`: after arrival, by the responsible
+agent of active work, at most `CONTACT_ATTEMPT_LIMIT` (20) per delivery. The
+same `request_id` returns the existing attempt; on another delivery or agent
+it is refused.
+
+The unreachable-Customer attention follows the shared attention rule: due
+exactly at arrival plus ten minutes, raised once by the recovery sweep
+whenever it runs (so the clock survives a restart), and resolved only by the
+terminal outcome (`delivered` for the handover, `order_ended` otherwise).
+Contact attempts and elapsed time never resolve it, and it never cancels,
+frees, reassigns or delivers work. Operator exception resolution is #49. The
+agent's current view and the operator attention list show it, the list with
+`arrived_at` and the contact-attempt count and latest time. Arrival does not
+end `in_transit_without_delivery`, because the food is still undelivered, so
+an Order that is late in both ways appears in the list once per condition.
+Arrival is new
+in #164, so no earlier work owes this obligation and there is no backfill.
+
+`integration-tests/http/delivery-arrival.spec.ts` covers arrival with its
+server time, double taps and retries, forged bodies (time, coordinates,
+agent), refusals before pickup, by other agents and actors, on unknown Orders,
+for revoked agents, a reused retry identity and ended work, three competing
+arrivals (one milestone, one obligation), distinct and repeated contact
+attempts under competing requests, an attempt racing the handover, their
+refusals, and the attention 1 ms
+before, exactly at and after arrival plus ten minutes, after downtime, its
+resolution by handover and failure, a handover before the deadline and a
+sweep racing the handover. `src/workflows/delivery/__tests__/arrival-rules.unit.spec.ts`
+and `attention-rules.unit.spec.ts` cover the decision tables.

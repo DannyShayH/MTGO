@@ -114,4 +114,12 @@ export {
   DELIVERY_HANDOVER_ERRORS,
   isDeliveryHandoverErrorCode,
   type DeliveryHandoverErrorCode,
+  DELIVERY_ARRIVAL_ERROR_CODES,
+  DELIVERY_ARRIVAL_ERRORS,
+  isDeliveryArrivalErrorCode,
+  type DeliveryArrivalErrorCode,
+  DELIVERY_CONTACT_ATTEMPT_ERROR_CODES,
+  DELIVERY_CONTACT_ATTEMPT_ERRORS,
+  isDeliveryContactAttemptErrorCode,
+  type DeliveryContactAttemptErrorCode,
 } from "./delivery-agent.ts"

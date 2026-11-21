@@ -124,7 +124,7 @@ medusaIntegrationTestRunner({
       it("records the responsible agent's confirmed handover once, frees capacity for new work and marks the native fulfillment delivered", async () => {
         const { order, agent } = await collectedOrder()
         expect((await current(agent.headers)).data.delivery).toMatchObject({
-          allowed_actions: ["confirm_handover"],
+          allowed_actions: ["record_arrival", "confirm_handover"],
         })
 
         const started = Date.now()
