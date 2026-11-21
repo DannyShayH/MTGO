@@ -37,12 +37,39 @@ GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS or OTHER. Raw IDs, URLs, headers
 and query strings are never labels. Node validates emitted HTTP status codes.
 
 Health probes, `/metrics`, `/app` Admin pages and assets, `/static` files and
-scrapes on the exporter listener are excluded by raw path. Established SSE
-streams (a 2xx on a listed stream endpoint, currently
-`/partner/orders/stream`) are excluded explicitly. A stream request refused
-before establishment keeps its ordinary outcome. Add new SSE endpoints to the
-stream list. Interrupted responses are excluded from this counter. Separate
-interruption and SSE measurements belong to later slices.
+scrapes on the exporter listener are excluded by raw path.
+
+Each observed request settles exactly once, on the first of response `finish`
+or `close`: a completed response, an interrupted request or a stream
+termination. The listener for the other event is removed, and a `close`
+after a finished response (`writableFinished`) is still that completion, so a
+finish/close race never adds a second outcome.
+
+Server-sent event (SSE) endpoints are listed in `STREAM_ROUTES` with a fixed
+route label, currently `/partner/orders/stream`. Add new SSE endpoints there.
+A stream is **established** once its 2xx headers have been sent. Established
+streams never enter `mtogo_http_requests_total`, the duration histogram or
+the interruption counter:
+
+- `mtogo_sse_connections_active{route}` is a gauge computed on each scrape from
+  the stream responses still open with established headers. It follows the
+  real connection lifecycle; there is no separate increment to drift.
+- `mtogo_sse_connections_closed_total{route,outcome}` counts each established
+  stream once when it ends: `server_ended` when the response finished (session
+  expiry, revoked access, a feed error) and `disconnected` when the
+  connection closed first. A disconnect is not an application error.
+
+A stream request refused before establishment (for example 401) is an
+ordinary completed response with its final status. A stream whose client
+leaves before any headers were sent is an ordinary interruption.
+
+`mtogo_http_requests_interrupted_total{method,route}` counts an ordinary
+request whose connection closed before its response finished. It has no status
+label and observes no duration, and a late error after the disconnect cannot
+add a 500 because the request has already settled. `route` is the matched
+pattern when Express had matched one, otherwise `unrouted`. The
+`GET /store/products` and `GET unrouted` interruption series and every stream route/outcome start
+at zero.
 
 `mtogo_http_request_duration_seconds{method,route}` is a histogram of the
 server-side seconds from the diagnostics channel's request start to response

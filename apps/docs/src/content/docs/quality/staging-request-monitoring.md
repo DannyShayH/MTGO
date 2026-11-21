@@ -251,6 +251,16 @@ value are in
 [local request monitoring](/MTGO/quality/local-request-monitoring/#http-serving-process-cpu-memory-and-event-loop-delay-172).
 The process collectors add a few dozen bounded series to Prometheus.
 
+From a release with #173, a row under the p95 charts shows open kitchen feeds
+(partner app Server-Sent Events), their terminations by outcome and
+interrupted requests. Feeds and interruptions never enter the ordinary counts,
+rate or p95. Expect one active feed per signed-in kitchen screen. Feeds ended by a deploy
+are not recorded: collection stops with the old process, and the restart
+resets the counters. Meanings are in
+[local request monitoring](/MTGO/quality/local-request-monitoring/#streams-and-interrupted-requests-173).
+Leave the interruption demonstration (stopping the database) to the local
+stack.
+
 ### 7. Memory readings after activation and during a deploy
 
 Take the reading from step 1 again after activation. For the deploy reading,

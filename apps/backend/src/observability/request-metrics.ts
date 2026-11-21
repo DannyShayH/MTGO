@@ -7,6 +7,7 @@ import {
 import {
   collectDefaultMetrics,
   Counter,
+  Gauge,
   Histogram,
   Registry,
 } from "@prometheus-io/client"
@@ -38,8 +39,16 @@ const EXCLUDED_PATHS = [
   /^\/static\//i,
 ]
 
-/** Server-sent event endpoints; their established streams are measured apart. */
-const STREAM_PATHS = [/^\/partner\/orders\/stream\/?$/i]
+/**
+ * Server-sent event endpoints and the bounded route category their established
+ * streams are measured under, apart from ordinary API responses.
+ */
+const STREAM_ROUTES = [
+  {
+    pattern: /^\/partner\/orders\/stream\/?$/i,
+    route: "/partner/orders/stream",
+  },
+]
 
 const pathOf = (url: string) => url.split("?")[0]
 
@@ -48,17 +57,27 @@ function isExcludedPath(url: string): boolean {
   return EXCLUDED_PATHS.some((pattern) => pattern.test(pathOf(url)))
 }
 
+/** The stream route category of a raw URL, or undefined for ordinary paths. */
+function streamRouteOf(url: string): string | undefined {
+  return STREAM_ROUTES.find(({ pattern }) => pattern.test(pathOf(url)))?.route
+}
+
 /**
- * A successful response on a stream endpoint is an established stream, not an
- * ordinary API response. A refusal before establishment keeps its outcome.
+ * A stream endpoint whose successful headers have been sent is an established
+ * stream, not an ordinary API response. A refusal before establishment, or a
+ * disconnect before any headers, keeps its ordinary outcome.
  */
-function isEstablishedStream(url: string, status: number): boolean {
+function isEstablished(response: ServerResponse): boolean {
   return (
-    status >= 200 &&
-    status < 300 &&
-    STREAM_PATHS.some((pattern) => pattern.test(pathOf(url)))
+    response.headersSent &&
+    response.statusCode >= 200 &&
+    response.statusCode < 300
   )
 }
+
+/** Why an established stream ended. A disconnect is not an application error. */
+type StreamOutcome = "server_ended" | "disconnected"
+const STREAM_OUTCOMES: StreamOutcome[] = ["server_ended", "disconnected"]
 
 /** Fixed route categories for responses that no registered route pattern matched. */
 const UNMATCHED = "unmatched"
@@ -67,6 +86,13 @@ const UNROUTED = "unrouted"
 
 /** The request object Node emits, once Express has decorated it. */
 type RoutedRequest = IncomingMessage & { route?: { path?: unknown } }
+
+/** Express's documented `req.route` pattern, when a route has matched. */
+function matchedRoute(request: RoutedRequest): string | undefined {
+  const path = request.route?.path
+  if (typeof path === "string" || path instanceof RegExp) return String(path)
+  return undefined
+}
 
 /**
  * Express's documented `req.route` holds the last registered route pattern that
@@ -77,8 +103,8 @@ type RoutedRequest = IncomingMessage & { route?: { path?: unknown } }
  * successful response, such as a CORS preflight, is unrouted.
  */
 function routeLabel(request: RoutedRequest, status: number): string {
-  const path = request.route?.path
-  if (typeof path === "string" || path instanceof RegExp) return String(path)
+  const route = matchedRoute(request)
+  if (route) return route
   if (status === 404) return UNMATCHED
   return status >= 400 ? EARLY_REJECTION : UNROUTED
 }
@@ -143,6 +169,41 @@ export function startRequestMetrics({
   })
   // A zero baseline separates "no duration observations" from a missing series.
   duration.zero({ method: "GET", route: "/store/products" })
+  const interrupted = new Counter({
+    name: "mtogo_http_requests_interrupted_total",
+    help: "Ordinary backend API requests whose connection closed before the response completed; no status is recorded",
+    labelNames: ["method", "route"] as const,
+    registers: [registry],
+  })
+  // Established streams still open, read from their real responses on scrape.
+  const openStreams = new Map<ServerResponse, string>()
+  registry.registerMetric(
+    new Gauge({
+      name: "mtogo_sse_connections_active",
+      help: "Established server-sent event connections still open, by stream route",
+      labelNames: ["route"] as const,
+      // Only this registry: the client's global default registry would make
+      // a second start in the same process throw on the duplicate name.
+      registers: [],
+      collect() {
+        for (const { route } of STREAM_ROUTES) this.set({ route }, 0)
+        for (const [response, route] of openStreams)
+          if (isEstablished(response)) this.inc({ route })
+      },
+    }),
+  )
+  const closedStreams = new Counter({
+    name: "mtogo_sse_connections_closed_total",
+    help: "Established server-sent event connections that ended, by stream route and whether the server ended them or the connection closed",
+    labelNames: ["route", "outcome"] as const,
+    registers: [registry],
+  })
+  // Zero baselines: "no streams" and "no interruptions" are observations.
+  for (const { route } of STREAM_ROUTES)
+    for (const outcome of STREAM_OUTCOMES)
+      closedStreams.inc({ route, outcome }, 0)
+  interrupted.inc({ method: "GET", route: "/store/products" }, 0)
+  interrupted.inc({ method: "GET", route: UNROUTED }, 0)
 
   let isStopped = false
   const pending = new Set<() => void>()
@@ -158,17 +219,36 @@ export function startRequestMetrics({
     const method = ALLOWED_HTTP_METHODS.has(request.method || "")
       ? request.method!
       : "OTHER"
+    const streamRoute = streamRouteOf(url)
+    if (streamRoute) openStreams.set(response, streamRoute)
     const cleanup = () => {
-      response.off("finish", finish)
-      response.off("close", cleanup)
+      response.off("finish", settle)
+      response.off("close", settle)
+      openStreams.delete(response)
       pending.delete(cleanup)
     }
-    const finish = () => {
+    // Exactly one outcome per request: the first of finish and close settles
+    // it and removes the other listener. A close after a completed response
+    // (writableFinished) is still that completion, never a second outcome.
+    const settle = () => {
       cleanup()
       if (isStopped) return
-      const status = response.statusCode
-      if (isEstablishedStream(url, status)) return
+      const isFinished = response.writableFinished
+      if (streamRoute && isEstablished(response)) {
+        const outcome: StreamOutcome = isFinished
+          ? "server_ended"
+          : "disconnected"
+        closedStreams.inc({ route: streamRoute, outcome })
+        return
+      }
       // Express decorates the same request object Node handed to the channel.
+      if (!isFinished) {
+        // No final status exists; no matched route yet is all it shows.
+        const route = matchedRoute(request as RoutedRequest) ?? UNROUTED
+        interrupted.inc({ method, route })
+        return
+      }
+      const status = response.statusCode
       const route = routeLabel(request as RoutedRequest, status)
       completed.inc({ method, route, status: String(status) })
       duration.observe(
@@ -177,8 +257,8 @@ export function startRequestMetrics({
       )
     }
     pending.add(cleanup)
-    response.once("finish", finish)
-    response.once("close", cleanup)
+    response.once("finish", settle)
+    response.once("close", settle)
   }
 
   const exporter = createServer(async (request, response) => {

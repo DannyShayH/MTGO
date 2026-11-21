@@ -1,9 +1,9 @@
 {
   "uid": "mtogo-backend-requests",
   "title": "MTOGO — backend API requests and process",
-  "description": "Slices #169/#170/#194/#171/#172: completed ordinary API responses, 5xx proportion, p95 latency and process CPU, memory and event-loop delay from one HTTP-serving Medusa process, with explicit unavailable states. No business counts.",
+  "description": "Slices #169/#170/#194/#171/#172/#173: completed ordinary API responses, 5xx proportion, p95 latency and process CPU, memory and event-loop delay, with established streams and interrupted requests kept apart, from one HTTP-serving Medusa process, with explicit unavailable states. No business counts.",
   "schemaVersion": 41,
-  "version": 5,
+  "version": 6,
   "editable": false,
   "refresh": "30s",
   "timezone": "browser",
@@ -31,7 +31,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**One HTTP-serving backend process**, target `backend-metrics:9464`: the local demo, or the staging `backend` container with browser and server-side calls from the storefront and partner app (a split staging worker serves no HTTP). Every completed ordinary API response, by matched route pattern. Method-less middleware finishing before any route matches gives fixed categories: refusals (publishable key, namespace or method-less authentication, malformed body) as `early_rejection`, 404s as `unmatched`, successes such as CORS preflights as `unrouted`; unknown methods as `OTHER`. A wildcard middleware refusal shows its wildcard. IDs/query strings never become labels. Health, `/app` Admin assets, `/static`, scrapes and established SSE streams are excluded."
+        "content": "**One HTTP-serving backend process**, target `backend-metrics:9464`: the local demo, or the staging `backend` container with browser and server-side calls from the storefront and partner app (a split staging worker serves no HTTP). Every completed ordinary API response, by matched route pattern. Method-less middleware finishing before any route matches gives fixed categories: refusals (publishable key, namespace or method-less authentication, malformed body) as `early_rejection`, 404s as `unmatched`, successes such as CORS preflights as `unrouted`; unknown methods as `OTHER`. A wildcard middleware refusal shows its wildcard. IDs/query strings never become labels. Health, `/app` Admin assets, `/static`, scrapes and established SSE streams are excluded, and so are interrupted requests; both have their own panels below."
       }
     },
     {
@@ -46,7 +46,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**HTTP responses, not Customers or Orders.** Latency is server-side seconds from request start to response finish for one HTTP request. It is **not Order processing time** (Feature #54) or any business measure. Every query uses a rolling five-minute window; counts are extrapolated estimates. **Unavailable** means no valid evidence: target DOWN or absent, fewer than two scrapes, zero completed responses (no 5xx proportion) or no duration observations (no p95). Check the observation count before trusting a p95; p95 is capped at the 10 s bucket. Rates handle counter resets. SSE, interruptions and warning controls are deferred."
+        "content": "**HTTP responses, not Customers or Orders.** Latency is server-side seconds from request start to response finish for one HTTP request. It is **not Order processing time** (Feature #54) or any business measure. Every query uses a rolling five-minute window; counts are extrapolated estimates. **Unavailable** means no valid evidence: target DOWN or absent, fewer than two scrapes, zero completed responses (no 5xx proportion) or no duration observations (no p95). Check the observation count before trusting a p95; p95 is capped at the 10 s bucket. Rates handle counter resets. Established streams and interrupted requests are separate and never enter these counts, rates or p95. Warning controls are deferred."
       }
     },
     {
@@ -692,12 +692,309 @@
       }
     },
     {
+      "id": 23,
+      "title": "Streams and interrupted requests",
+      "type": "text",
+      "gridPos": {
+        "x": 0,
+        "y": 42,
+        "w": 24,
+        "h": 6
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Kept apart from ordinary API panels.** An established server-sent event (SSE) stream, currently the partner kitchen feed `/partner/orders/stream`, is open for minutes or hours, so it is **not in the completed response** counts, rates or p95 above. It shows as one active connection while open and one termination when it ends: `server_ended` (the server closed it: session expiry, revoked access or a feed error; a deploy stops collection first, so feeds it ends are not recorded) or `disconnected` (the connection closed first). A disconnect is **not an application error** or a business failure; browsers reconnect. A **refused stream** (for example 401) never opened, so it stays an ordinary completed response. An **interrupted request** is an ordinary request whose connection closed before its response completed. It has **no HTTP status** and no duration, and a late failure after the disconnect adds no 500. A route of `unrouted` means no route had matched yet. Same target and five-minute window as the panels above; Unavailable means no current scrape."
+      }
+    },
+    {
+      "id": 24,
+      "title": "Server-sent event connections — active now",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 48,
+        "w": 8,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Established streams open at the last scrape. 0 with a current scrape means none are open.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B8BEC9"
+          },
+          "noValue": "Unavailable",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(mtogo_sse_connections_active{job=\"mtogo-backend\"} and on(job, instance) (up{job=\"mtogo-backend\"} == 1))",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 25,
+      "title": "Server-sent event terminations — rolling 5 minutes",
+      "type": "stat",
+      "gridPos": {
+        "x": 8,
+        "y": 48,
+        "w": 8,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Estimated established streams that ended in the window, by any outcome. Needs two scrapes.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B8BEC9"
+          },
+          "noValue": "Unavailable",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(mtogo_sse_connections_closed_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 26,
+      "title": "Interrupted requests — rolling 5 minutes",
+      "type": "stat",
+      "gridPos": {
+        "x": 16,
+        "y": 48,
+        "w": 8,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Estimated ordinary requests closed before a completed response in the window. Needs two scrapes.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B8BEC9"
+          },
+          "noValue": "Unavailable",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(mtogo_http_requests_interrupted_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 27,
+      "title": "Server-sent event connections — active now",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 53,
+        "w": 8,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Open established streams per stream route at each scrape. Gaps remain visible.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false
+          },
+          "noValue": "Unavailable",
+          "decimals": 0,
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (route) (mtogo_sse_connections_active{job=\"mtogo-backend\"} and on(job, instance) (up{job=\"mtogo-backend\"} == 1))",
+          "legendFormat": "{{route}}",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 28,
+      "title": "Server-sent event terminations — rolling 5 minutes",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 8,
+        "y": 53,
+        "w": 8,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Per-series increase before aggregation; resets do not produce negative values. Gaps remain visible.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false
+          },
+          "noValue": "Unavailable",
+          "decimals": 0,
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (route, outcome) (increase(mtogo_sse_connections_closed_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))",
+          "legendFormat": "{{route}} {{outcome}}",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 29,
+      "title": "Interrupted requests — rolling 5 minutes",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 16,
+        "y": 53,
+        "w": 8,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Per-series increase before aggregation, by bounded method and matched route pattern. Gaps remain visible.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false
+          },
+          "noValue": "Unavailable",
+          "decimals": 0,
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (method, route) (increase(mtogo_http_requests_interrupted_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))",
+          "legendFormat": "{{method}} {{route}}",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
       "id": 16,
       "title": "HTTP-serving process scope",
       "type": "text",
       "gridPos": {
         "x": 0,
-        "y": 42,
+        "y": 61,
         "w": 24,
         "h": 5
       },
@@ -712,7 +1009,7 @@
       "type": "stat",
       "gridPos": {
         "x": 0,
-        "y": 47,
+        "y": 66,
         "w": 8,
         "h": 5
       },
@@ -759,7 +1056,7 @@
       "type": "stat",
       "gridPos": {
         "x": 8,
-        "y": 47,
+        "y": 66,
         "w": 8,
         "h": 5
       },
@@ -806,7 +1103,7 @@
       "type": "stat",
       "gridPos": {
         "x": 16,
-        "y": 47,
+        "y": 66,
         "w": 8,
         "h": 5
       },
@@ -853,7 +1150,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 52,
+        "y": 71,
         "w": 8,
         "h": 8
       },
@@ -901,7 +1198,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 8,
-        "y": 52,
+        "y": 71,
         "w": 8,
         "h": 8
       },
@@ -963,7 +1260,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 16,
-        "y": 52,
+        "y": 71,
         "w": 8,
         "h": 8
       },

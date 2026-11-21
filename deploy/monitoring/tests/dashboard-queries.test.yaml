@@ -161,7 +161,7 @@ tests:
         eval_time: 10m
         exp_samples:
           - labels: '{status="200"}'
-            value: 0.2
+            value: 0.19999999999999998
           - labels: '{status="500"}'
             value: 0.06666666666666667
       - expr: 'histogram_quantile(0.95, sum by (le) (rate(mtogo_http_request_duration_seconds_bucket{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))) and on() (sum(increase(mtogo_http_request_duration_seconds_count{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) > 0)'
@@ -374,7 +374,7 @@ tests:
         eval_time: 10m
         exp_samples:
           - labels: '{instance="backend-metrics:9464", job="mtogo-backend"}'
-            value: 0.2
+            value: 0.19999999999999998
       - expr: 'process_resident_memory_bytes{job="mtogo-backend"} and on(job, instance) (up{job="mtogo-backend"} == 1)'
         eval_time: 10m
         exp_samples:
@@ -492,7 +492,7 @@ tests:
         eval_time: 10m
         exp_samples:
           - labels: '{instance="backend-metrics:9464", job="mtogo-backend"}'
-            value: 0.2
+            value: 0.19999999999999998
   # process collection gap inside the window: only post-recovery evidence is current
   - interval: 15s
     input_series:
@@ -508,9 +508,179 @@ tests:
         eval_time: 10m
         exp_samples:
           - labels: '{instance="backend-metrics:9464", job="mtogo-backend"}'
-            value: 0.2
+            value: 0.19999999999999998
       - expr: 'process_resident_memory_bytes{job="mtogo-backend"} and on(job, instance) (up{job="mtogo-backend"} == 1)'
         eval_time: 10m
         exp_samples:
           - labels: 'process_resident_memory_bytes{instance="backend-metrics:9464", job="mtogo-backend"}'
             value: 200000000
+  # streams and interruptions stay out of ordinary counts and p95
+  - interval: 15s
+    input_series:
+      - series: 'up{instance="backend-metrics:9464",job="mtogo-backend"}'
+        values: "1x40"
+      - series: 'mtogo_sse_connections_active{instance="backend-metrics:9464",job="mtogo-backend",route="/partner/orders/stream"}'
+        values: "0x30 2x10"
+      - series: 'mtogo_sse_connections_closed_total{instance="backend-metrics:9464",job="mtogo-backend",route="/partner/orders/stream",outcome="disconnected"}'
+        values: "0+1x40"
+      - series: 'mtogo_sse_connections_closed_total{instance="backend-metrics:9464",job="mtogo-backend",route="/partner/orders/stream",outcome="server_ended"}'
+        values: "0x40"
+      - series: 'mtogo_http_requests_interrupted_total{instance="backend-metrics:9464",job="mtogo-backend",method="GET",route="/store/regions"}'
+        values: "0+1x40"
+      - series: 'mtogo_http_requests_total{instance="backend-metrics:9464",job="mtogo-backend",method="GET",route="/store/products",status="200"}'
+        values: "0x40"
+      - series: 'mtogo_http_request_duration_seconds_bucket{instance="backend-metrics:9464",job="mtogo-backend",le="+Inf",method="GET",route="/store/products"}'
+        values: "0x40"
+      - series: 'mtogo_http_request_duration_seconds_count{instance="backend-metrics:9464",job="mtogo-backend",method="GET",route="/store/products"}'
+        values: "0x40"
+    promql_expr_test:
+      - expr: 'sum(mtogo_sse_connections_active{job="mtogo-backend"} and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 2
+      - expr: 'sum by (route) (mtogo_sse_connections_active{job="mtogo-backend"} and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{route="/partner/orders/stream"}'
+            value: 2
+      - expr: 'sum(increase(mtogo_sse_connections_closed_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 20
+      - expr: 'sum by (route, outcome) (increase(mtogo_sse_connections_closed_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{outcome="disconnected", route="/partner/orders/stream"}'
+            value: 20
+          - labels: '{outcome="server_ended", route="/partner/orders/stream"}'
+            value: 0
+      - expr: 'sum(increase(mtogo_http_requests_interrupted_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 20
+      - expr: 'sum by (method, route) (increase(mtogo_http_requests_interrupted_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{method="GET", route="/store/regions"}'
+            value: 20
+      - expr: 'sum(increase(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+      - expr: 'histogram_quantile(0.95, sum by (le) (rate(mtogo_http_request_duration_seconds_bucket{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))) and on() (sum(increase(mtogo_http_request_duration_seconds_count{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) > 0)'
+        eval_time: 10m
+        exp_samples: []
+  # no open streams, terminations or interruptions: zero, not unavailable
+  - interval: 15s
+    input_series:
+      - series: 'up{instance="backend-metrics:9464",job="mtogo-backend"}'
+        values: "1x40"
+      - series: 'mtogo_sse_connections_active{instance="backend-metrics:9464",job="mtogo-backend",route="/partner/orders/stream"}'
+        values: "0x40"
+      - series: 'mtogo_sse_connections_closed_total{instance="backend-metrics:9464",job="mtogo-backend",route="/partner/orders/stream",outcome="disconnected"}'
+        values: "0x40"
+      - series: 'mtogo_sse_connections_closed_total{instance="backend-metrics:9464",job="mtogo-backend",route="/partner/orders/stream",outcome="server_ended"}'
+        values: "0x40"
+      - series: 'mtogo_http_requests_interrupted_total{instance="backend-metrics:9464",job="mtogo-backend",method="GET",route="/store/regions"}'
+        values: "0x40"
+    promql_expr_test:
+      - expr: 'sum(mtogo_sse_connections_active{job="mtogo-backend"} and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+      - expr: 'sum(increase(mtogo_sse_connections_closed_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+      - expr: 'sum(increase(mtogo_http_requests_interrupted_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+  # target DOWN: last stream and interruption values are not shown as current
+  - interval: 15s
+    input_series:
+      - series: 'up{instance="backend-metrics:9464",job="mtogo-backend"}'
+        values: "1x20 0x20"
+      - series: 'mtogo_sse_connections_active{instance="backend-metrics:9464",job="mtogo-backend",route="/partner/orders/stream"}'
+        values: "3x20 stale"
+      - series: 'mtogo_sse_connections_closed_total{instance="backend-metrics:9464",job="mtogo-backend",route="/partner/orders/stream",outcome="disconnected"}'
+        values: "0+1x20 stale"
+      - series: 'mtogo_sse_connections_closed_total{instance="backend-metrics:9464",job="mtogo-backend",route="/partner/orders/stream",outcome="server_ended"}'
+        values: "0+1x20 stale"
+      - series: 'mtogo_http_requests_interrupted_total{instance="backend-metrics:9464",job="mtogo-backend",method="GET",route="/store/regions"}'
+        values: "0+1x20 stale"
+    promql_expr_test:
+      - expr: 'sum(mtogo_sse_connections_active{job="mtogo-backend"} and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(increase(mtogo_sse_connections_closed_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(increase(mtogo_http_requests_interrupted_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum by (route) (mtogo_sse_connections_active{job="mtogo-backend"} and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum by (route, outcome) (increase(mtogo_sse_connections_closed_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum by (method, route) (increase(mtogo_http_requests_interrupted_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+  # one scrape: open streams are evidence, terminations and interruptions need two
+  - interval: 15s
+    input_series:
+      - series: 'up{instance="backend-metrics:9464",job="mtogo-backend"}'
+        values: "_x39 1"
+      - series: 'mtogo_sse_connections_active{instance="backend-metrics:9464",job="mtogo-backend",route="/partner/orders/stream"}'
+        values: "_x39 1"
+      - series: 'mtogo_sse_connections_closed_total{instance="backend-metrics:9464",job="mtogo-backend",route="/partner/orders/stream",outcome="disconnected"}'
+        values: "_x39 0"
+      - series: 'mtogo_sse_connections_closed_total{instance="backend-metrics:9464",job="mtogo-backend",route="/partner/orders/stream",outcome="server_ended"}'
+        values: "_x39 0"
+      - series: 'mtogo_http_requests_interrupted_total{instance="backend-metrics:9464",job="mtogo-backend",method="GET",route="/store/regions"}'
+        values: "_x39 0"
+    promql_expr_test:
+      - expr: 'sum(mtogo_sse_connections_active{job="mtogo-backend"} and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 1
+      - expr: 'sum(increase(mtogo_sse_connections_closed_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(increase(mtogo_http_requests_interrupted_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+  # counter reset after a backend restart: no negative terminations or interruptions
+  - interval: 15s
+    input_series:
+      - series: 'up{instance="backend-metrics:9464",job="mtogo-backend"}'
+        values: "1x40"
+      - series: 'mtogo_sse_connections_active{instance="backend-metrics:9464",job="mtogo-backend",route="/partner/orders/stream"}'
+        values: "0x40"
+      - series: 'mtogo_sse_connections_closed_total{instance="backend-metrics:9464",job="mtogo-backend",route="/partner/orders/stream",outcome="disconnected"}'
+        values: "0+1x30 1+1x9"
+      - series: 'mtogo_sse_connections_closed_total{instance="backend-metrics:9464",job="mtogo-backend",route="/partner/orders/stream",outcome="server_ended"}'
+        values: "0x40"
+      - series: 'mtogo_http_requests_interrupted_total{instance="backend-metrics:9464",job="mtogo-backend",method="GET",route="/store/regions"}'
+        values: "0+1x30 1+1x9"
+    promql_expr_test:
+      - expr: 'sum(increase(mtogo_sse_connections_closed_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 20
+      - expr: 'sum(increase(mtogo_http_requests_interrupted_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 20

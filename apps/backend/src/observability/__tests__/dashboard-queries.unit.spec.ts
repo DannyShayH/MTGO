@@ -160,6 +160,74 @@ describe("provisioned backend dashboard queries", () => {
     })
   })
 
+  describe("streams and interrupted requests, apart from ordinary API panels", () => {
+    const separate = panels.filter(({ title }) =>
+      /^(Server-sent event|Interrupted requests)/.test(title),
+    )
+
+    it.each([
+      {
+        title: /^Server-sent event connections — active now$/,
+        metric: /mtogo_sse_connections_active\{job="mtogo-backend"\}/,
+        reason: "EP: established streams still open",
+      },
+      {
+        title: /^Server-sent event terminations — rolling 5 minutes$/,
+        metric:
+          /increase\(mtogo_sse_connections_closed_total\{job="mtogo-backend"\}\[5m\]\)/,
+        reason: "EP: established streams that ended",
+      },
+      {
+        title: /^Interrupted requests — rolling 5 minutes$/,
+        metric:
+          /increase\(mtogo_http_requests_interrupted_total\{job="mtogo-backend"\}\[5m\]\)/,
+        reason: "EP: ordinary requests closed before a completed response",
+      },
+    ])("$reason: shows $title as a stat and over time", ({ title, metric }) => {
+      const shown = separate.filter((panel) => title.test(panel.title))
+      expect(shown.map(({ type }) => type).sort()).toEqual([
+        "stat",
+        "timeseries",
+      ])
+      for (const panel of shown)
+        expect(panel.targets!.some(({ expr }) => metric.test(expr))).toBe(true)
+    })
+
+    it.each(
+      separate.flatMap(({ title, targets }) =>
+        (targets ?? []).map(({ expr }) => ({ title, expr })),
+      ),
+    )("$title only shows a currently scraped target", ({ expr }) => {
+      expect(expr).toMatch(
+        / and on\(job, instance\) \(up\{job="mtogo-backend"\} == 1\)\)$/,
+      )
+    })
+
+    // Ordinary panels must never mix stream lifetimes or interruptions in.
+    it.each(
+      queries.filter(
+        ({ title }) => !/^(Server-sent event|Interrupted requests)/.test(title),
+      ),
+    )("$title reads no stream or interruption series", ({ expr }) => {
+      expect(expr).not.toMatch(/mtogo_sse_|interrupted/)
+    })
+
+    it("explains why they are separate and what a disconnect means", () => {
+      const text = JSON.stringify(
+        panels.find(
+          ({ title }) => title === "Streams and interrupted requests",
+        ),
+      )
+      for (const claim of [
+        "not in the completed response",
+        "no HTTP status",
+        "not an application error",
+        "refused stream",
+      ])
+        expect(text).toContain(claim)
+    })
+  })
+
   it("states that HTTP latency is not Order processing time", () => {
     const text = panels
       .filter(({ type }) => type === "text")

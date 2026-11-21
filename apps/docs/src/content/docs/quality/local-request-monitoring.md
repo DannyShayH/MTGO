@@ -46,7 +46,7 @@ For a native development server, use `PORT` rather than a CLI `--port`
 override and keep the default exporter bind at `127.0.0.1`.
 
 There is no application-log collection, host/container/database/Redis or
-Next.js process metrics, separate-worker runtime metrics, SSE/interruption counters or adjustable warning thresholds yet.
+Next.js process metrics, separate-worker runtime metrics or adjustable warning thresholds yet.
 The [confirmed discovery](/MTGO/quality/prometheus-monitoring-discovery/)
 describes the later work. Seven-day Prometheus retention is a time policy,
 not a storage quota or evidence that the full four-component stack fits staging.
@@ -178,7 +178,9 @@ curl --silent --output /dev/null --write-out '%{http_code}\n' 'http://127.0.0.1:
 
 `mtogo_http_requests_total{method,route,status}` increments only after response
 `finish`. A subsequent close does not add a duplicate. An interrupted response
-does not invent a completion or HTTP 500. IDs/query strings are discarded.
+does not invent a completion or HTTP 500; it is counted separately (see
+[streams and interrupted requests](/MTGO/quality/local-request-monitoring/#streams-and-interrupted-requests-173)).
+IDs/query strings are discarded.
 
 | `route` label                        | Meaning                                                                                                                                    |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -311,6 +313,66 @@ Keyless reads are refused with 400, so the burst also appears as
 for i in $(seq 1 500); do curl --silent --output /dev/null 'http://127.0.0.1:9000/store/products?synthetic=burst'; done
 ```
 
+## Streams and interrupted requests (#173)
+
+Two kinds of traffic do not fit "one request, one completed response, one
+duration". The row under the p95 charts shows them, and the ordinary panels
+above never include them.
+
+| Panel                                  | Query                                                 | Meaning                                                                                                                                                                    |
+| -------------------------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Server-sent event connections — active | `mtogo_sse_connections_active`                        | Established kitchen feeds (`/partner/orders/stream`) open at the last scrape. Computed from the real open responses on each scrape.                                        |
+| Server-sent event terminations — 5 min | `increase(mtogo_sse_connections_closed_total[5m])`    | Established feeds that ended, once each: `server_ended` (session expiry, revoked access, feed error) or `disconnected` (the connection closed first: tab closed, network). |
+| Interrupted requests — 5 min           | `increase(mtogo_http_requests_interrupted_total[5m])` | Ordinary requests whose connection closed before the response finished, by method and matched route (`unrouted` if none had matched). No status, no duration.              |
+
+A feed is established when its 2xx headers are sent. Its lifetime (minutes to
+hours) would otherwise dominate the p95, so it never adds a completed response
+or duration. A feed **refused** before that point, for example with 401, is an
+ordinary completed response with that status. A disconnect is **not an
+application error**: browsers and the partner app reconnect. Many
+`disconnected` terminations while kitchens report problems point at the
+network or proxy, not the backend.
+
+An interrupted request settles when its connection closes. If the route later
+fails because of the disconnect, Medusa's error handler cannot add a 500,
+because that request already has its one outcome. A finish/close race also
+yields exactly one outcome. All three panels follow the same rules as the
+others: they require a current scrape, rolling values need two scrapes, and
+0 with a current scrape is a real zero.
+
+Hold one real kitchen feed open for 45 seconds, then disconnect. The script
+creates a synthetic Restaurant once and a new synthetic staff member per run,
+with a random password it never prints. `STREAM_HOLD_SECONDS` (1–600) changes
+the hold time.
+
+```bash
+docker compose -f compose.application.yaml exec backend npm exec --no -- medusa exec ./src/scripts/observe-local-stream.js
+```
+
+While it runs, **active** reads 1. After it ends and the next scrape, active is
+0 and terminations show one `disconnected`. The ordinary counts, rate and p95
+do not change, apart from the staff sign-in, an ordinary completed response
+labelled `POST /auth/:actor_type/:auth_provider`. The rolling termination
+value is an extrapolated estimate (about 1.07 for one), like the other
+rolling counts.
+
+To see an interruption, stop the database and give up on a read that waits for
+it. The publishable-key check waits for PostgreSQL, so the client leaves first:
+
+```bash
+docker compose -f compose.application.yaml stop postgres
+curl --silent --max-time 2 --output /dev/null -H 'x-publishable-api-key: pk_synthetic' 'http://127.0.0.1:9000/store/regions'; echo "curl exit $?"
+docker compose -f compose.application.yaml start postgres
+```
+
+`curl` exits with 28 (timed out). After the next scrape, **Interrupted
+requests** shows one `GET unrouted`, and no 500 or duration was added for
+it, even after the database returns. `GET unrouted` and
+`GET /store/products` start at zero, so their first interruption is visible
+in the rolling value. Like other outcomes, an interruption series seen for the
+first time inside the window misses its first increment; the raw counter
+`mtogo_http_requests_interrupted_total` has the exact count.
+
 ## Operation, failure and cleanup
 
 Stop either monitoring service locally and run the real read again. The API
@@ -351,26 +413,29 @@ docker compose down
 
 ## Troubleshooting
 
-| Symptom                                            | Check/action                                                                                                                                                      |
-| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Target DOWN                                        | Check backend logs for the constant metrics warning, backend startup, port 9464 and the shared network alias. Never publish 9464 to fix connectivity.             |
-| Raw 0 after read                                   | Confirm the read returned 200, the API uses `PORT=9000`, metrics is enabled and the next scrape occurred. Excluded paths and established streams are not counted. |
-| Rolling count unavailable or surprising            | Wait for two scrapes; generate another request. Inspect raw count and `up`. Increases are estimates and new series lack earlier history.                          |
-| Health is OK, scrape fails                         | API health and exporter availability are independent. Check exporter bind/configuration and private DNS.                                                          |
-| Exporter warning                                   | Check port collision, a valid integer port and bind address. API startup continues; restart the backend after fixing configuration.                               |
-| Grafana login fails after `.env` changes           | Stored credentials survive recreation. Restore the original local file or deliberately reset disposable volumes.                                                  |
-| p95 or 5xx proportion Unavailable while UP         | Expected with no completed responses or no duration observations in five minutes. Check **Data state** and the observation count; send a real read.               |
-| Data state shows Insufficient history              | Fewer than two successful scrapes in five minutes, for example right after Prometheus or the backend started. Wait 30 seconds.                                    |
-| p95 shows exactly 10 s                             | The 95th percentile is in the overflow bucket: at least 10 s. Investigate the slow route in **p95 by route pattern**.                                             |
-| Process panels Unavailable while requests show     | The CPU rate needs two scrapes; wait 30 seconds. If memory is also Unavailable, the backend release predates #172 and exports no process collectors.              |
-| CPU above 1 core or much lower than `top`          | It is this one process, in cores, averaged over five minutes. `top` shows instantaneous whole-host or per-thread figures; they are different measurements.        |
-| Event-loop delay jumps when you `curl` `/metrics`  | A manual scrape resets the delay window. Read the values in Grafana, or query Prometheus, instead of scraping the exporter by hand.                               |
-| `test rules` fails after a dashboard change        | Update the expression and expected values in `tests/dashboard-queries.test.yaml` together; the backend unit test names any query the file lacks.                  |
-| Dashboard absent                                   | Check Grafana provisioning logs and the mounted dashboard/provider/data-source paths; keep the pinned versions together.                                          |
-| `docker: command not found`                        | Rebuild and reopen the devcontainer with the Docker-in-Docker feature, then check `docker version` and `docker compose version`.                                  |
-| Docker client exists but cannot reach its server   | Check the feature startup log `/tmp/dockerd.log` and host support for privileged development containers; a client alone cannot run the journey.                   |
-| No configuration file found                        | Run the monitoring commands from `deploy/monitoring`, not the repository root.                                                                                    |
-| PostgreSQL refuses `localhost:5432` for HTTP tests | Rebuild the repository devcontainer. Do not redirect tests to `postgres`, which causes Medusa SSL problems. The Compose demo owns a separate database.            |
+| Symptom                                            | Check/action                                                                                                                                                                                       |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Target DOWN                                        | Check backend logs for the constant metrics warning, backend startup, port 9464 and the shared network alias. Never publish 9464 to fix connectivity.                                              |
+| Raw 0 after read                                   | Confirm the read returned 200, the API uses `PORT=9000`, metrics is enabled and the next scrape occurred. Excluded paths and established streams are not counted.                                  |
+| Rolling count unavailable or surprising            | Wait for two scrapes; generate another request. Inspect raw count and `up`. Increases are estimates and new series lack earlier history.                                                           |
+| Health is OK, scrape fails                         | API health and exporter availability are independent. Check exporter bind/configuration and private DNS.                                                                                           |
+| Exporter warning                                   | Check port collision, a valid integer port and bind address. API startup continues; restart the backend after fixing configuration.                                                                |
+| Grafana login fails after `.env` changes           | Stored credentials survive recreation. Restore the original local file or deliberately reset disposable volumes.                                                                                   |
+| p95 or 5xx proportion Unavailable while UP         | Expected with no completed responses or no duration observations in five minutes. Check **Data state** and the observation count; send a real read.                                                |
+| Data state shows Insufficient history              | Fewer than two successful scrapes in five minutes, for example right after Prometheus or the backend started. Wait 30 seconds.                                                                     |
+| p95 shows exactly 10 s                             | The 95th percentile is in the overflow bucket: at least 10 s. Investigate the slow route in **p95 by route pattern**.                                                                              |
+| Process panels Unavailable while requests show     | The CPU rate needs two scrapes; wait 30 seconds. If memory is also Unavailable, the backend release predates #172 and exports no process collectors.                                               |
+| CPU above 1 core or much lower than `top`          | It is this one process, in cores, averaged over five minutes. `top` shows instantaneous whole-host or per-thread figures; they are different measurements.                                         |
+| Event-loop delay jumps when you `curl` `/metrics`  | A manual scrape resets the delay window. Read the values in Grafana, or query Prometheus, instead of scraping the exporter by hand.                                                                |
+| Active streams stay at 0 while a kitchen is open   | The feed may be refused (401/403 are ordinary responses) or the partner app may be polling instead. A stream endpoint missing from `STREAM_ROUTES` is counted as an ordinary request when it ends. |
+| Many `disconnected` terminations                   | Not a backend error. Check the proxy timeouts, the network and whether clients reconnect; a deploy ends feeds without recording them, because collection stops with the old process.               |
+| Interrupted requests rise                          | Clients gave up before the response finished. Check the p95 of the same route and the event-loop delay: slow responses lead to timeouts.                                                           |
+| `test rules` fails after a dashboard change        | Update the expression and expected values in `tests/dashboard-queries.test.yaml` together; the backend unit test names any query the file lacks.                                                   |
+| Dashboard absent                                   | Check Grafana provisioning logs and the mounted dashboard/provider/data-source paths; keep the pinned versions together.                                                                           |
+| `docker: command not found`                        | Rebuild and reopen the devcontainer with the Docker-in-Docker feature, then check `docker version` and `docker compose version`.                                                                   |
+| Docker client exists but cannot reach its server   | Check the feature startup log `/tmp/dockerd.log` and host support for privileged development containers; a client alone cannot run the journey.                                                    |
+| No configuration file found                        | Run the monitoring commands from `deploy/monitoring`, not the repository root.                                                                                                                     |
+| PostgreSQL refuses `localhost:5432` for HTTP tests | Rebuild the repository devcontainer. Do not redirect tests to `postgres`, which causes Medusa SSL problems. The Compose demo owns a separate database.                                             |
 
 ## Verification and manual acceptance record
 
@@ -544,3 +609,60 @@ Repeat the startup above, run the `test rules` command, then check as a Viewer:
   last value. After restart the CPU rate returns after two scrapes, without
   a negative dip.
 - Check the row at 1440 and 390 pixels wide; units and long titles stay readable.
+
+### Streams and interrupted requests (#173)
+
+The unit suite drives real Node HTTP requests against the real exporter:
+two established streams (active 2, then 1, then 0 as each client
+disconnects, with one `disconnected` termination each), a stream the server
+ends (`server_ended`), a refused stream (an ordinary 401, never active), an
+interruption after a route matched and one before any route matched, and
+30 requests whose client disconnects on the first byte, racing the server's
+finish: completed plus interrupted is exactly 30, durations equal the
+completed count and there is no 5xx. The real Medusa suite signs in as
+synthetic staff and opens the real kitchen feed (active 1, then one
+`disconnected` termination, ordinary series unchanged), and abandons a
+`/store/regions` read that the test delays inside the process and then fails:
+one interruption, no 200 or 500 and no duration for that route. Both new Medusa
+tests fail against the previous collector.
+
+Agent verification on 21 November 2026, on the uncommitted #173 working tree:
+
+| Boundary                | Observed result                                                                                                                                                                                                |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Node HTTP/exporter      | **66 request-metrics unit tests passed**; the race, lifecycle and server-ended cases passed three runs in a row.                                                                                               |
+| Dashboard queries       | **112 dashboard-query unit tests passed**: the new panels are a stat and a chart each, gate on a current scrape, use `[5m]` and are in the promtool file verbatim; ordinary panels read no stream series.      |
+| Medusa HTTP suite       | **9 tests passed** in `request-metrics.spec.ts`.                                                                                                                                                               |
+| Prometheus query engine | `promtool test rules` with the pinned v3.16.0 image: **SUCCESS**. Four expected values written as `0.2` in earlier slices were corrected to the engine's `0.19999999999999998`; they had never been run.       |
+| Compose demo            | Fresh build and migration. `observe-local-stream.js` held the feed 45 s: Prometheus read active 1 during the hold, then 0 and `disconnected` 1; ordinary series gained only the staff sign-in.                 |
+| Interruption demo       | With PostgreSQL stopped, `curl --max-time 2` exited 28. The raw counter showed `GET unrouted` 1 and no 500 after PostgreSQL returned. The rolling value read 0 then, which led to the `GET unrouted` baseline. |
+| Grafana 13.3.1 Viewer   | All six new queries returned data through Grafana's query API as the Viewer; saving the dashboard returned 403. The rendered row was then inspected; see the acceptance run below.                             |
+
+Repeat the startup above, run the `test rules` command, then check as a Viewer:
+
+- The **Streams and interrupted requests** row sits under the p95 charts, and
+  its text says streams are not in the completed responses, interruptions have
+  no HTTP status and a disconnect is not an application error.
+- With no feed open, active reads 0 and terminations and interruptions 0, not
+  Unavailable.
+- During `observe-local-stream.js`, active reads 1. Afterwards, active is 0 and
+  terminations show `disconnected`. The completed count, rate and p95 change
+  only by the sign-in.
+- The interruption demo adds one `GET unrouted` interruption and no 500.
+- Stopping the backend makes the three stat values **Unavailable**; the three
+  charts keep their history and draw no new points.
+- Check the row at 1440 and 390 pixels wide; titles and legends stay readable.
+
+Acceptance run on 21 November 2026, at the developer's request, on a fresh
+Compose stack built from commit `add234c` (Grafana 13.3.1, signed in as
+`local-viewer`, rendered in headless Chromium at 1440 and 390 pixels):
+
+| Checklist item     | Observed result                                                                                                                                                                                                          |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Startup            | Build, migration, `promtool check config` and `promtool test rules` succeeded.                                                                                                                                           |
+| Row and text       | The row sits under the p95 charts. Its text panel was too short (height 4) and cut off the interruption sentences; it is now height 6 and the full text shows at 1440 pixels.                                            |
+| No feed open       | Active, terminations and interruptions read 0, not Unavailable.                                                                                                                                                          |
+| Kitchen feed (45s) | Active read 1 during the hold. Afterwards active read 0 and terminations showed one `disconnected`. Ordinary series gained only one completed `POST /auth/:actor_type/:auth_provider` with a 0.15 s duration.            |
+| Interruption       | With PostgreSQL stopped, `curl` exited 28. Interrupted requests showed one `GET unrouted`; no 500 and no new duration, also after PostgreSQL returned.                                                                   |
+| Backend stopped    | The three stat panels read **Unavailable**; the charts kept their history and drew no new points.                                                                                                                        |
+| 1440 and 390 px    | Legends readable at both widths. At 390 pixels, stat titles are shortened with an ellipsis and the text panel shows its first lines with the rest scrollable inside the panel, as in the HTTP-serving process scope row. |

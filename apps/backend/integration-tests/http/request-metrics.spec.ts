@@ -6,6 +6,9 @@ import {
 } from "@medusajs/medusa/core-flows"
 import { Modules } from "@medusajs/framework/utils"
 import { register } from "../../instrumentation"
+import { RESTAURANT_MODULE } from "../../src/modules/restaurant"
+import type RestaurantModuleService from "../../src/modules/restaurant/service"
+import { createAuthorizedStaffWorkflow } from "../../src/workflows/restaurant-staff"
 
 jest.setTimeout(120000)
 
@@ -321,6 +324,162 @@ medusaIntegrationTestRunner({
         expect(sample(after, name)).toBeLessThan(10)
       }
       expect(after).not.toContain(headers["x-publishable-api-key"])
+    })
+
+    /** Synthetic Restaurant staff, so the real kitchen feed can open. */
+    const staffHeaders = async () => {
+      const restaurant = await getContainer()
+        .resolve<RestaurantModuleService>(RESTAURANT_MODULE)
+        .createRestaurants({
+          name: "Metrics synthetic kitchen",
+          address_street: "Syntetisk Vej 1",
+          address_postal_code: "2200",
+          address_city: "Kobenhavn N",
+          contact_phone: "+4500000000",
+          contact_email: "kitchen@metrics.synthetic.test",
+          pickup_address_key: "metrics-synthetic-kitchen",
+        })
+      const email = "staff@metrics.synthetic.test"
+      const password = "ci-only-metrics-password"
+      const registered = await api.post(
+        "/auth/restaurant_staff/emailpass/register",
+        { email, password },
+      )
+      const { auth_identity_id } = JSON.parse(
+        Buffer.from(
+          registered.data.token.split(".")[1],
+          "base64url",
+        ).toString(),
+      )
+      await createAuthorizedStaffWorkflow(getContainer()).run({
+        input: {
+          restaurant_id: restaurant.id,
+          name: "Synthetic Staff",
+          email,
+          auth_identity_id,
+        },
+      })
+      const { data } = await api.post("/auth/restaurant_staff/emailpass", {
+        email,
+        password,
+      })
+      return { authorization: `Bearer ${data.token}` }
+    }
+    const value = (metrics: string, series: string) =>
+      Number(
+        metrics
+          .split("\n")
+          .find((line) => line.startsWith(`${series} `))
+          ?.split(" ")[1] ?? 0,
+      )
+    const ACTIVE =
+      'mtogo_sse_connections_active{route="/partner/orders/stream"}'
+    const DISCONNECTED =
+      'mtogo_sse_connections_closed_total{route="/partner/orders/stream",outcome="disconnected"}'
+    /** Waits for the server to notice a closed connection, within a bound. */
+    const eventually = async (check: () => Promise<boolean>) => {
+      const deadline = Date.now() + 5000
+      while (!(await check())) {
+        if (Date.now() > deadline) throw new Error("condition not met in 5 s")
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      }
+    }
+
+    it("shows an established kitchen feed as one active connection and its disconnect as one termination", async () => {
+      const headers = await staffHeaders()
+      const before = await scrape()
+      expect(value(before, ACTIVE)).toBe(0)
+
+      const controller = new AbortController()
+      const response = await fetch(
+        `${api.defaults.baseURL}/partner/orders/stream?secret=discard`,
+        {
+          headers: { ...headers, accept: "text/event-stream" },
+          signal: controller.signal,
+        },
+      )
+      expect(response.status).toBe(200)
+      const reader = response.body!.getReader()
+      const first = new TextDecoder().decode((await reader.read()).value)
+      expect(first).toContain("event: ready")
+      const open = await scrape()
+      expect(value(open, ACTIVE)).toBe(1)
+
+      controller.abort()
+      await eventually(async () => value(await scrape(), ACTIVE) === 0)
+      const after = await scrape()
+      expect(value(after, DISCONNECTED)).toBe(value(before, DISCONNECTED) + 1)
+      // The stream adds no ordinary response, duration or interruption.
+      expect(after).not.toMatch(
+        /mtogo_http_(requests_total|request_duration_seconds_count|requests_interrupted_total)\{[^}]*stream/,
+      )
+      expect(requestSeries(after)).toBe(requestSeries(open))
+      expect(after).not.toMatch(/secret|discard|synthetic/)
+    })
+
+    it("counts a request the client abandons as interrupted, never as a 500 or a duration", async () => {
+      const headers = await publishableHeaders()
+      const regionLabels = 'method="GET",route="/store/regions"'
+      const before = await scrape()
+      // Test-only delay inside the process: the real route is still working
+      // when the client gives up, and then fails after the disconnect.
+      const regionService = getContainer().resolve(Modules.REGION)
+      const slowRead = jest
+        .spyOn(regionService, "listAndCountRegions")
+        .mockImplementationOnce(
+          () =>
+            new Promise((_, reject) =>
+              setTimeout(
+                () => reject(new Error("synthetic-late-failure")),
+                500,
+              ),
+            ),
+        )
+      try {
+        const controller = new AbortController()
+        const abandoned = fetch(`${api.defaults.baseURL}/store/regions`, {
+          headers,
+          signal: controller.signal,
+        })
+        await eventually(async () => slowRead.mock.calls.length === 1)
+        controller.abort()
+        await expect(abandoned).rejects.toThrow()
+        const interrupted = `mtogo_http_requests_interrupted_total{${regionLabels}}`
+        await eventually(
+          async () =>
+            value(await scrape(), interrupted) ===
+            value(before, interrupted) + 1,
+        )
+        // Let the route's late failure reach Medusa's error handler.
+        await new Promise((resolve) => setTimeout(resolve, 700))
+      } finally {
+        slowRead.mockRestore()
+      }
+      const after = await scrape()
+      for (const status of ["200", "500"])
+        expect(
+          value(
+            after,
+            `mtogo_http_requests_total{${regionLabels},status="${status}"}`,
+          ),
+        ).toBe(
+          value(
+            before,
+            `mtogo_http_requests_total{${regionLabels},status="${status}"}`,
+          ),
+        )
+      expect(
+        value(
+          after,
+          `mtogo_http_request_duration_seconds_count{${regionLabels}}`,
+        ),
+      ).toBe(
+        value(
+          before,
+          `mtogo_http_request_duration_seconds_count{${regionLabels}}`,
+        ),
+      )
+      expect(after).not.toContain("synthetic-late-failure")
     })
 
     it("counts an unauthenticated admin request once as an early rejection", async () => {

@@ -441,6 +441,15 @@ The built-in Admin Orders export returns `400 order_export_unavailable`
 because it cannot apply the provisional-row filter; a filtered export can
 restore that capability.
 
+The list reads and `GET /store/orders/:id` read with `query.graph` directly
+instead of running Medusa's `getOrdersListWorkflow` and `getOrderDetailWorkflow`
+(`src/workflows/orders/list-visible-orders.ts` and `order-read.ts`). They read
+the same extra fields and add the same `payment_status` and
+`fulfillment_status`, so responses are unchanged; skipping a workflow run per
+read lowered Order history's p50 by about 17% and p95 by about 10% under the
+twenty-journey gate (ADR-0014), which had failed the ready flow's coverage
+shard twice (#173).
+
 `GET /store/orders/:id` returns the Order's `metadata` (the checkout review) only
 when the request asks for it with `fields=+metadata`.
 Likewise `fields=+restaurant.id` adds `restaurant: { id }`, nothing else of

@@ -89,9 +89,19 @@ describe("private request metrics HTTP boundary", () => {
       const route = req.headers["test-route"]
       if (route === "regexp") Object.assign(req, { route: { path: /^\/x$/ } })
       else if (route) Object.assign(req, { route: { path: route } })
-      if (req.url === "/store/products/interrupted") {
+      if (req.url?.startsWith("/store/products/interrupted")) {
         res.writeHead(200)
         res.write("partial")
+        return
+      }
+      if (req.url?.startsWith("/partner/orders/stream")) {
+        const refused = Number(req.headers["test-status"] || 0)
+        if (refused) return res.writeHead(refused).end("refused")
+        // Established like the kitchen feed: headers and a first event.
+        res.writeHead(200, { "content-type": "text/event-stream" })
+        res.write("event: ready\ndata: {}\n\n")
+        const endAfter = Number(req.headers["test-end-after"] || 0)
+        if (endAfter) setTimeout(() => res.end(), endAfter)
         return
       }
       // The final status can differ from an earlier handler's tentative status.
@@ -374,6 +384,212 @@ describe("private request metrics HTTP boundary", () => {
     const baseline = await scrape()
     await fetch(`http://127.0.0.1:${port}/store/products`)
     expect(requestSeries(await scrape())).toBe(requestSeries(baseline))
+  })
+
+  const value = (metrics: string, series: string) =>
+    Number(
+      metrics
+        .split("\n")
+        .find((line) => line.startsWith(`${series} `))
+        ?.split(" ")[1] ?? NaN,
+    )
+  const ACTIVE = 'mtogo_sse_connections_active{route="/partner/orders/stream"}'
+  const closed = (outcome: string) =>
+    `mtogo_sse_connections_closed_total{route="/partner/orders/stream",outcome="${outcome}"}`
+
+  /** Opens a stream and resolves once its first event has arrived. */
+  const openStream = (headers: Record<string, string> = {}) =>
+    new Promise<{ status: number; close: () => void; ended: Promise<void> }>(
+      (resolve, reject) => {
+        const req = request(
+          `http://127.0.0.1:${apiPort}/partner/orders/stream?secret=1`,
+          { headers },
+          (res) => {
+            const ended = new Promise<void>((done) => res.on("close", done))
+            res.once("data", () =>
+              resolve({
+                status: res.statusCode!,
+                close: () => req.destroy(),
+                ended,
+              }),
+            )
+          },
+        ).on("error", (error) => {
+          if (!req.destroyed) reject(error)
+        })
+        req.end()
+      },
+    )
+
+  it("exports zero active streams, terminations and interruptions before any traffic", async () => {
+    const metrics = await scrape()
+    expect(value(metrics, ACTIVE)).toBe(0)
+    expect(value(metrics, closed("disconnected"))).toBe(0)
+    expect(value(metrics, closed("server_ended"))).toBe(0)
+    // A request interrupted before routing is the likeliest first interruption;
+    // without a baseline its first increment is invisible to increase().
+    expect(
+      value(
+        metrics,
+        'mtogo_http_requests_interrupted_total{method="GET",route="unrouted"}',
+      ),
+    ).toBe(0)
+    expect(metrics).toContain("# TYPE mtogo_sse_connections_active gauge\n")
+    expect(metrics).toContain(
+      "# TYPE mtogo_sse_connections_closed_total counter\n",
+    )
+    expect(metrics).toContain(
+      "# TYPE mtogo_http_requests_interrupted_total counter\n",
+    )
+  })
+
+  it("follows an established stream's real lifecycle until the client disconnects", async () => {
+    const baseline = await scrape()
+    const first = await openStream()
+    const second = await openStream()
+    expect(first.status).toBe(200)
+    const open = await scrape()
+    expect(value(open, ACTIVE)).toBe(2)
+    first.close()
+    await first.ended
+    // The server notices the disconnect asynchronously.
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    const after = await scrape()
+    expect(value(after, ACTIVE)).toBe(1)
+    expect(value(after, closed("disconnected"))).toBe(1)
+    expect(value(after, closed("server_ended"))).toBe(0)
+    second.close()
+    await second.ended
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    const done = await scrape()
+    expect(value(done, ACTIVE)).toBe(0)
+    expect(value(done, closed("disconnected"))).toBe(2)
+    // Stream lifetimes never enter ordinary totals, durations or interruptions.
+    expect(requestSeries(done)).toBe(requestSeries(baseline))
+    expect(done).not.toContain("secret")
+  })
+
+  it("records a stream the server ends once, as server ended", async () => {
+    const baseline = await scrape()
+    const stream = await openStream({ "test-end-after": "20" })
+    await stream.ended
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    const metrics = await scrape()
+    expect(value(metrics, ACTIVE)).toBe(0)
+    expect(value(metrics, closed("server_ended"))).toBe(1)
+    expect(value(metrics, closed("disconnected"))).toBe(0)
+    expect(requestSeries(metrics)).toBe(requestSeries(baseline))
+  })
+
+  it("keeps a refused stream as an ordinary response, never an active stream", async () => {
+    const response = await fetch(
+      `http://127.0.0.1:${apiPort}/partner/orders/stream`,
+      { headers: { "test-status": "401" } },
+    )
+    expect(response.status).toBe(401)
+    const metrics = await scrape()
+    expect(value(metrics, ACTIVE)).toBe(0)
+    expect(value(metrics, closed("disconnected"))).toBe(0)
+    expect(value(metrics, closed("server_ended"))).toBe(0)
+    expect(metrics).toContain(
+      'mtogo_http_requests_total{method="GET",route="early_rejection",status="401"} 1',
+    )
+  })
+
+  it("counts an interrupted ordinary request once, with no status or duration", async () => {
+    await scrape()
+    await new Promise<void>((resolve, reject) => {
+      const req = request(
+        `http://127.0.0.1:${apiPort}/store/products/interrupted?secret=1`,
+        { headers: { "test-route": "/store/products/:id" } },
+        (res) => {
+          res.once("data", () => {
+            res.destroy()
+            resolve()
+          })
+        },
+      ).on("error", (error) => {
+        if (!req.destroyed) reject(error)
+      })
+      req.end()
+    })
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    const metrics = await scrape()
+    expect(metrics).toContain(
+      'mtogo_http_requests_interrupted_total{method="GET",route="/store/products/:id"} 1',
+    )
+    expect(metrics).not.toMatch(
+      /mtogo_http_requests_interrupted_total\{[^}]*status/,
+    )
+    expect(metrics).not.toMatch(/mtogo_http_requests_total\{[^}]*\} [1-9]/)
+    expect(metrics).not.toMatch(
+      /mtogo_http_request_duration_seconds_count\{[^}]*\} [1-9]/,
+    )
+    expect(metrics).not.toContain("secret")
+  })
+
+  it("groups an interruption before any route matched as unrouted", async () => {
+    await scrape()
+    await new Promise<void>((resolve, reject) => {
+      const req = request(
+        `http://127.0.0.1:${apiPort}/store/products/interrupted`,
+        (res) => {
+          res.once("data", () => {
+            res.destroy()
+            resolve()
+          })
+        },
+      ).on("error", (error) => {
+        if (!req.destroyed) reject(error)
+      })
+      req.end()
+    })
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(await scrape()).toContain(
+      'mtogo_http_requests_interrupted_total{method="GET",route="unrouted"} 1',
+    )
+  })
+
+  it("gives every request exactly one outcome when the client disconnects as the response finishes", async () => {
+    await scrape()
+    const attempts = 30
+    await Promise.all(
+      Array.from(
+        { length: attempts },
+        () =>
+          new Promise<void>((resolve) => {
+            const req = request(
+              `http://127.0.0.1:${apiPort}/store/products`,
+              { headers: { "test-route": "/store/products" } },
+              (res) => {
+                // Disconnect on the first byte, racing the server's finish.
+                res.once("data", () => req.destroy())
+                res.on("close", resolve)
+              },
+            ).on("error", () => resolve())
+            req.end()
+          }),
+      ),
+    )
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    const metrics = await scrape()
+    const completed = value(
+      metrics,
+      'mtogo_http_requests_total{method="GET",route="/store/products",status="200"}',
+    )
+    const interrupted =
+      value(
+        metrics,
+        'mtogo_http_requests_interrupted_total{method="GET",route="/store/products"}',
+      ) || 0
+    expect(completed + interrupted).toBe(attempts)
+    expect(
+      value(
+        metrics,
+        'mtogo_http_request_duration_seconds_count{method="GET",route="/store/products"}',
+      ),
+    ).toBe(completed)
+    expect(metrics).not.toMatch(/status="5\d\d"/)
   })
 
   it("does not turn an interrupted response into a completed status", async () => {
