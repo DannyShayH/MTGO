@@ -6,7 +6,10 @@ import { getMessages } from "@lib/i18n"
 import {
   getCompletedDeliveries,
   requireDeliveryAgent,
+  signOutDeliveryAgent,
 } from "@lib/data/delivery-agent"
+import { BrandMark } from "@modules/layout/components/brand-mark"
+import { DeliveryHeader } from "@modules/delivery/delivery-header"
 import { CARD, PRESSABLE } from "@modules/delivery/copy"
 import { CompletedRow } from "@modules/delivery/completed-delivery"
 import { dateTimeFormatter } from "@modules/delivery/format"
@@ -26,7 +29,7 @@ export default async function DeliveryHistory({
   searchParams: Promise<{ page?: string }>
 }) {
   // Signed out goes to sign-in; ended access to its notice.
-  await requireDeliveryAgent()
+  const agent = await requireDeliveryAgent()
   const { locale } = await getMessages()
   const copy = DELIVERY_AGENT_TEXT[locale]
   const rawPage = Number((await searchParams).page ?? "1")
@@ -49,6 +52,12 @@ export default async function DeliveryHistory({
   )
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-xl flex-col gap-4 px-4 pb-[max(2.5rem,env(safe-area-inset-bottom))] pt-[max(1.25rem,env(safe-area-inset-top))]">
+      <DeliveryHeader
+        brand={<BrandMark name={copy.title} />}
+        agentName={agent.agent.name}
+        copy={copy}
+        signOut={signOutDeliveryAgent}
+      />
       <Link href="/delivery" className={`${LINK} -ml-1 gap-1 self-start`}>
         <ArrowLeftMini aria-hidden />
         {copy.back}

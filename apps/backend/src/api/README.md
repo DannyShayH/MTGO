@@ -1666,6 +1666,52 @@ curl -N http://localhost:9000/partner/orders/stream \
 | `401`  | As for `GET /partner/me`                                        |
 | `403`  | `code: "staff_access_revoked"`: revoked before the stream opens |
 
+### GET /partner/deliveries/stream
+
+**Actor:** Delivery agent (`delivery_agent`, bearer token only). The agent feed
+(#165): a Server-Sent Events stream of invalidation hints for the
+authenticated agent's own available and current work. A hint names a scope,
+never a delivery, Customer or location, so nothing private can leak through
+it. On a hint the phone rereads `GET /partner/delivery-agent/available` or
+`GET /partner/delivery-agent/current`. A hint is never proof of a claim or a
+milestone: the durable records stay authoritative, and the partner app also
+reconciles on connect, reconnect, focus, returning from a call or screen lock,
+and every minute.
+
+Access is checked before the stream opens, so a refusal is an ordinary JSON
+error response. Headers and the `ready`, `heartbeat` and shutdown behavior are
+those of `GET /partner/orders/stream`.
+
+| Event        | Data                                                               | When                                                                        |
+| ------------ | ------------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| `ready`      | `{ "server_time": "..." }`                                         | Once, when the feed opens; the screen then rereads                          |
+| `deliveries` | `{ "scopes": ["available" \| "current"] }`                         | A projection's durable facts changed since this connection last looked      |
+| `heartbeat`  | `{ "server_time": "..." }`                                         | After the first read once open, then after 15 seconds without another event |
+| `ended`      | `{ "code": "delivery_agent_access_revoked" \| "session_expired" }` | Access was revoked or the token expired; the stream then closes             |
+
+Every two seconds the feed rechecks the agent's authorization (revocation
+ends it before another hint) and the token's expiry, then fingerprints two
+projections from durable records: the unassigned, unexpired, active-Order
+work in the agent's approved areas (first 50, by oldest acceptance, with each
+preparation state) and the agent's active delivery (milestones, contact
+attempts, raised attention and the Order's state). A changed fingerprint is
+announced once per connection. An area change therefore narrows or widens what
+is announced at once, while assigned work stays announced to its responsible
+agent. Because it reads durable records, writes from the Medusa server and a
+separate worker both appear, without pub/sub. A failed read closes the stream
+without `ended`, so the client reconnects or falls back to polling. Closing the
+connection stops the reads.
+
+```bash
+curl -N http://localhost:9000/partner/deliveries/stream \
+  -H "Authorization: Bearer <token>"
+```
+
+| Status | When                                                                     |
+| ------ | ------------------------------------------------------------------------ |
+| `401`  | No or an invalid token                                                   |
+| `403`  | `code: "delivery_agent_access_revoked"`: revoked before the stream opens |
+
 ### POST /partner/orders/{id}/start-preparation and POST /partner/orders/{id}/ready
 
 **Actor:** Restaurant staff (`restaurant_staff`, bearer token only). Records a

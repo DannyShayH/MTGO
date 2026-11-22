@@ -8,11 +8,16 @@ import {
   useState,
   type ReactNode,
 } from "react"
-import { MapPin, Spinner, Target } from "@medusajs/icons"
+import {
+  InformationCircleSolid,
+  MapPin,
+  Spinner,
+  Target,
+} from "@medusajs/icons"
 import { Switch } from "@medusajs/ui"
 import type { Locale } from "@dtc/i18n"
 import { measurePickupDistances } from "@lib/data/delivery-agent"
-import { CARD, PRESSABLE, type DeliveryCopy } from "./copy"
+import { CARD, PRESSABLE, SHARE_CHOICE_COOKIE, type DeliveryCopy } from "./copy"
 import {
   formatDistance,
   RESEND_AFTER_MS,
@@ -38,11 +43,22 @@ type SharingState = {
 const Sharing = createContext<SharingState | null>(null)
 
 const SWITCH_ID = "share-location"
+/**
+ * The agent's choice, kept in a cookie (not localStorage) so the server can
+ * render the page with the switch already on: a refresh never flashes it
+ * off. The cookie holds no position and no identity.
+ */
+function writeChoice(on: boolean) {
+  document.cookie = `${SHARE_CHOICE_COOKIE}=${on ? "on" : ""}; path=/; max-age=${on ? 31_536_000 : 0}; samesite=lax`
+}
 const HINT_ID = "share-location-hint"
 
 /**
- * Share my location (#191): off on every page load, and only the agent turns
- * it on. Only then does the browser ask for permission. While it is on and
+ * Share my location (#191): only the agent turns it on, and only then does
+ * the browser ask for permission. The choice is remembered in this browser
+ * (a cookie) and resumed after a refresh only while the browser already
+ * grants the permission, so a reload never prompts and never starts sharing
+ * the agent did not choose. Turning it off or a refusal forgets it. While it is on and
  * the page is visible, the phone's position goes to the backend to measure
  * the route to each listed pickup, at most once a minute or after moving
  * 200 m. Turning it off, hiding the page or leaving it (signing out) stops
@@ -50,20 +66,50 @@ const HINT_ID = "share-location-hint"
  */
 export function LocationSharing({
   orderIds,
+  remembered = false,
   children,
 }: {
+  /** The agent had it on at the last visit (the server read the cookie). */
+  remembered?: boolean
   /** The pickups on screen: the available list and a not yet collected current delivery. */
   orderIds: string[]
   children: ReactNode
 }) {
-  const [enabled, setEnabled] = useState(false)
-  const [status, setStatus] = useState<Status>("off")
+  const [enabled, setEnabled] = useState(remembered)
+  const [status, setStatus] = useState<Status>(remembered ? "locating" : "off")
+  // A remembered choice waits for the permission check, so it never prompts.
+  const [isChecked, setIsChecked] = useState(!remembered)
   const [distances, setDistances] = useState<Record<string, number | null>>({})
   const [order, setOrder] = useState<SortOrder>("oldest")
   const idsKey = orderIds.join(",")
 
+  // Resume a remembered choice only while the browser already grants it.
   useEffect(() => {
-    if (!enabled || !idsKey) return
+    if (!remembered) return
+    let isCurrent = true
+    const settle = (state: PermissionState | "unknown") => {
+      if (!isCurrent) return
+      if (state === "granted" || state === "unknown") setIsChecked(true)
+      else {
+        setEnabled(false)
+        setStatus(state === "denied" ? "denied" : "off")
+        writeChoice(false)
+      }
+    }
+    if (!("geolocation" in navigator)) return settle("prompt")
+    if (!navigator.permissions) settle("unknown")
+    else
+      navigator.permissions
+        .query({ name: "geolocation" })
+        .then(({ state }) => settle(state))
+        .catch(() => settle("unknown"))
+    return () => {
+      isCurrent = false
+    }
+  }, [remembered])
+
+  useEffect(() => {
+    if (!enabled || !isChecked || !idsKey) return
     const ids = idsKey.split(",")
     let active = true
     let watch: number | null = null
@@ -94,6 +140,7 @@ export function LocationSharing({
           if (!active) return
           if (error.code === error.PERMISSION_DENIED) {
             setEnabled(false)
+            writeChoice(false)
             setStatus("denied")
           } else setStatus("unavailable")
         },
@@ -119,7 +166,7 @@ export function LocationSharing({
       window.clearInterval(timer)
       document.removeEventListener("visibilitychange", onVisibility)
     }
-  }, [enabled, idsKey])
+  }, [enabled, isChecked, idsKey])
 
   const toggle = useCallback((on: boolean) => {
     if (on && !("geolocation" in navigator)) {
@@ -127,6 +174,8 @@ export function LocationSharing({
       return
     }
     setEnabled(on)
+    setIsChecked(true)
+    writeChoice(on)
     setStatus(on ? "locating" : "off")
     if (!on) {
       setDistances({})
@@ -158,6 +207,7 @@ export function LocationSharing({
  */
 export function LocationSwitch({ copy }: { copy: DeliveryCopy }) {
   const sharing = useContext(Sharing)
+  const [isInfoOpen, setInfoOpen] = useState(false)
   if (!sharing) return null
   const { enabled, toggle, status } = sharing
   const notice =
@@ -195,11 +245,24 @@ export function LocationSwitch({ copy }: { copy: DeliveryCopy }) {
           id={SWITCH_ID}
           checked={enabled}
           onCheckedChange={toggle}
-          aria-describedby={HINT_ID}
           className="focus-visible:ring-mtogo-focus-ring shrink-0 focus-visible:ring-2 focus-visible:ring-offset-2"
         />
       </div>
-      <p id={HINT_ID} className="text-mtogo-text-secondary text-sm">
+      <button
+        type="button"
+        aria-expanded={isInfoOpen}
+        aria-controls={HINT_ID}
+        onClick={() => setInfoOpen((value) => !value)}
+        className={`text-mtogo-text-link focus-visible:ring-mtogo-focus-ring -ml-1 flex min-h-11 items-center gap-1.5 self-start rounded-md px-1 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 ${PRESSABLE}`}
+      >
+        <InformationCircleSolid aria-hidden />
+        {copy.shareLocationInfo}
+      </button>
+      <p
+        id={HINT_ID}
+        hidden={!isInfoOpen}
+        className="text-mtogo-text-secondary text-sm"
+      >
         {copy.shareLocationHint}
       </p>
       <p

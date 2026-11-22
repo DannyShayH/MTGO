@@ -70,7 +70,7 @@ refreshes the list. A missing answer or server failure shows **Checking
 status…** and `checkDeliveryClaim` reads the current delivery after 2, 5, 10
 and then every 30 seconds, when the page becomes visible again (after a call
 or screen lock) and when the browser is back online; only the server's
-current delivery shows the claim as successful. `ReconcileOnReturn` reloads
+current delivery shows the claim as successful. `DeliveryFeed` (below) and, on the delivery detail page, `ReconcileOnReturn` reload
 the workspace on the same events. Focus moves to the outcome message.
 
 ### Pickup (#160)
@@ -101,9 +101,17 @@ failure or for older work. A missing distance never hides or disables a claim
 or pickup. The footer then credits "© openrouteservice.org | OpenStreetMap
 contributors".
 
-**Share my location**, its own card at the top of the workspace, is off every time the page
-loads and explains what it is for. Only switching it on makes the browser ask
-for permission. While it is on and the page is visible, `LocationSharing`
+**Share my location**, its own card at the top of the workspace, starts off;
+what it is for sits behind a **Why share my location?** disclosure button.
+Only switching it on makes the browser ask for permission. The agent's choice
+is remembered in the `mtogo_share_location` cookie (no position, no identity),
+which the server reads, so a refresh renders the switch already on with
+"Locating" instead of flashing it off. The watch then starts only after the
+browser reports the permission as still granted; if it was withdrawn the
+switch turns off and the choice is forgotten, so a reload never prompts.
+Turning it off or a refusal also forgets it. Distances to pickups need the
+position, so they show once the first position has been measured, not
+before. While it is on and the page is visible, `LocationSharing`
 (`modules/delivery/location-sharing.tsx`) watches the position and sends it
 through the `measurePickupDistances` server action to
 `POST /partner/delivery-agent/pickup-distances` with the IDs on screen: the
@@ -156,6 +164,40 @@ or at high zoom instead of squeezing it. Ten minutes after arrival without hando
 card shows **No handover 10 minutes after arrival** with a note that the
 delivery is still the agent's. Handover stays available throughout and never
 requires arrival.
+
+### Header and menu
+
+`/delivery` and `/delivery/history` start with `DeliveryHeader`
+(`src/modules/delivery/delivery-header.tsx`): the MTOGO Partner logo and a
+burger button that opens a menu with **Your current delivery**, **Available
+deliveries**, **Completed deliveries** and **Sign out**. It is a disclosure
+with `aria-expanded`, closes on Escape or after choosing an item, and uses
+44 px touch targets.
+
+### Staying current through connection failures (#165)
+
+`DeliveryFeed` (`src/modules/delivery/delivery-feed.tsx`) runs on `/delivery`
+and shows a status line: **Connecting**, **Live**, **Reconnecting**,
+**Polling every 15 seconds** or **No connection**, in Danish or English
+(`connection_*` in `DELIVERY_AGENT_TEXT`). It uses the kitchen feed's
+connection rules (`src/modules/orders/connection.ts`): the same-origin relay
+`GET /api/delivery/stream` (`relayDeliveryFeed`, the SDK's `fetchStream` with
+the bearer from the httpOnly cookie, never in a URL or the browser) streams
+the backend's `deliveries` hints; the screen shows Live only after a heartbeat
+proves a read after `ready`, retries the feed with backoff, then polls
+`GET /api/delivery/check` (an authorized current-delivery read) with backoff
+and keeps trying to restore the stream. A silent feed (no event for 40 s,
+which is what a phone suspended in a pocket or a buffering proxy looks like)
+counts as failed.
+
+Every hint, connect, reconnect, focus, `pageshow`, `online` and
+visibility-return first passes the check and then calls `router.refresh()`.
+That rereads the server projections while keeping focus and client state, so a
+pending Claim or Confirm stays pending (and **Checking status**
+reconciles through `useStatusChecks`) until the server answers; the oldest
+acceptance still orders the list. A hint never shows a claim or milestone as
+done. A revoked agent, an expired token or a sign-out in another tab ends the
+feed, aborts the upstream stream and goes to `/delivery-sign-in`.
 
 `/delivery/history` lists the agent's ended deliveries, newest first, twenty
 per page from `GET /partner/delivery-agent/history`: Restaurant, reference,

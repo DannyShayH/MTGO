@@ -725,7 +725,7 @@ export async function acceptDeliveryInvitation(
 export async function signOutDeliveryAgent() {
   const jar = await cookies()
   jar.delete(PARTNER_TOKEN_COOKIE)
-  redirect("/delivery-sign-in")
+  redirect("/delivery-sign-in?message=signed_out")
 }
 
 export async function saveDeliveryFilter(form: FormData) {

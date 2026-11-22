@@ -145,6 +145,18 @@ On the phone, any 403 from the agent routes sends the agent to
 access has ended and that any delivery stays assigned and MTOGO has been alerted.
 `integration-tests/http/delivery-agent-revocation.spec.ts` covers it.
 
+## Agent feed (#165)
+
+`GET /partner/deliveries/stream` reads only durable records already in this
+module and `order-operation`: it adds no model and no migration.
+`readDeliveryFeedWorkflow` (`workflows/delivery/feed.ts`) calls
+`requireAuthorizedDeliveryAgent` on every tick, so a revocation ends the
+stream, then fingerprints the agent's approved areas with the available page
+(`scanAvailablePage`) and the agent's active delivery. `advanceDeliveryFeed`
+(`workflows/delivery/delivery-feed.ts`) turns a changed fingerprint into a
+`available` or `current` hint. Hints carry no identity, Customer detail or
+location. See the route in [the API README](../../api/README.md).
+
 ## Operator attention (#158, #163, #164)
 
 `DeliveryAttention` is the reusable durable obligation behind operator

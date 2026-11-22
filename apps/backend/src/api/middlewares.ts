@@ -512,6 +512,15 @@ export default defineMiddlewares({
       ],
     },
     {
+      // The agent's feed of invalidation hints (#165): own work only.
+      matcher: "/partner/deliveries/stream",
+      method: "GET",
+      middlewares: [
+        authenticate(DELIVERY_AGENT_ACTOR, "bearer"),
+        recordSessionExpiry,
+      ],
+    },
+    {
       matcher: "/partner/deliveries/:id/pickup",
       method: "POST",
       middlewares: [

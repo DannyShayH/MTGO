@@ -48,6 +48,11 @@ const STREAM_ROUTES = [
     pattern: /^\/partner\/orders\/stream\/?$/i,
     route: "/partner/orders/stream",
   },
+  {
+    // The Delivery agent feed (#165).
+    pattern: /^\/partner\/deliveries\/stream\/?$/i,
+    route: "/partner/deliveries/stream",
+  },
 ]
 
 const pathOf = (url: string) => url.split("?")[0]

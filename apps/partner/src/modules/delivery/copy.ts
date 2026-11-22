@@ -15,3 +15,6 @@ export const CARD =
 
 /** The one visible explanation of claiming, shared by every claim button. */
 export const CLAIM_HINT_ID = "claim-hint"
+
+/** The cookie that remembers the agent turned Share my location on (#191). */
+export const SHARE_CHOICE_COOKIE = "mtogo_share_location"

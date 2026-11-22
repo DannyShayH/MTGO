@@ -150,7 +150,7 @@ export type DeliveryAction =
   | "confirm_handover"
 
 /** Raised attention the agent's phone shows (#163, #164). */
-const AGENT_ATTENTION_TYPES = [
+export const AGENT_ATTENTION_TYPES = [
   ...STALLED_ATTENTION_TYPES,
   "arrived_without_handover",
 ] as const

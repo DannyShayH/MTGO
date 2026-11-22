@@ -19,10 +19,10 @@ api.staging.example.org {
 	reverse_proxy 127.0.0.1:9000
 }
 
-# The partner kitchen feed (#148) needs no extra directives: the backend and
-# the partner relay send it with "Cache-Control: no-cache, no-transform", so
-# encode leaves it uncompressed, and reverse_proxy flushes text/event-stream
-# responses immediately.
+# The partner kitchen and Delivery agent feeds (#148, #165) need no extra
+# directives: the backend and the partner relay send them with
+# "Cache-Control: no-cache, no-transform", so encode leaves them uncompressed,
+# and reverse_proxy flushes text/event-stream responses immediately.
 partner.staging.example.org {
 	encode gzip
 	reverse_proxy 127.0.0.1:8100

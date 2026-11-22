@@ -30,9 +30,12 @@ export function sessionEndedCodeForStatus(
 
 /** A code read from the network; an unreadable reason still ends the session. */
 export const feedEndedCodeOf = (code: unknown): FeedEndedCode =>
-  FEED_ENDED_CODES.includes(code as FeedEndedCode)
-    ? (code as FeedEndedCode)
-    : "session_expired"
+  // The agent feed names its own revocation code (#165); both end access.
+  code === "delivery_agent_access_revoked"
+    ? "staff_access_revoked"
+    : FEED_ENDED_CODES.includes(code as FeedEndedCode)
+      ? (code as FeedEndedCode)
+      : "session_expired"
 
 /** Where a screen goes when its session ended. */
 export const endedPath = (code: FeedEndedCode) =>
@@ -61,3 +64,13 @@ export function onSignOutElsewhere(onSignedOut: () => void): () => void {
   }
   return () => channel.close()
 }
+
+/**
+ * Where a Delivery agent's workspace goes when its feed or check ends the
+ * session (#165): a revoked agent gets the access-ended notice, anything
+ * else (expired token, signed out elsewhere) just the sign-in page.
+ */
+export const deliveryEndedPath = (code: FeedEndedCode) =>
+  code === "staff_access_revoked"
+    ? "/delivery-sign-in?message=access_ended"
+    : "/delivery-sign-in"

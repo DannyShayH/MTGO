@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto"
+import { cookies } from "next/headers"
 import { unstable_rethrow } from "next/navigation"
 import Link from "next/link"
 import { ArrowPath, CheckCircleSolid } from "@medusajs/icons"
-import { Button } from "@medusajs/ui"
 import { DELIVERY_AGENT_TEXT, formatText } from "@dtc/i18n"
 import { getMessages } from "@lib/i18n"
 import {
@@ -16,9 +16,16 @@ import {
 import { LanguageSwitch } from "@modules/layout/components/language-switch"
 import { AreaFilter } from "@modules/delivery/area-filter"
 import { AvailableCard } from "@modules/delivery/available-card"
-import { CARD, CLAIM_HINT_ID, PRESSABLE } from "@modules/delivery/copy"
+import {
+  CARD,
+  CLAIM_HINT_ID,
+  PRESSABLE,
+  SHARE_CHOICE_COOKIE,
+} from "@modules/delivery/copy"
 import { CurrentDeliveryCard } from "@modules/delivery/current-delivery"
-import { ReconcileOnReturn } from "@modules/delivery/reconcile-on-return"
+import { BrandMark } from "@modules/layout/components/brand-mark"
+import { DeliveryHeader } from "@modules/delivery/delivery-header"
+import { DeliveryFeed } from "@modules/delivery/delivery-feed"
 import {
   AvailableList,
   LocationSharing,
@@ -98,26 +105,21 @@ export default async function DeliveryPage({
   )
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-xl flex-col gap-8 px-4 pb-[max(2.5rem,env(safe-area-inset-bottom))] pt-[max(1.25rem,env(safe-area-inset-top))]">
-      <ReconcileOnReturn />
-      <header className="flex items-center justify-between gap-4">
-        <div className="min-w-0">
-          <p className="text-mtogo-text-secondary text-sm">{copy.title}</p>
-          <h1 className="text-mtogo-text-primary break-words text-2xl font-semibold leading-tight tracking-tight">
-            {agent.agent.name}
-          </h1>
-        </div>
-        <form action={signOutDeliveryAgent}>
-          <Button
-            variant="secondary"
-            type="submit"
-            className={`min-h-11 shrink-0 whitespace-nowrap ${PRESSABLE}`}
-          >
-            {copy.signOut}
-          </Button>
-        </form>
-      </header>
+      <DeliveryHeader
+        brand={<BrandMark name={copy.title} />}
+        agentName={agent.agent.name}
+        copy={copy}
+        signOut={signOutDeliveryAgent}
+      />
+      <h1 className="text-mtogo-text-primary -mt-4 break-words text-2xl font-semibold leading-tight tracking-tight">
+        {agent.agent.name}
+      </h1>
 
-      <LocationSharing orderIds={measured}>
+      <LocationSharing
+        orderIds={measured}
+        remembered={(await cookies()).get(SHARE_CHOICE_COOKIE)?.value === "on"}
+      >
+        <DeliveryFeed copy={copy} />
         <LocationSwitch copy={copy} />
         <section
           id="current"

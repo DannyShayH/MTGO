@@ -1,6 +1,9 @@
 export const DELIVERY_AGENT_TEXT = {
   da: {
     title: "Leveringspartner",
+    menu: "Menu",
+    menuClose: "Luk menu",
+    shareLocationInfo: "Hvorfor deler jeg min position?",
     signInTitle: "Log ind som leveringspartner",
     invitation: "Din invitation",
     email: "E-mail",
@@ -19,6 +22,13 @@ export const DELIVERY_AGENT_TEXT = {
     empty: "Der er ingen ledige leveringer i dine valgte områder lige nu.",
     available: "Ledige leveringer",
     refresh: "Opdater",
+    connection_connecting: "Opretter forbindelse …",
+    connection_live: "Live: ledige og aktuelle leveringer opdateres automatisk",
+    connection_reconnecting: "Forbindelsen blev afbrudt. Forbinder igen …",
+    connection_fallback:
+      "Live-opdatering er ikke tilgængelig. Leveringerne hentes automatisk hvert {seconds}. sekund.",
+    connection_offline:
+      "Ingen forbindelse. Leveringerne er måske ikke aktuelle. Prøver igen automatisk.",
     loadFailed: "Leveringerne kunne ikke hentes. Prøv igen.",
     pickup: "Afhentning",
     destination: "Levering til postnummer",
@@ -171,6 +181,9 @@ export const DELIVERY_AGENT_TEXT = {
   },
   en: {
     title: "Delivery agent",
+    menu: "Menu",
+    menuClose: "Close menu",
+    shareLocationInfo: "Why share my location?",
     signInTitle: "Sign in as a delivery agent",
     invitation: "Your invitation",
     email: "Email",
@@ -189,6 +202,14 @@ export const DELIVERY_AGENT_TEXT = {
     empty: "No deliveries are available in your selected areas right now.",
     available: "Available deliveries",
     refresh: "Refresh",
+    connection_connecting: "Connecting …",
+    connection_live:
+      "Live: available and current deliveries update automatically",
+    connection_reconnecting: "Connection lost. Reconnecting …",
+    connection_fallback:
+      "Live updates are unavailable. Deliveries are reloaded every {seconds} seconds.",
+    connection_offline:
+      "No connection. Deliveries may be out of date. Retrying automatically.",
     loadFailed: "Deliveries could not be loaded. Try again.",
     pickup: "Pickup",
     destination: "Destination postal code",
