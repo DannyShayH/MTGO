@@ -19,6 +19,10 @@ export default defineLink(
 
 This defines a link between the Product Module's `product` data model and the Blog Module (custom module)'s `post` data model.
 
+MTOGO's `restaurant-stock-location.ts` link is one-to-one. It makes the native
+stock location part of each Restaurant's setup, so pickup fulfillment can
+resolve the Restaurant that owns the Order instead of a platform-wide location.
+
 Then, in the Medusa application, run the following command to sync the links to the database:
 
 ```bash

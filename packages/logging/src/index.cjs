@@ -9,6 +9,7 @@ const events = {
   "input.rejected": ["info", "Input rejected"],
   "upstream.request.failed": ["info", "Upstream request failed"],
   "request.failed": ["error", "Request failed"],
+  pickup_location_missing: ["error", "Restaurant pickup location is missing"],
   "monitoring.demo_read.succeeded": [
     "info",
     "Disposable backend product read completed",

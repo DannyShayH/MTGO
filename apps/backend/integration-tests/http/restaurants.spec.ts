@@ -4,6 +4,10 @@ import {
   Modules,
   ContainerRegistrationKeys,
 } from "@medusajs/framework/utils"
+import backfillRestaurantPickupLocations from "../../src/migration-scripts/restaurant-pickup-locations"
+import { RESTAURANT_MODULE } from "../../src/modules/restaurant"
+import type RestaurantModuleService from "../../src/modules/restaurant/service"
+import { pickupAddressKey } from "../../src/workflows/restaurants/pickup-address-key"
 
 jest.setTimeout(120000)
 
@@ -56,6 +60,109 @@ medusaIntegrationTestRunner({
         { headers },
       )
       expect(retrieved.data.restaurant.name).toBe(details.name)
+
+      const { data: linked } = await getContainer()
+        .resolve(ContainerRegistrationKeys.QUERY)
+        .graph({
+          entity: "restaurant",
+          fields: [
+            "id",
+            "stock_location.id",
+            "stock_location.name",
+            "stock_location.address.*",
+          ],
+          filters: { id: created.data.restaurant.id },
+        })
+      const restaurantWithLocation = linked[0] as unknown as {
+        stock_location: Record<string, unknown>
+      }
+      expect(restaurantWithLocation.stock_location).toMatchObject({
+        id: expect.stringMatching(/^sloc_/),
+        name: details.name,
+        address: {
+          address_1: details.address_street,
+          postal_code: details.address_postal_code,
+          city: details.address_city,
+          country_code: "dk",
+        },
+      })
+    })
+    it("backfills one pickup location for an existing Restaurant and is safe to repeat", async () => {
+      const legacyDetails = {
+        ...details,
+        name: "Legacy kitchen",
+        address_street: "Frederiksborggade 10",
+        contact_email: "legacy-kitchen@example.test",
+      }
+      const legacy = await getContainer()
+        .resolve<RestaurantModuleService>(RESTAURANT_MODULE)
+        .createRestaurants({
+          ...legacyDetails,
+          pickup_address_key: pickupAddressKey(legacyDetails),
+        })
+
+      await backfillRestaurantPickupLocations({ container: getContainer() })
+      await backfillRestaurantPickupLocations({ container: getContainer() })
+
+      const { data: restaurantRecords } = await getContainer()
+        .resolve(ContainerRegistrationKeys.QUERY)
+        .graph({
+          entity: "restaurant",
+          fields: ["id", "stock_location.id", "stock_location.address.*"],
+          filters: { id: legacy.id },
+        })
+      const backfilled = restaurantRecords[0] as unknown as {
+        stock_location: {
+          id: string
+          address: { address_1: string; postal_code: string; city: string }
+        }
+      }
+      expect(backfilled.stock_location).toMatchObject({
+        id: expect.stringMatching(/^sloc_/),
+        address: {
+          address_1: legacyDetails.address_street,
+          postal_code: legacyDetails.address_postal_code,
+          city: legacyDetails.address_city,
+        },
+      })
+    })
+    it("creates a missing pickup location when legacy Restaurant details change", async () => {
+      const legacyDetails = {
+        ...details,
+        name: "Legacy restaurant",
+        contact_email: "legacy-restaurant@example.test",
+      }
+      const legacy = await getContainer()
+        .resolve<RestaurantModuleService>(RESTAURANT_MODULE)
+        .createRestaurants({
+          ...legacyDetails,
+          pickup_address_key: pickupAddressKey(legacyDetails),
+        })
+
+      const updated = await api.post(
+        `/admin/restaurants/${legacy.id}`,
+        { name: "Recovered restaurant" },
+        { headers },
+      )
+
+      expect(updated.data.restaurant.name).toBe("Recovered restaurant")
+      const { data: restaurantRecords } = await getContainer()
+        .resolve(ContainerRegistrationKeys.QUERY)
+        .graph({
+          entity: "restaurant",
+          fields: ["id", "stock_location.id", "stock_location.name"],
+          filters: { id: legacy.id },
+        })
+      expect(
+        (
+          restaurantRecords[0] as unknown as {
+            stock_location: { id: string; name: string }
+          }
+        ).stock_location,
+      ).toMatchObject({
+        id: expect.stringMatching(/^sloc_/),
+        name: "Recovered restaurant",
+      })
     })
     it("edits details, warns about matching pickup addresses and excludes itself", async () => {
       const first = (await api.post("/admin/restaurants", details, { headers }))
@@ -81,6 +188,18 @@ medusaIntegrationTestRunner({
       expect(second.data.warnings).toEqual([
         { code: "same_pickup_address", restaurant_ids: [first.id] },
       ])
+      const locationBeforeMove = await getContainer()
+        .resolve(ContainerRegistrationKeys.QUERY)
+        .graph({
+          entity: "restaurant",
+          fields: ["id", "stock_location.id"],
+          filters: { id: second.data.restaurant.id },
+        })
+      const locationId = (
+        locationBeforeMove.data[0] as unknown as {
+          stock_location: { id: string }
+        }
+      ).stock_location.id
       const moved = await api.post(
         `/admin/restaurants/${second.data.restaurant.id}`,
         { address_street: "Other street 2", name: "Renamed kitchen" },
@@ -92,6 +211,29 @@ medusaIntegrationTestRunner({
           contact_email: details.contact_email,
         },
         warnings: [],
+      })
+      const movedLocation = await getContainer()
+        .resolve(ContainerRegistrationKeys.QUERY)
+        .graph({
+          entity: "restaurant",
+          fields: [
+            "id",
+            "stock_location.id",
+            "stock_location.name",
+            "stock_location.address.address_1",
+          ],
+          filters: { id: second.data.restaurant.id },
+        })
+      expect(
+        (
+          movedLocation.data[0] as unknown as {
+            stock_location: Record<string, unknown>
+          }
+        ).stock_location,
+      ).toMatchObject({
+        id: locationId,
+        name: "Renamed kitchen",
+        address: { address_1: "Other street 2" },
       })
       const updated = await api.post(
         `/admin/restaurants/${second.data.restaurant.id}`,

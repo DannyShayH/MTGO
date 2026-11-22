@@ -15,6 +15,7 @@ import {
   createOrderShipmentWorkflow,
   markOrderFulfillmentAsDeliveredWorkflow,
 } from "@medusajs/medusa/core-flows"
+import { createLogRecord } from "@dtc/logging"
 import { DELIVERY_MODULE } from "../../modules/delivery"
 import type DeliveryModuleService from "../../modules/delivery/service"
 import { logRecoveryFailure } from "../order-operations/recovery-log"
@@ -33,38 +34,23 @@ type NativeOrder = {
     delivered_at: string | null
     canceled_at: string | null
   }[]
-  shipping_methods?: { shipping_option_id: string | null }[]
+  restaurant?: { stock_location?: { id: string } | null } | null
 }
 
 /**
- * The stock location the Order's purchased delivery option is configured
- * at: its service zone's fulfillment set location. Never a fixed id.
+ * The stock location linked to the Restaurant that prepared this Order.
  */
-async function pickupLocationOf(
-  container: MedusaContainer,
-  order: NativeOrder,
-): Promise<string> {
-  const optionIds = (order.shipping_methods ?? [])
-    .map(({ shipping_option_id }) => shipping_option_id)
-    .filter((id): id is string => !!id)
-  const { data } = optionIds.length
-    ? await container.resolve(ContainerRegistrationKeys.QUERY).graph({
-        entity: "shipping_option",
-        fields: ["id", "service_zone.fulfillment_set.location.id"],
-        filters: { id: optionIds },
-      })
-    : { data: [] }
-  const location = (
-    data as {
-      service_zone?: { fulfillment_set?: { location?: { id: string } } }
-    }[]
-  ).find((option) => option.service_zone?.fulfillment_set?.location?.id)
-    ?.service_zone?.fulfillment_set?.location?.id
-  if (!location)
-    throw new MedusaError(
-      MedusaError.Types.UNEXPECTED_STATE,
-      "pickup_location_missing",
-    )
+const PICKUP_LOCATION_MISSING = "pickup_location_missing"
+
+class PickupLocationMissingError extends MedusaError {
+  constructor() {
+    super(MedusaError.Types.UNEXPECTED_STATE, PICKUP_LOCATION_MISSING)
+  }
+}
+
+function resolvePickupLocationId(order: NativeOrder): string {
+  const location = order.restaurant?.stock_location?.id
+  if (!location) throw new PickupLocationMissingError()
   return location
 }
 
@@ -113,7 +99,7 @@ export async function settleNativeFulfillment(
           "fulfillments.shipped_at",
           "fulfillments.delivered_at",
           "fulfillments.canceled_at",
-          "shipping_methods.shipping_option_id",
+          "restaurant.stock_location.id",
         ],
         filters: { id: order_id },
       })
@@ -129,7 +115,7 @@ export async function settleNativeFulfillment(
         input: {
           order_id,
           items,
-          location_id: await pickupLocationOf(container, order),
+          location_id: resolvePickupLocationId(order),
           created_by,
           no_notification: true,
           metadata: { intended_delivery_id: record.id },
@@ -171,7 +157,14 @@ export async function settleNativeFulfillment(
       .execute(lock.key, settle, { timeout: lock.timeout, expire: lock.ttl })
     return "synced"
   } catch (error) {
-    logRecoveryFailure(container, order_id, error)
+    if (error instanceof PickupLocationMissingError) {
+      const record = createLogRecord("backend", PICKUP_LOCATION_MISSING, {
+        order_id,
+      })
+      container
+        .resolve(ContainerRegistrationKeys.LOGGER)
+        .log(record.level, record.msg, record)
+    } else logRecoveryFailure(container, order_id, error)
     return "pending"
   }
 }

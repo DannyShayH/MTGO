@@ -39,22 +39,23 @@ import "../../../styles/review-documents.css"
     MTOGO-funded credit of the food value excluding VAT, with no commission, for
     the later monthly statement. Once the Restaurant marks the food ready, the
     responsible agent confirms pickup in two steps; the server records the time
-    once and ships the native Order from its configured pickup location. For the
-    MVP that is one shared location for every Restaurant; per-Restaurant
-    locations are #192. Cards show the cycling trip length from pickup to
-    Customer (#191); an agent may switch on Share my location to see and sort by
-    the distance to each pickup. That position is used only for the calculation,
-    never stored, and sharing is off by default, foreground-only and
-    agent-controlled, which narrowly revises story 52 (no tracking before
-    pickup) as agreed on #191. The agent then confirms handover in two steps;
-    the delivery ends as delivered, the native Order is marked delivered and the
-    agent can claim new work. A private history lists the agent's completed
-    deliveries without the Customer's contact or address. After pickup the agent
-    can record arrival at the Customer, which starts a ten-minute clock, and
-    then each attempt to reach the Customer; tapping the call link records
-    nothing. Without handover ten minutes after arrival, the operator is alerted
-    and must escalate, while the delivery stays the agent's and is not marked
-    delivered (#164). Live transport and location remain separate work.
+    once and ships the native Order from that Restaurant's own configured stock
+    location. A missing location leaves the fulfillment owed for recovery; an
+    already-created fulfillment keeps its original location. Cards show the
+    cycling trip length from pickup to Customer (#191); an agent may switch on
+    Share my location to see and sort by the distance to each pickup. That
+    position is used only for the calculation, never stored, and sharing is off
+    by default, foreground-only and agent-controlled, which narrowly revises
+    story 52 (no tracking before pickup) as agreed on #191. The agent then
+    confirms handover in two steps; the delivery ends as delivered, the native
+    Order is marked delivered and the agent can claim new work. A private
+    history lists the agent's completed deliveries without the Customer's
+    contact or address. After pickup the agent can record arrival at the
+    Customer, which starts a ten-minute clock, and then each attempt to reach
+    the Customer; tapping the call link records nothing. Without handover ten
+    minutes after arrival, the operator is alerted and must escalate, while the
+    delivery stays the agent's and is not marked delivered (#164). Live
+    transport and location remain separate work.
   </p>
 </aside>
 

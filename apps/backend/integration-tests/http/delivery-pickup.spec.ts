@@ -6,6 +6,7 @@ import {
 } from "@medusajs/framework/utils"
 import { DELIVERY_MODULE } from "../../src/modules/delivery"
 import type DeliveryModuleService from "../../src/modules/delivery/service"
+import { RESTAURANT_MODULE } from "../../src/modules/restaurant"
 import { recoverDeliveryFulfillmentsWorkflow } from "../../src/workflows/delivery/native-fulfillment"
 import { restaurantOrdersHarness } from "../helpers/restaurant-orders"
 
@@ -96,7 +97,7 @@ medusaIntegrationTestRunner({
       return { order, agent }
     }
     const nativeOrder = async (order_id: string) => {
-      const { data } = await query().graph({
+      const { data: orderRecords } = await query().graph({
         entity: "order",
         fields: [
           "fulfillments.id",
@@ -106,7 +107,7 @@ medusaIntegrationTestRunner({
         ],
         filters: { id: order_id },
       })
-      return data[0] as unknown as {
+      return orderRecords[0] as unknown as {
         fulfillments: {
           id: string
           location_id: string
@@ -117,15 +118,26 @@ medusaIntegrationTestRunner({
     }
     /** The stock location the starter's delivery service zone belongs to. */
     const configuredLocationId = async () => {
-      const { data } = await query().graph({
+      const { data: stockLocationRecords } = await query().graph({
         entity: "stock_location",
         fields: ["id", "fulfillment_sets.id"],
       })
       const configured = (
-        data as { id: string; fulfillment_sets?: unknown[] }[]
+        stockLocationRecords as { id: string; fulfillment_sets?: unknown[] }[]
       ).filter(({ fulfillment_sets }) => fulfillment_sets?.length)
       expect(configured).toHaveLength(1)
       return configured[0].id
+    }
+    const getRestaurantLocationId = async (restaurantId = pizzeriaId) => {
+      const { data: restaurantRecords } = await query().graph({
+        entity: "restaurant",
+        fields: ["id", "stock_location.id"],
+        filters: { id: restaurantId },
+      })
+      const restaurant = restaurantRecords[0] as unknown as {
+        stock_location: { id: string }
+      }
+      return restaurant.stock_location.id
     }
 
     describe("POST /partner/deliveries/:id/pickup", () => {
@@ -176,10 +188,13 @@ medusaIntegrationTestRunner({
         const native = await nativeOrder(order.id)
         expect(native.fulfillments).toHaveLength(1)
         expect(native.fulfillments[0]).toMatchObject({
-          location_id: await configuredLocationId(),
+          location_id: await getRestaurantLocationId(),
           shipped_at: expect.anything(),
           delivered_at: null,
         })
+        expect(native.fulfillments[0].location_id).not.toBe(
+          await configuredLocationId(),
+        )
         const admin = await api.get(
           `/admin/orders/${order.id}?fields=fulfillment_status`,
           { headers: harness.seeded().admin },
@@ -351,22 +366,29 @@ medusaIntegrationTestRunner({
 
       it("keeps the pickup when no pickup location is configured, requeues the owed fulfillment and finishes it once configured", async () => {
         const { order, agent } = await claimedOrder("ready")
-        const { data: sets } = await query().graph({
-          entity: "fulfillment_set",
-          fields: ["id", "location.id"],
-        })
-        const configured = (
-          sets as { id: string; location?: { id: string } | null }[]
-        ).filter(({ location }) => location?.id)
         const link = getContainer().resolve(ContainerRegistrationKeys.LINK)
-        const links = configured.map(({ id, location }) => ({
-          [Modules.STOCK_LOCATION]: { stock_location_id: location!.id },
-          [Modules.FULFILLMENT]: { fulfillment_set_id: id },
-        }))
-        await link.dismiss(links)
+        const locationId = await getRestaurantLocationId()
+        const restaurantLocationLink = {
+          [RESTAURANT_MODULE]: { restaurant_id: pizzeriaId },
+          [Modules.STOCK_LOCATION]: { stock_location_id: locationId },
+        }
+        await link.dismiss(restaurantLocationLink)
+        const loggerLog = jest.spyOn(
+          getContainer().resolve(ContainerRegistrationKeys.LOGGER),
+          "log",
+        )
 
         const picked = await pickup(agent.headers, order.id)
         expect(picked.status).toBe(200)
+        expect(loggerLog).toHaveBeenCalledWith(
+          "error",
+          "Restaurant pickup location is missing",
+          expect.objectContaining({
+            event: "pickup_location_missing",
+            order_id: order.id,
+          }),
+        )
+        loggerLog.mockRestore()
         expect(picked.data.delivery.picked_up_at).toBeTruthy()
         expect((await nativeOrder(order.id)).fulfillments ?? []).toEqual([])
         const [owed] = await delivery().listIntendedDeliveries({
@@ -383,11 +405,43 @@ medusaIntegrationTestRunner({
           new Date(requeued.native_sync_queued_at!).getTime(),
         ).toBeGreaterThan(new Date(owed.native_sync_queued_at!).getTime())
 
-        await link.create(links)
+        await link.create(restaurantLocationLink)
         expect((await recover()).result.synced).toContain(order.id)
         expect((await nativeOrder(order.id)).fulfillments[0]).toMatchObject({
-          location_id: await configuredLocationId(),
+          location_id: locationId,
         })
+      })
+
+      it("logs an unexpected synchronization failure safely and recovers without another fulfillment", async () => {
+        const { order, agent } = await claimedOrder("ready")
+        const loggerLog = jest.spyOn(
+          getContainer().resolve(ContainerRegistrationKeys.LOGGER),
+          "log",
+        )
+        const recordNativePickup = jest
+          .spyOn(delivery(), "recordNativePickup")
+          .mockRejectedValueOnce(new Error("sensitive failure"))
+
+        expect((await pickup(agent.headers, order.id)).status).toBe(200)
+        expect(loggerLog).toHaveBeenCalledWith(
+          "error",
+          "Request failed",
+          expect.objectContaining({
+            event: "request.failed",
+            order_id: order.id,
+            err: { type: "Error" },
+          }),
+        )
+        loggerLog.mockRestore()
+        recordNativePickup.mockRestore()
+        expect((await nativeOrder(order.id)).fulfillments).toHaveLength(1)
+        const [owed] = await delivery().listIntendedDeliveries({
+          order_id: order.id,
+        })
+        expect(owed.native_fulfillment_id).toBeNull()
+
+        expect((await recover()).result.synced).toContain(order.id)
+        expect((await nativeOrder(order.id)).fulfillments).toHaveLength(1)
       })
 
       it("creates the owed fulfillment after an interruption between the milestone and synchronization", async () => {
@@ -417,10 +471,20 @@ medusaIntegrationTestRunner({
       it("finds the existing fulfillment when its record was lost, instead of fulfilling twice", async () => {
         const { order, agent } = await claimedOrder("ready")
         expect((await pickup(agent.headers, order.id)).status).toBe(200)
+        const before = await nativeOrder(order.id)
         const [record] = await delivery().listIntendedDeliveries({
           order_id: order.id,
         })
         const fulfillmentId = record.native_fulfillment_id
+        const restaurantLocationLink = {
+          [RESTAURANT_MODULE]: { restaurant_id: pizzeriaId },
+          [Modules.STOCK_LOCATION]: {
+            stock_location_id: before.fulfillments[0].location_id,
+          },
+        }
+        await getContainer()
+          .resolve(ContainerRegistrationKeys.LINK)
+          .dismiss(restaurantLocationLink)
         await delivery().updateIntendedDeliveries({
           id: record.id,
           native_fulfillment_id: null,
@@ -429,6 +493,9 @@ medusaIntegrationTestRunner({
         expect((await recover()).result.synced).toContain(order.id)
         const native = await nativeOrder(order.id)
         expect(native.fulfillments.map(({ id }) => id)).toEqual([fulfillmentId])
+        expect(native.fulfillments[0].location_id).toBe(
+          before.fulfillments[0].location_id,
+        )
         const [after] = await delivery().listIntendedDeliveries({
           order_id: order.id,
         })

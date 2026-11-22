@@ -103,6 +103,21 @@ test("unexpected errors preserve classification but never their text or attached
   logger.close()
 })
 
+test("records a missing Restaurant pickup location without sensitive data", () => {
+  const record = createLogRecord("backend", "pickup_location_missing", {
+    order_id: "order_01",
+    restaurant_id: "restaurant_01",
+    address: "secret-address",
+  })
+
+  assert.equal(record.level, "error")
+  assert.equal(record.event, "pickup_location_missing")
+  assert.equal(record.msg, "Restaurant pickup location is missing")
+  assert.equal(record.order_id, "order_01")
+  assert.equal(record.restaurant_id, "restaurant_01")
+  assert.equal(record.address, undefined)
+})
+
 test("rejects a trailing newline rather than accepting it as an end anchor", () => {
   const { requestId } = require("../index.cjs")
   assert.match(requestId("login-28\n"), /^[0-9a-f-]{36}$/)

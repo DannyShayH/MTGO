@@ -85,10 +85,12 @@ repeat, with the same or a new `request_id`, returns the original
 
 A recorded pickup also creates and ships one native Order fulfillment of every
 item through Medusa's `createOrderFulfillmentWorkflow` and
-`createOrderShipmentWorkflow`, at the stock location the Order's delivery
-option is configured with. The Order's `fulfillment_status` becomes `shipped`,
-not `delivered`. A failure there never fails the request: the delivery module
-keeps the obligation and the `recover-delivery-fulfillments` job finishes it.
+`createOrderShipmentWorkflow`, at the stock location linked to the Order's
+Restaurant. The Order's `fulfillment_status` becomes `shipped`, not `delivered`.
+A missing link or another failure never fails the request: the delivery module
+keeps the obligation and the `recover-delivery-fulfillments` job finishes it
+from that same Restaurant location. An existing fulfillment keeps its original
+location.
 
 ## Arrival and contact attempts (#164)
 

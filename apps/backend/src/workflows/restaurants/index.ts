@@ -40,6 +40,10 @@ import {
   readPublicRestaurantsStep,
   resolveBrowsingLocationStep,
 } from "./steps/browse-restaurants"
+import {
+  createRestaurantPickupLocationWorkflow,
+  synchronizeRestaurantPickupLocationWorkflow,
+} from "./pickup-location"
 
 export const RESTAURANT_ACTIVATED = "restaurant.activated"
 export const RESTAURANT_DEACTIVATED = "restaurant.deactivated"
@@ -85,6 +89,16 @@ export const createRestaurantWorkflow = createWorkflow(
   function (input: RestaurantDetails) {
     const warnings = checkPickupAddressStep({ address: input })
     const id = createRestaurantStep(input)
+    createRestaurantPickupLocationWorkflow.runAsStep({
+      input: transform({ id, input }, ({ id, input }) => ({
+        id,
+        name: input.name,
+        address_street: input.address_street,
+        address_postal_code: input.address_postal_code,
+        address_city: input.address_city,
+        contact_phone: input.contact_phone,
+      })),
+    })
     const restaurant = retrieveRestaurantDetailStep({ id })
     return new WorkflowResponse({ restaurant, warnings })
   },
@@ -93,6 +107,16 @@ export const updateRestaurantWorkflow = createWorkflow(
   "update-restaurant",
   function (input: { id: string; details: Partial<RestaurantDetails> }) {
     const updated = updateRestaurantStep(input)
+    synchronizeRestaurantPickupLocationWorkflow.runAsStep({
+      input: transform({ updated }, ({ updated }) => ({
+        id: updated.id,
+        name: updated.name,
+        address_street: updated.address_street,
+        address_postal_code: updated.address_postal_code,
+        address_city: updated.address_city,
+        contact_phone: updated.contact_phone,
+      })),
+    })
     const warnings = checkPickupAddressStep({
       address: updated,
       exclude_id: input.id,

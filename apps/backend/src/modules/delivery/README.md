@@ -278,13 +278,13 @@ for the pickup (`settleNativeFulfillment` in
 `src/workflows/delivery/native-fulfillment.ts`).
 Null after pickup means that synchronization is still owed. The fulfillment
 carries `metadata.intended_delivery_id`, so a retry after a lost write finds it
-instead of fulfilling twice. The location is the one the Order's shipping
-option's fulfillment set belongs to, never a fixed id; a missing one is logged
-as `pickup_location_missing` and stays owed. For the MVP that is one
-platform-wide location shared by every Restaurant, because no Restaurant is
-linked to its own stock location yet. Shipping each pickup from its
-Restaurant's own location is #192. Nothing undoes a recorded pickup, and the
-native work it owes is retried, not compensated (ADR-0021). The request and the
+instead of fulfilling twice. The location is the stock location linked to the
+Order's Restaurant, never a fixed id or the delivery shipping option's shared
+location. A missing Restaurant location is logged as `pickup_location_missing`
+and stays owed. Recovery uses the same Restaurant link; if a fulfillment was
+already created, recovery keeps that fulfillment and its original location.
+Nothing undoes a recorded pickup, and the native work it owes is retried, not
+compensated (ADR-0021). The request and the
 `recover-delivery-fulfillments` job (every minute, 50 per sweep) serialize on
 `delivery-native-fulfillment:{order_id}`. `native_sync_queued_at` starts at the
 pickup time and moves to the start of each attempt; the sweep takes the oldest
@@ -298,7 +298,8 @@ forged bodies, cancelled work, revoked agents, a reused retry identity, a stale
 decision refused by the guarded write (`delivery_changed`), three
 competing requests (one milestone, one fulfillment), a missing pickup
 location (pickup stands, the obligation is requeued and finished once
-configured) and recovery after an interruption and after a lost record.
+configured), recovery after an interruption and after a lost record without
+replacing the existing fulfillment.
 `src/workflows/delivery/__tests__/pickup-rules.unit.spec.ts` covers the
 decision table.
 

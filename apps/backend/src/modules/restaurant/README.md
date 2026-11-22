@@ -32,6 +32,11 @@ management lives in `src/workflows/menu-categories` and uses this lock too.
 
 The module link `src/links/restaurant-product.ts` connects a Restaurant to a list
 of products, its dishes, as in Medusa's Restaurant-Delivery Marketplace recipe.
+The one-to-one `restaurant-stock-location.ts` link connects every Restaurant to
+the native stock location used for pickup fulfillment. Registration creates it
+with the structured pickup address, and Restaurant edits keep its name, address
+and phone aligned. The idempotent `restaurant-pickup-locations` migration script
+creates the missing link and location for Restaurants registered before #192.
 Each `MenuDish` belongs to one `MenuCategory` within the Restaurant module.
 Category removal checks this relation, including unpublished and sold-out dishes.
 The `menu-dish-product.ts` link joins a Product to its Restaurant-owned dish content.
