@@ -45,6 +45,32 @@ export type DeliveryProgress = {
   outcome: TerminalOutcome | null
 } | null
 
+type Moment = Date | string | null
+
+/** The delivery fields `deliveryProgressOf` reads. */
+export const DELIVERY_PROGRESS_FIELDS = [
+  "assigned_at",
+  "picked_up_at",
+  "terminal_outcome",
+  "terminal_at",
+]
+
+/** The Customer's milestones of one delivery, shared with #166's delivery read. */
+export function deliveryProgressOf(record: {
+  assigned_at: Moment
+  picked_up_at: Moment
+  terminal_outcome: TerminalOutcome | null
+  terminal_at: Moment
+}): NonNullable<DeliveryProgress> {
+  return {
+    assigned_at: iso(record.assigned_at),
+    picked_up_at: iso(record.picked_up_at),
+    delivered_at:
+      record.terminal_outcome === "delivered" ? iso(record.terminal_at) : null,
+    outcome: record.terminal_outcome,
+  }
+}
+
 /**
  * What the owning Customer sees of their Order's progress (#143): factual
  * milestones (placement, acceptance and, since #146, preparation start and
@@ -99,12 +125,7 @@ export async function readOrderProgress(
     .listIntendedDeliveries(
       { order_id: row.order_id },
       {
-        select: [
-          "assigned_at",
-          "picked_up_at",
-          "terminal_outcome",
-          "terminal_at",
-        ],
+        select: DELIVERY_PROGRESS_FIELDS,
         take: 1,
       },
     )
@@ -119,17 +140,7 @@ export async function readOrderProgress(
     available_actions: customerActions(row, now),
     cancellation: cancellationOutcome(row),
     refund: refunds.get(row.order_id) ?? null,
-    delivery: record
-      ? {
-          assigned_at: iso(record.assigned_at),
-          picked_up_at: iso(record.picked_up_at),
-          delivered_at:
-            record.terminal_outcome === "delivered"
-              ? iso(record.terminal_at)
-              : null,
-          outcome: record.terminal_outcome,
-        }
-      : null,
+    delivery: record ? deliveryProgressOf(record) : null,
   }
   return { progress, server_time: now.toISOString() }
 }

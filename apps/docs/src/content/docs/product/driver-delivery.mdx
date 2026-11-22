@@ -54,8 +54,12 @@ import "../../../styles/review-documents.css"
     Customer, which starts a ten-minute clock, and then each attempt to reach
     the Customer; tapping the call link records nothing. Without handover ten
     minutes after arrival, the operator is alerted and must escalate, while the
-    delivery stays the agent's and is not marked delivered (#164). Live
-    transport and location remain separate work.
+    delivery stays the agent's and is not marked delivered (#164). With Share my
+    location on, the collected delivery also shares the phone's latest position
+    with the ordering Customer while the workspace is open (#166): only the
+    latest position is kept, it is labelled stale sixty seconds after the phone
+    measured it, and it is deleted when the delivery ends. Delivery actions
+    never depend on it. The Customer's live map and timeline are #50.
   </p>
 </aside>
 

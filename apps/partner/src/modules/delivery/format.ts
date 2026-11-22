@@ -9,3 +9,12 @@ export const dateTimeFormatter = (locale: Locale) => {
   })
   return (value: string) => format.format(new Date(value))
 }
+
+/** A time of day in Copenhagen, in the viewer's language. */
+export const timeFormatter = (locale: Locale) => {
+  const format = new Intl.DateTimeFormat(locale === "da" ? "da-DK" : "en-GB", {
+    timeZone: "Europe/Copenhagen",
+    timeStyle: "short",
+  })
+  return (value: string) => format.format(new Date(value))
+}

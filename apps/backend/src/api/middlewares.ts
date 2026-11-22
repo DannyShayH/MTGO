@@ -43,6 +43,7 @@ import {
   PostRecordArrivalSchema,
   PostRecordContactAttemptSchema,
   PostPickupDistancesSchema,
+  PostShareDeliveryLocationSchema,
   PostConfirmHandoverSchema,
   GetCompletedDeliveriesSchema,
   PostPartnerOrderActionSchema,
@@ -192,6 +193,16 @@ export default defineMiddlewares({
     },
     {
       matcher: "/store/orders/:id/progress",
+      method: "GET",
+      middlewares: [
+        authenticate("customer", ["bearer", "session"]),
+        requireIsolatedCustomerIdentity,
+        requireOwnedOrder,
+      ],
+    },
+    {
+      // The owning Customer's delivery and latest location for #50 (#166).
+      matcher: "/store/orders/:id/delivery",
       method: "GET",
       middlewares: [
         authenticate("customer", ["bearer", "session"]),
@@ -526,6 +537,16 @@ export default defineMiddlewares({
       middlewares: [
         authenticate(DELIVERY_AGENT_ACTOR, "bearer"),
         validateAndTransformBody(PostConfirmPickupSchema),
+      ],
+    },
+    {
+      // One location sample (#166): a small body, never logged or echoed.
+      matcher: "/partner/deliveries/:id/location",
+      method: "POST",
+      bodyParser: { sizeLimit: "1kb" },
+      middlewares: [
+        authenticate(DELIVERY_AGENT_ACTOR, "bearer"),
+        validateAndTransformBody(PostShareDeliveryLocationSchema),
       ],
     },
     {

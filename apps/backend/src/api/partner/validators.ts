@@ -90,6 +90,22 @@ export const PostConfirmHandoverSchema = z.strictObject({
 })
 export type PostConfirmHandoverBody = z.infer<typeof PostConfirmHandoverSchema>
 
+/**
+ * One location sample from the phone (#166): coordinates (Zod numbers are
+ * always finite), the accuracy radius when the phone gave one (up to
+ * 100 km) and the time the phone measured it. The agent and delivery come from the server; no
+ * heading, speed, route or batch of samples is accepted.
+ */
+export const PostShareDeliveryLocationSchema = z.strictObject({
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+  accuracy_m: z.number().min(0).max(100_000).nullable().optional(),
+  observed_at: z.iso.datetime({ offset: true }),
+})
+export type PostShareDeliveryLocationBody = z.infer<
+  typeof PostShareDeliveryLocationSchema
+>
+
 /** Arrival takes only its retry identity: never a time, agent or location (#164). */
 export const PostRecordArrivalSchema = z.strictObject({
   request_id: RetryIdentity,

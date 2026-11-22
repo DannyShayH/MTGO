@@ -151,6 +151,49 @@ another. At most 20 attempts are kept per delivery.
 | `404`  | `delivery_not_found` (no accepted delivery for the Order)                                |
 | `409`  | `contact_attempt_request_reused` (`request_id` first used for another delivery or agent) |
 
+## Delivery location (#166)
+
+### POST /partner/deliveries/{order_id}/location
+
+Replaces the latest position of the agent's collected, active delivery with
+one sample from the phone. Only the agent responsible for a delivery with a
+recorded pickup and no terminal outcome may share; the agent and the receipt
+time come from the server. Only the latest sample is kept, never a route,
+and the delivery's terminal outcome deletes it in the same commit. Location
+never records pickup, arrival or handover, and no delivery action needs it.
+
+Freshness is the observation's, not the receipt's: `observed_at` more than 5
+seconds in the server's future is refused, a slightly fast clock is capped at
+the receipt time, an observation older than ten minutes is refused, and a
+sample must be newer than the one kept, so a delayed or replayed upload never
+looks current. A newer sample within 5 seconds of the last stored one is
+coalesced: `200` with `accepted: false` and the kept observation. The
+coordinate is never echoed, logged or put in a refusal.
+
+**Actor:** authorized Delivery agent (`delivery_agent` bearer). Body at most 1 KB.
+
+| Field         | Type           | Required | Rules                                                 |
+| ------------- | -------------- | -------- | ----------------------------------------------------- |
+| `latitude`    | number         | yes      | -90 to 90                                             |
+| `longitude`   | number         | yes      | -180 to 180                                           |
+| `accuracy_m`  | number or null | no       | 0 to 100,000; the phone's accuracy radius in meters   |
+| `observed_at` | string         | yes      | ISO 8601 time with offset, when the phone measured it |
+
+**Success:** `200`
+`{ "location": { "accepted": true, "observed_at": "...", "received_at": "..." }, "server_time": "..." }`
+
+| Status | When                                                                                     |
+| ------ | ---------------------------------------------------------------------------------------- |
+| `400`  | `pickup_not_recorded`                                                                    |
+| `400`  | `delivery_not_active` (delivered, cancelled, failed or ended work)                       |
+| `400`  | `location_observed_in_future`; `location_observation_too_old`                            |
+| `400`  | `location_invalid`: invalid body or unknown fields (heading, agent, a batch), not echoed |
+| `401`  | No `delivery_agent` bearer                                                               |
+| `403`  | `delivery_agent_access_revoked`                                                          |
+| `404`  | `delivery_not_found`: no accepted delivery, or another agent's or unassigned work, alike |
+| `409`  | `location_out_of_order` (not newer than the kept observation)                            |
+| `413`  | `location_too_large`                                                                     |
+
 ## Handover and completed history (#161)
 
 ### POST /partner/deliveries/{order_id}/deliver
@@ -524,6 +567,59 @@ its deadline, otherwise `[]` (accepted, cancelled, at or past the deadline, or
 a legacy Order without one). Offer Cancel only while it is listed.
 `server_time` is when this read was made; the Order timeline (#147) shows it
 as when the progress was last confirmed.
+
+### GET /store/orders/:id/delivery
+
+The ordering Customer's delivery projection for #50's live map (#166): the
+milestones of `progress.delivery` plus the agent's latest location with its
+freshness, read fresh on every request (`Cache-Control: no-store`). It is
+`delivery: null` before acceptance. It never contains the agent's identity,
+retry identities, internal notes or another Order's data.
+
+**Actor:** the owning Customer (`customer`, bearer or session), with the same
+checks as `GET /store/orders/:id/progress`.
+
+```json
+{
+  "delivery": {
+    "assigned_at": "2026-11-22T12:00:00.000Z",
+    "picked_up_at": "2026-11-22T12:10:00.000Z",
+    "delivered_at": null,
+    "outcome": null,
+    "location": {
+      "state": "fresh",
+      "latitude": 55.68123,
+      "longitude": 12.57123,
+      "accuracy_m": 14,
+      "observed_at": "2026-11-22T12:14:50.000Z",
+      "received_at": "2026-11-22T12:14:52.000Z",
+      "stale_at": "2026-11-22T12:15:50.000Z",
+      "revision": 3
+    }
+  },
+  "server_time": "2026-11-22T12:15:00.000Z"
+}
+```
+
+`location.state` is `not_started` before pickup, `unavailable` in transit
+without a sample (permission denied, no position, phone locked), `fresh` or
+`stale` with the latest coordinate, and `ended` once the delivery ended; the
+coordinate fields are `null` in every state but `fresh` and `stale`. A
+sample is `stale` from exactly sixty seconds after `observed_at`
+(`stale_at`), whenever it was received. `unavailable` and `stale` describe
+positioning only, never delivery progress. Nothing is interpolated.
+`revision` counts the samples kept for the delivery, so a consumer can tell a
+replaced sample from a repeated read; it is `null` without a coordinate.
+The projection is derived from committed rows: the terminal outcome deletes
+the coordinate in its own transaction, so every read after it shows `ended`
+and no later sample is accepted. No event is pushed yet: #50's stream is to
+emit its own invalidation hint from these records, and until then a consumer
+polls this read.
+
+| Status | When                                                                 |
+| ------ | -------------------------------------------------------------------- |
+| `401`  | Signed out                                                           |
+| `404`  | Another Customer's Order, an unpaid provisional row or an unknown id |
 
 ### POST /store/orders/:id/cancel
 

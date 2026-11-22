@@ -109,7 +109,17 @@ export const DELIVERY_AGENT_TEXT = {
     distanceUnavailable: "Afstand ikke tilgængelig",
     shareLocation: "Del min position",
     shareLocationHint:
-      "Viser, hvor langt du har til hver afhentning. Din position bruges kun til at beregne afstanden, gemmes ikke og sendes kun, mens siden er åben.",
+      "Viser, hvor langt du har til hver afhentning, og deler din position med kunden, mens du kører med afhentet mad. Den sendes kun, mens siden er åben og vises på skærmen. Kun den seneste position gemmes, og den slettes, når leveringen slutter.",
+    transitShared: "Kunden kan se din position fra kl. {time}.",
+    transitWaiting: "Din position deles med kunden, så snart den er fundet.",
+    transitOff:
+      "Din position deles ikke med kunden. Du kan stadig registrere ankomst og levering.",
+    transitOffline:
+      "Ingen forbindelse. Din position sendes igen, når forbindelsen er tilbage.",
+    transitFailed:
+      "Din seneste position kunne ikke sendes. Vi prøver igen om lidt.",
+    transitPauseNote:
+      "Delingen holder pause, når skærmen er låst, eller du bruger en anden app. Kunden ser, hvornår positionen sidst blev opdateret.",
     locating: "Finder din position…",
     locationDenied:
       "Telefonen giver ikke siden lov til at bruge din position. Du kan tillade det i browserens indstillinger for siden.",
@@ -290,7 +300,18 @@ export const DELIVERY_AGENT_TEXT = {
     distanceUnavailable: "Distance unavailable",
     shareLocation: "Share my location",
     shareLocationHint:
-      "Shows how far each pickup is from you. Your position is used only to work out the distance, is never stored and is sent only while this page is open.",
+      "Shows how far each pickup is from you, and shares your position with the Customer while you carry collected food. It is sent only while this page is open and on screen. Only the latest position is kept, and it is deleted when the delivery ends.",
+    transitShared: "The Customer can see your position from {time}.",
+    transitWaiting:
+      "Your position will be shared with the Customer as soon as it is found.",
+    transitOff:
+      "Your position is not shared with the Customer. You can still record arrival and handover.",
+    transitOffline:
+      "No connection. Your position will be sent again once the connection is back.",
+    transitFailed:
+      "Your latest position could not be sent. We will try again shortly.",
+    transitPauseNote:
+      "Sharing pauses while the screen is locked or you use another app. The Customer sees when your position was last updated.",
     locating: "Finding your location…",
     locationDenied:
       "Your phone is not letting this page use your location. You can allow it in the browser's settings for this site.",

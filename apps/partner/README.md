@@ -127,6 +127,32 @@ settings and turns the switch off; an unavailable position says that pickup
 distances are not shown. The position is never stored in the browser, a
 cookie or a URL, and claiming works the same with sharing on or off.
 
+Once the current delivery's food is collected, the same switch also shares
+the position with the ordering Customer (#166). The page passes the
+collected delivery to `LocationSharing` as `transitOrderId`; while sharing is
+on and the page is visible and online, it keeps only the newest position
+with the phone's own measurement time and accuracy, and sends it through the
+`shareDeliveryLocation` server action to
+`POST /partner/deliveries/{order_id}/location` at most every 15 seconds
+(`shouldUpload` in `modules/delivery/delivery-location.ts`). It never sends
+the same observation twice and never queues positions while offline or
+hidden, so a paused phone shows its real age to the Customer instead of
+looking current. When the newest position is 30 seconds old it asks the
+phone again. Hiding the page (a call, a lock, another app) forgets the waiting
+position, so returning sends the phone's next measurement rather than one
+taken before the pause. The uploader (`createTransitUploader`) has no copy of
+the backend's age or accuracy limits: a sample the backend refuses is simply
+not sent again. The card then says when the Customer's view of the position
+was measured, or that sharing waits for a position, is offline, failed and
+will retry, or is off ("You can still record arrival and handover"), and
+that sharing pauses while the screen is locked or another app is open. No
+delivery action reads the location or its permission. Returning to the page
+restarts the watch, and the workspace feed (`DeliveryFeed`, #165) rechecks
+access and reads the current delivery again; a page that is not served
+over HTTPS reports the position as unavailable; a refusal because the delivery ended or is no longer
+the agent's (including a 404) stops sharing and refreshes the page, and a revocation signs the
+agent out.
+
 ### Handover and completed deliveries (#161)
 
 Pickup and handover share one confirmation component

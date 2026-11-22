@@ -15,9 +15,20 @@ import {
   Target,
 } from "@medusajs/icons"
 import { Switch } from "@medusajs/ui"
-import type { Locale } from "@dtc/i18n"
-import { measurePickupDistances } from "@lib/data/delivery-agent"
+import { useRouter } from "next/navigation"
+import { formatText, type Locale } from "@dtc/i18n"
+import {
+  measurePickupDistances,
+  shareDeliveryLocation,
+} from "@lib/data/delivery-agent"
 import { CARD, PRESSABLE, SHARE_CHOICE_COOKIE, type DeliveryCopy } from "./copy"
+import { timeFormatter } from "./format"
+import {
+  createTransitUploader,
+  needsFreshPosition,
+  UPLOAD_EVERY_MS,
+  type TransitState,
+} from "./delivery-location"
 import {
   formatDistance,
   RESEND_AFTER_MS,
@@ -38,6 +49,8 @@ type SharingState = {
   distances: Record<string, number | null>
   order: SortOrder
   setOrder: (order: SortOrder) => void
+  /** Null unless the agent carries collected food. */
+  transit: TransitState | null
 }
 
 const Sharing = createContext<SharingState | null>(null)
@@ -51,6 +64,19 @@ const SWITCH_ID = "share-location"
 function writeChoice(on: boolean) {
   document.cookie = `${SHARE_CHOICE_COOKIE}=${on ? "on" : ""}; path=/; max-age=${on ? 31_536_000 : 0}; samesite=lax`
 }
+/** Rough positions suffice to sort pickups by distance. */
+const PICKUP_POSITIONING: PositionOptions = {
+  enableHighAccuracy: false,
+  maximumAge: 30_000,
+  timeout: 20_000,
+}
+/** In transit the Customer follows the position, so ask for a precise, recent one. */
+const TRANSIT_POSITIONING: PositionOptions = {
+  enableHighAccuracy: true,
+  maximumAge: 10_000,
+  timeout: 20_000,
+}
+
 const HINT_ID = "share-location-hint"
 
 /**
@@ -66,6 +92,7 @@ const HINT_ID = "share-location-hint"
  */
 export function LocationSharing({
   orderIds,
+  transitOrderId = null,
   remembered = false,
   children,
 }: {
@@ -73,14 +100,22 @@ export function LocationSharing({
   remembered?: boolean
   /** The pickups on screen: the available list and a not yet collected current delivery. */
   orderIds: string[]
+  /**
+   * The current delivery once its food is collected and while it is active
+   * (#166): its position is also shared with the ordering Customer.
+   */
+  transitOrderId?: string | null
   children: ReactNode
 }) {
+  const router = useRouter()
   const [enabled, setEnabled] = useState(remembered)
   const [status, setStatus] = useState<Status>(remembered ? "locating" : "off")
   // A remembered choice waits for the permission check, so it never prompts.
   const [isChecked, setIsChecked] = useState(!remembered)
   const [distances, setDistances] = useState<Record<string, number | null>>({})
   const [order, setOrder] = useState<SortOrder>("oldest")
+  // Tagged with its delivery, so another delivery starts again at waiting.
+  const [transit, setTransit] = useState<TransitState & { order_id: string }>()
   const idsKey = orderIds.join(",")
 
   // Resume a remembered choice only while the browser already grants it.
@@ -109,14 +144,29 @@ export function LocationSharing({
   }, [remembered])
 
   useEffect(() => {
-    if (!enabled || !isChecked || !idsKey) return
-    const ids = idsKey.split(",")
+    if (!enabled || !isChecked || (!idsKey && !transitOrderId)) return
+    const ids = idsKey ? idsKey.split(",") : []
     let active = true
     let watch: number | null = null
     let latest: Position | null = null
     let last: { position: Position; at: number } | null = null
+    // Transit sharing (#166) keeps only the newest sample: nothing queues.
+    const transitId = transitOrderId
+    const uploader = transitId
+      ? createTransitUploader({
+          send: (sample) => shareDeliveryLocation(transitId, sample),
+          report: (next) => setTransit({ ...next, order_id: transitId }),
+          // The delivery ended or is no longer this agent's: read it again.
+          onEnded: () => router.refresh(),
+          environment: () => ({
+            isVisible: document.visibilityState === "visible",
+            isOnline: navigator.onLine,
+          }),
+        })
+      : null
 
     const send = (position: Position) => {
+      if (!ids.length) return
       if (!active || document.visibilityState !== "visible") return
       if (!shouldSendPosition(last, position, Date.now())) return
       last = { position, at: Date.now() }
@@ -129,47 +179,88 @@ export function LocationSharing({
           setStatus("on")
         })
     }
+    const onPosition = ({ coords, timestamp }: GeolocationPosition) => {
+      if (!active) return
+      latest = { latitude: coords.latitude, longitude: coords.longitude }
+      // Distances set "on" when they arrive; without any, the position does.
+      if (!ids.length) setStatus("on")
+      send(latest)
+      // The phone's own measurement time, so the Customer sees its real age.
+      void uploader?.offer({
+        ...latest,
+        accuracy_m: Number.isFinite(coords.accuracy) ? coords.accuracy : null,
+        observed_at: timestamp,
+      })
+    }
+    const onError = (error: GeolocationPositionError) => {
+      if (!active) return
+      if (error.code === error.PERMISSION_DENIED) {
+        setEnabled(false)
+        writeChoice(false)
+        setStatus("denied")
+      } else setStatus("unavailable")
+    }
     const start = () => {
       if (watch !== null || document.visibilityState !== "visible") return
       watch = navigator.geolocation.watchPosition(
-        ({ coords }) => {
-          latest = { latitude: coords.latitude, longitude: coords.longitude }
-          send(latest)
-        },
-        (error) => {
-          if (!active) return
-          if (error.code === error.PERMISSION_DENIED) {
-            setEnabled(false)
-            writeChoice(false)
-            setStatus("denied")
-          } else setStatus("unavailable")
-        },
-        { enableHighAccuracy: false, maximumAge: 30_000, timeout: 20_000 },
+        onPosition,
+        onError,
+        transitOrderId ? TRANSIT_POSITIONING : PICKUP_POSITIONING,
       )
     }
     const stop = () => {
       if (watch !== null) navigator.geolocation.clearWatch(watch)
       watch = null
     }
-    const onVisibility = () =>
-      document.visibilityState === "visible" ? start() : stop()
+    const onVisibility = () => {
+      if (document.visibilityState !== "visible") {
+        stop()
+        uploader?.suspend()
+        return
+      }
+      // Back from a call, a lock or another app. The delivery feed (#165)
+      // reads the agent's access and current delivery again on the same
+      // event, and a sample sent before that arrives is decided by the server
+      // under the delivery guard: ended or foreign work answers `ended`.
+      start()
+    }
     // A standing agent's phone may report no new position: resend the last.
     const timer = window.setInterval(() => {
       if (latest) send(latest)
     }, RESEND_AFTER_MS)
+    // In transit, ask the phone again when its position grows old, and send
+    // the newest one when due. Nothing runs while the page is hidden.
+    const transitTimer = uploader
+      ? window.setInterval(() => {
+          if (document.visibilityState !== "visible") return
+          if (needsFreshPosition(uploader.latest(), Date.now()))
+            navigator.geolocation.getCurrentPosition(
+              onPosition,
+              onError,
+              TRANSIT_POSITIONING,
+            )
+          void uploader.flush()
+        }, UPLOAD_EVERY_MS / 3)
+      : null
+    const onOnline = () => void uploader?.flush()
 
     start()
     document.addEventListener("visibilitychange", onVisibility)
+    window.addEventListener("online", onOnline)
     return () => {
       active = false
+      uploader?.dispose()
       stop()
       window.clearInterval(timer)
+      if (transitTimer !== null) window.clearInterval(transitTimer)
       document.removeEventListener("visibilitychange", onVisibility)
+      window.removeEventListener("online", onOnline)
     }
-  }, [enabled, isChecked, idsKey])
+  }, [enabled, isChecked, idsKey, transitOrderId, router])
 
   const toggle = useCallback((on: boolean) => {
-    if (on && !("geolocation" in navigator)) {
+    // Browsers give positions only to secure (HTTPS) pages; say so at once.
+    if (on && (!window.isSecureContext || !("geolocation" in navigator))) {
       setStatus("unavailable")
       return
     }
@@ -189,11 +280,16 @@ export function LocationSharing({
         enabled,
         toggle,
         // With nothing on screen to measure, sharing has nothing to wait for.
-        status: enabled && !idsKey ? "on" : status,
+        status: enabled && !idsKey && !transitOrderId ? "on" : status,
         orderIds,
         distances,
         order,
         setOrder,
+        transit: transitOrderId
+          ? transit?.order_id === transitOrderId
+            ? transit
+            : { phase: "waiting" }
+          : null,
       }}
     >
       {children}
@@ -205,11 +301,19 @@ export function LocationSharing({
  * The Share my location card at the top of the workspace: label and switch
  * on one row, its purpose under it, and what the phone is doing now.
  */
-export function LocationSwitch({ copy }: { copy: DeliveryCopy }) {
+export function LocationSwitch({
+  copy,
+  locale,
+}: {
+  copy: DeliveryCopy
+  locale: Locale
+}) {
   const sharing = useContext(Sharing)
   const [isInfoOpen, setInfoOpen] = useState(false)
   if (!sharing) return null
-  const { enabled, toggle, status } = sharing
+  const { enabled, toggle, status, transit } = sharing
+  const transitText =
+    transit && transitNotice(transit, enabled, status, copy, locale)
   const notice =
     status === "locating"
       ? copy.locating
@@ -275,8 +379,50 @@ export function LocationSwitch({ copy }: { copy: DeliveryCopy }) {
       >
         {notice}
       </p>
+      {transitText && (
+        <div
+          id={TRANSIT_ID}
+          className="bg-ui-bg-subtle flex flex-col gap-1 rounded-lg p-3 text-sm"
+        >
+          <p
+            role="status"
+            className="text-mtogo-text-primary break-words font-medium tabular-nums"
+          >
+            {transitText}
+          </p>
+          <p className="text-mtogo-text-secondary break-words">
+            {copy.transitPauseNote}
+          </p>
+        </div>
+      )}
     </section>
   )
+}
+
+const TRANSIT_ID = "share-location-transit"
+
+/** What the agent is told about sharing with the Customer during transit. */
+function transitNotice(
+  transit: TransitState,
+  enabled: boolean,
+  status: Status,
+  copy: DeliveryCopy,
+  locale: Locale,
+) {
+  if (!enabled || status === "denied" || status === "unavailable")
+    return copy.transitOff
+  switch (transit.phase) {
+    case "shared":
+      return formatText(copy.transitShared, {
+        time: timeFormatter(locale)(transit.observed_at),
+      })
+    case "offline":
+      return copy.transitOffline
+    case "failed":
+      return copy.transitFailed
+    default:
+      return copy.transitWaiting
+  }
 }
 
 /** Oldest first or nearest pickup, offered only once distances are in. */

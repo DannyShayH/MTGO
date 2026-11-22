@@ -38,6 +38,10 @@ import {
   CONTACT_ATTEMPT_CONFLICTS,
   CONTACT_ATTEMPT_REFUSALS,
 } from "../workflows/delivery/arrival-rules"
+import {
+  LOCATION_CONFLICTS,
+  LOCATION_REFUSALS,
+} from "../workflows/delivery/location-rules"
 
 const CATEGORY_ROUTE =
   /^\/partner\/restaurants\/[^/]+\/categories(?:\/[^/]+)?\/?$/
@@ -183,23 +187,43 @@ function photoRefusalBody(
 }
 
 /**
- * The agent's position must never be echoed or logged (#191). Medusa's
- * validation message repeats the rejected value and its handler logs it, so
- * every refusal before the route answers with one code and no log.
+ * A refusal that names the request body's position without repeating it.
+ * Medusa's validation message repeats the rejected value and its handler
+ * logs it, so a malformed or oversized position answers one code and no log.
  */
-function pickupDistancesRefusalBody(
-  url: string,
-  statusCode: number,
-  body: { type?: string },
+function positionRefusalBody(
+  route: RegExp,
+  codes: { invalid: string; tooLarge: string },
 ) {
-  if (
-    (statusCode !== 400 && statusCode !== 413) ||
-    !/^\/partner\/delivery-agent\/pickup-distances\/?$/.test(url.split("?")[0])
-  )
-    return undefined
-  const code = statusCode === 413 ? "position_too_large" : "position_invalid"
-  return { type: body.type, code, message: code }
+  return (
+    url: string,
+    statusCode: number,
+    body: { type?: string },
+    stableErrorCode?: string,
+  ) => {
+    // A route's own business refusal keeps its stable code.
+    if (
+      (statusCode !== 400 && statusCode !== 413) ||
+      (statusCode === 400 && stableErrorCode) ||
+      !route.test(url.split("?")[0])
+    )
+      return undefined
+    const code = statusCode === 413 ? codes.tooLarge : codes.invalid
+    return { type: body.type, code, message: code }
+  }
 }
+
+/** The agent's position for sorting pickups (#191). */
+const pickupDistancesRefusalBody = positionRefusalBody(
+  /^\/partner\/delivery-agent\/pickup-distances\/?$/,
+  { invalid: "position_invalid", tooLarge: "position_too_large" },
+)
+
+/** A shared location sample (#166). */
+const shareLocationRefusalBody = positionRefusalBody(
+  /^\/partner\/deliveries\/[^/]+\/location\/?$/,
+  { invalid: "location_invalid", tooLarge: "location_too_large" },
+)
 
 /**
  * Preserve Medusa responses and additional refusal fields. The correlated
@@ -236,6 +260,8 @@ export function mtogoErrorHandler(): MedusaErrorHandlerFunction {
     ...ARRIVAL_CONFLICTS,
     ...CONTACT_ATTEMPT_REFUSALS,
     ...CONTACT_ATTEMPT_CONFLICTS,
+    ...LOCATION_REFUSALS,
+    ...LOCATION_CONFLICTS,
   ])
   return (error, req, res, next) => {
     if (error.message === "customer_identity_exists") {
@@ -269,6 +295,12 @@ export function mtogoErrorHandler(): MedusaErrorHandlerFunction {
     if (stableErrorCode) body.code = stableErrorCode
     const categoryBody =
       pickupDistancesRefusalBody(req.originalUrl, statusCode, body) ??
+      shareLocationRefusalBody(
+        req.originalUrl,
+        statusCode,
+        body,
+        stableErrorCode,
+      ) ??
       photoRefusalBody(error, req.originalUrl, statusCode, body) ??
       arrangementRefusalBody(
         error,

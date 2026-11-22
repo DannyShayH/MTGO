@@ -117,10 +117,12 @@ export default async function DeliveryPage({
 
       <LocationSharing
         orderIds={measured}
+        // Collected, active work is shared with its Customer (#166).
+        transitOrderId={current?.picked_up_at ? current.order_id : null}
         remembered={(await cookies()).get(SHARE_CHOICE_COOKIE)?.value === "on"}
       >
         <DeliveryFeed copy={copy} />
-        <LocationSwitch copy={copy} />
+        <LocationSwitch copy={copy} locale={locale} />
         <section
           id="current"
           className="flex scroll-mt-4 flex-col gap-3"

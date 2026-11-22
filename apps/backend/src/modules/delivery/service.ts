@@ -21,6 +21,7 @@ import DeliveryAttention, {
   type AttentionType,
 } from "./models/delivery-attention"
 import DeliveryContactAttempt from "./models/delivery-contact-attempt"
+import DeliveryLocation from "./models/delivery-location"
 
 /** What the shared assignment rule needs, read under both row locks. */
 export type AssignmentFacts = {
@@ -184,6 +185,51 @@ export type ContactAttemptCommand = {
   now: Date
 }
 
+/** What the location sample rule needs, read under the delivery row lock (#166). */
+export type LocationFacts = {
+  agent: ArrivalFacts["agent"]
+  delivery: Omit<ArrivalFacts["delivery"], "arrived_at">
+  order_active: boolean
+  /** The retained sample's times, if any. */
+  latest: { observed_at: Date | string; received_at: Date | string } | null
+  /** When the phone says it measured the new sample. */
+  observed_at: Date
+}
+
+/**
+ * What became of a sample: the rule's decision, or `superseded` when a newer
+ * sample was written between the rule's read and this write, so the write's
+ * selector kept the newer one. The caller names the refusal.
+ */
+export type LocationOutcome =
+  | { outcome: "record"; observed_at: Date }
+  | { outcome: "coalesced" }
+  | { outcome: "refused"; code: string }
+  | { outcome: "superseded" }
+
+/** One location sample, decided under the Order's guard by the caller. */
+export type LocationCommand = MeasuredPosition & {
+  order_id: string
+  agent_id: string
+  observed_at: Date
+  order_active: boolean
+  now: Date
+}
+
+/** A position as the phone measured it (#166): no time, agent or delivery. */
+export type MeasuredPosition = {
+  latitude: number
+  longitude: number
+  /** The phone's accuracy radius in meters, when it gave one. */
+  accuracy_m: number | null
+}
+
+/** The kept sample: the position with its observation and receipt times. */
+export type KeptPosition = MeasuredPosition & {
+  observed_at: Date | string
+  received_at: Date | string
+}
+
 /** What a terminal rule needs, read under the delivery row lock. */
 export type TerminalFacts = {
   agent: { id: string; status: "pending" | "authorized" | "revoked" } | null
@@ -225,6 +271,7 @@ class DeliveryModuleService extends MedusaService({
   IntendedDelivery,
   DeliveryAttention,
   DeliveryContactAttempt,
+  DeliveryLocation,
 }) {
   /** Fence credential creation against consumption and revocation, even if a lease is lost. */
   @InjectManager()
@@ -979,6 +1026,124 @@ class DeliveryModuleService extends MedusaService({
   }
 
   /**
+   * Replaces the latest location sample (#166). Under the delivery row lock,
+   * the lock `endDelivery` takes, it re-reads responsibility and the retained
+   * sample and lets `decide` apply the shared rule, so a sample racing the
+   * terminal outcome is either stored before it (and then deleted with it)
+   * or refused after it. The write's selector requires the retained sample
+   * to be older, and the unique `order_id` index keeps one sample per Order.
+   */
+  @InjectManager()
+  @InjectTransactionManager()
+  async recordLocation<
+    Decision extends Exclude<LocationOutcome, { outcome: "superseded" }>,
+  >(
+    command: LocationCommand,
+    decide: (facts: LocationFacts, now: Date) => Decision,
+    @MedusaContext() context: Context = {},
+  ) {
+    const { facts } = await this.lockMilestoneFacts(command, context)
+    const [latest] = await this.listDeliveryLocations(
+      { order_id: command.order_id },
+      { take: 1 },
+      context,
+    )
+    const outcome = decide(
+      {
+        agent: facts.agent,
+        delivery: facts.delivery,
+        order_active: facts.order_active,
+        latest: latest ?? null,
+        observed_at: command.observed_at,
+      },
+      command.now,
+    )
+    if (outcome.outcome !== "record")
+      return { outcome, location: latest, previous: null }
+    const sample = {
+      latitude: command.latitude,
+      longitude: command.longitude,
+      accuracy_m: command.accuracy_m,
+      observed_at: outcome.observed_at,
+      received_at: command.now,
+    }
+    if (!latest) {
+      const location = await this.createDeliveryLocations(
+        { ...sample, order_id: command.order_id, revision: 1 },
+        context,
+      )
+      return { outcome, location, previous: null }
+    }
+    const [location] = await this.updateDeliveryLocations(
+      {
+        selector: {
+          id: latest.id,
+          observed_at: { $lt: outcome.observed_at },
+        },
+        data: { ...sample, revision: latest.revision + 1 },
+      },
+      context,
+    )
+    if (!location)
+      return {
+        outcome: { outcome: "superseded" as const },
+        location: latest,
+        previous: null,
+      }
+    return { outcome, location, previous: latest }
+  }
+
+  /**
+   * Undoes one accepted sample (#166), for the workflow's compensation:
+   * under the delivery row lock, and only while the kept sample is still the
+   * one that write stored (its `revision`). Then the previous sample comes
+   * back, or none if there was none. A newer sample or the terminal
+   * outcome's deletion already replaced it and is left alone, so this never
+   * brings a coordinate back after the delivery ended.
+   */
+  @InjectManager()
+  @InjectTransactionManager()
+  async restoreLocation(
+    input: {
+      order_id: string
+      revision: number
+      previous: KeptPosition | null
+    },
+    @MedusaContext() context: Context = {},
+  ) {
+    const manager = context.transactionManager as EntityManager
+    await manager.findOne(
+      "IntendedDelivery",
+      { order_id: input.order_id, deleted_at: null },
+      { lockMode: LockMode.PESSIMISTIC_WRITE },
+    )
+    const [written] = await this.listDeliveryLocations(
+      { order_id: input.order_id, revision: input.revision },
+      { take: 1, select: ["id"] },
+      context,
+    )
+    if (!written) return
+    if (!input.previous) {
+      await this.deleteDeliveryLocations(written.id, context)
+      return
+    }
+    const { latitude, longitude, accuracy_m } = input.previous
+    await this.updateDeliveryLocations(
+      {
+        id: written.id,
+        latitude,
+        longitude,
+        accuracy_m,
+        observed_at: new Date(input.previous.observed_at),
+        received_at: new Date(input.previous.received_at),
+        // The kept sample changed again, so the revision still moves on.
+        revision: input.revision + 1,
+      },
+      context,
+    )
+  }
+
+  /**
    * Records the one trip measurement (#191). The selector requires it to be
    * unmeasured, so a retry or a concurrent attempt never changes it.
    */
@@ -1100,6 +1265,9 @@ class DeliveryModuleService extends MedusaService({
         } as TerminalDecision,
         delivery: record,
       }
+    // Sharing ends with the work (#166): the retained coordinate is deleted,
+    // not soft-deleted, in the terminal commit. Milestones stay.
+    await this.deleteDeliveryLocations({ order_id: command.order_id }, context)
     // Ended work makes every outstanding condition obsolete (#163). The
     // outcome itself is never derived from attention.
     await this.resolveAttention(

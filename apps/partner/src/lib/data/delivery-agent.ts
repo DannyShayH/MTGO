@@ -489,6 +489,113 @@ export async function measurePickupDistances(
   }
 }
 
+/**
+ * What became of one shared position (#166): `shared` with the observation
+ * the backend keeps (unchanged when it coalesced this one), `ended` when the
+ * delivery is no longer the agent's active, collected work, `refused` for a
+ * sample the backend would not keep, `unavailable` when it was not reached.
+ */
+export type LocationShareResult =
+  | { status: "shared"; observed_at: string | null }
+  | { status: "ended" | "refused" | "unavailable" }
+
+/**
+ * Refusals meaning the delivery is no longer the agent's collected, active
+ * work. `pickup_not_recorded` belongs here too: transit sharing starts only
+ * after pickup, so the screen it was sent from is out of date.
+ */
+const ENDED_LOCATION_CODES = new Set([
+  "delivery_not_active",
+  "pickup_not_recorded",
+])
+
+/**
+ * Sends the phone's latest position for the agent's collected delivery
+ * (#166). The coordinate goes only in the request body: never stored,
+ * logged or put in a URL here. A revoked agent is signed out.
+ */
+export async function shareDeliveryLocation(
+  orderId: string,
+  sample: {
+    latitude: number
+    longitude: number
+    accuracy_m: number | null
+    observed_at: number
+  },
+): Promise<LocationShareResult> {
+  const { latitude, longitude, accuracy_m, observed_at } = sample ?? {}
+  // A server action is a public endpoint: check what the browser sent.
+  if (
+    typeof orderId !== "string" ||
+    !ORDER_ID.test(orderId) ||
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude) ||
+    !Number.isFinite(observed_at) ||
+    (accuracy_m !== null && !Number.isFinite(accuracy_m))
+  )
+    return { status: "refused" }
+  const token = (await cookies()).get(PARTNER_TOKEN_COOKIE)?.value
+  if (!token) redirect("/delivery-sign-in")
+  const correlationId = requestId((await headers()).get("x-request-id"))
+  const logFailure = (status?: number) =>
+    log("upstream.request.failed", {
+      request_id: correlationId,
+      route: "/partner/deliveries/:id/location",
+      method: "POST",
+      ...(status === undefined ? {} : { status }),
+    })
+  let response: Response
+  try {
+    response = await fetch(
+      new URL(
+        `/partner/deliveries/${encodeURIComponent(orderId)}/location`,
+        BACKEND_URL,
+      ),
+      {
+        method: "POST",
+        cache: "no-store",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+          "x-request-id": correlationId,
+        },
+        body: JSON.stringify({
+          latitude,
+          longitude,
+          // The backend alone decides which accuracy and age it accepts.
+          accuracy_m,
+          observed_at: new Date(observed_at).toISOString(),
+        }),
+      },
+    )
+  } catch {
+    logFailure()
+    return { status: "unavailable" }
+  }
+  if (response.status === 403) redirect(AGENT_ACCESS_ENDED_PATH)
+  if (response.status === 401) redirect("/delivery-sign-in")
+  const body = (await response.json().catch(() => null)) as {
+    code?: string
+    location?: { observed_at?: string | null }
+  } | null
+  if (response.ok)
+    return {
+      status: "shared",
+      observed_at: body?.location?.observed_at ?? null,
+    }
+  // Another agent's or no delivery answers 404, like a missing Order.
+  if (
+    response.status === 404 ||
+    (body?.code && ENDED_LOCATION_CODES.has(body.code))
+  )
+    return { status: "ended" }
+  if (response.status >= 500) {
+    logFailure(response.status)
+    return { status: "unavailable" }
+  }
+  return { status: "refused" }
+}
+
 export async function getAvailableDeliveries(
   postalCodes: string[],
   offset: number,
