@@ -92,6 +92,18 @@ _Avoid_: Order, payment
 The ordering Customer's voluntary assessment of a delivered Order, with separate ratings for food, overall experience and the individual Delivery agent.
 _Avoid_: Complaint, agent rating (when referring to the whole assessment)
 
+**Full refund**:
+The return of everything a Customer paid for a cancelled Order. It stays unresolved until the payment provider confirms success, however many attempts that takes.
+_Avoid_: Partial refund, goodwill payment, chargeback
+
+**Operator cancellation**:
+An MTOGO operator's cancellation of an accepted, unfinished Order, always with a Full refund and a recorded reason.
+_Avoid_: Customer cancellation, rejection, release (of a Delivery)
+
+**Problem report**:
+A Delivery agent's notice to MTOGO operators that their active Delivery has a problem, with a category and an optional note. It asks for operator attention and changes nothing about the Delivery.
+_Avoid_: Complaint, Feedback, escalation (when the Customer is unreachable)
+
 **Order timeline**:
 The Customer's website view of the recorded business progress of one Order. Location on a delivery map is separate from confirmed pickup and handover milestones.
 _Avoid_: SMS delivery history, live location tracking

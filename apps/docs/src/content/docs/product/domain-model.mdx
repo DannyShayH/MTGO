@@ -278,6 +278,8 @@ The [agreed Feature backlog](/MTGO/product/feature-backlog-proposal/) records Mo
 
 [Discovery #139](https://github.com/DannyShayH/MTGO/issues/139), confirmed on 17 November 2026, refined Restaurant acceptance and preparation for Feature #47. The [acceptance and preparation workflow](/MTGO/product/restaurant-order-preparation/) records explicit staff milestones, optional rejection reasons, the strict five-minute acceptance boundary, automatic mocked full-refund attempts, historical bilingual kitchen details and SSE updates with reconnect recovery and polling fallback. Feature #47 also introduces the Customer's simple food-progress timeline; #48 adds delivery milestones and #50 completes the event history and live delivery map over SSE, as revised in discovery #152. Specification and implementation follow separately.
 
+[Discovery #196](https://github.com/DannyShayH/MTGO/issues/196), confirmed on 22 November 2026, kept Feature #49 small. The [operator refunds and problem reports](/MTGO/product/operator-refunds/) page records the Refunds page with retry and attempt history, Operator cancellation with a full refund and a required reason, and the Delivery agent's Problem report. Corrections, goodwill refunds and uncertain-payment attention are deferred.
+
 ## Cancellation, handover and recovery
 
 - Alert an operator after ten minutes without assignment; cancel after thirty minutes if still unassigned. Both periods start at Restaurant acceptance. Refund the Customer in full; MTOGO carries the loss of food already prepared. Credit the Restaurant the full food value excluding VAT with no commission, as a loss funded by MTOGO.

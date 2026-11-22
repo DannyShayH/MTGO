@@ -11,3 +11,7 @@ Assigned work alerts an operator after thirty minutes from Restaurant acceptance
 ## Discovery #152 revision
 
 On 18 November 2026 the team extended the unassigned claim and cancellation deadline from twenty to thirty minutes after Restaurant acceptance. The ten-minute operator alert stays. At the thirty-minute boundary an unassigned delivery can no longer be claimed and is cancelled even if a background recovery job has not run yet. A successful claim before the deadline prevents unassigned cancellation. Full Customer refund and prepared-food credit rules remain. The separate thirty-minute attention threshold for assigned work without pickup remains an alert, not automatic cancellation.
+
+## Discovery #196 revision
+
+On 22 November 2026 the team kept Feature #49 deliberately small. Operators get one Operator cancellation, always with a Full refund and a required reason, for accepted, unfinished Orders; when preparation had started, MTOGO funds the prepared-food credit as for unassigned cancellation. Operators can see and retry failed full refunds, and every attempt records who triggered it. Delivery agents can file one Problem report per active delivery, which only raises operator attention. Corrections of recorded mistakes, goodwill refunds with a recorded loss bearer, cancellation without refund and the five-minute uncertain-payment attention are deferred from the MVP. The rules above still describe the business; the MVP implements only part of them.
