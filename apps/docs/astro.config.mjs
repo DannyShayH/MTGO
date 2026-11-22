@@ -77,6 +77,7 @@ export default defineConfig({
             "architecture/dependency-graph",
             {
               label: "Decisions",
+              collapsed: true,
               items: [
                 { autogenerate: { directory: "architecture/decisions" } },
               ],

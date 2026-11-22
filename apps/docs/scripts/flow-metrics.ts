@@ -85,6 +85,9 @@ export function formerChildren(
 /** GitHub records a parent change as a removal and an addition moments apart */
 const MOVE_TOLERANCE_MS = 60_000
 
+/** Project automation moves a closed item to Done moments around the close (#201) */
+const CLOSE_TOLERANCE_MS = 60_000
+
 /**
  * Where a child went when it left a Feature (#66): the first parent that
  * recorded adding it from the removal onwards, not its parent today, so a
@@ -702,14 +705,26 @@ function observeFeatures(
           )
         const end = delivered ? copenhagenDate(child.closedAt) : today
         const duration = daysSince(child.startedAt, end)
+        // Closing as not planned moves the item to Done, so a Done that came
+        // with that close does not prove a start (#201). A reopening, an
+        // In Progress or Delivery Initiated status, or a Done before the close
+        // still does.
+        const isClosedNotPlanned =
+          child.state === "CLOSED" && child.closeReason === "NOT_PLANNED"
+        const isDoneByClose = (at: string | null) =>
+          isClosedNotPlanned &&
+          validTimestamp(child.closedAt) &&
+          (at === null ||
+            Date.parse(at) >= Date.parse(child.closedAt) - CLOSE_TOLERANCE_MS)
+        const provesStart = (status: string, at: string | null) =>
+          isWip(status) || (status === STATUS.done && !isDoneByClose(at))
         const started =
           child.reopened ||
           child.stateChanges?.some((event) => event.state === "OPEN") ||
-          (child.state === "CLOSED" && child.closeReason !== "NOT_PLANNED") ||
-          isWip(child.status) ||
-          child.status === STATUS.done ||
-          child.statusChanges.some(
-            (change) => isWip(change.to) || change.to === STATUS.done,
+          (child.state === "CLOSED" && !isClosedNotPlanned) ||
+          provesStart(child.status, null) ||
+          child.statusChanges.some((change) =>
+            provesStart(change.to, change.at),
           )
         // ADR-0016: absent status/history cannot prove removed work never started.
         const hasUnknownOutOfScopeStart =

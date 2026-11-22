@@ -1,0 +1,54 @@
+---
+title: Test inventory
+description: How many automated tests of each kind the repository has, counted on every docs build.
+sidebar:
+  order: 2
+---
+
+import TestInventory from "../../../components/test-inventory.astro"
+
+The docs build counts the repository's tests, so this table is current for
+every delivered commit. To see it in a terminal, run this from the repository
+root:
+
+```bash
+npm run test:inventory
+```
+
+<TestInventory />
+
+**Spec files** are the files the runner picks up. **Test cases** are the
+declared `it(…)` and `test(…)` calls. A table test (`it.each`) counts once
+however many rows it has, so the runners report more tests than this column.
+The counting rules live in `apps/docs/scripts/test-inventory.ts`. When a new
+kind of test or a new location appears, add it there, next to the runner
+configuration it mirrors.
+
+## Kinds of tests
+
+- **Backend unit:** business rules, validation and helpers, with no database.
+  Fast, so they run on every commit.
+- **Backend module integration:** a custom module's service against a real
+  PostgreSQL database. Jest also matches the unit specs in a module's
+  `__tests__` folder here; the inventory counts those once, as unit tests.
+- **Backend HTTP integration:** a full Medusa app on a test database, called
+  through its HTTP API. These prove most of the behaviour and produce most of the
+  [coverage](/MTGO/quality/coverage/).
+- **Browser end-to-end:** Playwright journeys against production builds of the
+  storefront and partner app, including one admin journey in the storefront suite. The ready flow runs the journeys a change
+  affects; see [browser verification](/MTGO/quality/browser-verification/).
+- **Partner app unit:** data and view logic of the partner app, with Node's
+  test runner, on every commit.
+- **Shared package unit:** `@dtc/i18n`, `@dtc/ui`, `@dtc/next-react` and
+  `@dtc/logging`, with Node's test runner.
+- **Docs site and flow metrics:** board collection, flow-metric calculation and
+  doc generation, with Vitest (ADR-0001).
+- **Repository tooling:** the coverage report, coverage merge and test-selection
+  scripts.
+
+Not counted: the Prometheus rule test in `deploy/monitoring/tests/`, which
+`promtool` runs by hand and on the staging Droplet, as described in
+[local request monitoring](/MTGO/quality/local-request-monitoring/).
+
+The [quality gate](/MTGO/quality/quality-gate/) shows where each kind runs on
+the way to `main`.

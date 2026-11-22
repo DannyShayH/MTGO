@@ -24,6 +24,13 @@ async function observe(
   return calculateFlowMetrics(dataset, observedAt).features[0]
 }
 
+const statusEvent = (to: string, at: string) => ({
+  __typename: "ProjectV2ItemStatusChangedEvent",
+  createdAt: at,
+  status: to,
+  previousStatus: "",
+})
+
 describe("accepted Feature lead time", () => {
   it("measures 16 to 20 November only after human acceptance on 23 November", async () => {
     expect(await observe()).toMatchObject({
@@ -141,24 +148,76 @@ describe("accepted Feature lead time", () => {
   )
 
   it.each([
+    { reason: "EP: no status history", history: [] },
+    {
+      reason: "DT: Done recorded when it was closed",
+      history: ["Done"],
+    },
+  ])(
+    "keeps timing when removed work closed as not planned never started (#201): $reason",
+    async ({ history }) => {
+      const items = acceptedFeatureItems()
+      const removed = items[0]
+      removed.fieldValues.nodes = removed.fieldValues.nodes.filter(
+        (field) => field.field?.name !== "Start date",
+      )
+      removed.fieldValues.totalCount = removed.fieldValues.nodes.length
+      removed.content!.stateReason = "NOT_PLANNED"
+      removed.content!.timelineItems!.nodes.unshift(
+        ...history.map((to) => statusEvent(to, "2026-11-17T12:00:00Z")),
+      )
+      items[2].content!.body =
+        "Scope decision: #2 — removed — reason: duplicate of other work"
+
+      expect(await observe(items)).toMatchObject({
+        state: "Completed",
+        startedAt: "2026-11-19",
+        finishedAt: "2026-11-20",
+        leadTimeDays: 1,
+        requiredCount: 1,
+        deliveredCount: 1,
+        removedChildren: [
+          expect.objectContaining({
+            number: 2,
+            scope: "Removed",
+            timingState: "Not started",
+            closeReason: "NOT_PLANNED",
+            startedAt: null,
+          }),
+        ],
+        problems: [],
+      })
+    },
+  )
+
+  it.each([
     {
       reason: "DT: delivered child missing Start",
       abandoned: false,
       missingStatus: false,
-    },
-    {
-      reason: "DT: abandoned child with Done status missing Start",
-      abandoned: true,
-      missingStatus: false,
+      history: [],
     },
     {
       reason: "DT: abandoned child with unknown status and Start",
       abandoned: true,
       missingStatus: true,
+      history: [],
+    },
+    {
+      reason: "DT: abandoned child that was In Progress before closing",
+      abandoned: true,
+      missingStatus: false,
+      history: ["In Progress", "Done"],
+    },
+    {
+      reason: "DT: abandoned child that was in Delivery Initiated",
+      abandoned: true,
+      missingStatus: false,
+      history: ["Delivery Initiated", "Done"],
     },
   ])(
     "withholds timing for removed work: $reason",
-    async ({ abandoned, missingStatus }) => {
+    async ({ abandoned, missingStatus, history }) => {
       const items = acceptedFeatureItems()
       items[0].fieldValues.nodes = items[0].fieldValues.nodes.filter(
         (field) =>
@@ -166,6 +225,11 @@ describe("accepted Feature lead time", () => {
           (!missingStatus || field.field?.name !== "Status"),
       )
       if (abandoned) items[0].content!.stateReason = "NOT_PLANNED"
+      items[0].content!.timelineItems!.nodes.unshift(
+        ...history.map((to, index) =>
+          statusEvent(to, `2026-11-1${6 + index}T09:00:00Z`),
+        ),
+      )
       items[0].fieldValues.totalCount = items[0].fieldValues.nodes.length
       items[2].content!.body =
         "Scope decision: #2 — removed — reason: missing historical evidence"

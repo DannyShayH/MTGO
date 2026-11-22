@@ -2,7 +2,6 @@ import { CUSTOMER_NAVIGATION_TEXT } from "@dtc/i18n"
 import { Suspense } from "react"
 
 import { getCustomerLocale } from "@lib/data/customer-locale"
-import { listLocales } from "@lib/data/locales"
 import { listRegions } from "@lib/data/regions"
 import { StoreRegion } from "@medusajs/types"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
@@ -21,9 +20,8 @@ const navLink = clx(
 
 /** The Customer top bar from the design brief: logo, Restaurants, account and basket. */
 export default async function Nav() {
-  const [regions, locales, locale] = await Promise.all([
+  const [regions, locale] = await Promise.all([
     listRegions().then((regions: StoreRegion[]) => regions),
-    listLocales(),
     getCustomerLocale(),
   ])
   const text = CUSTOMER_NAVIGATION_TEXT[locale]
@@ -33,7 +31,7 @@ export default async function Nav() {
       <header className="relative h-16 mx-auto border-b border-mtogo-border-subtle bg-mtogo-surface-card">
         <nav className="content-container flex h-full w-full items-center justify-between text-mtogo-text-primary">
           <div className="flex h-full flex-1 basis-0 items-center">
-            <SideMenu regions={regions} locales={locales} locale={locale} />
+            <SideMenu regions={regions} locale={locale} />
           </div>
 
           <div className="flex h-full items-center">

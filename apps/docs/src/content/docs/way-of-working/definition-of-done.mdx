@@ -1,6 +1,6 @@
 ---
-title: Definition of Done (draft)
-description: Proposed completion criteria for team review in issue 9.
+title: Definition of Done
+description: The functionality, quality, documentation and delivery criteria a work item and a Feature must meet.
 sidebar:
   order: 2
 ---
@@ -8,17 +8,6 @@ sidebar:
 import "../../../styles/review-documents.css"
 
 <div class="review-document">
-
-<aside class="review-intro not-content" aria-label="Document status">
-  <strong>Draft for team review</strong>
-  <p>
-    Proposed completion criteria for{" "}
-    <a href="https://github.com/DannyShayH/MTGO/issues/9">issue #9</a>. The team
-    has not approved this definition. Review it together with the explicit
-    policies and{" "}
-    <a href="/MTGO/way-of-working/coding-standard/">coding standard</a>.
-  </p>
-</aside>
 
 A work item is done when its functionality works, its quality is verified, its documentation is current and its delivery succeeds. Use the four sections below to review all applicable criteria. A Feature has its own definition, in [When a Feature is done](#when-a-feature-is-done).
 
@@ -28,7 +17,6 @@ A work item is done when its functionality works, its quality is verified, its d
   <a href="#documentation">Documentation</a>
   <a href="#delivery">Delivery</a>
   <a href="#when-a-feature-is-done">Feature done</a>
-  <a href="#decisions-still-needed">Team decisions</a>
 </nav>
 
 ## Functionality
@@ -165,7 +153,7 @@ Verify review, required checks and deployment through the existing flow.
 <summary>Why delivery follows TakT</summary>
 <div>
 
-The supplied draft said “reviewed and merged to the main branch via pull request.” This repository uses TakT without pull requests, so the proposed delivery criterion follows the existing [way of working](/MTGO/way-of-working/).
+The original proposal said “reviewed and merged to the main branch via pull request.” This repository uses TakT without pull requests, so the delivery criterion follows the existing [way of working](/MTGO/way-of-working/).
 
 </div>
 </details>
@@ -195,14 +183,5 @@ a Feature is done when:
 </ul>
 
 Later improvements after acceptance are new scope, not a reopened Feature.
-
-## Decisions still needed
-
-Agree on these points before adopting this page as the team's Definition of Done. Publishing the draft does not record approval.
-
-- [ ] **Error contract:** Agree on the standard error response. Proposed in [the coding standard](/MTGO/way-of-working/coding-standard/#71-backend): Medusa's error shape.
-- [ ] **Coding standard:** Agree on the coding standard, endpoint documentation template and test-design guidance referenced above.
-- [ ] **Review and deployment:** Agree on the review practice, proposed in [How we work](/MTGO/way-of-working/how-we-work/#review), and on the deployment evidence once staging exists.
-- [ ] **Team approval:** Approve this Definition of Done together with the explicit policies and coding standard in [issue #9](https://github.com/DannyShayH/MTGO/issues/9).
 
 </div>

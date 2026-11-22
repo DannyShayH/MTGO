@@ -84,13 +84,13 @@ Things that are easy to get wrong:
 
 ## 4. Quality gates
 
-| When                                          | Checks                                                                                                                     | Where defined                   |
-| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| Every commit (pre-commit hook) and every push | Prettier, cspell, markdownlint, backend unit tests, architecture rules                                                     | `trunk-worthy` in `.insitu.yml` |
-| Before merge to `main` (ready flow)           | ESLint, coverage, module and HTTP integration tests, backend/admin and storefront builds, docs tests and build/link checks | `ready-checks` in `.insitu.yml` |
-| After delivery to `main`                      | SonarQube Cloud quality gate                                                                                               | `sonar` job in `on_main.yml`    |
+| When                                          | Checks                                                                                                                                                              | Where defined                                           |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| Every commit (pre-commit hook) and every push | Prettier, cspell, markdownlint, ESLint, backend unit tests, coverage-tool tests, shared package and partner app tests, React copies, architecture rules, ShellCheck | `trunk-worthy` in `.insitu.yml`                         |
+| Before merge to `main` (ready flow)           | ESLint, coverage, module and HTTP integration tests, application builds and affected browser journeys, docs tests and build/link checks                             | `ready-*` waves in `.insitu.yml`, run by `on_ready.yml` |
+| After delivery to `main`                      | SonarQube Cloud quality gate                                                                                                                                        | `sonar` job in `on_main.yml`                            |
 
-[Static analysis](/MTGO/quality/static-analysis/#decision-the-quality-gate-stays-post-delivery) explains why the Sonar quality gate runs after delivery.
+The [quality gate to main](/MTGO/quality/quality-gate/) shows every step as a diagram. [Static analysis](/MTGO/quality/static-analysis/#decision-the-quality-gate-stays-post-delivery) explains why the Sonar quality gate runs after delivery.
 
 Fix the code, never the rule. After editing files, run `gh insitu run fix-all`.
 

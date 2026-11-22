@@ -1,11 +1,11 @@
 ---
-title: Coding standard (draft)
-description: How the MTOGO team structures, writes, tests and delivers code. Proposed for team review in issue 9.
+title: Coding standard
+description: How the MTOGO team structures, writes, tests and delivers code.
 sidebar:
   order: 3
 ---
 
-Version 1.2 (draft), 14 November 2026. Proposed in [issue #9](https://github.com/DannyShayH/MTGO/issues/9), with the SonarQube review requirement added in [issue #80](https://github.com/DannyShayH/MTGO/issues/80); the team has not approved the full draft yet. The logging baseline in section 7 was agreed in [issue #28](https://github.com/DannyShayH/MTGO/issues/28).
+Version 1.2, 14 November 2026. Introduced in [issue #9](https://github.com/DannyShayH/MTGO/issues/9), with the SonarQube review requirement added in [issue #80](https://github.com/DannyShayH/MTGO/issues/80). The logging baseline in section 7 was agreed in [issue #28](https://github.com/DannyShayH/MTGO/issues/28).
 
 ## 1. Overview
 

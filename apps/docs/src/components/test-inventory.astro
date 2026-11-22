@@ -1,0 +1,49 @@
+---
+import generated from "../generated/test-inventory.json"
+import type { TestInventory } from "../../scripts/test-inventory.ts"
+
+const inventory = generated as TestInventory
+---
+<div class="flow-table-wrap not-content" role="region" aria-label="Automated tests by kind" tabindex="0">
+  <table class="flow-table test-inventory">
+    <thead>
+      <tr>
+        <th scope="col">Kind and location</th>
+        <th scope="col">Spec files</th>
+        <th scope="col">Test cases</th>
+        <th scope="col">Runner</th>
+        <th scope="col">Runs in the gate</th>
+      </tr>
+    </thead>
+    <tbody>
+      {inventory.kinds.map((kind) => (
+        <tr>
+          <th scope="row">{kind.name}<br /><code>{kind.location}</code></th>
+          <td>{kind.files}</td>
+          <td>{kind.tests}</td>
+          <td>{kind.runner}</td>
+          <td>{kind.gate}</td>
+        </tr>
+      ))}
+    </tbody>
+    <tfoot>
+      <tr>
+        <th scope="row">Total</th>
+        <td>{inventory.total.files}</td>
+        <td>{inventory.total.tests}</td>
+        <td colspan="2"></td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+
+<style>
+  .test-inventory th[scope="row"] {
+    min-width: 12rem;
+  }
+  .test-inventory code {
+    font-size: 0.8em;
+    font-weight: normal;
+    overflow-wrap: anywhere;
+  }
+</style>

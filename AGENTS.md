@@ -56,7 +56,7 @@ Medusa DTC Starter — a Turborepo workspace monorepo containing a Medusa backen
 │   │       └── workflows/        # Workflows and workflow steps
 │   ├── docs/                     # Docs site, Astro Starlight (@dtc/docs), deployed to GitHub Pages under /MTGO/
 │   │   ├── astro.config.mjs      # Site, base path, sidebar, Mermaid and link validator
-│   │   ├── scripts/              # Build steps and checks (copy-root-docs.ts, check-base-links.mjs)
+│   │   ├── scripts/              # Build steps and checks (copy-root-docs.ts, build-flow-metrics.ts, build-test-inventory.ts, check-base-links.mjs)
 │   │   └── src/content/docs/     # The pages, one folder per sidebar section
 │   ├── partner/                  # Next.js partner app for Restaurant staff (@dtc/partner), port 8100
 │   │   ├── e2e/                  # Playwright journey, run by verify:applications
@@ -134,6 +134,7 @@ cd apps/docs && <pm> run check         # astro check (types and content frontmat
 cd apps/docs && <pm> run build         # static site in apps/docs/dist; fails on a dead internal link
 cd apps/docs && <pm> run check:links   # after build: every internal link includes the /MTGO base
 cd apps/docs && <pm> run test          # Vitest (ADR-0001), *.test.ts next to the code
+<pm> run test:inventory                # from the root: count the tests of each kind (also on the Test inventory page)
 ```
 
 `dev`, `check` and `build` first run `scripts/copy-root-docs.ts`, which copies `GLOSSARY.md`, `docs/adr/` and every module `README.md` under `apps/` (except the docs app) into `src/content/docs/architecture/` and generates the dependency graph page from `<pm> run arch:graph`. Those pages, and the `architecture/decisions/` and `architecture/modules/` folders, are git-ignored: edit the source file, never the copy, and put no hand-written page in those two folders. Links between copied documents are rewritten to their pages on the site, and links to other repository files go to GitHub. A hand-written page at the path of a generated page fails the build instead of being overwritten.
@@ -155,7 +156,7 @@ Run the suites from `apps/backend` — it defines no plain `test` script, so the
 
 **Local checks and the ready flow.** Before `gh wrapup`, run `<pm> run lint`,
 `cd apps/backend && <pm> run test:affected -- --coverage`, and `npm test` in each changed
-`packages/*` and in `apps/partner` when it changed. With `--coverage` it also
+`packages/*`. With `--coverage` it also
 prints the branch coverage of each changed backend file and names those below
 80%; cover them in the same issue, because the ready flow fails when global
 branch coverage drops below 80% (see [coverage](apps/docs/src/content/docs/quality/coverage.md)). `test:affected` runs the unit, module and HTTP specs that import

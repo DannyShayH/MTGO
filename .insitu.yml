@@ -91,6 +91,10 @@ inventory:
       cd ../next-react && npm test
       cd ../logging && npm test
 
+  - id: partner-tests
+    name: Run the partner app unit tests (fast, no database)
+    command: cd apps/partner && npm test
+
   - id: react-copies
     name: Check that each Next.js app renders with its own React copy (#82)
     command: npm run check:react
@@ -215,6 +219,7 @@ waves:
       - prettier
       - unit-tests
       - package-tests
+      - partner-tests
       - react-copies
       - architecture
       - lint
