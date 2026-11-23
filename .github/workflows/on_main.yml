@@ -82,10 +82,59 @@ jobs:
 
       # Deploys the docs site built and tested by on_ready for this commit
       - name: Deploy docs site to GitHub Pages
+        id: docs_deploy
+        continue-on-error: true
         uses: devx-cafe/takt-actions/deploy-artifact@v1
         with:
           artifact_name: github-pages-${{ github.sha }}
           artifact_path: apps/docs/dist
+
+      # GitHub's artifact list can lag a fresh upload, so deploy-pages sometimes
+      # finds no artifact a second after the action uploaded it (#207). Wait until
+      # that upload is listed and deploy it once more; the action cannot simply be
+      # rerun, because its upload name is fixed and is not overwritten.
+      - name: Wait for the Pages artifact to be listed
+        if: steps.docs_deploy.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PAGES_ARTIFACT: github-pages-${{ github.repository_id }}-${{ github.sha }}
+        run: |
+          for attempt in {1..12}; do
+            count=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?name=$PAGES_ARTIFACT" --jq '.total_count' || echo 0)
+            if [[ "$count" -gt 0 ]]; then
+              echo "Pages artifact $PAGES_ARTIFACT is listed (attempt $attempt/12)."
+              exit 0
+            fi
+            echo "Pages artifact is not listed yet (attempt $attempt/12); retrying in 5 seconds."
+            sleep 5
+          done
+          echo "::error::Pages artifact $PAGES_ARTIFACT was not listed after 12 attempts; the docs deploy failed before or during its upload."
+          exit 1
+
+      - name: Retry the docs deploy to GitHub Pages
+        id: docs_retry
+        if: steps.docs_deploy.outcome == 'failure'
+        uses: actions/deploy-pages@v5
+        with:
+          artifact_name: github-pages-${{ github.repository_id }}-${{ github.sha }}
+
+      # The action already reported deploy:pages as failed; report the retry's outcome
+      - name: Report the retried docs deploy
+        if: always() && steps.docs_deploy.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RETRY_OUTCOME: ${{ steps.docs_retry.outcome }}
+          PAGE_URL: ${{ steps.docs_retry.outputs.page_url }}
+        run: |
+          gh extension list | grep -q 'lakruzz/gh-set-status' || gh extension install lakruzz/gh-set-status
+          if [[ "$RETRY_OUTCOME" == "success" ]]; then
+            gh set-status success "Deployment successful after retry: $PAGE_URL" deploy:pages
+            echo "✅ Docs deployed after retry: $PAGE_URL" >> "$GITHUB_STEP_SUMMARY"
+          else
+            gh set-status failure "Deployment failed after retry" deploy:pages
+            echo "::error::The docs deploy failed again after the retry."
+            exit 1
+          fi
 
   # Staging (#35). Both jobs are skipped until the repository variable
   # STAGING_DEPLOY_ENABLED is "true". The docs deployment above never depends

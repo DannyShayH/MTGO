@@ -95,7 +95,10 @@ project, with its own memory readings and floor.
 ## Release flow
 
 The Deploy workflow (`.github/workflows/on_main.yml`) runs on every push to
-`main`. The docs deployment and SonarQube jobs are unchanged. Two more jobs
+`main`. The docs deployment and SonarQube jobs are unchanged, except that a
+docs deploy that cannot find its freshly uploaded Pages artifact waits until
+GitHub lists it and deploys once more; a second failure still fails the run
+and the `deploy:pages` status (#207). Two more jobs
 run only while the repository variable `STAGING_DEPLOY_ENABLED` is `true`:
 
 1. **release_images** builds the `backend` and `partner` targets of
