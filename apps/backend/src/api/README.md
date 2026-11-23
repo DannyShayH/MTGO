@@ -668,8 +668,8 @@ is never duplicated. The response has the same shape as
 }
 ```
 
-A `failed` refund is still owed (the Order stays cancelled; the operator's
-retry is #49). Refusals carry `code` (also as `message`) and the current
+A `failed` refund is still owed (the Order stays cancelled; an operator
+retries it with `POST /admin/refunds/{order_id}/retry`, #198). Refusals carry `code` (also as `message`) and the current
 `progress`, so the page can show the truth:
 
 | Status | `code`                          | When                                                               |
@@ -784,6 +784,105 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   })
 }
 ```
+
+## Operator refunds (#198)
+
+**Actor:** MTOGO operator (admin user, session or bearer). Restaurant staff,
+Delivery agents and signed-out callers get `401` from Medusa's `/admin`
+authentication, without effects.
+
+### GET /admin/refunds
+
+Lists Orders whose full refund is still owed, for the Admin Refunds page.
+
+| Query    | Type   | Required | Rules                                                                         |
+| -------- | ------ | -------- | ----------------------------------------------------------------------------- |
+| `status` | string | no       | Comma-separated `failed` and/or `pending`; default both. Anything else `400`. |
+| `limit`  | number | no       | 1-50, default 20                                                              |
+| `offset` | number | no       | 0 or more, default 0                                                          |
+
+Failed refunds come first, then pending ones; within each, the longest owed
+(`owed_since`, the cancellation's commit) first. A succeeded refund is never
+listed. `count` is the total matching the filter.
+
+```json
+{
+  "refunds": [
+    {
+      "order_id": "order_01...",
+      "order_reference": 42,
+      "restaurant": { "id": "rest_01...", "name": "Pizzeria Nørrebro" },
+      "amount": 190,
+      "currency_code": "dkk",
+      "status": "failed",
+      "failure_code": "refund_provider_failed",
+      "attempt_count": 1,
+      "last_attempted_at": "2026-11-23T10:02:11.000Z",
+      "owed_since": "2026-11-23T10:02:10.000Z",
+      "cancellation": {
+        "category": "restaurant_rejected",
+        "cancelled_at": "2026-11-23T10:02:10.000Z",
+        "actor": {
+          "type": "restaurant_staff",
+          "id": "rstf_01...",
+          "name": "Mette Jensen"
+        },
+        "reason": "Oven broke down"
+      },
+      "attempts": [
+        {
+          "id": "refat_01...",
+          "attempted_at": "2026-11-23T10:02:11.000Z",
+          "outcome": "failed",
+          "failure_code": "refund_provider_failed",
+          "actor": {
+            "type": "restaurant_staff",
+            "id": "rstf_01...",
+            "name": "Mette Jensen"
+          }
+        }
+      ],
+      "available_actions": ["retry"]
+    }
+  ],
+  "count": 1,
+  "limit": 20,
+  "offset": 0
+}
+```
+
+`failure_code` is a safe class (`refund_provider_failed`, `refund_rejected`,
+`refund_unverified`, `refund_exceeds_remaining`, `refund_in_progress`), never
+provider text. `attempts` is the history, oldest first. An actor is
+`{ type, id, name }`: `type` is `system` (name `System`), `user` (the
+operator's first and last name, else email), `restaurant_staff` (the staff
+name) or `customer` (name `null`). `available_actions` lists `retry` only for
+a failed refund.
+
+### POST /admin/refunds/{order_id}/retry
+
+Retries a failed full refund once. The body must be `{}`: the amount and
+idempotency key are the stored ones, and the operator comes from the session.
+
+Under the Order's settlement lock, which every refund attempt holds, the
+server re-reads the refund. A failed one is set back to `pending` and goes
+through the same attempt as every other refund: a refund the provider already
+made under the key (a lost response) is recorded as succeeded without
+contacting it, and money refunded another way since cancellation is never
+sent on top (`failed`, `refund_exceeds_remaining`). The attempt is recorded
+with the operator as its actor and one `refund.attempted` log record.
+
+`200` returns `{ refund }` in the list's item shape, with the outcome:
+`succeeded`, `failed` with its `failure_code` (still listed), or `pending`
+while the provider is still processing it. A succeeded refund is returned as
+it is, so a double click or two operators retrying at once move the money
+once and both get `200`.
+
+| Status | `code`              | When                                                        |
+| ------ | ------------------- | ----------------------------------------------------------- |
+| `400`  | `refund_not_failed` | The refund is pending: an attempt is in progress.           |
+| `400`  | `invalid_data`      | The body has any field.                                     |
+| `404`  | `refund_not_found`  | The Order owes no full refund (unknown or never cancelled). |
 
 ## Supported HTTP methods
 

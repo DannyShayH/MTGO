@@ -12,14 +12,18 @@ Chromium. They use real Medusa services and synthetic data, without API mocks.
 
 The Playwright journeys live next to each app, in `apps/storefront/e2e/` and
 `apps/partner/e2e/`. They cover Customer sign-in, Restaurant browsing and menus,
-operator Restaurant administration, and Restaurant staff sign-in, invitations,
+operator Restaurant administration and refund retries, and Restaurant staff sign-in, invitations,
 revocation, opening hours, dishes, categories and the food catalogue. Each fails
 on uncaught browser errors, has no automatic retries and bounds its waits.
 
 There are no smoke journeys through the starter's demo catalogue. A Customer
 basket holds only Restaurant dishes, and the backend HTTP suites prove the basket
-and amount rules. Stripe card entry, Adyen, refunds and real money movement are
-**not verified** in the browser.
+and amount rules. Stripe card entry, Adyen and real money movement are
+**not verified** in the browser. The operator refund journey (#198) uses
+`seed-demo-failed-refund.ts`: it places a paid Order through the mock provider
+and lets the Restaurant reject it while refunds are refused inside the seed's
+own process, so the running backend still has a working mock provider for the
+operator's Retry.
 
 ## Run locally
 

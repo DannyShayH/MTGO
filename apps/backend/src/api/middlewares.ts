@@ -98,6 +98,10 @@ import {
   ListDeliveryAttentionSchema,
   ListUnclaimedDeliveriesSchema,
 } from "./admin/deliveries/validators"
+import {
+  GetAdminRefundsSchema,
+  PostAdminRetryRefundSchema,
+} from "./admin/refunds/validators"
 import { recordSessionExpiry } from "./session-expiry"
 
 /** Medusa has no path-parameter validator, so the postal code in the path is checked here. */
@@ -142,6 +146,16 @@ export default defineMiddlewares({
       matcher: "/admin/deliveries/attention",
       method: "GET",
       middlewares: [validateAndTransformQuery(ListDeliveryAttentionSchema, {})],
+    },
+    {
+      matcher: "/admin/refunds",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(GetAdminRefundsSchema, {})],
+    },
+    {
+      matcher: "/admin/refunds/:order_id/retry",
+      method: "POST",
+      middlewares: [validateAndTransformBody(PostAdminRetryRefundSchema)],
     },
     {
       matcher: "/admin/deliveries/:id/assign",

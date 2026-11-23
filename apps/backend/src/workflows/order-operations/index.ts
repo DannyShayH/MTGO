@@ -29,12 +29,18 @@ import {
 import { MilestoneAction, QueueFilters, QueueView } from "./rules"
 import { orderOperationLock } from "./locks"
 import {
+  listOpenRefundsStep,
+  retryFullRefundStep,
+} from "./steps/operator-refunds"
+import type { ListOpenRefundsInput } from "./refunds"
+import {
   recoverOrderOperationsStep,
   type RecoveryInput,
 } from "./steps/recover-order-operations"
 
 export type { RestaurantOrder } from "./steps/read-restaurant-orders"
 export type { OrderProgress } from "./steps/read-order-progress"
+export type { OperatorRefund } from "./refunds"
 
 /**
  * Staff read their own Restaurant's paid Orders (spec #47 stories 1-5). The
@@ -334,5 +340,27 @@ export const cancelLegacyAwaitingOrdersWorkflow = createWorkflow(
   "cancel-legacy-awaiting-orders",
   function (input: LegacyCancellationInput) {
     return new WorkflowResponse(cancelLegacyAwaitingOrdersStep(input))
+  },
+)
+
+/**
+ * The operator's Refunds page (#198): Orders whose full refund is failed or
+ * pending, failed first and longest owed first, with the attempt history.
+ */
+export const listOpenRefundsWorkflow = createWorkflow(
+  "list-open-refunds",
+  function (input: ListOpenRefundsInput) {
+    return new WorkflowResponse(listOpenRefundsStep(input))
+  },
+)
+
+/**
+ * An operator retries a failed full refund (#198) through the one existing
+ * attempt, under the Order's settlement lock, as the attempt's actor.
+ */
+export const retryFullRefundWorkflow = createWorkflow(
+  "retry-full-refund",
+  function (input: { order_id: string; actor_id: string }) {
+    return new WorkflowResponse(retryFullRefundStep(input))
   },
 )

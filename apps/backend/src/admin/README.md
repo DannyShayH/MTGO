@@ -198,3 +198,29 @@ line's name, quantity, price and destination stay as recorded. Lines created
 before #150 are not rewritten and keep no thumbnail. Immutable historical
 photos would need a separate retention slice. The storefront and search index
 ignore the Admin-only path and keep their own placeholder.
+
+## Refunds (#198)
+
+The Refunds route (sidebar, next to Deliveries) lists Orders whose Full
+refund is failed or still in progress, from `GET /admin/refunds`: Order
+reference (a link to the Order), Restaurant, amount, status badge, the safe
+failure reason in English, attempts and the last attempt, how and by whom
+the Order was cancelled with its reason, and an expandable attempt history
+("System" or the operator's or staff member's name). Failed rows have
+**Retry refund** (`POST /admin/refunds/{order_id}/retry`); pending rows have
+no action. After a retry the page shows the outcome (succeeded, failed again
+with its reason, or still in progress) and rereads the list; it also rereads
+every 30 seconds, so refunds the recovery sweep resolves leave on their own.
+The operator browser journey (`apps/storefront/e2e/restaurants.admin.spec.ts`)
+seeds a real failed refund with `src/scripts/seed-demo-failed-refund.ts`, finds
+its row on the page with its reason, cancellation and history, presses Retry
+and sees it succeed and leave the list. The money rules are proven by
+`integration-tests/http/operator-refunds.spec.ts`.
+
+Inspection evidence (23 November 2026): the page was checked in the running
+Admin (`medusa develop` on a disposable database) in Chromium at 1280px and
+320px with two failed refunds, one with a long unbroken Restaurant name. Rows
+stack at narrow widths, long names wrap without page or row overflow, history
+expands, keyboard Tab moves Order link, Retry refund and Attempt history with a
+visible focus ring, Enter on the Order link opens the Order, and no browser
+runtime errors were raised. Admin is English only (ADR-0018).

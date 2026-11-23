@@ -21,6 +21,10 @@ import {
   PROGRESS_REFUSALS,
 } from "../workflows/order-operations/rules"
 import {
+  REFUND_NOT_FOUND,
+  REFUND_RETRY_REFUSALS,
+} from "../workflows/order-operations/refund-rules"
+import {
   ASSIGNMENT_CONFLICTS,
   ASSIGNMENT_REFUSALS,
 } from "../workflows/delivery/assignment-rules"
@@ -249,6 +253,8 @@ export function mtogoErrorHandler(): MedusaErrorHandlerFunction {
     ...ACCEPTANCE_REFUSALS,
     ...PROGRESS_REFUSALS,
     ORDER_CHANGED,
+    ...REFUND_RETRY_REFUSALS,
+    REFUND_NOT_FOUND,
     "order_restaurant_mismatch",
     ...ASSIGNMENT_REFUSALS,
     ...ASSIGNMENT_CONFLICTS,

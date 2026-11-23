@@ -64,7 +64,8 @@ the thirty-minute unassigned cancellation and its prepared-food credit.
   The read keeps each well-formed stored entry, so a single damaged entry
   makes only its own line "unavailable".
 
-Indexes: unique `order_id`; unique `PurchaseReview.cart_id`; `(restaurant_id, state, acceptance_deadline, id)`
+Indexes: unique `order_id`; `RefundObligation (status, created_at, id)` for
+the recovery sweep and the Refunds page (#198); unique `PurchaseReview.cart_id`; `(restaurant_id, state, acceptance_deadline, id)`
 for the awaiting queue and `(restaurant_id, state, placed_at, id)` for the
 active and history views. `(restaurant_id, updated_at)` serves the kitchen
 feed's bounded read of recently changed records (#148). Any persisted
@@ -134,8 +135,7 @@ a newer revision, so the kitchen feed (#148) announces the change.
   without calling the provider, which covers a lost response. A payment
   refunded under another key since cancellation is marked `failed` with
   `refund_exceeds_remaining` instead of being over-refunded. A `failed`
-  obligation stays owed until the operator's retry under #49 sets it back to
-  `pending`.
+  obligation stays owed until an operator retries it (#198, below).
 
   **Attempt history (#197).** Every real attempt ends in
   `recordRefundAttempt`, which writes the outcome on the obligation and one
@@ -158,6 +158,26 @@ a newer revision, so the kitchen feed (#148) announces the change.
   `system`) and `outcome`, never the amount, provider text or notes
   (ADR-0019). The pure mappings are `refundAttemptEntry` and
   `refundAttemptActor` in `refund-rules.ts`.
+
+- **Operator retry and the Refunds page** (#198): `retryFullRefundWorkflow`
+  (`retryFullRefund` in `refunds.ts`) takes the Order's settlement lock,
+  re-reads the obligation and decides with `decideRefundRetry`
+  (`refund-rules.ts`): only `failed` is retried, `succeeded` returns the
+  current outcome (a retry that waited behind another), `pending` is refused
+  with `refund_not_failed` and a missing obligation with `refund_not_found`.
+  A retry moves the obligation from `failed` back to `pending` (a write
+  guarded on `failed`) and runs the same `attemptFullRefund` with the
+  operator as `attempted_by` and `created_by`, so it keeps every guarantee
+  above: stored amount and key, a persisted refund recorded without the
+  provider, nothing sent on top of money refunded elsewhere. It adds no
+  second refund path and no compensation. Should the attempt throw, the
+  obligation stays `pending` for the recovery sweep.
+  `listOpenRefundsWorkflow` (`listOpenRefunds`) pages `failed` and `pending`
+  obligations by `status` then `created_at` (the text order puts `failed`
+  first), with each Order's reference, Restaurant, cancellation and attempt
+  history, naming operators from the User module and staff from the
+  Restaurant module. See `GET /admin/refunds` in
+  [the API documentation](../../api/README.md).
 
 - **Customer cancellation** (`cancelCustomerOrderWorkflow`, #145): the owning
   Customer's request runs the same lock, `commitPreAcceptanceCancellation` and
@@ -310,6 +330,16 @@ provider, an interrupted refund resumed without a second movement or credit,
 and attention, available and unclaimed lists after the cancellation.
 `unassigned-cancellation-rules.unit.spec.ts` covers the decision table and
 the credit amount.
+`integration-tests/http/operator-refunds.spec.ts` (#198) covers the Refunds
+list (contents, failed-before-pending and oldest-first order, filter, paging,
+query bounds), a retry that succeeds once with the operator's attempt, double
+and concurrent retries moving money once, a lost provider response recorded
+without the provider, money refunded elsewhere not sent on top, a declined
+retry staying listed, a retry whose outcome was lost resumed by the sweep,
+the retry's one safe `refund.attempted` record, System, Customer and unnamed
+operator actors, pending and unknown refusals, operator-only access and the
+`seed-demo-failed-refund.ts` fixture the browser journey uses.
+`refund-rules.unit.spec.ts` covers the retry decision and the actor shown.
 `integration-tests/http/customer-order-cancellation.spec.ts` (#145) covers
 the owning Customer's cancellation and its one refund, foreign, unknown and
 signed-out callers without effects, refused client fields, refusal after

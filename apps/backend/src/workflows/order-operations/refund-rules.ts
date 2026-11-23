@@ -181,7 +181,11 @@ export function refundAttemptEntry(recorded: {
   }
 }
 
-const ACTOR_TYPES: [prefix: string, type: string][] = [
+/** The kinds of actor an id can name, read from Medusa's id prefix. */
+export type RefundActorType =
+  "system" | "user" | "restaurant_staff" | "customer"
+
+const ACTOR_TYPES: [prefix: string, type: RefundActorType][] = [
   ["user_", "user"],
   ["rstf_", "restaurant_staff"],
   ["cus_", "customer"],
@@ -193,7 +197,7 @@ const ACTOR_TYPES: [prefix: string, type: string][] = [
  * a type rather than guessed.
  */
 export function refundAttemptActor(attempted_by: string): {
-  actor_type?: string
+  actor_type?: RefundActorType
   actor_id: string
 } {
   if (attempted_by === SYSTEM_ACTOR)
@@ -202,4 +206,62 @@ export function refundAttemptActor(attempted_by: string): {
   return match
     ? { actor_type: match[1], actor_id: attempted_by }
     : { actor_id: attempted_by }
+}
+
+/** Who triggered a cancellation or refund attempt, as an operator sees it. */
+export type RefundActor = {
+  type: RefundActorType | null
+  id: string
+  /** "System", or the operator's or staff member's name; null when unknown. */
+  name: string | null
+}
+
+/**
+ * The operator's view of a recorded actor id (#198): the system is always
+ * "System"; anyone else carries the name looked up for them, and a Customer,
+ * whom the Order already identifies, has none.
+ */
+export function toRefundActor(
+  id: string,
+  names: ReadonlyMap<string, string>,
+): RefundActor {
+  const { actor_type } = refundAttemptActor(id)
+  if (actor_type === "system") return { type: "system", id, name: "System" }
+  return { type: actor_type ?? null, id, name: names.get(id) ?? null }
+}
+
+/** The ids among `ids` of one actor type, once each. */
+export function actorIdsOfType(ids: string[], type: RefundActorType) {
+  return [...new Set(ids)].filter(
+    (id) => refundAttemptActor(id).actor_type === type,
+  )
+}
+
+/** An operator's retry asked for something it may not do (`NOT_ALLOWED`, 400). */
+export const REFUND_RETRY_REFUSALS = ["refund_not_failed"] as const
+/** No refund is owed for the Order (`NOT_FOUND`, 404). */
+export const REFUND_NOT_FOUND = "refund_not_found"
+
+export type RefundRetryDecision<T> =
+  | { action: "retry"; obligation: T }
+  | { action: "current" }
+  | {
+      action: "refuse"
+      code: (typeof REFUND_RETRY_REFUSALS)[number] | typeof REFUND_NOT_FOUND
+    }
+
+/**
+ * What an operator's retry does (#198), decided under the Order's settlement
+ * lock from the obligation as it is now. Only a failed refund is retried. A
+ * succeeded one is the current outcome, so a retry that waited behind
+ * another returns it rather than refunding again; a pending one is an
+ * attempt still in progress and is left alone.
+ */
+export function decideRefundRetry<T extends { status: RefundOutcome }>(
+  obligation: T | undefined,
+): RefundRetryDecision<T> {
+  if (!obligation) return { action: "refuse", code: REFUND_NOT_FOUND }
+  if (obligation.status === "failed") return { action: "retry", obligation }
+  if (obligation.status === "succeeded") return { action: "current" }
+  return { action: "refuse", code: "refund_not_failed" }
 }

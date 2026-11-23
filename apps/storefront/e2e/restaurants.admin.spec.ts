@@ -476,3 +476,78 @@ test("operator is refused emptying an active Restaurant, deactivates it with a r
     contentType: "image/png",
   })
 })
+
+test("operator sees a failed refund with its history on the Refunds page and Retry resolves it", async ({
+  page,
+}, testInfo) => {
+  expect(process.env.E2E_DISPOSABLE).toBe("1")
+  test.setTimeout(180_000)
+  const errors: string[] = []
+  page.on("pageerror", (error) => errors.push(error.message))
+  const backend = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL!
+  // A real paid Order the Restaurant rejected while the provider was down
+  // (only inside the seed's process): its Full refund is owed as failed.
+  const seeded = execFileSync(
+    "npm",
+    [
+      "exec",
+      "--no",
+      "--",
+      "medusa",
+      "exec",
+      "./src/scripts/seed-demo-failed-refund.ts",
+      randomUUID().slice(0, 8),
+    ],
+    { cwd: resolve(process.cwd(), "../backend"), encoding: "utf8" },
+  )
+  const fixture = JSON.parse(
+    seeded
+      .split("\n")
+      .filter((line) => line.startsWith('{"order_id"'))
+      .at(-1)!,
+  ) as { order_reference: number; restaurant_name: string }
+  await page.goto(`${backend}/app/login`)
+  await page
+    .getByPlaceholder("Email", { exact: true })
+    .fill(process.env.E2E_ADMIN_EMAIL!)
+  await page
+    .getByPlaceholder("Password", { exact: true })
+    .fill(process.env.E2E_ADMIN_PASSWORD!)
+  await page.getByRole("button", { name: "Continue with email" }).click()
+  await expect(page).not.toHaveURL(/\/login/)
+  await page.getByRole("link", { name: "Refunds", exact: true }).click()
+  await expect(
+    page.getByRole("heading", { name: "Refunds", exact: true }),
+  ).toBeVisible()
+  const row = page.getByRole("region", {
+    name: `Refund for Order #${fixture.order_reference}`,
+  })
+  await expect(row).toContainText(fixture.restaurant_name)
+  await expect(row).toContainText("Failed")
+  await expect(row).toContainText(
+    "The payment provider declined or failed the refund.",
+  )
+  await expect(row).toContainText("Rejected by the Restaurant by Demo Staff")
+  await expect(row).toContainText("Demo: the oven broke down")
+  await row.getByRole("button", { name: "Attempt history" }).click()
+  await expect(row.getByRole("listitem")).toHaveCount(1)
+  await expect(row.getByRole("listitem")).toContainText("Demo Staff")
+  await testInfo.attach("refunds-failed", {
+    body: await page.screenshot({ fullPage: true }),
+    contentType: "image/png",
+  })
+
+  await row.getByRole("button", { name: "Retry refund" }).click()
+  await expect(
+    page.getByText(
+      new RegExp(`Order #${fixture.order_reference}: refund of .+ succeeded`),
+    ),
+  ).toBeVisible()
+  // A refund resolved at the provider leaves the page.
+  await expect(row).toHaveCount(0)
+  expect(errors).toEqual([])
+  await testInfo.attach("refunds-retried", {
+    body: await page.screenshot({ fullPage: true }),
+    contentType: "image/png",
+  })
+})

@@ -1360,13 +1360,13 @@
           "expression": "CREATE UNIQUE INDEX IF NOT EXISTS \"IDX_refund_obligation_idempotency_key_unique\" ON \"refund_obligation\" (\"idempotency_key\") WHERE deleted_at IS NULL"
         },
         {
-          "keyName": "IDX_refund_obligation_status",
+          "keyName": "IDX_refund_obligation_status_created_at_id",
           "columnNames": [],
           "composite": false,
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_refund_obligation_status\" ON \"refund_obligation\" (\"status\") WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_refund_obligation_status_created_at_id\" ON \"refund_obligation\" (\"status\", \"created_at\", \"id\") WHERE deleted_at IS NULL"
         },
         {
           "keyName": "refund_obligation_pkey",

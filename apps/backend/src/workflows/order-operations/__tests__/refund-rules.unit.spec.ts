@@ -1,12 +1,15 @@
 import { MedusaError } from "@medusajs/framework/utils"
 import {
+  actorIdsOfType,
   classifyRefundFailure,
+  decideRefundRetry,
   nativeCancellationPlan,
   owedFullRefund,
   refundAttemptActor,
   refundAttemptEntry,
   refundAttemptPlan,
   refundOutcomeAfterAttempt,
+  toRefundActor,
 } from "../refund-rules"
 
 describe("The full refund owed at cancellation", () => {
@@ -313,5 +316,83 @@ describe("The actor a refund attempt log record names (#197)", () => {
     },
   ])("$attempted_by", ({ attempted_by, expected }) => {
     expect(refundAttemptActor(attempted_by)).toEqual(expected)
+  })
+})
+
+describe("An operator's refund retry (#198)", () => {
+  it.each([
+    {
+      obligation: { status: "failed" as const },
+      expected: { action: "retry", obligation: { status: "failed" } },
+      reason: "EP: only a failed refund is retried",
+    },
+    {
+      obligation: { status: "succeeded" as const },
+      expected: { action: "current" },
+      reason:
+        "EP: a retry that waited behind another finds it resolved and returns it",
+    },
+    {
+      obligation: { status: "pending" as const },
+      expected: { action: "refuse", code: "refund_not_failed" },
+      reason: "EP: an attempt still in progress is not interfered with",
+    },
+    {
+      obligation: undefined,
+      expected: { action: "refuse", code: "refund_not_found" },
+      reason: "EP: an Order without an owed refund has nothing to retry",
+    },
+  ])("$reason", ({ obligation, expected }) => {
+    expect(decideRefundRetry(obligation)).toEqual(expected)
+  })
+})
+
+describe("The actor an operator sees (#198)", () => {
+  const names = new Map([
+    ["user_01", "Olga Operator"],
+    ["rstf_01", "Mette Jensen"],
+  ])
+
+  it.each([
+    {
+      id: "system",
+      expected: { type: "system", id: "system", name: "System" },
+      reason: "EP: the system is always shown as System",
+    },
+    {
+      id: "user_01",
+      expected: { type: "user", id: "user_01", name: "Olga Operator" },
+      reason: "EP: an operator carries their name",
+    },
+    {
+      id: "rstf_01",
+      expected: {
+        type: "restaurant_staff",
+        id: "rstf_01",
+        name: "Mette Jensen",
+      },
+      reason: "EP: Restaurant staff carry their name",
+    },
+    {
+      id: "cus_01",
+      expected: { type: "customer", id: "cus_01", name: null },
+      reason: "EP: a Customer has no name; the Order identifies them",
+    },
+    {
+      id: "legacy_01",
+      expected: { type: null, id: "legacy_01", name: null },
+      reason: "EP: an id of unknown kind is shown without a guessed type",
+    },
+  ])("$reason", ({ id, expected }) => {
+    expect(toRefundActor(id, names)).toEqual(expected)
+  })
+
+  it("picks the ids of one actor type once each", () => {
+    expect(
+      actorIdsOfType(
+        ["user_01", "system", "rstf_01", "user_01", "user_02", "cus_01"],
+        "user",
+      ),
+    ).toEqual(["user_01", "user_02"])
   })
 })

@@ -18,17 +18,9 @@ import {
   MedusaError,
   Modules,
 } from "@medusajs/framework/utils"
-import {
-  addShippingMethodToCartWorkflow,
-  addToCartWorkflow,
-  createCartWorkflow,
-  createPaymentCollectionForCartWorkflow,
-  createPaymentSessionsWorkflow,
-  listShippingOptionsForCartWorkflow,
-} from "@medusajs/medusa/core-flows"
 import { ORDER_OPERATION_MODULE } from "../modules/order-operation"
 import type OrderOperationModuleService from "../modules/order-operation/service"
-import { MOCK_PAYMENT_PROVIDER_ID } from "../workflows/carts/basket-rules"
+import { placeDemoPaidOrder } from "../lib/demo-paid-order"
 import { readRestaurantWithMenu } from "../workflows/menu/steps/read-menu"
 import {
   acceptPartnerOrderWorkflow,
@@ -37,7 +29,6 @@ import {
   rejectPartnerOrderWorkflow,
   startPartnerOrderPreparationWorkflow,
 } from "../workflows/order-operations"
-import { completeRestaurantCartWorkflow } from "../workflows/orders/complete-restaurant-cart"
 
 type Stage =
   | "awaiting"
@@ -126,94 +117,15 @@ export default async function seedDemoOrderProgress({ container }: ExecArgs) {
     ORDER_OPERATION_MODULE,
   )
 
-  const address = {
-    first_name: customer.first_name || "Demo",
-    last_name: customer.last_name || "Kunde",
-    address_1: "Demovej 1",
-    postal_code: restaurant.postalCode,
-    city: "København",
-    country_code: "dk",
-    phone: customer.phone || "+4512345678",
-  }
-
   /** The Customer's whole paid checkout, through the same workflows. */
-  const placePaidOrder = async () => {
-    const { result: cart } = await createCartWorkflow(container).run({
-      input: {
-        region_id: region.id,
-        customer_id: customer.id,
-        email: customer.email,
-        currency_code: "dkk",
-        locale: "da",
-        shipping_address: address,
-        billing_address: address,
-        metadata: {
-          demo_order_progress_147: true,
-          mtogo_checkout_review: {
-            version: 1,
-            customer_id: customer.id,
-            destination: address,
-            contact: {
-              first_name: address.first_name,
-              last_name: address.last_name,
-              phone: address.phone,
-              email: customer.email,
-            },
-            order_language: "da",
-            reviewed_at: new Date().toISOString(),
-          },
-        },
-      },
+  const placePaidOrder = () =>
+    placeDemoPaidOrder(container, {
+      region_id: region.id,
+      customer,
+      dish: restaurant.dish,
+      postal_code: restaurant.postalCode,
+      metadata: { demo_order_progress_147: true },
     })
-    await addToCartWorkflow(container).run({
-      input: {
-        cart_id: cart.id,
-        items: [
-          {
-            variant_id: restaurant.dish.variant_id,
-            quantity: 1,
-            metadata: {
-              mtogo_dish: {
-                revision: restaurant.dish.revision,
-                price: restaurant.dish.price.amount,
-              },
-            },
-          },
-        ],
-      },
-    })
-    const { result: options } = await listShippingOptionsForCartWorkflow(
-      container,
-    ).run({ input: { cart_id: cart.id } })
-    const delivery = (options as { id: string; name: string }[]).find(
-      ({ name }) => name === "MTOGO delivery included",
-    )
-    required(delivery, "The MTOGO delivery option is missing")
-    await addShippingMethodToCartWorkflow(container).run({
-      input: { cart_id: cart.id, options: [{ id: delivery!.id }] },
-    })
-    await createPaymentCollectionForCartWorkflow(container).run({
-      input: { cart_id: cart.id },
-    })
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
-    const {
-      data: [withCollection],
-    } = await query.graph({
-      entity: "cart",
-      fields: ["payment_collection.id"],
-      filters: { id: cart.id },
-    })
-    await createPaymentSessionsWorkflow(container).run({
-      input: {
-        payment_collection_id: withCollection.payment_collection!.id,
-        provider_id: MOCK_PAYMENT_PROVIDER_ID,
-      },
-    })
-    const { result: order } = await completeRestaurantCartWorkflow(
-      container,
-    ).run({ input: { cart_id: cart.id } })
-    return order as unknown as { id: string; display_id: number }
-  }
 
   const staff = (order_id: string) => ({
     input: { staff_id: restaurant.staffId, order_id },

@@ -31,7 +31,9 @@ const RefundObligation = model
   .indexes([
     { on: ["order_id"], unique: true },
     { on: ["idempotency_key"], unique: true },
-    { on: ["status"] },
+    // Open refunds by status (the recovery sweep), and for the Refunds page
+    // (#198) the longest owed first within each status.
+    { on: ["status", "created_at", "id"] },
   ])
 
 export default RefundObligation
