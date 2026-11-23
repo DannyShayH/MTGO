@@ -4,6 +4,7 @@ import { cookies, headers } from "next/headers"
 import { redirect, unstable_rethrow } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import { FetchError } from "@medusajs/js-sdk"
+import type { ProblemCategory } from "@dtc/i18n"
 import { requestId } from "@dtc/logging"
 import {
   isDeliveryArrivalErrorCode,
@@ -103,6 +104,76 @@ export type CurrentDelivery = {
     postal_code: string
     city: string
   }
+}
+
+export type ProblemReport = {
+  id: string
+  order_id: string
+  category: ProblemCategory
+  note: string | null
+  reported_by: string
+  reported_at: string
+}
+
+/** Sends one problem report; the backend owns responsibility and the first report. */
+export async function reportDeliveryProblem(
+  orderId: string,
+  category: ProblemCategory,
+  note: string,
+): Promise<
+  | { status: "reported" | "already_reported"; report: ProblemReport }
+  | { status: "refused" | "uncertain" }
+> {
+  if (!orderId || note.length > 280) return { status: "refused" }
+  const token = (await cookies()).get(PARTNER_TOKEN_COOKIE)?.value
+  if (!token) redirect("/delivery-sign-in")
+  const correlationId = requestId((await headers()).get("x-request-id"))
+  let response: Response
+  try {
+    response = await fetch(
+      new URL(
+        `/partner/deliveries/${encodeURIComponent(orderId)}/problem-report`,
+        BACKEND_URL,
+      ),
+      {
+        method: "POST",
+        cache: "no-store",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+          "x-request-id": correlationId,
+        },
+        body: JSON.stringify({ category, note }),
+      },
+    )
+  } catch {
+    log("upstream.request.failed", {
+      request_id: correlationId,
+      route: "/partner/deliveries/:id/problem-report",
+      method: "POST",
+    })
+    return { status: "uncertain" }
+  }
+  if (response.status === 403) {
+    const body = (await response.json().catch(() => null)) as {
+      code?: string
+    } | null
+    if (body?.code === "delivery_agent_access_revoked")
+      redirect(AGENT_ACCESS_ENDED_PATH)
+    return { status: "refused" }
+  }
+  if (response.status === 401) redirect("/delivery-sign-in")
+  if (response.ok) {
+    revalidatePath("/delivery", "layout")
+    return response.json()
+  }
+  log("upstream.request.failed", {
+    request_id: correlationId,
+    route: "/partner/deliveries/:id/problem-report",
+    method: "POST",
+    status: response.status,
+  })
+  return { status: response.status >= 500 ? "uncertain" : "refused" }
 }
 
 /**

@@ -15,8 +15,17 @@ export const ATTENTION_TYPES = [
   "assigned_without_pickup",
   "in_transit_without_delivery",
   "arrived_without_handover",
+  "agent_reported_problem",
 ] as const
 export type AttentionType = (typeof ATTENTION_TYPES)[number]
+
+export const PROBLEM_CATEGORIES = [
+  "restaurant_unavailable",
+  "food_missing_or_wrong",
+  "address_not_found",
+  "other",
+] as const
+export type ProblemCategory = (typeof PROBLEM_CATEGORIES)[number]
 
 /** Why an attention stopped being outstanding. It never changes the Order. */
 export const ATTENTION_RESOLUTIONS = [
@@ -43,6 +52,9 @@ const DeliveryAttention = model
     raised_at: model.dateTime().nullable(),
     resolved_at: model.dateTime().nullable(),
     resolution: model.enum([...ATTENTION_RESOLUTIONS]).nullable(),
+    category: model.enum([...PROBLEM_CATEGORIES]).nullable(),
+    note: model.text().nullable(),
+    reported_by: model.text().nullable(),
   })
   .indexes([
     // One obligation per Order and condition, however often it is scheduled.

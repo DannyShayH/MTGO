@@ -1,4 +1,5 @@
 import { z } from "@medusajs/framework/zod"
+import { PROBLEM_CATEGORIES } from "../../modules/delivery/models/delivery-attention"
 import {
   CANCELLATION_CATEGORIES,
   QUEUE_VIEWS,
@@ -95,6 +96,20 @@ export const PostConfirmPickupSchema = z.strictObject({
   request_id: RetryIdentity,
 })
 export type PostConfirmPickupBody = z.infer<typeof PostConfirmPickupSchema>
+
+/** A bounded free-text note; the original body is never logged. */
+export const PostProblemReportSchema = z.strictObject({
+  category: z.enum(PROBLEM_CATEGORIES),
+  note: z
+    .string()
+    .max(280)
+    .optional()
+    .transform(
+      (value) =>
+        value?.replace(/[\u0000-\u001F\u007F-\u009F]/g, "").trim() || null,
+    ),
+})
+export type PostProblemReportBody = z.infer<typeof PostProblemReportSchema>
 
 /**
  * The agent's own position, only to measure distances to pickups in view

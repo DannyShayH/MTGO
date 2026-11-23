@@ -40,6 +40,7 @@ import {
   GetAvailableDeliveriesSchema,
   PostClaimDeliverySchema,
   PostConfirmPickupSchema,
+  PostProblemReportSchema,
   PostRecordArrivalSchema,
   PostRecordContactAttemptSchema,
   PostPickupDistancesSchema,
@@ -551,6 +552,15 @@ export default defineMiddlewares({
       middlewares: [
         authenticate(DELIVERY_AGENT_ACTOR, "bearer"),
         validateAndTransformBody(PostConfirmPickupSchema),
+      ],
+    },
+    {
+      matcher: "/partner/deliveries/:id/problem-report",
+      method: "POST",
+      bodyParser: { sizeLimit: "1kb" },
+      middlewares: [
+        authenticate(DELIVERY_AGENT_ACTOR, "bearer"),
+        validateAndTransformBody(PostProblemReportSchema),
       ],
     },
     {

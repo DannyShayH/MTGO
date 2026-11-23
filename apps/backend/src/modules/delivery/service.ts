@@ -19,6 +19,7 @@ import IntendedDelivery, {
 import DeliveryAttention, {
   type AttentionResolution,
   type AttentionType,
+  type ProblemCategory,
 } from "./models/delivery-attention"
 import DeliveryContactAttempt from "./models/delivery-contact-attempt"
 import DeliveryLocation from "./models/delivery-location"
@@ -706,6 +707,67 @@ class DeliveryModuleService extends MedusaService({
       if (concurrent) return { attention: concurrent, isCreated: false }
       throw error
     }
+  }
+
+  /** Record the responsible agent's first problem while holding the delivery row. */
+  @InjectManager()
+  @InjectTransactionManager()
+  async reportProblem(
+    input: {
+      order_id: string
+      agent_id: string
+      order_active: boolean
+      category: ProblemCategory
+      note: string | null
+      now: Date
+    },
+    @MedusaContext() context: Context = {},
+  ) {
+    const { record, facts } = await this.lockMilestoneFacts(input, context)
+    if (facts.agent.status !== "authorized")
+      throw new MedusaError(
+        MedusaError.Types.FORBIDDEN,
+        "delivery_agent_access_revoked",
+        "delivery_agent_access_revoked",
+      )
+    if (
+      !input.order_active ||
+      record.terminal_outcome ||
+      !record.assigned_agent_id
+    )
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        "delivery_not_active",
+        "delivery_not_active",
+      )
+    if (
+      record.assigned_agent_id !== input.agent_id ||
+      record.active_agent_id !== input.agent_id
+    )
+      throw new MedusaError(
+        MedusaError.Types.FORBIDDEN,
+        "delivery_not_responsible",
+        "delivery_not_responsible",
+      )
+    const [existing] = await this.listDeliveryAttentions(
+      { order_id: input.order_id, type: "agent_reported_problem" },
+      { take: 1 },
+      context,
+    )
+    if (existing) return { attention: existing, isCreated: false }
+    const attention = await this.createDeliveryAttentions(
+      {
+        order_id: input.order_id,
+        type: "agent_reported_problem",
+        due_at: input.now,
+        raised_at: input.now,
+        category: input.category,
+        note: input.note,
+        reported_by: input.agent_id,
+      },
+      context,
+    )
+    return { attention, isCreated: true }
   }
 
   /**

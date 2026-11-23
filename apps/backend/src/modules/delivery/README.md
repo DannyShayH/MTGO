@@ -36,6 +36,22 @@ postal-code register; an empty list grants no operating area.
 
 ## API
 
+### Problem reports (#200)
+
+An authorized agent holding an assigned or picked-up Delivery may report one
+problem. The guarded write takes the agent and Order locks, checks the Delivery
+row and Order state, then inserts `agent_reported_problem` attention with
+`due_at` and `raised_at` set to the server's report time. Its unique Order/type
+index keeps the first category, cleaned note and reporter on concurrent or
+repeated requests. Reporting never updates responsibility or milestones. The
+existing terminal boundary resolves the attention when the Order ends.
+
+The four categories are `restaurant_unavailable`, `food_missing_or_wrong`,
+`address_not_found` and `other`. The optional note is at most 280 characters;
+control characters are removed and an empty note is stored as `null`. It is
+never included in application logs. Admin's existing attention list shows the
+category, note, reporter and age.
+
 - `GET /admin/delivery-agents` lists agents; `POST` accepts `{ name, email }`
   and sends an invitation.
 - `POST /admin/delivery-agents/{id}/revoke` revokes access or a pending invite.

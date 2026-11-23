@@ -40,6 +40,15 @@ type Attention = {
     | "assigned_without_pickup"
     | "in_transit_without_delivery"
     | "arrived_without_handover"
+    | "agent_reported_problem"
+  category?:
+    | "restaurant_unavailable"
+    | "food_missing_or_wrong"
+    | "address_not_found"
+    | "other"
+    | null
+  note?: string | null
+  reported_by?: { id: string; name: string } | null
   order_id: string
   order_reference: number
   restaurant_name: string
@@ -96,7 +105,19 @@ const ATTENTION: Record<Attention["type"], { label: string; detail: string }> =
       detail:
         "The agent recorded arriving at the Customer, but no handover followed within ten minutes. Escalate: contact the agent and the Customer. The delivery stays assigned to the agent and is not marked delivered.",
     },
+    agent_reported_problem: {
+      label: "Agent reported a problem",
+      detail:
+        "The responsible agent reported a problem. The delivery remains assigned.",
+    },
   }
+
+const PROBLEM_CATEGORY: Record<NonNullable<Attention["category"]>, string> = {
+  restaurant_unavailable: "Restaurant closed / can't collect",
+  food_missing_or_wrong: "Food missing or wrong",
+  address_not_found: "Can't find the address",
+  other: "Other",
+}
 
 /** The agent's recorded attempts to reach the Customer (#164). */
 const describeAttempts = ({ contact_attempts }: Attention) => {
@@ -108,6 +129,8 @@ const describeAttempts = ({ contact_attempts }: Attention) => {
 
 /** When each condition began and when it became due, as one line. */
 const describeTiming = (item: Attention) => {
+  if (item.type === "agent_reported_problem")
+    return `Reported ${time(item.raised_at)}`
   if (item.type === "access_revoked")
     return `Accepted ${time(item.accepted_at)} · access revoked ${time(item.raised_at)}`
   if (item.type === "arrived_without_handover" && item.arrived_at)
@@ -336,9 +359,10 @@ function AttentionList({ limit }: Readonly<{ limit: number }>) {
           )}
         </div>
         <Text size="small" leading="compact" className="text-ui-fg-subtle">
-          Deliveries past an attention deadline, oldest first. Attention only
-          shows the problem: it never cancels, releases or completes a delivery.
-          Assign unassigned work below before the claim deadline.
+          Reported problems and deliveries past an attention deadline, oldest
+          first. Attention only shows the problem: it never cancels, releases or
+          completes a delivery. Assign unassigned work below before the claim
+          deadline.
         </Text>
       </div>
       {list.isLoading && (
@@ -402,6 +426,40 @@ function AttentionList({ limit }: Readonly<{ limit: number }>) {
               >
                 {condition.detail}
               </Text>
+              {item.type === "agent_reported_problem" && (
+                <div className="flex min-w-0 flex-col gap-1">
+                  <Text size="small" leading="compact" weight="plus">
+                    {item.category
+                      ? PROBLEM_CATEGORY[item.category]
+                      : "Problem"}
+                  </Text>
+                  {item.note && (
+                    <Text
+                      size="small"
+                      leading="compact"
+                      className="break-words whitespace-pre-wrap"
+                    >
+                      {item.note}
+                    </Text>
+                  )}
+                  <Text
+                    size="small"
+                    leading="compact"
+                    className="text-ui-fg-subtle"
+                  >
+                    Reported by {item.reported_by?.name ?? "Agent"} ·{" "}
+                    {Math.max(
+                      0,
+                      Math.floor(
+                        (new Date(list.data.server_time).getTime() -
+                          new Date(item.raised_at).getTime()) /
+                          60000,
+                      ),
+                    )}{" "}
+                    min ago
+                  </Text>
+                </div>
+              )}
               <Text
                 size="small"
                 leading="compact"

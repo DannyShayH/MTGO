@@ -8,6 +8,7 @@ import { TripLeg } from "./distance-facts"
 import { PickupDistance } from "./location-sharing"
 import { PreparationBadge } from "./preparation-badge"
 import { RecordContactAttempt } from "./record-contact-attempt"
+import { ReportProblem } from "./report-problem"
 import { streetLine } from "./route-links"
 import { RouteLinksPanel } from "./route-links-panel"
 import { RouteStops } from "./route-stops"
@@ -262,6 +263,11 @@ export function CurrentDeliveryCard({
         ) : (
           <p className="text-mtogo-text-secondary text-sm">{copy.noPhone}</p>
         )}
+        <ReportProblem
+          orderId={delivery.order_id}
+          locale={locale}
+          copy={copy}
+        />
         <p className="text-mtogo-text-secondary text-sm">
           {copy.assignedAt} {formatTime(delivery.assigned_at)}
         </p>

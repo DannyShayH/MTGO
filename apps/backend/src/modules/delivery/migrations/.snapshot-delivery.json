@@ -601,7 +601,8 @@
             "access_revoked",
             "assigned_without_pickup",
             "in_transit_without_delivery",
-            "arrived_without_handover"
+            "arrived_without_handover",
+            "agent_reported_problem"
           ],
           "mappedType": "enum"
         },
@@ -668,6 +669,59 @@
           "comment": null,
           "enumItems": ["assigned", "picked_up", "delivered", "order_ended"],
           "mappedType": "enum"
+        },
+        "category": {
+          "name": "category",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [
+            "restaurant_unavailable",
+            "food_missing_or_wrong",
+            "address_not_found",
+            "other"
+          ],
+          "mappedType": "enum"
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "text"
+        },
+        "reported_by": {
+          "name": "reported_by",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "text"
         },
         "created_at": {
           "name": "created_at",

@@ -104,6 +104,9 @@ export { CUSTOMER_ORDER_CONFIRMATION_TEXT } from "./customer-order-confirmation.
 
 export {
   DELIVERY_AGENT_TEXT,
+  PROBLEM_CATEGORIES,
+  PROBLEM_CATEGORY_TEXT,
+  type ProblemCategory,
   DELIVERY_CLAIM_ERROR_CODES,
   DELIVERY_CLAIM_ERRORS,
   isDeliveryClaimErrorCode,

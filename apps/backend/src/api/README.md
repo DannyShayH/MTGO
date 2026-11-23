@@ -49,6 +49,46 @@ handover, cancellation or failure the delivery is no longer current and
 instructions, so none are returned. Responsibility, not the current areas, grants this read;
 revoked agents receive `403`.
 
+## Problem report (#200)
+
+### POST /partner/deliveries/{order_id}/problem-report
+
+An authorized Delivery agent bearer may report a problem only on their own
+assigned or picked-up, active Delivery. Body: `{ "category":
+"restaurant_unavailable" | "food_missing_or_wrong" | "address_not_found" |
+"other", "note"?: string }`. The note is limited to 280 characters and cleaned
+of control characters; empty becomes `null`. Unknown fields and categories are
+rejected. A new report returns `201` with `{ status: "reported", report: {
+id, order_id, category, note, reported_by, reported_at } }`. A repeat returns
+`200` with `status: "already_reported"` and the unchanged first report.
+Another agent or a revoked agent receives `403`; an unknown Delivery receives
+`404`; an inactive Delivery receives `400`. Reporting only raises attention;
+it does not update the Delivery or Order. The note is never logged.
+
+**Actor:** authorized Delivery agent (`delivery_agent` bearer)
+
+| Field      | Type   | Required | Rules                                              |
+| ---------- | ------ | -------- | -------------------------------------------------- |
+| `category` | string | yes      | One of the four categories above                   |
+| `note`     | string | no       | At most 280 characters; control characters removed |
+
+```json
+{ "category": "food_missing_or_wrong", "note": "One meal is missing" }
+```
+
+| Status | When                                                       |
+| ------ | ---------------------------------------------------------- |
+| `200`  | `already_reported`, with the first report                  |
+| `201`  | New report stored and raised                               |
+| `400`  | Invalid body or Delivery not assigned, picked up or active |
+| `401`  | Missing or invalid agent bearer                            |
+| `403`  | Another agent or revoked access                            |
+| `404`  | No Delivery for the Order                                  |
+
+`GET /admin/deliveries/attention` also returns `agent_reported_problem` items
+with `category`, `note` and `reported_by: { id, name }`. `raised_at` gives the
+report's age. The item leaves the list when the Order ends.
+
 ## Pickup (#160)
 
 ### POST /partner/deliveries/{order_id}/pickup

@@ -1,3 +1,29 @@
+export const PROBLEM_CATEGORIES = [
+  "restaurant_unavailable",
+  "food_missing_or_wrong",
+  "address_not_found",
+  "other",
+] as const
+export type ProblemCategory = (typeof PROBLEM_CATEGORIES)[number]
+
+export const PROBLEM_CATEGORY_TEXT: Record<
+  "da" | "en",
+  Record<ProblemCategory, string>
+> = {
+  da: {
+    restaurant_unavailable: "Restauranten er lukket / maden kan ikke hentes",
+    food_missing_or_wrong: "Maden mangler eller er forkert",
+    address_not_found: "Kan ikke finde adressen",
+    other: "Andet",
+  },
+  en: {
+    restaurant_unavailable: "Restaurant closed / can't collect",
+    food_missing_or_wrong: "Food missing or wrong",
+    address_not_found: "Can't find the address",
+    other: "Other",
+  },
+}
+
 export const DELIVERY_AGENT_TEXT = {
   da: {
     title: "Leveringspartner",
@@ -80,6 +106,17 @@ export const DELIVERY_AGENT_TEXT = {
     underMinute: "Under 1 min tilbage",
     pickupAt: "Hent hos",
     responsible: "Du er ansvarlig",
+    reportProblem: "Meld et problem",
+    problemCategory: "Hvad er problemet?",
+    problemNote: "Note (valgfri)",
+    problemNoteHint: "Højst 280 tegn. Skriv ikke personlige oplysninger.",
+    sendProblem: "Send rapport",
+    problemReported:
+      "MTOGO har fået besked. Du er stadig ansvarlig for leveringen.",
+    problemAlreadyReported: "Allerede meldt",
+    problemUncertain:
+      "Vi ved endnu ikke, om rapporten blev modtaget. Prøv igen.",
+    problemFailed: "Rapporten kunne ikke sendes. Opdater og prøv igen.",
     availableCount: "{count} ledige",
     confirmPickup: "Jeg har hentet maden",
     confirmPickupTitle: "Har du maden i hånden?",
@@ -271,6 +308,17 @@ export const DELIVERY_AGENT_TEXT = {
     underMinute: "Less than 1 min left",
     pickupAt: "Pick up at",
     responsible: "You are responsible",
+    reportProblem: "Report a problem",
+    problemCategory: "What is the problem?",
+    problemNote: "Note (optional)",
+    problemNoteHint: "Up to 280 characters. Do not include personal details.",
+    sendProblem: "Send report",
+    problemReported:
+      "MTOGO has been notified. You remain responsible for this delivery.",
+    problemAlreadyReported: "Already reported",
+    problemUncertain:
+      "We do not yet know if the report was received. Try again.",
+    problemFailed: "The report could not be sent. Refresh and try again.",
     availableCount: "{count} available",
     confirmPickup: "I have collected the food",
     confirmPickupTitle: "Do you have the food in hand?",

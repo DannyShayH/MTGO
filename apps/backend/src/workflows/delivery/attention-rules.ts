@@ -54,6 +54,7 @@ const CONDITION_ENDED: Record<
   // An unreachable Customer (#164) ends only with handover or another
   // terminal outcome: contact attempts and elapsed time never end it.
   arrived_without_handover: () => null,
+  agent_reported_problem: () => null,
 }
 
 /**

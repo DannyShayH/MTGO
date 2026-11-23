@@ -328,6 +328,9 @@ export const recoverDeliveryAttentionWorkflow = createWorkflow(
 export type AttentionItem = {
   id: string
   type: AttentionType
+  category?: string | null
+  note?: string | null
+  reported_by?: { id: string; name: string } | null
   order_id: string
   order_reference: number
   restaurant_name: string
@@ -395,6 +398,9 @@ const listDeliveryAttentionStep = createStep(
         type: AttentionType
         due_at: Date
         raised_at: Date | null
+        category: string | null
+        note: string | null
+        reported_by: string | null
       }
       state: string
     }[] = []
@@ -442,11 +448,14 @@ const listDeliveryAttentionStep = createStep(
       records.map(({ order_id }) => order_id),
     )
     const agentIds = [
-      ...new Set(
-        records.flatMap(({ assigned_agent_id }) =>
+      ...new Set([
+        ...records.flatMap(({ assigned_agent_id }) =>
           assigned_agent_id ? [assigned_agent_id] : [],
         ),
-      ),
+        ...shown.flatMap(({ attention }) =>
+          attention.reported_by ? [attention.reported_by] : [],
+        ),
+      ]),
     ]
     const agents = new Map(
       (agentIds.length
@@ -474,10 +483,22 @@ const listDeliveryAttentionStep = createStep(
       const agent = record.assigned_agent_id
         ? agents.get(record.assigned_agent_id)
         : undefined
+      const reporter = attention.reported_by
+        ? agents.get(attention.reported_by)
+        : undefined
       return [
         {
           id: attention.id,
           type: attention.type,
+          ...(attention.type === "agent_reported_problem"
+            ? {
+                category: attention.category,
+                note: attention.note,
+                reported_by: reporter
+                  ? { id: reporter.id, name: reporter.name }
+                  : null,
+              }
+            : {}),
           order_id: record.order_id,
           order_reference: record.order_reference,
           restaurant_name: record.restaurant_name,
