@@ -134,6 +134,7 @@ Rules that follow from this:
 
 - **Components render; `src/lib/data` fetches.** Only `src/lib/data` calls the Medusa API through `@medusajs/js-sdk`. Components and pages call those functions.
 - Data functions run on the server (`"use server"` or server components). Never put secrets in `NEXT_PUBLIC_` variables.
+- **A read that several server components need in one render is wrapped in React `cache()`** in a `server-only` file, not in a `"use server"` file, which may only export plain async functions. `retrieveCustomer` in `src/lib/data/current-customer.ts` is the example: the layouts, navigation, footer, locale and page share one read of the signed-in Customer per request, and the next request reads it fresh. Request only the fields the callers use, and leave joins such as `*orders` to the pages that show them.
 - Feature modules do not reach into each other. Anything shared moves to `src/modules/common`.
 - Apps never import each other's code; the HTTP API is the contract between them. Apps may import the shared `packages/`, which never import apps. The partner app follows the same rules as the storefront.
 - **User-facing screens follow the [design brief](/MTGO/product/design-brief/):** `mtogo-*` colour tokens instead of raw hex values, the shared components, the empty, loading, error and success states, and the accessibility baseline.

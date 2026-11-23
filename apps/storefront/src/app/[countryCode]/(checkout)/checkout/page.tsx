@@ -1,5 +1,5 @@
 import { retrieveCart } from "@lib/data/cart"
-import { retrieveCustomer } from "@lib/data/customer"
+import { retrieveCustomer } from "@lib/data/current-customer"
 import { getCustomerLocale } from "@lib/data/customer-locale"
 import PaymentWrapper from "@modules/checkout/components/payment-wrapper"
 import CheckoutForm from "@modules/checkout/templates/checkout-form"

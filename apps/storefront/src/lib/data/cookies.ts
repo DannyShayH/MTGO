@@ -1,9 +1,10 @@
 import "server-only"
 import { cookies as nextCookies } from "next/headers"
 
-export const getAuthHeaders = async (): Promise<
-  { authorization: string } | Record<string, never>
-> => {
+/** The session's bearer header, or nothing for a visitor. */
+export type AuthHeaders = { authorization: string } | Record<string, never>
+
+export const getAuthHeaders = async (): Promise<AuthHeaders> => {
   try {
     const cookies = await nextCookies()
     const token = cookies.get("_medusa_jwt")?.value

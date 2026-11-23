@@ -1,6 +1,6 @@
 import { resolveCustomerLocale } from "@dtc/i18n"
 import { getLocale } from "@lib/data/locale-actions"
-import { retrieveCustomer } from "@lib/data/customer"
+import { retrieveCustomer } from "@lib/data/current-customer"
 import AccountLayout from "@modules/account/templates/account-layout"
 
 export default async function AccountPageLayout({

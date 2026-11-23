@@ -9,7 +9,7 @@ import ProfileName from "@modules/account/components/profile-name"
 import RequestPasswordReset from "@modules/account/components/request-password-reset"
 import { notFound } from "next/navigation"
 import { listRegions } from "@lib/data/regions"
-import { retrieveCustomer } from "@lib/data/customer"
+import { retrieveCustomer } from "@lib/data/current-customer"
 import { getCustomerLocale } from "@lib/data/customer-locale"
 
 export const metadata: Metadata = {

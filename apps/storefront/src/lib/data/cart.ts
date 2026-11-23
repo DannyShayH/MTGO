@@ -17,7 +17,7 @@ import { listCartShippingMethods } from "./fulfillment"
 import { getRegion } from "./regions"
 import { explainBasketReview } from "./basket-review"
 import { getLocale } from "./locale-actions"
-import { retrieveCustomer } from "./customer"
+import { retrieveCustomer } from "./current-customer"
 import {
   CHECKOUT_REVIEW_METADATA_KEY,
   CUSTOMER_CHECKOUT_TEXT,

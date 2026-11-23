@@ -183,41 +183,6 @@ async function requestVerificationEmail(
   })
 }
 
-export const retrieveCustomer =
-  async (): Promise<HttpTypes.StoreCustomer | null> => {
-    const authHeaders = await getAuthHeaders()
-
-    if (!("authorization" in authHeaders)) return null
-
-    const headers = {
-      ...authHeaders,
-    }
-
-    const customer = await sdk.client
-      .fetch<{ customer: HttpTypes.StoreCustomer }>(`/store/customers/me`, {
-        method: "GET",
-        query: {
-          fields: "*orders",
-        },
-        headers,
-        cache: "no-store",
-      })
-      .then(({ customer }) => customer)
-      .catch(() => null)
-
-    if (!customer) return null
-
-    const verification = await sdk.client
-      .fetch<{ verified: true }>("/store/customers/me/verification", {
-        method: "GET",
-        headers,
-      })
-      .then(() => true)
-      .catch(() => false)
-
-    return verification ? customer : null
-  }
-
 export const updateCustomer = async (body: HttpTypes.StoreUpdateCustomer) => {
   const headers = {
     ...(await getAuthHeaders()),

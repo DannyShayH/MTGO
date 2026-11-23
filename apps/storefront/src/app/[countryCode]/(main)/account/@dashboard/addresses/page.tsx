@@ -5,7 +5,7 @@ import { CUSTOMER_ADDRESS_TEXT } from "@dtc/i18n"
 import AddressBook from "@modules/account/components/address-book"
 
 import { getRegion } from "@lib/data/regions"
-import { retrieveCustomer } from "@lib/data/customer"
+import { retrieveCustomer } from "@lib/data/current-customer"
 import { getCustomerLocale } from "@lib/data/customer-locale"
 
 export const metadata: Metadata = {

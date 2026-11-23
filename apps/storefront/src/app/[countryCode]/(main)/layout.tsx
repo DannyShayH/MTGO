@@ -1,6 +1,6 @@
 import { Metadata } from "next"
 import { listCartOptions, retrieveCart } from "@lib/data/cart"
-import { retrieveCustomer } from "@lib/data/customer"
+import { retrieveCustomer } from "@lib/data/current-customer"
 import { getCustomerLocale } from "@lib/data/customer-locale"
 import { getBaseURL } from "@lib/util/env"
 import { StoreCartShippingOption } from "@medusajs/types"
