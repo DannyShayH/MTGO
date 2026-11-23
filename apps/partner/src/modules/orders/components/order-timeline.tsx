@@ -17,7 +17,8 @@ import type { RestaurantOrder } from "@lib/data/orders"
  * completed steps with a check, never by colour alone). `next` is the step
  * staff take now, such as Accept and Reject or Start preparing: it closes the
  * line as the current step, a teal ring, so the action sits where it will be
- * recorded. Without one, the newest step is a filled dot.
+ * recorded. Without one, the newest step is a filled dot. Once the delivery
+ * has ended (#204), that end closes the line.
  */
 export function OrderTimeline({
   order,
@@ -56,6 +57,12 @@ export function OrderTimeline({
       order.ready_at && {
         key: "ready",
         label: formatText(text.ready_at, { time: stepTime(order.ready_at) }),
+      },
+      order.delivery && {
+        key: "delivery",
+        label: formatText(text[`${order.delivery.outcome}_at`], {
+          time: stepTime(order.delivery.ended_at),
+        }),
       },
     ] as const
   ).filter((step) => !!step)

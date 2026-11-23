@@ -56,7 +56,7 @@ beforeAll(async () => {
       }
       if (provider.mode === "error") return reply(502, { error: "down" })
       if (provider.mode === "quota") return reply(429, { error: "quota" })
-      if (url.pathname === "/geocode/search/structured") {
+      if (url.pathname === "/pelias/v1/search/structured") {
         const place = PLACES[url.searchParams.get("address") ?? ""]
         return reply(200, {
           // Like openrouteservice: an unknown address falls back to the
@@ -74,9 +74,9 @@ beforeAll(async () => {
           ],
         })
       }
-      if (url.pathname === "/v2/directions/cycling-regular")
+      if (url.pathname === "/openrouteservice/v2/directions/cycling-regular")
         return reply(200, { routes: [{ summary: { distance: 3249.7 } }] })
-      if (url.pathname === "/v2/matrix/cycling-regular")
+      if (url.pathname === "/openrouteservice/v2/matrix/cycling-regular")
         return reply(200, {
           distances: [
             body.destinations.map(
@@ -218,9 +218,9 @@ medusaIntegrationTestRunner({
         })
         // The key goes in a header; no route geometry is ever requested.
         expect(provider.calls.map(({ path }) => path).sort()).toEqual([
-          "/geocode/search/structured",
-          "/geocode/search/structured",
-          "/v2/directions/cycling-regular",
+          "/openrouteservice/v2/directions/cycling-regular",
+          "/pelias/v1/search/structured",
+          "/pelias/v1/search/structured",
         ])
         expect(
           provider.calls.every(
@@ -449,7 +449,7 @@ medusaIntegrationTestRunner({
         expect(revoked.status).toBe(403)
         expect(revoked.data.code).toBe("delivery_agent_access_revoked")
         expect(provider.calls.map(({ path }) => path)).not.toContain(
-          "/v2/matrix/cycling-regular",
+          "/openrouteservice/v2/matrix/cycling-regular",
         )
       })
 

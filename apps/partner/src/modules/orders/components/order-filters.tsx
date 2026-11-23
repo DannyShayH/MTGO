@@ -5,11 +5,13 @@ import { ORDER_TEXT, type Locale } from "@dtc/i18n"
 import { Button, Input, Label, Select, Text, clx } from "@medusajs/ui"
 import {
   CANCELLATION_CATEGORIES,
+  DELIVERY_OUTCOMES,
   PERIODS,
   hasFilters,
   orderSearch,
   queueHref,
   type CancellationCategory,
+  type DeliveryOutcome,
   type Period,
   type QueueQuery,
 } from "@lib/order-queue"
@@ -33,8 +35,8 @@ const PERIOD_LABELS = {
 const TRIGGER = "min-h-11 w-full sm:w-48"
 
 /**
- * Search by Order number in every view; History adds a period and the
- * cancellation reason. Every choice lives in the address, so a result can be
+ * Search by Order number in every view; History adds a period and how the
+ * Order ended: delivered, not delivered or a cancellation reason (#204). Every choice lives in the address, so a result can be
  * reloaded, shared or kept through live refreshes, and the form still
  * submits as a plain GET without JavaScript.
  */
@@ -92,6 +94,9 @@ export function OrderFilters({
     timerRef.current = setTimeout(send, SEARCH_DELAY_MS)
   }
   const isHistory = query.view === "history"
+  const outcome = query.delivery_outcome ?? query.cancellation_category
+  const isDeliveryOutcome = (value: string): value is DeliveryOutcome =>
+    (DELIVERY_OUTCOMES as readonly string[]).includes(value)
 
   return (
     <form
@@ -173,15 +178,26 @@ export function OrderFilters({
                 {text.reason}
               </Label>
               <Select
-                name="cancellation_category"
-                value={query.cancellation_category ?? ALL}
+                name={
+                  query.delivery_outcome
+                    ? "delivery_outcome"
+                    : "cancellation_category"
+                }
+                value={outcome ?? ALL}
                 onValueChange={(value) =>
-                  go({
-                    cancellation_category:
-                      value === ALL
-                        ? undefined
-                        : (value as CancellationCategory),
-                  })
+                  go(
+                    value === ALL
+                      ? {
+                          cancellation_category: undefined,
+                          delivery_outcome: undefined,
+                        }
+                      : isDeliveryOutcome(value)
+                        ? { delivery_outcome: value }
+                        : {
+                            cancellation_category:
+                              value as CancellationCategory,
+                          },
+                  )
                 }
               >
                 <Select.Trigger
@@ -192,6 +208,12 @@ export function OrderFilters({
                 </Select.Trigger>
                 <Select.Content>
                   <Select.Item value={ALL}>{text.reason_all}</Select.Item>
+                  {DELIVERY_OUTCOMES.map((value) => (
+                    <Select.Item key={value} value={value}>
+                      {text[`outcome_${value}`]}
+                    </Select.Item>
+                  ))}
+                  <Select.Separator />
                   {CANCELLATION_CATEGORIES.map((reason) => (
                     <Select.Item key={reason} value={reason}>
                       {text[`reason_${reason}`]}
@@ -214,6 +236,7 @@ export function OrderFilters({
                 q: undefined,
                 period: undefined,
                 cancellation_category: undefined,
+                delivery_outcome: undefined,
               })
               document.getElementById("order-search")?.focus()
             }}

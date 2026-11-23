@@ -36,6 +36,24 @@ describe("reading the Orders page address", () => {
     )
   })
 
+  it("EP: History keeps how the delivery ended", () => {
+    assert.deepEqual(
+      parseQueueQuery({ view: "history", delivery_outcome: "delivered" }),
+      { view: "history", page: 1, delivery_outcome: "delivered" },
+    )
+  })
+
+  it("EP: an Order ended one way, so a delivery outcome replaces a cancellation reason in the same address", () => {
+    assert.deepEqual(
+      parseQueueQuery({
+        view: "history",
+        delivery_outcome: "not_delivered",
+        cancellation_category: "customer_cancelled",
+      }),
+      { view: "history", page: 1, delivery_outcome: "not_delivered" },
+    )
+  })
+
   it("EP: only History is narrowed by period and reason; every view can search", () => {
     assert.deepEqual(
       parseQueueQuery({
@@ -43,6 +61,7 @@ describe("reading the Orders page address", () => {
         q: "7",
         period: "today",
         cancellation_category: "restaurant_rejected",
+        delivery_outcome: "delivered",
       }),
       { view: "active", page: 1, q: "7" },
     )
@@ -55,6 +74,7 @@ describe("reading the Orders page address", () => {
         page: "-3",
         period: "forever",
         cancellation_category: "lost",
+        delivery_outcome: "lost",
       }),
       { view: "awaiting", page: 1 },
     )
@@ -224,12 +244,31 @@ describe("links between views, pages and filters", () => {
     )
   })
 
-  it("EP: clearing the filters keeps the view and goes back to the first page", () => {
-    assert.equal(withoutFilters(filtered), "/orders?view=history")
+  it("EP: choosing a delivery outcome drops the cancellation reason", () => {
+    assert.equal(
+      queueHref(filtered, { delivery_outcome: "delivered" }),
+      "/orders?view=history&q=42&period=custom&from=2026-11-01&delivery_outcome=delivered",
+    )
   })
 
-  it("EP: only search, period or reason count as filters", () => {
+  it("EP: clearing the filters keeps the view and goes back to the first page", () => {
+    assert.equal(withoutFilters(filtered), "/orders?view=history")
+    assert.equal(
+      withoutFilters({
+        view: "history",
+        page: 2,
+        delivery_outcome: "delivered",
+      }),
+      "/orders?view=history",
+    )
+  })
+
+  it("EP: only search, period, reason or delivery outcome count as filters", () => {
     assert.equal(hasFilters({ view: "history", page: 4 }), false)
     assert.equal(hasFilters(filtered), true)
+    assert.equal(
+      hasFilters({ view: "history", page: 1, delivery_outcome: "delivered" }),
+      true,
+    )
   })
 })

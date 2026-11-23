@@ -96,6 +96,12 @@ const IntendedDelivery = model
     handover_request_id: model.text().nullable(),
     /** When the native fulfillment was marked delivered after handover. */
     native_delivered_at: model.dateTime().nullable(),
+    /**
+     * When the terminal outcome was recorded on the Order's kitchen record
+     * (#204). Null after the terminal outcome means it is still owed, and
+     * the recovery sweep records it.
+     */
+    order_outcome_recorded_at: model.dateTime().nullable(),
   })
   .indexes([
     { on: ["order_id"], unique: true },
@@ -136,6 +142,12 @@ const IntendedDelivery = model
       on: ["native_sync_queued_at"],
       where:
         "((picked_up_at IS NOT NULL AND native_fulfillment_id IS NULL) OR (terminal_outcome = 'delivered' AND native_delivered_at IS NULL))",
+    },
+    // The recovery sweep's read of ended work not yet on the Order (#204).
+    {
+      on: ["terminal_at", "id"],
+      where:
+        "terminal_outcome IS NOT NULL AND order_outcome_recorded_at IS NULL",
     },
     // The agent's own completed history, newest first.
     {

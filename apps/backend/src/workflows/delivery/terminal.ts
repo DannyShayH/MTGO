@@ -17,6 +17,7 @@ import { isActiveOrderState } from "./assignment-rules"
 import { readCompletedDeliveryStep } from "./history"
 import { deliveryAgentLockKey } from "./locks"
 import { settleNativeFulfillment } from "./native-fulfillment"
+import { recordDeliveryEndOnOrderStep } from "./order-outcome"
 import {
   HANDOVER_CONFLICTS,
   decideTermination,
@@ -103,13 +104,16 @@ const settleNativeHandoverStep = createStep(
  * The responsible agent confirms actual handover (#161; spec #48 stories 39,
  * 40, 60): ends the delivery once as delivered, frees the agent for new work,
  * synchronizes the native Order and returns the completed entry as the
- * agent's history shows it, without the Customer's contact details.
+ * agent's history shows it, without the Customer's contact details. The
+ * Order's kitchen record then records the handover (#204), so the Order
+ * leaves the Restaurant's In progress for History.
  */
 export const confirmHandoverWorkflow = createWorkflow(
   "confirm-handover",
   function (input: HandoverInput) {
     const recorded = recordHandoverStep(input)
     settleNativeHandoverStep(recorded)
+    recordDeliveryEndOnOrderStep(recorded)
     return new WorkflowResponse(
       readCompletedDeliveryStep(
         // `recorded` only orders the read after the write.
@@ -184,9 +188,21 @@ const endDeliveryStep = createStep(
   },
 )
 
+/**
+ * Ends the delivery for a caller without the Order's guard, then records
+ * the end on the Order's kitchen record (#204), as owed work that never
+ * fails the request.
+ */
 export const endDeliveryWorkflow = createWorkflow(
   "end-delivery",
   function (input: Omit<TerminationInput, "now">) {
-    return new WorkflowResponse(endDeliveryStep(input))
+    const decision = endDeliveryStep(input)
+    recordDeliveryEndOnOrderStep(
+      // `decision` only orders the record after the terminal write.
+      transform({ input, decision }, ({ input }) => ({
+        order_id: input.order_id,
+      })),
+    )
+    return new WorkflowResponse(decision)
   },
 )

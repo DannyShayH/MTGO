@@ -6,6 +6,7 @@ import {
   decideAcceptance,
   decideTransition,
   decideCancellation,
+  deliveryOutcomeOf,
   queueFilter,
   queueView,
   rejectionNote,
@@ -55,38 +56,72 @@ describe("Restaurant Orders queue views", () => {
   it.each([
     {
       view: "awaiting" as const,
-      states: ["awaiting_acceptance"],
+      where: { state: ["awaiting_acceptance"] },
       order: { acceptance_deadline: "ASC", id: "ASC" },
       reason: "EP: earliest deadline first, with a stable tie-breaker",
     },
     {
       view: "active" as const,
-      states: ["accepted", "preparing", "ready"],
+      where: {
+        state: ["accepted", "preparing", "ready"],
+        delivery_outcome: null,
+      },
       order: { placed_at: "ASC", id: "ASC" },
-      reason: "EP: active kitchen work, oldest first",
+      reason: "EP: kitchen work whose delivery has not ended, oldest first",
     },
     {
       view: "history" as const,
-      states: ["cancelled"],
+      where: {
+        $or: [{ state: ["cancelled"] }, { delivery_outcome: { $ne: null } }],
+      },
       order: { placed_at: "DESC", id: "DESC" },
-      reason: "EP: terminal Orders, newest first",
+      reason: "EP: cancelled Orders and ended deliveries, newest first",
     },
-  ])("$view holds $states: $reason", ({ view, states, order }) => {
-    expect(queueView(view)).toEqual({ states, order })
+  ])("$view: $reason", ({ view, where, order }) => {
+    expect(queueView(view)).toEqual({ where, order })
+  })
+})
+
+describe("Recording how the delivery ended on the Order", () => {
+  it.each([
+    {
+      terminal: "delivered" as const,
+      expected: "delivered",
+      reason: "EP: a confirmed handover",
+    },
+    {
+      terminal: "failed" as const,
+      expected: "not_delivered",
+      reason: "EP: an operator-confirmed failure ended it without handover",
+    },
+    {
+      terminal: "cancelled" as const,
+      expected: "not_delivered",
+      reason: "EP: the Order's cancellation ended it without handover",
+    },
+  ])("$reason: $terminal is $expected", ({ terminal, expected }) => {
+    expect(deliveryOutcomeOf(terminal)).toBe(expected)
   })
 })
 
 describe("Filtering a Restaurant's queue", () => {
   const from = new Date("2026-11-22T23:00:00.000Z")
   const to = new Date("2026-11-23T23:00:00.000Z")
+  const ACTIVE = {
+    state: ["accepted", "preparing", "ready"],
+    delivery_outcome: null,
+  }
+  const HISTORY = {
+    $or: [{ state: ["cancelled"] }, { delivery_outcome: { $ne: null } }],
+  }
 
   it.each([
     {
       view: "history" as const,
       filters: {},
       orderIds: undefined,
-      expected: { restaurant_id: "res_1", state: ["cancelled"] },
-      reason: "EP: without filters, only the Restaurant and the view's states",
+      expected: { restaurant_id: "res_1", ...HISTORY },
+      reason: "EP: without filters, only the Restaurant and the view's Orders",
     },
     {
       view: "history" as const,
@@ -94,7 +129,7 @@ describe("Filtering a Restaurant's queue", () => {
       orderIds: undefined,
       expected: {
         restaurant_id: "res_1",
-        state: ["cancelled"],
+        ...HISTORY,
         placed_at: { $gte: from, $lt: to },
       },
       reason: "EP: a placement window is from inclusive and to exclusive",
@@ -105,7 +140,7 @@ describe("Filtering a Restaurant's queue", () => {
       orderIds: undefined,
       expected: {
         restaurant_id: "res_1",
-        state: ["accepted", "preparing", "ready"],
+        ...ACTIVE,
         placed_at: { $gte: from },
       },
       reason: "BVA: a window open at the end keeps only its start",
@@ -116,7 +151,7 @@ describe("Filtering a Restaurant's queue", () => {
       orderIds: undefined,
       expected: {
         restaurant_id: "res_1",
-        state: ["accepted", "preparing", "ready"],
+        ...ACTIVE,
         placed_at: { $lt: to },
       },
       reason: "BVA: a window open at the start keeps only its end",
@@ -127,10 +162,23 @@ describe("Filtering a Restaurant's queue", () => {
       orderIds: undefined,
       expected: {
         restaurant_id: "res_1",
-        state: ["cancelled"],
+        ...HISTORY,
         cancellation_category: "acceptance_timeout",
       },
       reason: "EP: a cancellation category narrows by why the Order ended",
+    },
+    {
+      view: "history" as const,
+      filters: { delivery_outcome: "delivered" as const },
+      orderIds: undefined,
+      expected: {
+        restaurant_id: "res_1",
+        ...HISTORY,
+        delivery_outcome: "delivered",
+        state: { $ne: "cancelled" },
+      },
+      reason:
+        "EP: a delivery outcome leaves out cancelled Orders, whose cancellation is why they ended",
     },
     {
       view: "awaiting" as const,

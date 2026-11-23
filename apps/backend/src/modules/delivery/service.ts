@@ -1358,6 +1358,28 @@ class DeliveryModuleService extends MedusaService({
     )
   }
 
+  /**
+   * Marks the terminal outcome as recorded on the Order's kitchen record
+   * (#204), once; the recovery sweep stops reading it.
+   */
+  @InjectManager()
+  async markOrderOutcomeRecorded(
+    input: { order_id: string; now: Date },
+    @MedusaContext() context: Context = {},
+  ) {
+    await this.updateIntendedDeliveries(
+      {
+        selector: {
+          order_id: input.order_id,
+          terminal_outcome: { $ne: null },
+          order_outcome_recorded_at: null,
+        },
+        data: { order_outcome_recorded_at: input.now },
+      },
+      context,
+    )
+  }
+
   /** Records the native fulfillment once; a later write never replaces it. */
   @InjectManager()
   async recordNativePickup(

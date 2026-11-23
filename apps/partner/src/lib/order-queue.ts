@@ -20,6 +20,10 @@ export const CANCELLATION_CATEGORIES = [
 ] as const
 export type CancellationCategory = (typeof CANCELLATION_CATEGORIES)[number]
 
+/** How an Order's delivery ended (#204), as History filters it. */
+export const DELIVERY_OUTCOMES = ["delivered", "not_delivered"] as const
+export type DeliveryOutcome = (typeof DELIVERY_OUTCOMES)[number]
+
 export type QueueQuery = {
   view: OrderView
   page: number
@@ -32,6 +36,11 @@ export type QueueQuery = {
   to?: string
   /** History only. */
   cancellation_category?: CancellationCategory
+  /**
+   * History only. An Order ended one way, so this and
+   * `cancellation_category` are never both set.
+   */
+  delivery_outcome?: DeliveryOutcome
 }
 
 /** The longest Order number the backend accepts. */
@@ -88,24 +97,34 @@ export function parseQueueQuery(
     if (from) query.from = from
     if (to) query.to = to
   }
+  const outcome = oneOf(DELIVERY_OUTCOMES, first("delivery_outcome"))
   const category = oneOf(
     CANCELLATION_CATEGORIES,
     first("cancellation_category"),
   )
-  if (category) query.cancellation_category = category
+  if (outcome) query.delivery_outcome = outcome
+  else if (category) query.cancellation_category = category
   return query
 }
 
 export const hasFilters = (query: QueueQuery) =>
-  Boolean(query.q || query.period || query.cancellation_category)
+  Boolean(
+    query.q ||
+    query.period ||
+    query.cancellation_category ||
+    query.delivery_outcome,
+  )
 
 /**
  * The address of the query after `change`. Any change other than the page
- * goes back to the first page, and leaving the custom period drops its dates.
+ * goes back to the first page, leaving the custom period drops its dates, and
+ * choosing a delivery outcome or a cancellation reason replaces the other.
  */
 export function queueHref(query: QueueQuery, change: Partial<QueueQuery> = {}) {
   const next = { ...query, ...change }
   if (!("page" in change)) next.page = 1
+  if (change.delivery_outcome) delete next.cancellation_category
+  if (change.cancellation_category) delete next.delivery_outcome
   if (next.period !== "custom") {
     delete next.from
     delete next.to
@@ -118,6 +137,7 @@ export function queueHref(query: QueueQuery, change: Partial<QueueQuery> = {}) {
     "from",
     "to",
     "cancellation_category",
+    "delivery_outcome",
   ] as const) {
     const value = next[key]
     if (value) params.set(key, value)
@@ -125,12 +145,13 @@ export function queueHref(query: QueueQuery, change: Partial<QueueQuery> = {}) {
   return `/orders?${params}`
 }
 
-/** The same view without search, period or reason. */
+/** The same view without search, period, reason or delivery outcome. */
 export const withoutFilters = (query: QueueQuery) =>
   queueHref(query, {
     q: undefined,
     period: undefined,
     cancellation_category: undefined,
+    delivery_outcome: undefined,
   })
 
 const COPENHAGEN_DAY = new Intl.DateTimeFormat("en-CA", {

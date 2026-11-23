@@ -269,7 +269,10 @@ repeat, with the same or a new `request_id`, returns the original entry.
 A handover also marks the native fulfillment delivered through
 `markOrderFulfillmentAsDeliveredWorkflow`; the Order's `fulfillment_status`
 becomes `delivered`. A failure there never fails the request; the
-`recover-delivery-fulfillments` job finishes it.
+`recover-delivery-fulfillments` job finishes it. The handover is then
+recorded on the Order's kitchen record (#204), so it moves from the
+Restaurant's `active` view to `history`; a failure there never fails the
+request either, and the `recover-order-delivery-outcomes` job finishes it.
 
 ### GET /partner/delivery-agent/history
 
@@ -1674,15 +1677,16 @@ comes from the staff record, never from the request. Ownership is the
 Restaurant recorded at placement, so a closed or deactivated Restaurant's staff
 still see its existing Orders.
 
-| Query                   | Values                                                                                             |
-| ----------------------- | -------------------------------------------------------------------------------------------------- |
-| `view`                  | `awaiting` (default), `active` or `history`                                                        |
-| `limit`                 | 1 to 50, default 20                                                                                |
-| `offset`                | 0 or more, default 0                                                                               |
-| `q`                     | Optional Order number, `42` or `#42` (up to 9 digits)                                              |
-| `placed_from`           | Optional ISO time with offset; paid placement at or after it                                       |
-| `placed_to`             | Optional ISO time with offset; paid placement before it (exclusive), and after `placed_from`       |
-| `cancellation_category` | Optional `restaurant_rejected`, `acceptance_timeout`, `customer_cancelled` or `unassigned_timeout` |
+| Query                   | Values                                                                                               |
+| ----------------------- | ---------------------------------------------------------------------------------------------------- |
+| `view`                  | `awaiting` (default), `active` or `history`                                                          |
+| `limit`                 | 1 to 50, default 20                                                                                  |
+| `offset`                | 0 or more, default 0                                                                                 |
+| `q`                     | Optional Order number, `42` or `#42` (up to 9 digits)                                                |
+| `placed_from`           | Optional ISO time with offset; paid placement at or after it                                         |
+| `placed_to`             | Optional ISO time with offset; paid placement before it (exclusive), and after `placed_from`         |
+| `cancellation_category` | Optional `restaurant_rejected`, `acceptance_timeout`, `customer_cancelled` or `unassigned_timeout`   |
+| `delivery_outcome`      | Optional `delivered` or `not_delivered`; Orders whose delivery ended that way and were not cancelled |
 
 The filters combine and narrow the view; `count` is the filtered total, so
 pagination follows the filter. A number is matched only among the staff
@@ -1690,11 +1694,11 @@ member's own Restaurant's Orders, so another Restaurant's Order with that
 number is never found. Legacy Orders without a recorded placement never match a
 placement window. Anything else is refused with `400`.
 
-| View       | Operational states               | Order                                                                      |
-| ---------- | -------------------------------- | -------------------------------------------------------------------------- |
-| `awaiting` | `awaiting_acceptance`            | Earliest `acceptance_deadline` first, then `id`; no deadline (legacy) last |
-| `active`   | `accepted`, `preparing`, `ready` | Oldest `placed_at` first, then `id`                                        |
-| `history`  | `cancelled`                      | Newest `placed_at` first, then `id`                                        |
+| View       | Orders                                                                | Order                                                                      |
+| ---------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `awaiting` | `awaiting_acceptance`                                                 | Earliest `acceptance_deadline` first, then `id`; no deadline (legacy) last |
+| `active`   | `accepted`, `preparing` or `ready`, and the delivery has not ended    | Oldest `placed_at` first, then `id`                                        |
+| `history`  | `cancelled`, or the delivery ended (delivered or not delivered, #204) | Newest `placed_at` first, then `id`                                        |
 
 ```bash
 curl "http://localhost:9000/partner/orders?view=awaiting&limit=20" \
@@ -1782,7 +1786,12 @@ recorded milestone times, `null` until recorded; the actors stay in the record.
 `available_actions` lists what staff may do at `server_time`: `["accept",
 "reject"]` while awaiting and the window is open, `["start_preparation"]` once
 accepted, `["ready"]` while preparing, otherwise `[]`. The action routes decide
-again when they receive the request. Amounts include VAT, as menu prices do (ADR-0012). Item
+again when they receive the request. `delivery` is `null` until the Order's
+delivery ends, then `{ "outcome": "delivered" | "not_delivered", "ended_at":
+"..." }` (#204): the handover, or a delivery that ended without it
+(cancelled or failed), at the delivery's own terminal time. `state` stays
+`ready`, the kitchen's last step. A cancelled Order keeps its `cancellation`
+as the reason it ended, and the `delivery_outcome` filter leaves it out. Amounts include VAT, as menu prices do (ADR-0012). Item
 `name`, quantities and prices are Medusa's purchase snapshot (`name` is the
 retained English title).
 

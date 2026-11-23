@@ -7,7 +7,8 @@ import { GetPartnerOrdersQuery } from "../validators"
 
 /**
  * The signed-in staff member's Restaurant queue, one view and page at a time,
- * optionally narrowed by Order number, placement window and cancellation reason.
+ * optionally narrowed by Order number, placement window, cancellation reason
+ * and how the delivery ended.
  */
 export async function GET(
   req: AuthenticatedMedusaRequest<unknown, GetPartnerOrdersQuery>,
@@ -21,6 +22,7 @@ export async function GET(
     placed_from,
     placed_to,
     cancellation_category,
+    delivery_outcome,
   } = req.validatedQuery as GetPartnerOrdersQuery
   const { result } = await listPartnerOrdersWorkflow(req.scope).run({
     input: {
@@ -29,7 +31,12 @@ export async function GET(
       limit,
       offset,
       display_id: q,
-      filters: { placed_from, placed_to, cancellation_category },
+      filters: {
+        placed_from,
+        placed_to,
+        cancellation_category,
+        delivery_outcome,
+      },
     },
   })
   res.json(result)

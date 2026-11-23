@@ -41,7 +41,7 @@ describe("RoutingModuleService", () => {
     const [url, init] = fetchMock.mock.calls[0]
     const parsed = new URL(String(url))
     expect(parsed.origin + parsed.pathname).toBe(
-      "https://ors.example/geocode/search/structured",
+      "https://ors.example/pelias/v1/search/structured",
     )
     // A postal district such as "København N" makes the geocoder fall back
     // to the whole country, so only the postal code places the street.
@@ -140,7 +140,7 @@ describe("RoutingModuleService", () => {
     expect(await service().tripDistance(pickup, customer)).toBe(3200)
     const [url, init] = fetchMock.mock.calls[0]
     expect(String(url)).toBe(
-      "https://ors.example/v2/directions/cycling-regular",
+      "https://ors.example/openrouteservice/v2/directions/cycling-regular",
     )
     expect(JSON.parse(String(init?.body))).toEqual({
       coordinates: [
@@ -159,7 +159,9 @@ describe("RoutingModuleService", () => {
       await service().distancesFrom(origin, [pickup, customer, pickup]),
     ).toEqual([1200, null, 100])
     const [url, init] = fetchMock.mock.calls[0]
-    expect(String(url)).toBe("https://ors.example/v2/matrix/cycling-regular")
+    expect(String(url)).toBe(
+      "https://ors.example/openrouteservice/v2/matrix/cycling-regular",
+    )
     expect(JSON.parse(String(init?.body))).toEqual({
       locations: [
         [12.57, 55.68],
@@ -172,6 +174,19 @@ describe("RoutingModuleService", () => {
       metrics: ["distance"],
       units: "m",
     })
+  })
+
+  it("calls HeiGIT's API by default, since api.openrouteservice.org is deprecated", async () => {
+    fetchMock.mockResolvedValue(address(exact))
+    await service({ base_url: undefined }).geocode({
+      street: "Nørrebrogade 1",
+      postal_code: "2200",
+      city: "København N",
+    })
+    const parsed = new URL(String(fetchMock.mock.calls[0][0]))
+    expect(parsed.origin + parsed.pathname).toBe(
+      "https://api.heigit.org/pelias/v1/search/structured",
+    )
   })
 
   it("makes no call for an empty list of pickups", async () => {
@@ -205,7 +220,7 @@ describe("RoutingModuleService", () => {
       key === "time" ? undefined : value,
     )
     expect(logged).toContain("upstream.request.failed")
-    expect(logged).toContain("/v2/matrix/:profile")
+    expect(logged).toContain("/openrouteservice/v2/matrix/:profile")
     expect(logged).not.toMatch(/55\.|12\.5|ors-key|ors\.example/)
   })
 

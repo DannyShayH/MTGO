@@ -24,6 +24,33 @@ export function OrderStateBadge({
   )
 }
 
+export const DELIVERY_OUTCOME_COLORS = {
+  delivered: "green",
+  not_delivered: "orange",
+} as const
+
+/**
+ * Where the Order stands for staff: how its delivery ended once it has
+ * (#204), otherwise the kitchen state. A cancellation stays the outcome of a
+ * cancelled Order.
+ */
+export function OrderStatusBadge({
+  order,
+  locale,
+}: {
+  order: RestaurantOrder
+  locale: Locale
+}) {
+  if (!order.delivery || order.cancellation)
+    return <OrderStateBadge state={order.state} locale={locale} />
+  const { outcome } = order.delivery
+  return (
+    <Badge size="small" color={DELIVERY_OUTCOME_COLORS[outcome]}>
+      {ORDER_TEXT[locale][`outcome_${outcome}`]}
+    </Badge>
+  )
+}
+
 /**
  * The deadline as the backend decided it at read time. It only reports; it
  * never accepts, cancels or claims a later milestone (#140). A legacy Order

@@ -358,6 +358,20 @@ A failure never fails the request; the recovery sweep reads delivered work
 without `native_delivered_at` as well as pickups without a fulfillment.
 Cancelled or failed work is never marked delivered.
 
+Every ended delivery is also recorded on the Order's kitchen record (#204):
+`recordDeliveryEndOnOrder` (`src/workflows/delivery/order-outcome.ts`) copies
+the outcome (`delivered`, or `not_delivered` for cancelled and failed work)
+and `terminal_at` onto the Order Operations record under the Order's guard,
+with a newer revision, then sets `order_outcome_recorded_at`. The handover and
+`endDeliveryWorkflow` run it right after the terminal write; it has no
+compensation and never fails their request (ADR-0021). Ended work without
+`order_outcome_recorded_at`, including cancellations ended inside the Order's
+own guard, is recorded by the `recover-order-delivery-outcomes` job (every
+minute, 50 per sweep, oldest `terminal_at` first). The
+`order-delivery-outcomes` migration script runs the same sweep until nothing
+is owed, so work that ended before #204 leaves the kitchen's In progress view
+on deploy. Neither module imports the other: the workflow writes to both.
+
 The agent's own history (`src/workflows/delivery/history.ts`) reads ended
 work by `assigned_agent_id`, newest `terminal_at` first, filtered and paged
 in the module query. Each entry has only the Order reference, Restaurant,

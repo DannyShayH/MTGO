@@ -25,6 +25,13 @@ export const CANCELLATION_CATEGORIES = [
 export type CancellationCategory = (typeof CANCELLATION_CATEGORIES)[number]
 
 /**
+ * How the Order's delivery ended, as the kitchen sees it (#204): the food was
+ * handed over, or the delivery ended without it (cancelled or failed).
+ */
+export const DELIVERY_OUTCOMES = ["delivered", "not_delivered"] as const
+export type DeliveryOutcome = (typeof DELIVERY_OUTCOMES)[number]
+
+/**
  * One per paid Order: its existence is the immutable paid-placement fact.
  * `order_id` and `restaurant_id` never change after creation. A legacy Order
  * placed before this record existed has no `placed_at` or deadline.
@@ -68,6 +75,13 @@ const OrderOperation = model
     cancellation_note: model.text().nullable(),
     /** When native Order cancellation, reservations and payment collection were synchronized. */
     native_cancelled_at: model.dateTime().nullable(),
+    /**
+     * The end of the Order's delivery (#204), copied once from the delivery's
+     * terminal outcome and time and never moved. Null while the delivery has
+     * not ended. Separate from `state`, which ends with the kitchen at `ready`.
+     */
+    delivery_outcome: model.enum([...DELIVERY_OUTCOMES]).nullable(),
+    delivery_ended_at: model.dateTime().nullable(),
   })
   .indexes([
     { on: ["order_id"], unique: true },

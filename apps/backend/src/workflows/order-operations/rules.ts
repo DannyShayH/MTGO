@@ -1,8 +1,11 @@
 import {
   CANCELLATION_CATEGORIES,
+  DELIVERY_OUTCOMES,
   type CancellationCategory,
+  type DeliveryOutcome,
   type OrderOperationState,
 } from "../../modules/order-operation/models/order-operation"
+import type { TerminalOutcome } from "../../modules/delivery/models/intended-delivery"
 import { DEACTIVATION_REASON_MAX_LENGTH } from "../restaurants/deactivation-reason"
 
 /** Staff must accept strictly before paid placement plus five minutes (ADR-0009). */
@@ -261,30 +264,51 @@ export const customerActions = (
     : []
 }
 
-export { CANCELLATION_CATEGORIES }
+export { CANCELLATION_CATEGORIES, DELIVERY_OUTCOMES }
+
+/**
+ * How the kitchen records a delivery's terminal outcome (#204): handed over,
+ * or ended without handover, whether cancelled or failed.
+ */
+export const deliveryOutcomeOf = (
+  terminal: TerminalOutcome,
+): DeliveryOutcome => (terminal === "delivered" ? "delivered" : "not_delivered")
 
 export const QUEUE_VIEWS = ["awaiting", "active", "history"] as const
 export type QueueView = (typeof QUEUE_VIEWS)[number]
 
 type Direction = "ASC" | "DESC"
 
-const VIEWS: Record<
-  QueueView,
-  { states: OrderOperationState[]; order: Record<string, Direction> }
-> = {
+const VIEWS = {
   // Legacy Orders without a deadline sort last (PostgreSQL puts NULL last in ASC).
   awaiting: {
-    states: ["awaiting_acceptance"],
+    where: { state: ["awaiting_acceptance"] },
     order: { acceptance_deadline: "ASC", id: "ASC" },
   },
+  // Kitchen work leaves when its delivery ends (#204), even though the
+  // kitchen's own state stays `ready`.
   active: {
-    states: ["accepted", "preparing", "ready"],
+    where: {
+      state: ["accepted", "preparing", "ready"],
+      delivery_outcome: null,
+    },
     order: { placed_at: "ASC", id: "ASC" },
   },
-  history: { states: ["cancelled"], order: { placed_at: "DESC", id: "DESC" } },
-}
+  history: {
+    where: {
+      $or: [{ state: ["cancelled"] }, { delivery_outcome: { $ne: null } }],
+    },
+    order: { placed_at: "DESC", id: "DESC" },
+  },
+} as const satisfies Record<
+  QueueView,
+  {
+    where: Record<string, unknown>
+    order: Record<string, Direction>
+  }
+>
 
-/** Which operational states a queue view shows, and in which order. */
+/** Which Orders a queue view shows, and in which order. */
 export const queueView = (view: QueueView) => VIEWS[view]
 
 /** Optional narrowing of a queue view; the Restaurant always comes from the staff record. */
@@ -294,6 +318,8 @@ export type QueueFilters = {
   /** Exclusive upper bound, so consecutive days never overlap. */
   placed_to?: Date
   cancellation_category?: CancellationCategory
+  /** History only: how the delivery ended, for Orders that were not cancelled. */
+  delivery_outcome?: DeliveryOutcome
 }
 
 /**
@@ -307,10 +333,11 @@ export function queueFilter(
   filters: QueueFilters,
   orderIds?: string[],
 ) {
-  const { placed_from, placed_to, cancellation_category } = filters
+  const { placed_from, placed_to, cancellation_category, delivery_outcome } =
+    filters
   return {
     restaurant_id,
-    state: queueView(view).states,
+    ...queueView(view).where,
     ...((placed_from || placed_to) && {
       placed_at: {
         ...(placed_from && { $gte: placed_from }),
@@ -318,6 +345,8 @@ export function queueFilter(
       },
     }),
     ...(cancellation_category && { cancellation_category }),
+    // A cancellation is why a cancelled Order ended, whatever its delivery did.
+    ...(delivery_outcome && { delivery_outcome, state: { $ne: "cancelled" } }),
     ...(orderIds && { order_id: orderIds }),
   }
 }

@@ -6,11 +6,16 @@ import { PARTNER_TOKEN_COOKIE, sdk } from "@lib/config"
 import { log } from "@lib/logger"
 import { sessionEndedCode } from "./staff"
 
-import type { CancellationCategory, OrderView } from "@lib/order-queue"
+import type {
+  CancellationCategory,
+  DeliveryOutcome,
+  OrderView,
+} from "@lib/order-queue"
 
 export {
   ORDER_VIEWS,
   type CancellationCategory,
+  type DeliveryOutcome,
   type OrderView,
 } from "@lib/order-queue"
 export const ORDERS_PAGE_SIZE = 20
@@ -21,6 +26,7 @@ export type OrderFilters = {
   placed_from?: string
   placed_to?: string
   cancellation_category?: CancellationCategory
+  delivery_outcome?: DeliveryOutcome
 }
 
 export type OrderState =
@@ -87,6 +93,11 @@ export type RestaurantOrder = {
     effective_at: string
     note: string | null
   } | null
+  /**
+   * How and when the delivery ended (#204); null while it has not. A
+   * cancelled Order's cancellation stays the reason it ended.
+   */
+  delivery: { outcome: DeliveryOutcome; ended_at: string } | null
   /** The owed full refund; `failed` means still owed, never money returned. */
   refund: {
     status: "pending" | "failed" | "succeeded"

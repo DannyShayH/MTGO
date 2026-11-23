@@ -2,6 +2,7 @@ import { z } from "@medusajs/framework/zod"
 import { PROBLEM_CATEGORIES } from "../../modules/delivery/models/delivery-attention"
 import {
   CANCELLATION_CATEGORIES,
+  DELIVERY_OUTCOMES,
   QUEUE_VIEWS,
   REJECTION_REASON_MAX_LENGTH,
   rejectionNote,
@@ -31,7 +32,8 @@ export type DeletePartnerCategoryBody = z.infer<typeof categoryDeleteSchema>
 /**
  * One bounded page of one queue view; awaiting is the kitchen's default.
  * `q` is an Order number as staff read it (`42` or `#42`); the placement
- * window is from inclusive, to exclusive.
+ * window is from inclusive, to exclusive. `delivery_outcome` narrows to
+ * Orders whose delivery ended that way and that were not cancelled (#204).
  */
 export const GetPartnerOrdersSchema = z
   .strictObject({
@@ -53,6 +55,7 @@ export const GetPartnerOrdersSchema = z
       .transform((value) => new Date(value))
       .optional(),
     cancellation_category: z.enum(CANCELLATION_CATEGORIES).optional(),
+    delivery_outcome: z.enum(DELIVERY_OUTCOMES).optional(),
   })
   .refine(
     ({ placed_from, placed_to }) =>

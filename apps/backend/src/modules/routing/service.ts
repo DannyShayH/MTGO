@@ -21,7 +21,14 @@ export type RoutingOptions = {
   timeout_ms?: number
 }
 
-const DEFAULT_BASE_URL = "https://api.openrouteservice.org"
+/**
+ * HeiGIT's API, which replaced api.openrouteservice.org (deprecated in 2026,
+ * then limited to a tenth of the plan quota). The same key works on it.
+ */
+const DEFAULT_BASE_URL = "https://api.heigit.org"
+/** Geocoding (Pelias) and routing sit under their own paths on that host. */
+const GEOCODE_PATH = "/pelias/v1/search/structured"
+const ROUTING_PATH = "/openrouteservice/v2"
 const DEFAULT_PROFILE = "cycling-regular"
 const DEFAULT_TIMEOUT_MS = 3000
 
@@ -97,8 +104,8 @@ export default class RoutingModuleService {
       size: "1",
     })
     const body = (await this.request(
-      "/geocode/search/structured",
-      `/geocode/search/structured?${query}`,
+      GEOCODE_PATH,
+      `${GEOCODE_PATH}?${query}`,
     )) as {
       features?: {
         geometry?: { coordinates?: unknown[] }
@@ -120,8 +127,8 @@ export default class RoutingModuleService {
     to: Coordinates,
   ): Promise<number | null> {
     const body = (await this.request(
-      "/v2/directions/:profile",
-      `/v2/directions/${this.options_.profile}`,
+      `${ROUTING_PATH}/directions/:profile`,
+      `${ROUTING_PATH}/directions/${this.options_.profile}`,
       {
         coordinates: [lonLat(from), lonLat(to)],
         instructions: false,
@@ -139,8 +146,8 @@ export default class RoutingModuleService {
   ): Promise<(number | null)[]> {
     if (!destinations.length) return []
     const body = (await this.request(
-      "/v2/matrix/:profile",
-      `/v2/matrix/${this.options_.profile}`,
+      `${ROUTING_PATH}/matrix/:profile`,
+      `${ROUTING_PATH}/matrix/${this.options_.profile}`,
       {
         locations: [origin, ...destinations].map(lonLat),
         sources: [0],

@@ -322,24 +322,31 @@ on hover where hover exists) with the Order reference (`#display_id`). An
 Awaiting row leads with the deadline line in larger type, since every Order in
 that view awaits acceptance, then the placement time and each purchased dish
 with its quantity on its own line. In progress rows show the state badge and
-the dishes on one wrapping line next to the placement time. History rows show
-the date and time of placement (or of cancellation for an Order placed before
-placement times were recorded), why it was cancelled, the refund badge, the
-Order total and the dishes. In the other views a placement time carries its
+the dishes on one wrapping line next to the placement time. An Order leaves
+In progress once its delivery ends (#204), on the next live update. History
+holds cancelled Orders and Orders whose delivery ended. Its rows show the date
+and time of placement (or of cancellation for an Order placed before
+placement times were recorded), how the Order ended (a green **Delivered
+18:42** or orange **Not delivered 18:42** badge with the delivery's end, or
+why it was cancelled), the refund badge, the Order total and the dishes. In the other views a placement time carries its
 date when it was not today on the backend's clock. The Awaiting tab carries the
 number of Orders awaiting acceptance, and the footer says "1–20 of 50" with
 "Page 1 of 3" and Previous/Next. The detail page shows the recorded milestones
 as a timeline (placement with its date, then Accepted, Preparation started and
-Ready, with the newest filled) and adds unit prices, line totals and the
+Ready, with the newest filled). Once the delivery has ended the timeline ends
+with **Delivered {time}** or **Not delivered {time}** instead of the next-step
+line, and the header badge shows that outcome and adds unit prices, line totals and the
 Order total including VAT.
 
 ### Finding Orders
 
 Every view has a search field for the Order number (`1042` or `#1042`).
 History adds a period (Today, Yesterday, Last 7 days, Last 30 days or chosen
-dates, from and to inclusive) and the cancellation reason (Rejected by you,
-Not accepted in time, Cancelled by the Customer, No Delivery agent found).
-The choices live in the address (`q`, `period`, `from`, `to`, `cancellation_category`, rules
+dates, from and to inclusive) and the outcome: Delivered or Not delivered
+(#204), then the cancellation reasons (Rejected by you, Not accepted in time,
+Cancelled by the Customer, No Delivery agent found). The choices live in the
+address (`q`, `period`, `from`, `to`, and `delivery_outcome` or
+`cancellation_category`, never both; rules
 in `src/lib/order-queue.ts`), so a result survives a reload and the live
 refreshes, and changing a filter returns to page 1. Days are Copenhagen
 calendar days, worked out on the server when the page renders, and sent to

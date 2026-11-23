@@ -1764,6 +1764,22 @@
           "enumItems": [],
           "mappedType": "datetime"
         },
+        "order_outcome_recorded_at": {
+          "name": "order_outcome_recorded_at",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": 6,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "datetime"
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamptz",
@@ -1905,6 +1921,15 @@
           "primary": false,
           "unique": false,
           "expression": "CREATE INDEX IF NOT EXISTS \"IDX_intended_delivery_native_sync_queued_at\" ON \"intended_delivery\" (\"native_sync_queued_at\") WHERE ((picked_up_at IS NOT NULL AND native_fulfillment_id IS NULL) OR (terminal_outcome = 'delivered' AND native_delivered_at IS NULL)) AND deleted_at IS NULL"
+        },
+        {
+          "keyName": "IDX_intended_delivery_terminal_at_id",
+          "columnNames": [],
+          "composite": false,
+          "constraint": false,
+          "primary": false,
+          "unique": false,
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_intended_delivery_terminal_at_id\" ON \"intended_delivery\" (\"terminal_at\", \"id\") WHERE terminal_outcome IS NOT NULL AND order_outcome_recorded_at IS NULL AND deleted_at IS NULL"
         },
         {
           "keyName": "IDX_intended_delivery_assigned_agent_id_terminal_at_id",

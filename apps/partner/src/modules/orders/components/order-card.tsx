@@ -10,7 +10,11 @@ import {
 import { Badge, Text } from "@medusajs/ui"
 import { TriangleRightMini } from "@medusajs/icons"
 import type { OrderView, RestaurantOrder } from "@lib/data/orders"
-import { AcceptanceDeadline, OrderStateBadge } from "./order-status"
+import {
+  AcceptanceDeadline,
+  DELIVERY_OUTCOME_COLORS,
+  OrderStateBadge,
+} from "./order-status"
 import { pickPurchasedName } from "./purchased-food"
 import { REFUND_COLORS } from "./cancellation-outcome"
 import { NewOrderMark } from "./arrival-alerts"
@@ -62,8 +66,9 @@ function DishSummary({
  * One row of the queue, with the whole row as one link to the Order's
  * details. Awaiting rows lead with the deadline (their state goes without
  * saying in that view) and list every dish; In progress rows show the state;
- * History rows show the date, why the Order ended, the refund and the total,
- * since staff look them up after the fact.
+ * History rows show the date, how the Order ended (delivered, not delivered
+ * or why it was cancelled), the refund and the total, since staff look them
+ * up after the fact.
  */
 export function OrderCard({
   order,
@@ -87,6 +92,8 @@ export function OrderCard({
           time: formatOrderDateTime(order.cancellation.cancelled_at, locale),
         })
       : null
+  // A cancellation is why a cancelled Order ended, whatever its delivery did.
+  const delivery = !order.cancellation && order.delivery
   const placed = when && (
     <Text size="small" className="text-ui-fg-subtle tabular-nums">
       {when}
@@ -151,6 +158,21 @@ export function OrderCard({
                 {order.cancellation && (
                   <Badge size="small" color="grey">
                     {text[`reason_${order.cancellation.category}`]}
+                  </Badge>
+                )}
+                {delivery && (
+                  <Badge
+                    size="small"
+                    color={DELIVERY_OUTCOME_COLORS[delivery.outcome]}
+                    className="tabular-nums"
+                  >
+                    {formatText(text[`${delivery.outcome}_at`], {
+                      time:
+                        order.placed_at &&
+                        isSameOrderDay(delivery.ended_at, order.placed_at)
+                          ? formatOrderTime(delivery.ended_at, locale)
+                          : formatOrderDateTime(delivery.ended_at, locale),
+                    })}
                   </Badge>
                 )}
                 {order.refund && (

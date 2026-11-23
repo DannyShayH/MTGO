@@ -49,6 +49,7 @@ export default async function OrdersPage({
         q: query.q,
         ...placement,
         cancellation_category: query.cancellation_category,
+        delivery_outcome: query.delivery_outcome,
       })
   const pages = result
     ? Math.max(1, Math.ceil(result.count / ORDERS_PAGE_SIZE))

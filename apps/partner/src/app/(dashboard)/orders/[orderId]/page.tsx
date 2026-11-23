@@ -7,7 +7,7 @@ import { requireCurrentStaff } from "@lib/data/staff"
 import { retrieveOrder } from "@lib/data/orders"
 import {
   AcceptanceDeadline,
-  OrderStateBadge,
+  OrderStatusBadge,
 } from "@modules/orders/components/order-status"
 import {
   PurchasedFood,
@@ -20,7 +20,7 @@ import { CancellationOutcome } from "@modules/orders/components/cancellation-out
 import { OrderTimeline } from "@modules/orders/components/order-timeline"
 import { orderMoney as money } from "@modules/orders/money"
 
-/** Active kitchen work: only an operator can cancel it now (#49). */
+/** Active kitchen work: only an operator can cancel it now (#49), until its delivery ends. */
 const ACCEPTED_STATES = new Set(["accepted", "preparing", "ready"])
 
 const LINK_CLASS =
@@ -77,6 +77,9 @@ export default async function OrderPage({
   const hasNextStep = order.available_actions.some(
     (action) => action !== "reject",
   )
+  // After handover, or a delivery that ended without it, nothing is left
+  // for the kitchen or the agent (#204): the timeline ends with that outcome.
+  const awaitsPickup = order.state === "ready" && !order.delivery
   return (
     <div className="flex max-w-4xl flex-col gap-4">
       <BackLink locale={locale} />
@@ -84,7 +87,7 @@ export default async function OrderPage({
         <Heading level="h1">
           {formatText(text.reference, { number: order.display_id })}
         </Heading>
-        <OrderStateBadge state={order.state} locale={locale} />
+        <OrderStatusBadge order={order} locale={locale} />
       </header>
       <LiveOrders
         locale={locale}
@@ -107,7 +110,7 @@ export default async function OrderPage({
             order={order}
             locale={locale}
             next={
-              isAwaiting || hasNextStep || order.state === "ready" ? (
+              isAwaiting || hasNextStep || awaitsPickup ? (
                 <div className="flex flex-col gap-y-3">
                   {isAwaiting && (
                     <AcceptanceDeadline
@@ -117,7 +120,7 @@ export default async function OrderPage({
                     />
                   )}
                   {/* After Ready the next step is the Delivery agent's. */}
-                  {order.state === "ready" && (
+                  {awaitsPickup && (
                     <Text size="small" weight="plus">
                       {text.next_pickup}
                     </Text>
@@ -141,7 +144,7 @@ export default async function OrderPage({
           {!isAwaiting && (
             <div className="flex flex-col gap-y-1 empty:hidden">
               <AcceptanceDeadline order={order} locale={locale} detailed />
-              {ACCEPTED_STATES.has(order.state) && (
+              {ACCEPTED_STATES.has(order.state) && !order.delivery && (
                 <Text size="small" className="text-ui-fg-subtle max-w-prose">
                   {formatText(text.operator_boundary, {
                     number: order.display_id,

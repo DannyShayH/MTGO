@@ -27,7 +27,10 @@ import {
   refundOutcomesOf,
   RefundOutcomeView,
 } from "../outcomes"
-import type { CancellationCategory } from "../../../modules/order-operation/models/order-operation"
+import type {
+  CancellationCategory,
+  DeliveryOutcome,
+} from "../../../modules/order-operation/models/order-operation"
 
 type OperationRow = {
   order_id: string
@@ -41,6 +44,8 @@ type OperationRow = {
   cancelled_at: Date | string | null
   cancellation_category: CancellationCategory | null
   cancellation_note: string | null
+  delivery_outcome: DeliveryOutcome | null
+  delivery_ended_at: Date | string | null
 }
 
 type OrderRow = {
@@ -81,6 +86,11 @@ export type RestaurantOrder = {
         note: string | null
       })
     | null
+  /**
+   * How and when the Order's delivery ended (#204); null while it has not.
+   * A cancelled Order's cancellation stays the reason it ended.
+   */
+  delivery: { outcome: DeliveryOutcome; ended_at: string } | null
   /** The owed full refund's outcome, independent of the provider's refund rows. */
   refund: RefundOutcomeView
   /** The MTOGO-funded prepared-food credit this Order owes the Restaurant (#162). */
@@ -111,6 +121,8 @@ const OPERATION_FIELDS = [
   "cancelled_at",
   "cancellation_category",
   "cancellation_note",
+  "delivery_outcome",
+  "delivery_ended_at",
 ] as const
 
 const ORDER_FIELDS = [
@@ -157,6 +169,12 @@ function toRestaurantOrder(
       ...cancellation,
       note: operation.cancellation_note,
     },
+    delivery: operation.delivery_outcome
+      ? {
+          outcome: operation.delivery_outcome,
+          ended_at: iso(operation.delivery_ended_at)!,
+        }
+      : null,
     refund: refund ?? null,
     food_credit: food_credit ?? null,
     currency_code: order.currency_code,

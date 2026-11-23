@@ -138,7 +138,11 @@ type OrderText = Record<
   | "empty_filtered"
   | "timeline"
   | "cancelled_on"
-  | "next_pickup",
+  | "next_pickup"
+  | "outcome_delivered"
+  | "outcome_not_delivered"
+  | "delivered_at"
+  | "not_delivered_at",
   string
 >
 
@@ -154,7 +158,7 @@ export const ORDER_TEXT: Record<Locale, OrderText> = {
     view_history: "Historik",
     empty_awaiting: "Ingen ordrer afventer accept lige nu.",
     empty_active: "Ingen accepterede ordrer er i gang.",
-    empty_history: "Ingen annullerede ordrer endnu.",
+    empty_history: "Ingen afsluttede ordrer endnu.",
     unavailable: "Ordrerne kunne ikke hentes",
     retry_hint: "Prøv igen om lidt. Dine ordrer er ikke ændret.",
     retry: "Prøv igen",
@@ -291,8 +295,8 @@ export const ORDER_TEXT: Record<Locale, OrderText> = {
     date_to: "Til og med",
     date_range_invalid:
       "Slutdatoen skal være samme dag som eller efter startdatoen.",
-    reason: "Årsag",
-    reason_all: "Alle årsager",
+    reason: "Udfald",
+    reason_all: "Alle udfald",
     reason_restaurant_rejected: "Afvist af jer",
     reason_acceptance_timeout: "Ikke accepteret i tide",
     reason_customer_cancelled: "Annulleret af kunden",
@@ -302,6 +306,10 @@ export const ORDER_TEXT: Record<Locale, OrderText> = {
     timeline: "Forløb",
     cancelled_on: "Annulleret {time}",
     next_pickup: "Næste skridt: buddet henter maden",
+    outcome_delivered: "Leveret",
+    outcome_not_delivered: "Ikke leveret",
+    delivered_at: "Leveret {time}",
+    not_delivered_at: "Ikke leveret {time}",
     operator_boundary:
       "Kan I ikke lave maden alligevel? Kontakt MTOGO med ordre #{number}. En accepteret ordre kan kun annulleres af MTOGO.",
   },
@@ -315,7 +323,7 @@ export const ORDER_TEXT: Record<Locale, OrderText> = {
     view_history: "History",
     empty_awaiting: "No Orders are awaiting acceptance right now.",
     empty_active: "No accepted Orders are in progress.",
-    empty_history: "No cancelled Orders yet.",
+    empty_history: "No finished Orders yet.",
     unavailable: "Orders could not be loaded",
     retry_hint: "Try again shortly. Your Orders have not changed.",
     retry: "Try again",
@@ -451,8 +459,8 @@ export const ORDER_TEXT: Record<Locale, OrderText> = {
     date_from: "From",
     date_to: "To (inclusive)",
     date_range_invalid: "The end date must be on or after the start date.",
-    reason: "Reason",
-    reason_all: "All reasons",
+    reason: "Outcome",
+    reason_all: "All outcomes",
     reason_restaurant_rejected: "Rejected by you",
     reason_acceptance_timeout: "Not accepted in time",
     reason_customer_cancelled: "Cancelled by the Customer",
@@ -462,6 +470,10 @@ export const ORDER_TEXT: Record<Locale, OrderText> = {
     timeline: "Timeline",
     cancelled_on: "Cancelled {time}",
     next_pickup: "Next: the Delivery agent collects the food",
+    outcome_delivered: "Delivered",
+    outcome_not_delivered: "Not delivered",
+    delivered_at: "Delivered {time}",
+    not_delivered_at: "Not delivered {time}",
     operator_boundary:
       "Can you no longer make the food? Contact MTOGO with Order #{number}. Only MTOGO can cancel an accepted Order.",
   },
