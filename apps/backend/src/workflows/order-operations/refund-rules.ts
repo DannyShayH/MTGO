@@ -1,5 +1,7 @@
 import { MathBN, MedusaError, OrderStatus } from "@medusajs/framework/utils"
 import type { RefundOutcome } from "../../modules/order-operation/models/refund-obligation"
+import type { RefundAttemptOutcome } from "../../modules/order-operation/models/refund-attempt"
+import { SYSTEM_ACTOR } from "./rules"
 
 /** A Medusa big number as Query returns it, raw or plain. */
 type MonetaryValue = { value: string } | string | number
@@ -158,4 +160,46 @@ export function refundAttemptPlan(
   if (MathBN.lt(remaining, obligation.amount))
     return { action: "refuse", failure_code: "refund_exceeds_remaining" }
   return { action: "attempt" }
+}
+
+export type { RefundAttemptOutcome }
+
+/**
+ * The history entry an attempt leaves (#197), from what it recorded on the
+ * obligation. An attempt the provider still holds is `in_progress` and has
+ * no failure yet; only a failed attempt keeps its safe failure code.
+ */
+export function refundAttemptEntry(recorded: {
+  status: RefundOutcome
+  failure_code: RefundFailureCode | null
+}): { outcome: RefundAttemptOutcome; failure_code: RefundFailureCode | null } {
+  if (recorded.status === "failed")
+    return { outcome: "failed", failure_code: recorded.failure_code }
+  return {
+    outcome: recorded.status === "succeeded" ? "succeeded" : "in_progress",
+    failure_code: null,
+  }
+}
+
+const ACTOR_TYPES: [prefix: string, type: string][] = [
+  ["user_", "user"],
+  ["rstf_", "restaurant_staff"],
+  ["cus_", "customer"],
+]
+
+/**
+ * Who an attempt's log record names: `system`, or the actor's id with its
+ * type read from Medusa's id prefix. An id of unknown kind is named without
+ * a type rather than guessed.
+ */
+export function refundAttemptActor(attempted_by: string): {
+  actor_type?: string
+  actor_id: string
+} {
+  if (attempted_by === SYSTEM_ACTOR)
+    return { actor_type: "system", actor_id: attempted_by }
+  const match = ACTOR_TYPES.find(([prefix]) => attempted_by.startsWith(prefix))
+  return match
+    ? { actor_type: match[1], actor_id: attempted_by }
+    : { actor_id: attempted_by }
 }

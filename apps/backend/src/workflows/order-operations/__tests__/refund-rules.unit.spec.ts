@@ -3,6 +3,8 @@ import {
   classifyRefundFailure,
   nativeCancellationPlan,
   owedFullRefund,
+  refundAttemptActor,
+  refundAttemptEntry,
   refundAttemptPlan,
   refundOutcomeAfterAttempt,
 } from "../refund-rules"
@@ -257,5 +259,59 @@ describe("What a refund attempt does with fresh payment facts (#144)", () => {
     },
   ])("$reason", ({ obligation, payment, expected }) => {
     expect(refundAttemptPlan(obligation, payment)).toEqual(expected)
+  })
+})
+
+describe("The history entry a refund attempt leaves (#197)", () => {
+  it.each([
+    {
+      recorded: { status: "succeeded", failure_code: null },
+      expected: { outcome: "succeeded", failure_code: null },
+      reason: "EP: a verified refund is a success",
+    },
+    {
+      recorded: { status: "failed", failure_code: "refund_provider_failed" },
+      expected: { outcome: "failed", failure_code: "refund_provider_failed" },
+      reason: "EP: a failure keeps its safe failure code",
+    },
+    {
+      recorded: { status: "failed", failure_code: "refund_exceeds_remaining" },
+      expected: { outcome: "failed", failure_code: "refund_exceeds_remaining" },
+      reason: "EP: a refused over-refund is a failed attempt",
+    },
+    {
+      recorded: { status: "pending", failure_code: "refund_in_progress" },
+      expected: { outcome: "in_progress", failure_code: null },
+      reason: "EP: an attempt the provider still holds has no failure yet",
+    },
+  ] as const)("$reason", ({ recorded, expected }) => {
+    expect(refundAttemptEntry(recorded)).toEqual(expected)
+  })
+})
+
+describe("The actor a refund attempt log record names (#197)", () => {
+  it.each([
+    {
+      attempted_by: "system",
+      expected: { actor_type: "system", actor_id: "system" },
+    },
+    {
+      attempted_by: "user_01ABC",
+      expected: { actor_type: "user", actor_id: "user_01ABC" },
+    },
+    {
+      attempted_by: "rstf_01ABC",
+      expected: { actor_type: "restaurant_staff", actor_id: "rstf_01ABC" },
+    },
+    {
+      attempted_by: "cus_01ABC",
+      expected: { actor_type: "customer", actor_id: "cus_01ABC" },
+    },
+    {
+      attempted_by: "unknown_01ABC",
+      expected: { actor_id: "unknown_01ABC" },
+    },
+  ])("$attempted_by", ({ attempted_by, expected }) => {
+    expect(refundAttemptActor(attempted_by)).toEqual(expected)
   })
 })

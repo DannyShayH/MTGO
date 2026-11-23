@@ -22,6 +22,10 @@ import { cancelRestaurantOrderStep } from "./steps/cancel-restaurant-order"
 import { settleOrderCancellationStep } from "./steps/settle-order-cancellation"
 import { cancelCustomerOrderStep } from "./steps/cancel-customer-order"
 import { readOrderProgressStep } from "./steps/read-order-progress"
+import {
+  cancelLegacyAwaitingOrdersStep,
+  type LegacyCancellationInput,
+} from "./steps/cancel-legacy-awaiting-orders"
 import { MilestoneAction, QueueView } from "./rules"
 import { orderOperationLock } from "./locks"
 import {
@@ -213,8 +217,9 @@ export const rejectPartnerOrderWorkflow = createWorkflow(
       ({ cancellation }) => cancellation.cancelled,
     ).then(() => {
       settleOrderCancellationStep(
-        transform({ command }, ({ command }) => ({
+        transform({ command, cancellation }, ({ command, cancellation }) => ({
           order_id: command.order_id,
+          attempted_by: cancellation.cancelled_by as string,
         })),
       )
     })
@@ -267,7 +272,12 @@ export const cancelCustomerOrderWorkflow = createWorkflow(
       { cancellation },
       ({ cancellation }) => cancellation.cancelled,
     ).then(() => {
-      settleOrderCancellationStep(order).config({
+      settleOrderCancellationStep(
+        transform({ order, cancellation }, ({ order, cancellation }) => ({
+          ...order,
+          attempted_by: cancellation.cancelled_by as string,
+        })),
+      ).config({
         name: "settle-customer-cancellation-effects",
       })
     })
@@ -306,5 +316,19 @@ export const recoverOrderOperationsWorkflow = createWorkflow(
   "recover-order-operations",
   function (input: RecoveryInput) {
     return new WorkflowResponse(recoverOrderOperationsStep(input))
+  },
+)
+
+/**
+ * Operator-run cleanup of legacy Orders still awaiting acceptance (Orders
+ * placed before this module, with no deadline): each is cancelled as the
+ * system's timeout with a full refund through the shared engine. Run it
+ * with `src/scripts/cancel-legacy-awaiting-orders.ts`; `apply: false` only
+ * lists them.
+ */
+export const cancelLegacyAwaitingOrdersWorkflow = createWorkflow(
+  "cancel-legacy-awaiting-orders",
+  function (input: LegacyCancellationInput) {
+    return new WorkflowResponse(cancelLegacyAwaitingOrdersStep(input))
   },
 )

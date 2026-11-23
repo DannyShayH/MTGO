@@ -10,11 +10,15 @@ const events = {
   "upstream.request.failed": ["info", "Upstream request failed"],
   "request.failed": ["error", "Request failed"],
   pickup_location_missing: ["error", "Restaurant pickup location is missing"],
+  "refund.attempted": ["info", "Refund attempted"],
   "monitoring.demo_read.succeeded": [
     "info",
     "Disposable backend product read completed",
   ],
 }
+
+/** A refund attempt's outcome class, never the provider's own words. */
+const REFUND_ATTEMPT_OUTCOMES = ["succeeded", "failed", "in_progress"]
 
 /** IDs are correlation labels, never credentials or a source of authority. */
 function requestId(value) {
@@ -91,6 +95,11 @@ function createLogRecord(
     )
   )
     record.method = fields.method
+  if (
+    event === "refund.attempted" &&
+    REFUND_ATTEMPT_OUTCOMES.includes(fields.outcome)
+  )
+    record.outcome = fields.outcome
   if (event === "request.failed") record.err = safeError(fields.err)
   return record
 }

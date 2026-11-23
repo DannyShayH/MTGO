@@ -13,6 +13,7 @@ the thirty-minute unassigned cancellation and its prepared-food credit.
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `OrderOperation`   | `order_id` (unique), `restaurant_id`, `placed_at`, `acceptance_deadline`, `state` (`awaiting_acceptance`, `accepted`, `preparing`, `ready` or `cancelled`, default `awaiting_acceptance`), `revision` (default 1), `purchased_items` (JSON, nullable), `accepted_at` and `accepted_by` (both `null` until accepted), `preparation_started_at`/`preparation_started_by` and `ready_at`/`ready_by` (each `null` until recorded), `cancelled_at`, `cancelled_by` (staff or Customer id, or `system`), `cancellation_category` (`restaurant_rejected`, `acceptance_timeout`, `customer_cancelled` or `unassigned_timeout`), `cancellation_note` and `native_cancelled_at` (all `null` until cancelled) |
 | `RefundObligation` | `order_id` (unique), `payment_id`, `amount` (captured minus already refunded, incl. VAT), `currency_code`, `idempotency_key` (unique, `mtogo-full-refund:{order_id}`), `status` (`pending`, `failed` or `succeeded`), `attempt_count`, `last_attempted_at`, `failure_code` (a safe class, never a provider message), `refund_id` and `succeeded_at`                                                                                                                                                                                                                                                                                                                                                |
+| `RefundAttempt`    | One real refund attempt, only ever added to (#197): `refund_obligation_id`, `order_id`, `attempted_at`, `attempted_by` (the operator, staff or Customer id that triggered it, or `system`), `outcome` (`succeeded`, `failed` or `in_progress`) and `failure_code` (the safe class of a failed attempt, else `null`)                                                                                                                                                                                                                                                                                                                                                                                |
 | `FoodCredit`       | `order_id` (unique), `restaurant_id`, `amount` (full food value excl. VAT), `currency_code`, `commission_amount` (always 0), `funded_by` (`mtogo`), `reason` (the cancellation category) and the copied preparation evidence `preparation_started_at` and `ready_at` (#162)                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `PurchaseReview`   | `cart_id` (unique), `items` (JSON) and `reviewed_at`: the kitchen facts of the cart's last server-validated review                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
@@ -32,6 +33,15 @@ the thirty-minute unassigned cancellation and its prepared-food credit.
   has a Restaurant link, a record with `placed_at` and `acceptance_deadline`
   `null`. Nothing invents a placement time or a fresh five-minute window for
   it, and staff see "Timing unknown". The script is idempotent.
+  No rule can time such an Order out, so an operator ends the ones still
+  awaiting with `src/scripts/cancel-legacy-awaiting-orders.ts`
+  (`cancelLegacyAwaitingOrdersWorkflow`, `legacy-cancellation.ts`). Without
+  arguments it only lists them; with `apply` it cancels each, under the
+  Order's lock and revision guard, as `acceptance_timeout` by `system` with
+  its full-refund obligation, then runs the shared settlement as `system`.
+  No deadline is invented: the cancellation takes effect when processed.
+  Accepted legacy work, and anything that changed meanwhile, is left alone,
+  and a repeat finds nothing.
 
 - **Purchased kitchen facts are frozen at review (#141).** When completion's
   basket review passes, under the cart lock, the `validate` hook in
@@ -126,6 +136,28 @@ a newer revision, so the kitchen feed (#148) announces the change.
   `refund_exceeds_remaining` instead of being over-refunded. A `failed`
   obligation stays owed until the operator's retry under #49 sets it back to
   `pending`.
+
+  **Attempt history (#197).** Every real attempt ends in
+  `recordRefundAttempt`, which writes the outcome on the obligation and one
+  new `RefundAttempt` in one transaction. An attempt the provider still holds
+  is `in_progress` with no failure code; a refused over-refund is `failed`
+  with `refund_exceeds_remaining`; recording an already persisted refund is
+  `succeeded` without contacting the provider. A plan that leaves the
+  obligation untouched (anything not `pending`) writes nothing, so repeats and
+  sweeps that pass a failed or succeeded refund add no entry. Nothing updates
+  or deletes an entry. If the process stops before the outcome commits, that
+  attempt leaves no entry, and the sweep that later records it adds its own.
+  `attemptFullRefund` takes `attempted_by` explicitly through
+  `settleCancellation`: the request that cancelled passes the cancellation's
+  recorded actor (staff, Customer, or `system` for a timeout outcome), while the
+  recovery sweep, the unassigned timeout and a claim refused at the deadline
+  pass `system`. Medusa's refund row keeps crediting `created_by` to the
+  cancellation's actor, as before. Each entry also writes one
+  `refund.attempted` log record with only `order_id`, `actor_type`/`actor_id`
+  (`actor_type` from the id prefix: `user`, `restaurant_staff`, `customer`, or
+  `system`) and `outcome`, never the amount, provider text or notes
+  (ADR-0019). The pure mappings are `refundAttemptEntry` and
+  `refundAttemptActor` in `refund-rules.ts`.
 
 - **Customer cancellation** (`cancelCustomerOrderWorkflow`, #145): the owning
   Customer's request runs the same lock, `commitPreAcceptanceCancellation` and

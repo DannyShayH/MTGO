@@ -266,6 +266,12 @@ export function restaurantOrdersHarness({
     })
   const recordOf = async (order_id: string) =>
     (await operations().listOrderOperations({ order_id }))[0]
+  /** The Order's refund attempt history (#197), oldest first. */
+  const refundAttemptsOf = (order_id: string) =>
+    operations().listRefundAttempts(
+      { order_id },
+      { order: { attempted_at: "ASC", id: "ASC" } },
+    )
 
   beforeAll(async () => {
     const container = getContainer()
@@ -438,6 +444,7 @@ export function restaurantOrdersHarness({
     progress,
     cancel,
     recordOf,
+    refundAttemptsOf,
     seeded: () => ({
       admin,
       store,

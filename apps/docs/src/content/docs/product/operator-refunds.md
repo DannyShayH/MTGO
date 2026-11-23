@@ -55,6 +55,10 @@ Discovery [#196](https://github.com/DannyShayH/MTGO/issues/196) for [Feature #49
 | An agent without an active delivery tries to report a problem                                         | Refused; the action is not shown.                                                                                                                                                                                                                                        |
 | An Order with a problem report is delivered or cancelled                                              | The report leaves the attention list.                                                                                                                                                                                                                                    |
 
+## Delivered so far
+
+- [#197](https://github.com/DannyShayH/MTGO/issues/197): every real Full refund attempt is kept in an append-only history with its time, who triggered it and its outcome (`succeeded`, `failed` with its safe failure code, or `in_progress`). Failed attempts stay in the history although the provider leaves no refund row. Restaurant rejection, Customer cancellation and their timeout outcomes record the cancellation's actor; the recovery sweep and the thirty-minute unassigned cancellation record `system`. A repeat or sweep that leaves the refund untouched adds nothing. Each attempt also writes one `refund.attempted` log record with only the Order, actor and outcome class. Operators see the history on the Refunds page in a later slice.
+
 ## Evidence needed in implementation
 
 - HTTP tests for operator-only access, the refused states and repeated or concurrent retries and cancellations, including a cancellation racing an agent's pickup or handover.

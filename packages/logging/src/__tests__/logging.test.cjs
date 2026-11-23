@@ -118,6 +118,45 @@ test("records a missing Restaurant pickup location without sensitive data", () =
   assert.equal(record.address, undefined)
 })
 
+test("records a refund attempt with only the Order, actor and outcome class", () => {
+  const record = createLogRecord("backend", "refund.attempted", {
+    order_id: "order_01",
+    actor_type: "system",
+    actor_id: "system",
+    outcome: "failed",
+    amount: "149.00",
+    err: new Error("mock provider declined: secret-detail"),
+  })
+
+  assert.equal(record.level, "info")
+  assert.equal(record.event, "refund.attempted")
+  assert.equal(record.msg, "Refund attempted")
+  assert.equal(record.order_id, "order_01")
+  assert.equal(record.actor_type, "system")
+  assert.equal(record.actor_id, "system")
+  assert.equal(record.outcome, "failed")
+  assert.equal(record.amount, undefined)
+  assert.equal(record.err, undefined)
+  assert.doesNotMatch(JSON.stringify(record), /secret-detail/)
+})
+
+test("keeps only a known outcome class", () => {
+  for (const outcome of ["succeeded", "failed", "in_progress"])
+    assert.equal(
+      createLogRecord("backend", "refund.attempted", { outcome }).outcome,
+      outcome,
+    )
+  for (const outcome of ["declined by provider", "pending", 1, "FAILED"])
+    assert.equal(
+      createLogRecord("backend", "refund.attempted", { outcome }).outcome,
+      undefined,
+    )
+  assert.equal(
+    createLogRecord("backend", "request.failed", { outcome: "failed" }).outcome,
+    undefined,
+  )
+})
+
 test("rejects a trailing newline rather than accepting it as an end anchor", () => {
   const { requestId } = require("../index.cjs")
   assert.match(requestId("login-28\n"), /^[0-9a-f-]{36}$/)

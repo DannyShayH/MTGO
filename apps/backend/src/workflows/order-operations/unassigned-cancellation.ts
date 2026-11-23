@@ -151,6 +151,6 @@ export async function expireUnassignedDelivery(
       { timeout: lock.timeout, expire: lock.ttl },
     )
   if (commit.outcome === "cancelled")
-    await settleCancellation(container, order_id)
+    await settleCancellation(container, order_id, SYSTEM_ACTOR)
   return commit
 }

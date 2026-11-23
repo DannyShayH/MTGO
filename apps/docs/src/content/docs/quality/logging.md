@@ -37,10 +37,11 @@ Security events use info or warn and stay visible.
 | `event`, `msg`   | Stable event name and its constant English sentence       |
 
 Optional fields are `request_id`, `route`, `method`, `status`, `actor_type`,
-`actor_id`, `restaurant_id`, `order_id` and `err`. The builder copies only those
+`actor_id`, `restaurant_id`, `order_id`, `outcome` and `err`. The builder copies only those
 fields and validates scalar values. Routes are constant names/patterns, never
 full URLs or query strings. IDs contain only opaque identifiers. `err` appears
 only on `request.failed`, as `{ "type": "Error" }`, `TypeError` or `RangeError`.
+`outcome` appears only on `refund.attempted`, as `succeeded`, `failed` or `in_progress`.
 Raw error messages, stacks, causes and attached data are deliberately discarded.
 
 | Event                            | Level                                  | Current use                                                          |
@@ -53,6 +54,7 @@ Raw error messages, stacks, causes and attached data are deliberately discarded.
 | `upstream.request.failed`        | info for 4xx; warn for 5xx/no response | Storefront Medusa error helper and partner access-ended lookup       |
 | `request.failed`                 | error                                  | Backend 5xx on the demonstrated path                                 |
 | `monitoring.demo_read.succeeded` | info                                   | Successful disposable product read, with its HTTP status in `status` |
+| `refund.attempted`               | info                                   | Each Full refund attempt: `order_id`, actor and `outcome` only       |
 
 Extend vocabulary centrally when a new boundary needs an event. Log once at the
 boundary; do not log and rethrow the same failure at multiple layers of an app.

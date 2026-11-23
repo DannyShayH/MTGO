@@ -28,6 +28,7 @@ medusaIntegrationTestRunner({
       accept,
       reject,
       recordOf,
+      refundAttemptsOf,
     } = harness
     type Seeded = ReturnType<typeof harness.seeded>
     let customer: Seeded["customer"]
@@ -131,6 +132,13 @@ medusaIntegrationTestRunner({
           acceptance_deadline: DEADLINE,
         })
         expect(record.native_cancelled_at).not.toBeNull()
+        expect(await refundAttemptsOf(order.id)).toEqual([
+          expect.objectContaining({
+            attempted_by: "system",
+            outcome: "succeeded",
+            attempted_at: expect.any(Date),
+          }),
+        ])
       })
 
       it("BVA: leaves an Order alone 1 ms before its deadline and times it out exactly at it", async () => {
@@ -220,6 +228,7 @@ medusaIntegrationTestRunner({
           status: "succeeded",
           attempt_count: 1,
         })
+        expect(await refundAttemptsOf(order.id)).toHaveLength(1)
       })
     })
 
@@ -262,6 +271,15 @@ medusaIntegrationTestRunner({
         expect(
           (await progress(customer, order.id)).data.progress,
         ).toMatchObject({ refund: { status: "succeeded" } })
+        // The lost outcome was never committed; the sweep that recorded the
+        // persisted refund is the system's success, without the provider.
+        expect(await refundAttemptsOf(order.id)).toEqual([
+          expect.objectContaining({
+            attempted_by: "system",
+            outcome: "succeeded",
+            failure_code: null,
+          }),
+        ])
       })
 
       it("resumes native cancellation through the core steps and keeps the business cancellation and its succeeded refund", async () => {
@@ -292,6 +310,62 @@ medusaIntegrationTestRunner({
         expect((await nativeOf(order.id)).refunds).toHaveLength(1)
         expect((await nativeOf(order.id)).order.credit_lines).toHaveLength(1)
         expect((await obligationOf(order.id)).attempt_count).toBe(1)
+        // Sweeps that leave the refund untouched add nothing to its history.
+        expect(await refundAttemptsOf(order.id)).toEqual([
+          expect.objectContaining({
+            attempted_by: before.cancelled_by,
+            outcome: "succeeded",
+          }),
+        ])
+      })
+
+      it("records a refused over-refund as the system's failed attempt when the money was refunded elsewhere", async () => {
+        const order = await placePaidOrder(pizzeriaId)
+        const provider = providerRefunds().mockRejectedValue(
+          new Error("mock provider unavailable"),
+        )
+        // The attempt never records its outcome, so the obligation stays
+        // pending and its history empty.
+        const service = operations()
+        const update = service.updateRefundObligations.bind(service)
+        const lost = jest
+          .spyOn(service, "updateRefundObligations")
+          .mockImplementation(((data: { status?: string }) =>
+            data.status === "pending"
+              ? update(data as never)
+              : Promise.reject(new Error("process stopped"))) as never)
+        await reject(staff.headers, order.id)
+        lost.mockRestore()
+        provider.mockRestore()
+        expect(await obligationOf(order.id)).toMatchObject({
+          status: "pending",
+        })
+        expect(await refundAttemptsOf(order.id)).toEqual([])
+        // Meanwhile the payment is refunded in full under another key.
+        const { payment } = await nativeOf(order.id)
+        await getContainer()
+          .resolve(Modules.PAYMENT)
+          .refundPayment({
+            payment_id: payment.id,
+            amount: payment.amount as number,
+            created_by: "user_elsewhere",
+          })
+        const sent = providerRefunds()
+
+        await recover()
+
+        expect(sent).not.toHaveBeenCalled()
+        expect(await obligationOf(order.id)).toMatchObject({
+          status: "failed",
+          failure_code: "refund_exceeds_remaining",
+        })
+        expect(await refundAttemptsOf(order.id)).toEqual([
+          expect.objectContaining({
+            attempted_by: "system",
+            outcome: "failed",
+            failure_code: "refund_exceeds_remaining",
+          }),
+        ])
       })
 
       it("leaves an explicitly failed refund visibly owed instead of retrying it", async () => {
@@ -320,6 +394,13 @@ medusaIntegrationTestRunner({
         expect(shown.data.progress.refund).toMatchObject({ status: "failed" })
         expect(JSON.stringify(shown.data)).not.toContain("secret-detail")
         expect((await nativeOf(order.id)).refunds).toHaveLength(0)
+        expect(await refundAttemptsOf(order.id)).toEqual([
+          expect.objectContaining({
+            attempted_by: staff.staffId,
+            outcome: "failed",
+            failure_code: "refund_provider_failed",
+          }),
+        ])
       })
     })
   },

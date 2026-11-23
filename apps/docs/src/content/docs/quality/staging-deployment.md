@@ -448,6 +448,19 @@ container. New photos live in the private Tigris `mtogo` bucket, while legacy
 local uploads remain in `mtogo-staging_backend-static`. Redis holds events, workflow state
 and sessions: restarting it signs users out but loses no business data.
 
+### End legacy Orders without timing
+
+Orders placed before the Order Operations module show "Timing unknown" and
+stay awaiting acceptance forever. List them, then cancel each with a full
+refund as the system's timeout (safe to repeat):
+
+```bash
+sudo mtogo-deploy.sh compose run --rm migrate npm exec --no -- medusa exec ./src/scripts/cancel-legacy-awaiting-orders.js
+sudo mtogo-deploy.sh compose run --rm migrate npm exec --no -- medusa exec ./src/scripts/cancel-legacy-awaiting-orders.js apply
+```
+
+Each refund appears in the logs as `refund.attempted` with `actor_id` `system`.
+
 ### Database backup and restore
 
 `prepare` dumps the staging database to

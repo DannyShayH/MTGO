@@ -19,6 +19,7 @@ import type OrderOperationModuleService from "../../modules/order-operation/serv
 import { orderOperationLock } from "../order-operations/locks"
 import { commitUnassignedCancellation } from "../order-operations/unassigned-cancellation"
 import { settleCancellation } from "../order-operations/cancellation"
+import { SYSTEM_ACTOR } from "../order-operations/rules"
 import {
   ASSIGNMENT_CONFLICTS,
   isActiveOrderState,
@@ -118,8 +119,9 @@ export const assignDeliveryStep = createStep(
       },
       { timeout: 10 },
     )
+    // The deadline cancelled the Order, so its refund is the system's.
     if (result.expiry?.outcome === "cancelled")
-      await settleCancellation(container, input.order_id)
+      await settleCancellation(container, input.order_id, SYSTEM_ACTOR)
     if (result.outcome.outcome === "refused")
       throw refusal(result.outcome.code as AssignmentRefusal, input.source)
     const record = result.delivery

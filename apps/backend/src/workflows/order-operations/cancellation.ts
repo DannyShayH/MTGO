@@ -154,10 +154,15 @@ export type Settlement = {
  * (`native_cancelled_at` unset). Both parts are idempotent and run under the
  * Order's settlement lock, so the request that cancelled and the recovery
  * sweep (#144) can both call this without duplicate effects.
+ *
+ * `attempted_by` is who triggered this settlement's refund attempt (#197):
+ * the cancellation's actor when the request that cancelled settles, and
+ * `system` for the recovery sweep and the system's own cancellations.
  */
 export async function settleCancellation(
   container: MedusaContainer,
   order_id: string,
+  attempted_by: string,
 ): Promise<Settlement> {
   const settle = async (): Promise<Settlement> => {
     const [record] = await container
@@ -171,6 +176,7 @@ export async function settleCancellation(
     const refund = await attemptFullRefund(container, {
       order_id,
       created_by,
+      attempted_by,
     }).catch(() => {
       logCancellationUpstreamFailure(container, order_id)
       return "pending" as const

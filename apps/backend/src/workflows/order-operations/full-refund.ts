@@ -4,9 +4,12 @@ import { ContainerRegistrationKeys, MathBN } from "@medusajs/framework/utils"
 import { refundPaymentWorkflow } from "@medusajs/medusa/core-flows"
 import {
   classifyRefundFailure,
+  refundAttemptActor,
+  refundAttemptEntry,
   refundAttemptPlan,
   refundOutcomeAfterAttempt,
   type PaymentFacts,
+  type RefundAttemptOutcome,
   type RefundFailureCode,
 } from "./refund-rules"
 import { ORDER_OPERATION_MODULE } from "../../modules/order-operation"
@@ -41,6 +44,28 @@ export function logCancellationUpstreamFailure(
 ) {
   const record = createLogRecord("backend", "upstream.request.failed", {
     order_id,
+  })
+  container
+    .resolve(ContainerRegistrationKeys.LOGGER)
+    .log(record.level, record.msg, record)
+}
+
+/**
+ * One `refund.attempted` record per attempt (ADR-0019): the Order, the actor
+ * and the outcome class only, never the amount, provider text or payloads.
+ */
+function logRefundAttempt(
+  container: MedusaContainer,
+  entry: {
+    order_id: string
+    attempted_by: string
+    outcome: RefundAttemptOutcome
+  },
+) {
+  const record = createLogRecord("backend", "refund.attempted", {
+    order_id: entry.order_id,
+    ...refundAttemptActor(entry.attempted_by),
+    outcome: entry.outcome,
   })
   container
     .resolve(ContainerRegistrationKeys.LOGGER)
@@ -106,11 +131,16 @@ async function verifiedRefund(
  * amount and idempotency key, which lets Medusa resume or replay the same
  * refund rather than start another.
  *
+ * Every real attempt (#197) ends by recording its outcome on the obligation
+ * together with one new history entry naming `attempted_by`, then writes one
+ * safe log record. A plan that leaves the obligation untouched records
+ * nothing. `created_by` is what Medusa's refund row credits, unchanged.
+ *
  * Callers serialize it per Order through `settleCancellation`.
  */
 export async function attemptFullRefund(
   container: MedusaContainer,
-  input: { order_id: string; created_by: string },
+  input: { order_id: string; created_by: string; attempted_by: string },
 ): Promise<RefundOutcome | null> {
   const service = container.resolve<OrderOperationModuleService>(
     ORDER_OPERATION_MODULE,
@@ -130,21 +160,41 @@ export async function attemptFullRefund(
     await currentPayment(container, obligation.payment_id),
   )
   if (plan.action === "leave") return obligation.status
-  if (plan.action === "refuse") {
-    await service.updateRefundObligations({
-      id: obligation.id,
-      status: "failed",
-      failure_code: plan.failure_code,
+  const attempted_at = new Date()
+  const record = async (
+    outcome: { status: RefundOutcome; failure_code: RefundFailureCode | null },
+    refund?: PersistedRefund,
+  ) => {
+    const entry = refundAttemptEntry(outcome)
+    await service.recordRefundAttempt({
+      obligation: {
+        id: obligation.id,
+        ...outcome,
+        ...(refund && { refund_id: refund.id, succeeded_at: new Date() }),
+      },
+      attempt: {
+        order_id: input.order_id,
+        attempted_at,
+        attempted_by: input.attempted_by,
+        ...entry,
+      },
     })
-    return "failed"
+    logRefundAttempt(container, {
+      order_id: input.order_id,
+      attempted_by: input.attempted_by,
+      outcome: entry.outcome,
+    })
+    return outcome.status
   }
+  if (plan.action === "refuse")
+    return record({ status: "failed", failure_code: plan.failure_code })
   let failure: RefundFailureCode | undefined
   if (plan.action === "attempt") {
     await service.updateRefundObligations({
       id: obligation.id,
       status: "pending",
       attempt_count: obligation.attempt_count + 1,
-      last_attempted_at: new Date(),
+      last_attempted_at: attempted_at,
       failure_code: null,
     })
     try {
@@ -162,11 +212,5 @@ export async function attemptFullRefund(
     }
   }
   const refund = await verifiedRefund(container, obligation)
-  const outcome = refundOutcomeAfterAttempt(failure, !!refund)
-  await service.updateRefundObligations({
-    id: obligation.id,
-    ...outcome,
-    ...(refund && { refund_id: refund.id, succeeded_at: new Date() }),
-  })
-  return outcome.status
+  return record(refundOutcomeAfterAttempt(failure, !!refund), refund)
 }

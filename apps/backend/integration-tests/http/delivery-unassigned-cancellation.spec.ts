@@ -31,6 +31,7 @@ medusaIntegrationTestRunner({
       startPreparation,
       markReady,
       recordOf,
+      refundAttemptsOf,
     } = harness
     type Seeded = ReturnType<typeof harness.seeded>
     let admin: Seeded["admin"]
@@ -339,6 +340,13 @@ medusaIntegrationTestRunner({
         expect(await obligationOf(order.id)).toMatchObject({
           status: "succeeded",
         })
+        // The refused claim triggered the system's cancellation, not the agent's.
+        expect(await refundAttemptsOf(order.id)).toEqual([
+          expect.objectContaining({
+            attempted_by: "system",
+            outcome: "succeeded",
+          }),
+        ])
         expect((await deliveryOf(order.id)).assigned_agent_id).toBeNull()
         // The sweep finds nothing left to do.
         expect(
@@ -499,6 +507,14 @@ medusaIntegrationTestRunner({
           status: "failed",
           failure_code: "refund_provider_failed",
         })
+        // The second sweep leaves the failure owed and adds no entry.
+        expect(await refundAttemptsOf(order.id)).toEqual([
+          expect.objectContaining({
+            attempted_by: "system",
+            outcome: "failed",
+            failure_code: "refund_provider_failed",
+          }),
+        ])
         expect((await recordOf(order.id)).state).toBe("cancelled")
         const staffView = await detail(staff, order.id)
         expect(staffView.data.order).toMatchObject({
@@ -542,6 +558,12 @@ medusaIntegrationTestRunner({
         })
         expect((await nativeOf(order.id)).refunds).toHaveLength(1)
         expect(await creditsOf(order.id)).toHaveLength(1)
+        expect(await refundAttemptsOf(order.id)).toEqual([
+          expect.objectContaining({
+            attempted_by: "system",
+            outcome: "succeeded",
+          }),
+        ])
       })
     })
 

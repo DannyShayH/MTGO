@@ -9,6 +9,7 @@ export type LogEvent =
   | "upstream.request.failed"
   | "request.failed"
   | "pickup_location_missing"
+  | "refund.attempted"
   | "monitoring.demo_read.succeeded"
 export type LogFields = {
   request_id?: string
@@ -19,6 +20,8 @@ export type LogFields = {
   actor_id?: string
   restaurant_id?: string
   order_id?: string
+  /** `refund.attempted` only: its outcome class; anything else is discarded. */
+  outcome?: "succeeded" | "failed" | "in_progress"
   err?: unknown
 }
 export type Service = "partner" | "storefront" | "backend"

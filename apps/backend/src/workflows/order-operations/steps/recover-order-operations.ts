@@ -151,7 +151,7 @@ export const recoverOrderOperationsStep = createStep(
       ]),
     ].filter((order_id) => !unassigned_expired.includes(order_id))
     for (const order_id of unsettled)
-      await settleCancellation(container, order_id)
+      await settleCancellation(container, order_id, SYSTEM_ACTOR)
     return new StepResponse<RecoveryResult>({
       expired,
       unassigned_expired,

@@ -27,6 +27,7 @@ medusaIntegrationTestRunner({
       markReady,
       progress,
       recordOf,
+      refundAttemptsOf,
     } = harness
     type Seeded = ReturnType<typeof harness.seeded>
     let admin: Seeded["admin"]
@@ -126,12 +127,25 @@ medusaIntegrationTestRunner({
           (await obligationOf(order.id)).idempotency_key,
         )
         expect(native.order.credit_lines).toHaveLength(1)
-        expect(await obligationOf(order.id)).toMatchObject({
+        const obligation = await obligationOf(order.id)
+        expect(obligation).toMatchObject({
           status: "succeeded",
           attempt_count: 1,
           refund_id: native.refunds[0].id,
           failure_code: null,
         })
+        // The attempt is the rejecting staff member's, kept in the history.
+        const history = await refundAttemptsOf(order.id)
+        expect(history).toEqual([
+          expect.objectContaining({
+            refund_obligation_id: obligation.id,
+            order_id: order.id,
+            attempted_by: staff.staffId,
+            outcome: "succeeded",
+            failure_code: null,
+          }),
+        ])
+        expect(history[0].attempted_at).toEqual(obligation.last_attempted_at)
       })
 
       it("stores an optional reason trimmed and free of control characters, for staff only", async () => {
@@ -217,11 +231,22 @@ medusaIntegrationTestRunner({
           await operations().listRefundObligations({ order_id: order.id }),
         ).toHaveLength(1)
         expect((await obligationOf(order.id)).attempt_count).toBe(1)
+        // One attempt, by whoever's rejection was recorded; repeats add none.
+        expect(await refundAttemptsOf(order.id)).toEqual([
+          expect.objectContaining({
+            attempted_by: record.cancelled_by,
+            outcome: "succeeded",
+          }),
+        ])
       })
 
       it("keeps the Order cancelled and the refund visibly owed when the mock provider fails", async () => {
         const order = await placePaidOrder(pizzeriaId)
         const provider = failRefunds()
+        const logged = jest.spyOn(
+          getContainer().resolve(ContainerRegistrationKeys.LOGGER),
+          "log",
+        )
 
         const rejected = await reject(staff.headers, order.id)
 
@@ -258,6 +283,34 @@ medusaIntegrationTestRunner({
         expect((await reject(staff.headers, order.id)).status).toBe(200)
         expect(provider).toHaveBeenCalledTimes(1)
         expect((await recordOf(order.id)).state).toBe("cancelled")
+        // The failed attempt stays in the history though Medusa kept no
+        // refund row, and the repeat added no entry.
+        expect(await refundAttemptsOf(order.id)).toEqual([
+          expect.objectContaining({
+            attempted_by: staff.staffId,
+            outcome: "failed",
+            failure_code: "refund_provider_failed",
+          }),
+        ])
+        // One safe log record per attempt: the Order, actor and outcome only.
+        const attempts = logged.mock.calls
+          .map(([, , record]) => record as Record<string, unknown>)
+          .filter((record) => record?.event === "refund.attempted")
+        expect(attempts).toEqual([
+          {
+            time: expect.any(String),
+            level: "info",
+            service: "backend",
+            env: expect.any(String),
+            event: "refund.attempted",
+            msg: "Refund attempted",
+            order_id: order.id,
+            actor_type: "restaurant_staff",
+            actor_id: staff.staffId,
+            outcome: "failed",
+          },
+        ])
+        expect(JSON.stringify(attempts)).not.toContain("secret-detail")
       })
 
       it("keeps the cancellation authoritative and repairable when native cancellation is interrupted", async () => {

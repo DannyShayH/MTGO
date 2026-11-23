@@ -5,8 +5,13 @@ import { ORDER_CHANGED } from "../rules"
 import type { CancellationCommit } from "../cancellation"
 import { orderNotFound } from "./read-restaurant-orders"
 
-/** Whether this request committed the cancellation, so it alone settles. */
-export type CancellationResult = { cancelled: boolean }
+/**
+ * Whether this request committed the cancellation, so it alone settles, and
+ * the actor it recorded, who that settlement's refund attempt belongs to.
+ */
+export type CancellationResult =
+  | { cancelled: true; cancelled_by: string }
+  | { cancelled: false; cancelled_by: null }
 
 /**
  * The HTTP outcome of a guarded pre-acceptance cancellation, shared by staff
@@ -37,9 +42,15 @@ export async function cancellationStepResponse(
     case "changed":
       throw await refuse(ORDER_CHANGED)
     case "already_cancelled":
-      return new StepResponse({ cancelled: false })
+      return new StepResponse<CancellationResult>({
+        cancelled: false,
+        cancelled_by: null,
+      })
     case "cancelled":
-      return new StepResponse({ cancelled: true })
+      return new StepResponse<CancellationResult>({
+        cancelled: true,
+        cancelled_by: result.cancelled_by,
+      })
     default: {
       const unhandled: never = result
       throw new MedusaError(

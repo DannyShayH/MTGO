@@ -12,7 +12,12 @@ import OrderOperation, {
 } from "./models/order-operation"
 import FoodCredit from "./models/food-credit"
 import PurchaseReview from "./models/purchase-review"
-import RefundObligation from "./models/refund-obligation"
+import RefundObligation, {
+  type RefundOutcome,
+} from "./models/refund-obligation"
+import RefundAttempt, {
+  type RefundAttemptOutcome,
+} from "./models/refund-attempt"
 
 export type CancellationCommand = {
   /** The record and the revision and state the caller decided on. */
@@ -44,12 +49,51 @@ export type CancellationCommand = {
   } | null
 }
 
+export type RefundAttemptRecord = {
+  /** The obligation and the outcome the attempt leaves on it. */
+  obligation: {
+    id: string
+    status: RefundOutcome
+    failure_code: string | null
+    refund_id?: string
+    succeeded_at?: Date
+  }
+  /** The history entry: when, by whom and how it ended. */
+  attempt: {
+    order_id: string
+    attempted_at: Date
+    attempted_by: string
+    outcome: RefundAttemptOutcome
+    failure_code: string | null
+  }
+}
+
 class OrderOperationModuleService extends MedusaService({
   OrderOperation,
   PurchaseReview,
   RefundObligation,
+  RefundAttempt,
   FoodCredit,
 }) {
+  /**
+   * Records how a refund attempt ended (#197): the outcome on the obligation
+   * and one new history entry, in one transaction, so the history never
+   * claims an outcome the obligation does not show. Entries are only ever
+   * created; nothing in this module updates or deletes one.
+   */
+  @InjectManager()
+  @InjectTransactionManager()
+  async recordRefundAttempt(
+    record: RefundAttemptRecord,
+    @MedusaContext() context: Context = {},
+  ): Promise<void> {
+    await this.updateRefundObligations(record.obligation, context)
+    await this.createRefundAttempts(
+      { refund_obligation_id: record.obligation.id, ...record.attempt },
+      context,
+    )
+  }
+
   /**
    * Commits a business cancellation, its full-refund obligation and any
    * prepared-food credit together (#143, #162), before any provider is

@@ -24,6 +24,7 @@ medusaIntegrationTestRunner({
       progress,
       cancel,
       recordOf,
+      refundAttemptsOf,
     } = harness
     type Seeded = ReturnType<typeof harness.seeded>
     let customer: Seeded["customer"]
@@ -101,6 +102,13 @@ medusaIntegrationTestRunner({
         expect(native.refunds[0].idempotency_key).toBe(
           (await obligationOf(order.id)).idempotency_key,
         )
+        expect(await refundAttemptsOf(order.id)).toEqual([
+          expect.objectContaining({
+            attempted_by: customerId,
+            outcome: "succeeded",
+            failure_code: null,
+          }),
+        ])
       })
 
       it("answers another Customer, a signed-out caller and an unknown Order without details or effects", async () => {
@@ -183,6 +191,13 @@ medusaIntegrationTestRunner({
           cancelled_by: "system",
           cancellation_category: "acceptance_timeout",
         })
+        // The timeout is the system's cancellation, so its attempt is too.
+        expect(await refundAttemptsOf(order.id)).toEqual([
+          expect.objectContaining({
+            attempted_by: "system",
+            outcome: "succeeded",
+          }),
+        ])
       })
 
       it("leaves a legacy Order without a deadline to an operator", async () => {
@@ -243,6 +258,7 @@ medusaIntegrationTestRunner({
         expect(native.order.credit_lines).toHaveLength(1)
         expect(provider).toHaveBeenCalledTimes(1)
         expect((await obligationOf(order.id)).attempt_count).toBe(1)
+        expect(await refundAttemptsOf(order.id)).toHaveLength(1)
       })
 
       it("yields one truthful outcome when acceptance races the cancellation", async () => {
@@ -304,6 +320,13 @@ medusaIntegrationTestRunner({
         expect((await cancel(customer, order.id)).status).toBe(200)
         expect(provider).toHaveBeenCalledTimes(1)
         expect((await recordOf(order.id)).state).toBe("cancelled")
+        expect(await refundAttemptsOf(order.id)).toEqual([
+          expect.objectContaining({
+            attempted_by: customerId,
+            outcome: "failed",
+            failure_code: "refund_provider_failed",
+          }),
+        ])
       })
     })
   },
