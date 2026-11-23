@@ -45,18 +45,99 @@ describe("provisioned backend dashboard queries", () => {
       expect(titles).toContainEqual(expect.stringMatching(expected))
   })
 
+  // String literals are skipped: a validation regex's [0-9] is not a range.
   it.each(queries)("$title uses five-minute windows only", ({ expr }) => {
-    for (const [range] of expr.matchAll(/\[[^\]]+\]/g))
+    const outsideStrings = expr.replace(/"(?:[^"\\]|\\.)*"/g, '""')
+    for (const [range] of outsideStrings.matchAll(/\[[^\]]+\]/g))
       expect(range).toBe("[5m]")
   })
+
+  const promtoolCase = (expr: string) => `- expr: '${expr.replace(/'/g, "''")}'`
 
   // The promtool file carries the semantic oracle (zero denominators, DOWN,
   // absent targets, insufficient history, resets); it must test these exact
   // expressions, not a drifted copy.
-  it.each(queries)(
+  it.each(queries.filter(({ expr }) => !expr.includes("${")))(
     "$title is exercised verbatim by the promtool query tests",
     ({ expr }) => {
-      expect(promtoolTests).toContain(`- expr: '${expr.replace(/'/g, "''")}'`)
+      expect(promtoolTests).toContain(promtoolCase(expr))
+    },
+  )
+
+  const thresholdControl = "low_traffic_threshold"
+
+  // Grafana 13.3.1 (Scenes) "percentencode": encodeURIComponent, then
+  // !'()* as %XX, and a multi-value array as "{a,b}". A textbox keeps the
+  // first of repeated URL parameters today; the array case guards a change.
+  const percentEncode = (value: string | string[]) =>
+    encodeURIComponent(
+      Array.isArray(value) ? `{${value.join(",")}}` : value,
+    ).replace(
+      /[!'()*]/g,
+      (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
+    )
+
+  // Equivalence and boundary classes from control or URL input. The promtool
+  // file is the oracle: it holds the expected state of each in the pinned
+  // query engine (README: deploy/monitoring/README.md).
+  const viewerInputs: { input: string | string[]; reason: string }[] = [
+    { input: "0", reason: "EP valid, BVA lowest: 0 turns the indication off" },
+    { input: "99", reason: "BVA: just below a count of 100" },
+    { input: "100", reason: "BVA: equal to a count of 100 is not low" },
+    { input: "101", reason: "BVA: just above a count of 100 is low" },
+    { input: "750", reason: "EP valid: an arbitrary larger whole number" },
+    { input: "999999999999999", reason: "BVA highest valid: 15 digits" },
+    {
+      input: "1000000000000000",
+      reason: "BVA lowest invalid: 16 digits, unrepresentable",
+    },
+    { input: "-1", reason: "EP invalid, BVA: negative, just below 0" },
+    { input: "1.5", reason: "EP invalid: fractional" },
+    {
+      input: "100.0",
+      reason: "EP invalid: unsupported decimal representation",
+    },
+    { input: "1e3", reason: "EP invalid: unsupported exponent representation" },
+    {
+      input: "0x10",
+      reason: "EP invalid: unsupported hexadecimal representation",
+    },
+    { input: "+5", reason: "EP invalid: unsupported signed representation" },
+    { input: "007", reason: "EP invalid: unsupported leading zeros" },
+    { input: "1_000", reason: "EP invalid: unsupported digit separator" },
+    { input: " 100", reason: "EP invalid: surrounding whitespace" },
+    { input: "", reason: "EP invalid: empty" },
+    { input: "abc", reason: "EP invalid: nonnumeric" },
+    { input: "Infinity", reason: "EP invalid: non-finite" },
+    { input: "NaN", reason: "EP invalid: not a number" },
+    { input: "100) or vector(1", reason: "EP invalid: PromQL expression" },
+    {
+      input: '100"} or vector(1) #',
+      reason: "EP invalid: string-escaping expression",
+    },
+    { input: "$1", reason: "EP invalid: label_replace reference" },
+    { input: ["100", "750"], reason: "EP invalid: multiple values" },
+  ]
+
+  it.each(
+    queries
+      .filter(({ expr }) => expr.includes("${"))
+      .flatMap(({ title, expr }) =>
+        viewerInputs.map(({ input, reason }) => ({
+          title,
+          input: JSON.stringify(input),
+          reason,
+          expr: expr.replaceAll(
+            `\${${thresholdControl}:percentencode}`,
+            percentEncode(input),
+          ),
+        })),
+      ),
+  )(
+    "$title is exercised by promtool for viewer input $input ($reason)",
+    ({ expr }) => {
+      expect(expr).not.toContain("${")
+      expect(promtoolTests).toContain(promtoolCase(expr))
     },
   )
 
@@ -225,6 +306,67 @@ describe("provisioned backend dashboard queries", () => {
         "refused stream",
       ])
         expect(text).toContain(claim)
+    })
+  })
+
+  describe("viewer-tuned low-traffic indication", () => {
+    const indication = panels.find(
+      ({ title }) => title === "Low-traffic indication — rolling 5 minutes",
+    )
+
+    it("offers a textbox control whose shared default in Git is 0 (off)", () => {
+      const variable = dashboard.templating.list.find(
+        ({ name }: { name: string }) => name === thresholdControl,
+      )
+      expect(variable).toMatchObject({ type: "textbox", query: "0" })
+      expect(variable.current).toMatchObject({ value: "0" })
+      // A Viewer changes only the current view and URL; Git stays authoritative.
+      expect(dashboard.editable).toBe(false)
+    })
+
+    // Raw interpolation would execute "100) or vector(1" as PromQL. Percent
+    // encoding leaves only [A-Za-z0-9-_.~%], which cannot leave the string or
+    // become a label_replace "$1" reference.
+    it("interpolates the control only as a percent-encoded PromQL string", () => {
+      const uses = JSON.stringify(dashboard).match(
+        new RegExp(`.{0,2}\\$\\{?${thresholdControl}[^"\\\\]*.{0,2}`, "g"),
+      )
+      expect(uses?.length).toBeGreaterThan(0)
+      expect(new Set(uses)).toEqual(
+        new Set([`\\"\${${thresholdControl}:percentencode}\\"`]),
+      )
+      expect(indication?.targets?.length).toBe(1)
+    })
+
+    // The promtool oracle returns these state numbers; each needs its words.
+    it.each([
+      { state: "0", text: /^Configuration error — / },
+      { state: "1", text: /^Unavailable — / },
+      { state: "2", text: /^Off — threshold 0$/ },
+      { state: "3", text: /^Not low — / },
+      { state: "4", text: /^LOW traffic — .*p95 with its observation count$/ },
+    ])("labels state $state as $text", ({ state, text }) => {
+      const mappings = (
+        indication as Panel & {
+          fieldConfig: {
+            defaults: {
+              mappings: { options: Record<string, { text: string }> }[]
+            }
+          }
+        }
+      ).fieldConfig.defaults.mappings
+      expect(mappings[0].options[state].text).toMatch(text)
+    })
+
+    it("evaluates at the end of any displayed range, on the five-minute count", () => {
+      const [target] = indication!.targets! as {
+        expr: string
+        instant?: boolean
+      }[]
+      expect(target.instant).toBe(true)
+      expect(target.expr).toContain(
+        'sum(increase(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))',
+      )
     })
   })
 

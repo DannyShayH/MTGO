@@ -6,8 +6,10 @@ description: Completed ordinary backend API responses, including early refusals,
 This implements the local journeys of
 [#169](https://github.com/DannyShayH/MTGO/issues/169),
 [#170](https://github.com/DannyShayH/MTGO/issues/170),
-[#171](https://github.com/DannyShayH/MTGO/issues/171) and
-[#172](https://github.com/DannyShayH/MTGO/issues/172), under
+[#171](https://github.com/DannyShayH/MTGO/issues/171),
+[#172](https://github.com/DannyShayH/MTGO/issues/172),
+[#173](https://github.com/DannyShayH/MTGO/issues/173) and
+[#174](https://github.com/DannyShayH/MTGO/issues/174), under
 [#167](https://github.com/DannyShayH/MTGO/issues/167). It measures every
 completed ordinary API response from one backend process, including
 authentication, publishable-key and body refusals before application
@@ -46,7 +48,7 @@ For a native development server, use `PORT` rather than a CLI `--port`
 override and keep the default exporter bind at `127.0.0.1`.
 
 There is no application-log collection, host/container/database/Redis or
-Next.js process metrics, separate-worker runtime metrics or adjustable warning thresholds yet.
+Next.js process metrics, separate-worker runtime metrics or high-traffic warning yet.
 The [confirmed discovery](/MTGO/quality/prometheus-monitoring-discovery/)
 describes the later work. Seven-day Prometheus retention is a time policy,
 not a storage quota or evidence that the full four-component stack fits staging.
@@ -373,6 +375,60 @@ in the rolling value. Like other outcomes, an interruption series seen for the
 first time inside the window misses its first increment; the raw counter
 `mtogo_http_requests_interrupted_total` has the exact count.
 
+## Low-traffic indication per Viewer (#174)
+
+The **Low traffic below** box at the top of the dashboard holds a whole
+number. The **Low-traffic indication — rolling 5 minutes** panel compares it
+with **Estimated completed responses — rolling 5 minutes**: the same
+extrapolated count of completed ordinary API responses, with the same
+exclusions (health, scrapes, Admin assets, established streams and
+interrupted requests). It is not a count of users, Orders or the lifetime
+counter, and it is evaluated at the end of the displayed range whatever range
+you choose. It is a visual indication only: no request limit, capacity claim
+or notification.
+
+| Panel reads                                           | When                                                                                                   |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| **Configuration error — invalid Low traffic below**   | The value is not digits only from `0` to `999999999999999`. No threshold is applied, saved or rounded. |
+| **Unavailable — no valid count**                      | The target is DOWN or absent, or there are fewer than two samples. Also with threshold 0.              |
+| **Off — threshold 0**                                 | The threshold is `0` and a valid count exists. This is the Git default.                                |
+| **LOW traffic — read p95 with its observation count** | The count is strictly below the threshold. Read the p95 with its observation count.                    |
+| **Not low — at or above**                             | The count is equal to or above the threshold.                                                          |
+
+Accepted values are `0` and whole numbers without a leading zero, up to 15
+digits (exact as a floating-point number). Everything else is a configuration
+error: negative, fractional (`1.5`, `100.0`), exponent (`1e3`), hexadecimal,
+signed (`+5`), leading zeros (`007`), separators (`1_000`), spaces, empty,
+`NaN`, `Infinity`, 16 or more digits and text such as `100) or vector(1`.
+The count is an estimate, so 99.99 against 100 is LOW; 100 exactly is not.
+
+**Your view only.** Typing a value updates the panel and the URL
+(`?var-low_traffic_threshold=750`) without a redeploy. Share that URL to share
+the setting. Nobody else's view changes, and the Git default (`0`) stays:
+Viewers cannot save the dashboard. To change the shared default, change
+`templating` in `grafana/dashboards/backend-requests.json` in an issue.
+Grafana 13.3.1 keeps the first value of a repeated URL parameter
+(`?var-low_traffic_threshold=100&var-low_traffic_threshold=750` shows and
+uses `100`) and rewrites the URL to that single value.
+
+**How the value reaches the query.** Grafana inserts the value only as
+`"${low_traffic_threshold:percentencode}"`, inside a PromQL string. Percent
+encoding leaves only letters, digits and `-_.~%`, so input can never end the
+string, become a query or expand a `label_replace` reference such as `$1`.
+The query checks that string against `0|[1-9][0-9]{0,14}` and converts it to
+a number with `histogram_quantile(1, …)` over a one-bucket histogram whose
+`le` is the value: PromQL's only way to read a number from a label. A rejected
+value yields no number, and the panel shows the configuration error. A unit
+test fails if the variable appears anywhere in another form.
+
+The promtool file holds the acceptance table against the pinned engine: low 0,
+99, 100, 101, 750, 749, 751 and the 15-digit maximum, against counts of
+exactly 100, just under 100, exactly 750 and valid zero; DOWN, absent and
+one-scrape targets; and each invalid class above, as Grafana encodes it. The
+backend unit test fails if any of its 24 representative inputs (each
+invalid class, 0, 99, 100, 101, 750 and both 15/16-digit boundaries) is
+missing from the file.
+
 ## Operation, failure and cleanup
 
 Stop either monitoring service locally and run the real read again. The API
@@ -430,6 +486,9 @@ docker compose down
 | Active streams stay at 0 while a kitchen is open   | The feed may be refused (401/403 are ordinary responses) or the partner app may be polling instead. A stream endpoint missing from `STREAM_ROUTES` is counted as an ordinary request when it ends. |
 | Many `disconnected` terminations                   | Not a backend error. Check the proxy timeouts, the network and whether clients reconnect; a deploy ends feeds without recording them, because collection stops with the old process.               |
 | Interrupted requests rise                          | Clients gave up before the response finished. Check the p95 of the same route and the event-loop delay: slow responses lead to timeouts.                                                           |
+| Low-traffic panel shows a configuration error      | The box holds something other than digits only, 0 to 999999999999999. Remove spaces, signs, decimals and leading zeros; 0 turns the indication off.                                                |
+| Low-traffic panel Unavailable with a valid value   | No valid five-minute count: check **Data state**. A threshold, including 0, never turns DOWN or missing samples into data.                                                                         |
+| Someone else sees a different low-traffic result   | Thresholds live in each view's URL. Compare the `var-low_traffic_threshold` values; the Git default is 0.                                                                                          |
 | `test rules` fails after a dashboard change        | Update the expression and expected values in `tests/dashboard-queries.test.yaml` together; the backend unit test names any query the file lacks.                                                   |
 | Dashboard absent                                   | Check Grafana provisioning logs and the mounted dashboard/provider/data-source paths; keep the pinned versions together.                                                                           |
 | `docker: command not found`                        | Rebuild and reopen the devcontainer with the Docker-in-Docker feature, then check `docker version` and `docker compose version`.                                                                   |
@@ -666,3 +725,57 @@ Compose stack built from commit `add234c` (Grafana 13.3.1, signed in as
 | Interruption       | With PostgreSQL stopped, `curl` exited 28. Interrupted requests showed one `GET unrouted`; no 500 and no new duration, also after PostgreSQL returned.                                                                   |
 | Backend stopped    | The three stat panels read **Unavailable**; the charts kept their history and drew no new points.                                                                                                                        |
 | 1440 and 390 px    | Legends readable at both widths. At 390 pixels, stat titles are shortened with an ellipsis and the text panel shows its first lines with the rest scrollable inside the panel, as in the HTTP-serving process scope row. |
+
+### Low-traffic indication per Viewer (#174)
+
+No collection changed; the slice is the dashboard control, its query and the
+Viewer journey. Agent verification on 23 November 2026, on the uncommitted
+#174 working tree:
+
+| Boundary                | Observed result                                                                                                                                                                                                                                                                                             |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dashboard queries       | **146 dashboard-query unit tests passed**: the textbox default is `0`, the dashboard is not editable, the variable appears only as a quoted `percentencode` string, every state has a label and each of 24 Viewer input classes is in the promtool file as Grafana encodes it. Full unit suite: 832 passed. |
+| Prometheus query engine | `promtool test rules` with the pinned v3.16.0 image: **SUCCESS**. Changing the comparison to "at or below" fails the two equality cases (100 and 750), so the file can detect an equality error.                                                                                                            |
+| Grafana formatter       | The Grafana 13.3.1 build's `percentencode` is `encodeURIComponent` plus `!'()*` as `%XX`, as the unit test assumes.                                                                                                                                                                                         |
+| Grafana 13.3.1 Viewer   | Signed in as `local-viewer` in headless Chromium with about 65 synthetic responses in five minutes. Results are listed below. Saving the dashboard returned 403 and the provisioned default stayed `0`.                                                                                                     |
+
+| Viewer action                                                                                  | Indication                                                                                                                                                               |
+| ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Plain URL (Git default)                                                                        | Off — threshold 0                                                                                                                                                        |
+| URL value `5`                                                                                  | Not low                                                                                                                                                                  |
+| URL values `100`, `750`, `999999999999999`                                                     | LOW traffic                                                                                                                                                              |
+| URL values `1e3`, `-1`, `abc`, empty, `007`, `1.5`, `NaN`, `+5`, 16 digits, `100) or vector(1` | Configuration error                                                                                                                                                      |
+| Typed `750`, then `1.5`, `100) or vector(1`, `0`                                               | LOW, error, error, Off; the URL carried each typed value                                                                                                                 |
+| A second Viewer account (`local-viewer-2`, deleted afterwards) while the first had `750`       | Plain URL: `0`, Off. Typing `5` changed only its own view (count 0 then, so LOW); the first Viewer's reload kept `750`. Opening the first Viewer's URL reproduced `750`. |
+| Backend stopped, values `0`, `100`, `abc`                                                      | Unavailable, Unavailable, Configuration error                                                                                                                            |
+| 1440 and 390 pixels                                                                            | Labels readable, no horizontal overflow. The first, longer error label was too small at 390 pixels and was shortened.                                                    |
+
+Repeat the startup above, run the `test rules` command, then check as a Viewer:
+
+- The plain dashboard reads **Off — threshold 0**, with `0` in **Low traffic below**.
+- Send reads, wait 30 seconds, then type a value below and one above
+  **Estimated completed responses**: **Not low**, then **LOW traffic**. The
+  URL shows each value.
+- Type `1.5`, `-1`, `abc` and `100) or vector(1`, and open a URL with
+  `var-low_traffic_threshold=1e3`: each shows **Configuration error**.
+- Open the plain URL in another browser or private window: the box reads `0`.
+  Open the copied URL there: the same value and result.
+- Stop the backend: valid values read **Unavailable**, never LOW or Off.
+
+Acceptance run on 23 November 2026, at the developer's request, on the stack
+with the dashboard from commit `c208e0c` (Grafana 13.3.1, signed in as
+`local-viewer`, rendered in headless Chromium at 1440 and 390 pixels). Reads
+were spread over eight scrapes so the rolling count included them (about 50):
+
+| Checklist item            | Observed result                                                                                                                                                    |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Startup                   | `promtool test rules` succeeded; Prometheus scraped the backend and the count rose to about 47.                                                                    |
+| Plain dashboard           | **Off — threshold 0**, with `0` in **Low traffic below**.                                                                                                          |
+| Below and above the count | Typed `10`: **Not low**. Typed `500`: **LOW traffic — read p95 with its observation count**. The URL showed `10`, then `500`.                                      |
+| Invalid values            | Typed `1.5`, `-1`, `abc` and `100) or vector(1`, and opened `var-low_traffic_threshold=1e3`: each **Configuration error**, with the value kept in the box and URL. |
+| Another window            | Plain URL: `0`, Off. The copied URL: `500`, LOW traffic.                                                                                                           |
+| Backend stopped           | `0` and `500`: **Unavailable — no valid count**. `abc`: Configuration error.                                                                                       |
+| 1440 and 390 pixels       | Labels readable, no horizontal overflow. The help text scrolls inside its panel at 390 pixels, like the other text panels.                                         |
+
+The first plain-dashboard read in a new browser was taken before any panel
+had loaded; repeated after eight seconds it showed Off.

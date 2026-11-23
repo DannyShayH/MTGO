@@ -1,9 +1,9 @@
 {
   "uid": "mtogo-backend-requests",
   "title": "MTOGO — backend API requests and process",
-  "description": "Slices #169/#170/#194/#171/#172/#173: completed ordinary API responses, 5xx proportion, p95 latency and process CPU, memory and event-loop delay, with established streams and interrupted requests kept apart, from one HTTP-serving Medusa process, with explicit unavailable states. No business counts.",
+  "description": "Slices #169/#170/#194/#171/#172/#173/#174: completed ordinary API responses, 5xx proportion, p95 latency and process CPU, memory and event-loop delay, with established streams and interrupted requests kept apart, from one HTTP-serving Medusa process, with explicit unavailable states. A per-view low-traffic indication. No business counts.",
   "schemaVersion": 41,
-  "version": 6,
+  "version": 7,
   "editable": false,
   "refresh": "30s",
   "timezone": "browser",
@@ -16,7 +16,27 @@
     "list": []
   },
   "templating": {
-    "list": []
+    "list": [
+      {
+        "type": "textbox",
+        "name": "low_traffic_threshold",
+        "label": "Low traffic below (responses / 5 min, 0 = off)",
+        "description": "Whole number 0–999999999999999. Changes only your view and its URL.",
+        "query": "0",
+        "current": {
+          "text": "0",
+          "value": "0"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "0",
+            "value": "0"
+          }
+        ],
+        "hide": 0
+      }
+    ]
   },
   "panels": [
     {
@@ -46,7 +66,96 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "**HTTP responses, not Customers or Orders.** Latency is server-side seconds from request start to response finish for one HTTP request. It is **not Order processing time** (Feature #54) or any business measure. Every query uses a rolling five-minute window; counts are extrapolated estimates. **Unavailable** means no valid evidence: target DOWN or absent, fewer than two scrapes, zero completed responses (no 5xx proportion) or no duration observations (no p95). Check the observation count before trusting a p95; p95 is capped at the 10 s bucket. Rates handle counter resets. Established streams and interrupted requests are separate and never enter these counts, rates or p95. Warning controls are deferred."
+        "content": "**HTTP responses, not Customers or Orders.** Latency is server-side seconds from request start to response finish for one HTTP request. It is **not Order processing time** (Feature #54) or any business measure. Every query uses a rolling five-minute window; counts are extrapolated estimates. **Unavailable** means no valid evidence: target DOWN or absent, fewer than two scrapes, zero completed responses (no 5xx proportion) or no duration observations (no p95). Check the observation count before trusting a p95; p95 is capped at the 10 s bucket. Rates handle counter resets. Established streams and interrupted requests are separate and never enter these counts, rates or p95."
+      }
+    },
+    {
+      "id": 30,
+      "title": "Low-traffic indication — rolling 5 minutes",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 7
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Compares Estimated completed responses — rolling 5 minutes with your Low traffic below control, whatever time range is displayed. Strictly below the threshold is low; equal is not. 0 turns the indication off. A visual indication only: no request limit and no notification. A configuration error means the value is not digits only from 0 to 999999999999999; no threshold is applied.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B8BEC9"
+          },
+          "noValue": "Unavailable — no indication evaluated",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Configuration error — invalid Low traffic below",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "Unavailable — no valid count",
+                  "color": "#B8BEC9"
+                },
+                "2": {
+                  "text": "Off — threshold 0",
+                  "color": "#B8BEC9"
+                },
+                "3": {
+                  "text": "Not low — at or above",
+                  "color": "green"
+                },
+                "4": {
+                  "text": "LOW traffic — read p95 with its observation count",
+                  "color": "orange"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(vector(0) unless on() histogram_quantile(1, sum by (le) ((label_replace(label_replace(vector(1), \"threshold_text\", \"${low_traffic_threshold:percentencode}\", \"\", \"\"), \"le\", \"$1\", \"threshold_text\", \"(0|[1-9][0-9]{0,14})\") unless on(le) vector(1)) or label_replace(label_replace(label_replace(vector(1), \"threshold_text\", \"${low_traffic_threshold:percentencode}\", \"\", \"\"), \"le\", \"$1\", \"threshold_text\", \"(0|[1-9][0-9]{0,14})\") unless on(le) vector(1), \"le\", \"+Inf\", \"\", \"\")))) or on() (vector(1) unless on() sum(increase(mtogo_http_requests_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))) or on() (vector(2) and on() (histogram_quantile(1, sum by (le) ((label_replace(label_replace(vector(1), \"threshold_text\", \"${low_traffic_threshold:percentencode}\", \"\", \"\"), \"le\", \"$1\", \"threshold_text\", \"(0|[1-9][0-9]{0,14})\") unless on(le) vector(1)) or label_replace(label_replace(label_replace(vector(1), \"threshold_text\", \"${low_traffic_threshold:percentencode}\", \"\", \"\"), \"le\", \"$1\", \"threshold_text\", \"(0|[1-9][0-9]{0,14})\") unless on(le) vector(1), \"le\", \"+Inf\", \"\", \"\"))) == 0)) or on() (vector(4) and on() (sum(increase(mtogo_http_requests_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) < on() histogram_quantile(1, sum by (le) ((label_replace(label_replace(vector(1), \"threshold_text\", \"${low_traffic_threshold:percentencode}\", \"\", \"\"), \"le\", \"$1\", \"threshold_text\", \"(0|[1-9][0-9]{0,14})\") unless on(le) vector(1)) or label_replace(label_replace(label_replace(vector(1), \"threshold_text\", \"${low_traffic_threshold:percentencode}\", \"\", \"\"), \"le\", \"$1\", \"threshold_text\", \"(0|[1-9][0-9]{0,14})\") unless on(le) vector(1), \"le\", \"+Inf\", \"\", \"\"))))) or on() vector(3)",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "wideLayout": true,
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 31,
+      "title": "Tune the low-traffic indication",
+      "type": "text",
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 7
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "Enter **Low traffic below** at the top: completed ordinary API responses in the rolling five minutes, the same estimate and exclusions as **Estimated completed responses**. A count strictly below it is **LOW**; equal is not. **0 turns it off.** Allowed: digits only, `0` to `999999999999999`, no sign, decimal, exponent, spaces or leading zeros; anything else shows a **configuration error**, never a fallback. Your value changes this view and its URL (share the URL to share the setting), not the Git default or anyone else's view. Low 0 never makes DOWN or missing data valid."
       }
     },
     {
@@ -55,7 +164,7 @@
       "type": "stat",
       "gridPos": {
         "x": 0,
-        "y": 8,
+        "y": 15,
         "w": 6,
         "h": 5
       },
@@ -115,7 +224,7 @@
       "type": "stat",
       "gridPos": {
         "x": 6,
-        "y": 8,
+        "y": 15,
         "w": 6,
         "h": 5
       },
@@ -183,7 +292,7 @@
       "type": "stat",
       "gridPos": {
         "x": 12,
-        "y": 8,
+        "y": 15,
         "w": 6,
         "h": 5
       },
@@ -229,7 +338,7 @@
       "type": "stat",
       "gridPos": {
         "x": 18,
-        "y": 8,
+        "y": 15,
         "w": 6,
         "h": 5
       },
@@ -274,7 +383,7 @@
       "type": "stat",
       "gridPos": {
         "x": 0,
-        "y": 13,
+        "y": 20,
         "w": 6,
         "h": 5
       },
@@ -321,7 +430,7 @@
       "type": "stat",
       "gridPos": {
         "x": 6,
-        "y": 13,
+        "y": 20,
         "w": 6,
         "h": 5
       },
@@ -368,7 +477,7 @@
       "type": "stat",
       "gridPos": {
         "x": 12,
-        "y": 13,
+        "y": 20,
         "w": 6,
         "h": 5
       },
@@ -415,7 +524,7 @@
       "type": "stat",
       "gridPos": {
         "x": 18,
-        "y": 13,
+        "y": 20,
         "w": 6,
         "h": 5
       },
@@ -461,7 +570,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 18,
+        "y": 25,
         "w": 24,
         "h": 8
       },
@@ -507,7 +616,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 26,
+        "y": 33,
         "w": 12,
         "h": 8
       },
@@ -554,7 +663,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 26,
+        "y": 33,
         "w": 12,
         "h": 8
       },
@@ -603,7 +712,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 34,
+        "y": 41,
         "w": 12,
         "h": 8
       },
@@ -650,7 +759,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 34,
+        "y": 41,
         "w": 12,
         "h": 8
       },
@@ -697,7 +806,7 @@
       "type": "text",
       "gridPos": {
         "x": 0,
-        "y": 42,
+        "y": 49,
         "w": 24,
         "h": 6
       },
@@ -712,7 +821,7 @@
       "type": "stat",
       "gridPos": {
         "x": 0,
-        "y": 48,
+        "y": 55,
         "w": 8,
         "h": 5
       },
@@ -758,7 +867,7 @@
       "type": "stat",
       "gridPos": {
         "x": 8,
-        "y": 48,
+        "y": 55,
         "w": 8,
         "h": 5
       },
@@ -804,7 +913,7 @@
       "type": "stat",
       "gridPos": {
         "x": 16,
-        "y": 48,
+        "y": 55,
         "w": 8,
         "h": 5
       },
@@ -850,7 +959,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 53,
+        "y": 60,
         "w": 8,
         "h": 8
       },
@@ -898,7 +1007,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 8,
-        "y": 53,
+        "y": 60,
         "w": 8,
         "h": 8
       },
@@ -946,7 +1055,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 16,
-        "y": 53,
+        "y": 60,
         "w": 8,
         "h": 8
       },
@@ -994,7 +1103,7 @@
       "type": "text",
       "gridPos": {
         "x": 0,
-        "y": 61,
+        "y": 68,
         "w": 24,
         "h": 5
       },
@@ -1009,7 +1118,7 @@
       "type": "stat",
       "gridPos": {
         "x": 0,
-        "y": 66,
+        "y": 73,
         "w": 8,
         "h": 5
       },
@@ -1056,7 +1165,7 @@
       "type": "stat",
       "gridPos": {
         "x": 8,
-        "y": 66,
+        "y": 73,
         "w": 8,
         "h": 5
       },
@@ -1103,7 +1212,7 @@
       "type": "stat",
       "gridPos": {
         "x": 16,
-        "y": 66,
+        "y": 73,
         "w": 8,
         "h": 5
       },
@@ -1150,7 +1259,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 71,
+        "y": 78,
         "w": 8,
         "h": 8
       },
@@ -1198,7 +1307,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 8,
-        "y": 71,
+        "y": 78,
         "w": 8,
         "h": 8
       },
@@ -1260,7 +1369,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 16,
-        "y": 71,
+        "y": 78,
         "w": 8,
         "h": 8
       },
