@@ -1,6 +1,7 @@
-import type {
-  CancellationCategory,
-  OrderOperationState,
+import {
+  CANCELLATION_CATEGORIES,
+  type CancellationCategory,
+  type OrderOperationState,
 } from "../../modules/order-operation/models/order-operation"
 import { DEACTIVATION_REASON_MAX_LENGTH } from "../restaurants/deactivation-reason"
 
@@ -260,6 +261,8 @@ export const customerActions = (
     : []
 }
 
+export { CANCELLATION_CATEGORIES }
+
 export const QUEUE_VIEWS = ["awaiting", "active", "history"] as const
 export type QueueView = (typeof QUEUE_VIEWS)[number]
 
@@ -283,3 +286,38 @@ const VIEWS: Record<
 
 /** Which operational states a queue view shows, and in which order. */
 export const queueView = (view: QueueView) => VIEWS[view]
+
+/** Optional narrowing of a queue view; the Restaurant always comes from the staff record. */
+export type QueueFilters = {
+  /** Inclusive lower bound of paid placement. */
+  placed_from?: Date
+  /** Exclusive upper bound, so consecutive days never overlap. */
+  placed_to?: Date
+  cancellation_category?: CancellationCategory
+}
+
+/**
+ * The Order Operations filter for one view of one Restaurant. `orderIds`
+ * holds the Orders matching a searched number; ownership still comes from
+ * `restaurant_id`, so another Restaurant's Order with that number never shows.
+ */
+export function queueFilter(
+  restaurant_id: string,
+  view: QueueView,
+  filters: QueueFilters,
+  orderIds?: string[],
+) {
+  const { placed_from, placed_to, cancellation_category } = filters
+  return {
+    restaurant_id,
+    state: queueView(view).states,
+    ...((placed_from || placed_to) && {
+      placed_at: {
+        ...(placed_from && { $gte: placed_from }),
+        ...(placed_to && { $lt: placed_to }),
+      },
+    }),
+    ...(cancellation_category && { cancellation_category }),
+    ...(orderIds && { order_id: orderIds }),
+  }
+}

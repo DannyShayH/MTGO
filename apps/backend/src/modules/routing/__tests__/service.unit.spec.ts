@@ -199,7 +199,11 @@ describe("RoutingModuleService", () => {
     fetchMock.mockResolvedValue(reply())
     expect(await service().tripDistance(pickup, customer)).toBeNull()
     expect(await service().distancesFrom(pickup, [customer])).toEqual([null])
-    const logged = JSON.stringify(logger.log.mock.calls)
+    // Without the record's own timestamp: a log written at second 55 of a
+    // minute ("18:20:55.119Z") would otherwise match the coordinate pattern.
+    const logged = JSON.stringify(logger.log.mock.calls, (key, value) =>
+      key === "time" ? undefined : value,
+    )
     expect(logged).toContain("upstream.request.failed")
     expect(logged).toContain("/v2/matrix/:profile")
     expect(logged).not.toMatch(/55\.|12\.5|ors-key|ors\.example/)

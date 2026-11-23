@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { ORDER_TEXT, type Locale } from "@dtc/i18n"
 import { clx } from "@medusajs/ui"
-import { ORDER_VIEWS, type OrderView } from "@lib/data/orders"
+import { ORDER_VIEWS, type OrderView } from "@lib/order-queue"
 import { AwaitingCount } from "./arrival-alerts"
 
 const LABELS = {

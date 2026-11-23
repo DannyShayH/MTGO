@@ -10,6 +10,8 @@ import { CUSTOMER_CART, formatDkk, type Locale } from "@dtc/i18n"
 import { retrieveCart } from "@lib/data/cart"
 import { CART_UPDATED_EVENT } from "@lib/util/cart-events"
 import { countBasketItems } from "@lib/util/basket"
+import { withPending } from "@lib/util/pending-cart"
+import { usePendingCart } from "@lib/hooks/use-pending-cart"
 import { ShoppingCart } from "@medusajs/icons"
 import { HttpTypes } from "@medusajs/types"
 import { Button } from "@modules/common/components/ui"
@@ -34,9 +36,20 @@ const CartDropdown = ({
   locale: Locale
 }) => {
   const text = CUSTOMER_CART[locale]
-  // Statically rendered pages can't read the cart cookie, so the cart is loaded in the browser.
-  const [clientCart, setClientCart] = useState<HttpTypes.StoreCart | null>(null)
-  const cartState = serverCart ?? clientCart
+  // Statically rendered pages can't read the cart cookie, so the cart is
+  // loaded in the browser; after a change it is read again here too, so the
+  // badge settles on a read that holds the change (#203).
+  const [cartState, setCartState] = useState<HttpTypes.StoreCart | null>(
+    serverCart ?? null,
+  )
+  const { pending, track, hasPending } = usePendingCart()
+  // A revalidated page may bring the server's cart while a change is still
+  // counted here; that change's own read replaces it, without counting twice.
+  const [renderedCart, setRenderedCart] = useState(serverCart)
+  if (renderedCart !== serverCart) {
+    setRenderedCart(serverCart)
+    if (serverCart && !hasPending()) setCartState(serverCart)
+  }
   const basketDishes = useBasketDishes(cartState)
   const [activeTimer, setActiveTimer] = useState<NodeJS.Timer | undefined>(
     undefined,
@@ -47,30 +60,27 @@ const CartDropdown = ({
   const close = () => setIsOpen(false)
 
   const totalItems = countBasketItems(cartState)
+  // The badge counts a tap at once; opening by itself waits for the read.
+  const shownItems = withPending({ count: totalItems, total: 0 }, pending).count
   const itemRef = useRef<number>(totalItems || 0)
+  const hasServerCart = !!serverCart
 
   useEffect(() => {
-    if (serverCart) {
-      return
-    }
-
-    let isInitialLoad = true
+    let isInitialLoad = !hasServerCart
     const load = () =>
-      retrieveCart()
-        .then((cart) => {
-          if (isInitialLoad) {
-            // Don't auto-open the dropdown for items that were already in the cart.
-            itemRef.current = countBasketItems(cart)
-            isInitialLoad = false
-          }
-          setClientCart(cart)
-        })
-        .catch(() => {})
+      track(retrieveCart, (cart) => {
+        if (isInitialLoad) {
+          // Don't auto-open the dropdown for items that were already in the cart.
+          itemRef.current = countBasketItems(cart)
+          isInitialLoad = false
+        }
+        setCartState(cart)
+      }).catch(() => {})
 
-    void load()
+    if (!hasServerCart) void load()
     window.addEventListener(CART_UPDATED_EVENT, load)
     return () => window.removeEventListener(CART_UPDATED_EVENT, load)
-  }, [serverCart])
+  }, [hasServerCart, track])
 
   const timedOpen = () => {
     open()
@@ -119,7 +129,7 @@ const CartDropdown = ({
             href="/cart"
             data-testid="nav-cart-link"
           >
-            <CartIcon label={label} count={totalItems} />
+            <CartIcon label={label} count={shownItems} />
           </LocalizedClientLink>
         </PopoverButton>
         <Transition

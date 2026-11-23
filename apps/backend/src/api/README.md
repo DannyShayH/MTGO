@@ -1535,11 +1535,21 @@ comes from the staff record, never from the request. Ownership is the
 Restaurant recorded at placement, so a closed or deactivated Restaurant's staff
 still see its existing Orders.
 
-| Query    | Values                                      |
-| -------- | ------------------------------------------- |
-| `view`   | `awaiting` (default), `active` or `history` |
-| `limit`  | 1 to 50, default 20                         |
-| `offset` | 0 or more, default 0                        |
+| Query                   | Values                                                                                             |
+| ----------------------- | -------------------------------------------------------------------------------------------------- |
+| `view`                  | `awaiting` (default), `active` or `history`                                                        |
+| `limit`                 | 1 to 50, default 20                                                                                |
+| `offset`                | 0 or more, default 0                                                                               |
+| `q`                     | Optional Order number, `42` or `#42` (up to 9 digits)                                              |
+| `placed_from`           | Optional ISO time with offset; paid placement at or after it                                       |
+| `placed_to`             | Optional ISO time with offset; paid placement before it (exclusive), and after `placed_from`       |
+| `cancellation_category` | Optional `restaurant_rejected`, `acceptance_timeout`, `customer_cancelled` or `unassigned_timeout` |
+
+The filters combine and narrow the view; `count` is the filtered total, so
+pagination follows the filter. A number is matched only among the staff
+member's own Restaurant's Orders, so another Restaurant's Order with that
+number is never found. Legacy Orders without a recorded placement never match a
+placement window. Anything else is refused with `400`.
 
 | View       | Operational states               | Order                                                                      |
 | ---------- | -------------------------------- | -------------------------------------------------------------------------- |

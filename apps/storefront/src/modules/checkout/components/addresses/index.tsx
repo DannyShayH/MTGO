@@ -1,6 +1,8 @@
 "use client"
 import { setAddresses } from "@lib/data/cart"
 import useToggleState from "@lib/hooks/use-toggle-state"
+import { useCheckoutStep } from "@lib/hooks/use-checkout-step"
+import { hasDeliveryAddress } from "@lib/util/checkout-step"
 import compareAddresses from "@lib/util/compare-addresses"
 import { CheckCircleSolid } from "@medusajs/icons"
 import { HttpTypes } from "@medusajs/types"
@@ -17,13 +19,42 @@ import {
 import Divider from "@modules/common/components/divider"
 import { Heading, Text } from "@modules/common/components/ui"
 import Spinner from "@modules/common/icons/spinner"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { toast } from "@medusajs/ui"
 import { useActionState, useState } from "react"
 import BillingAddress from "../billing_address"
 import ErrorMessage from "../error-message"
 import ShippingAddress from "../shipping-address"
 import { SubmitButton } from "../submit-button"
+import StepEditButton from "../step-edit-button"
+
+/**
+ * An address as Danish addresses are written: name, street with the
+ * apartment, then postal code and town. Missing parts leave no stray commas,
+ * and the country is left out, since MTOGO only delivers in Denmark.
+ */
+function AddressLines({
+  address,
+}: {
+  address?: HttpTypes.StoreCartAddress | null
+}) {
+  const lines = [
+    [address?.first_name, address?.last_name],
+    [address?.address_1, address?.address_2],
+    [address?.postal_code, address?.city],
+  ]
+    .map((parts) => parts.filter(Boolean).join(" ").trim())
+    .filter(Boolean)
+  return (
+    <>
+      {lines.map((line) => (
+        <Text key={line} className="txt-medium text-ui-fg-subtle">
+          {line}
+        </Text>
+      ))}
+    </>
+  )
+}
 
 const Addresses = ({
   cart,
@@ -34,13 +65,14 @@ const Addresses = ({
   customer: HttpTypes.StoreCustomer | null
   locale: Locale
 }) => {
-  const searchParams = useSearchParams()
   const text = CUSTOMER_CHECKOUT_TEXT[locale]
   const reviewedLanguage = reviewedCheckoutLanguage(cart?.metadata)
   const router = useRouter()
   const pathname = usePathname()
 
-  const isOpen = searchParams.get("step") === "address"
+  // Open until a delivery address is entered: a new cart's address holds
+  // only the country, which must not read as a finished step.
+  const isOpen = useCheckoutStep(cart ?? {}) === "address"
 
   const { state: sameAsBilling, toggle: toggleSameAsBilling } = useToggleState(
     cart?.shipping_address && cart?.billing_address
@@ -79,16 +111,13 @@ const Addresses = ({
           {text.shippingAddress}
           {!isOpen && <CheckCircleSolid />}
         </Heading>
-        {!isOpen && cart?.shipping_address && (
-          <Text>
-            <button
-              onClick={handleEdit}
-              className="text-ui-fg-interactive hover:text-ui-fg-interactive-hover"
-              data-testid="edit-address-button"
-            >
-              {text.edit}
-            </button>
-          </Text>
+        {!isOpen && (
+          <StepEditButton
+            step={text.shippingAddress}
+            locale={locale}
+            onClick={handleEdit}
+            data-testid="edit-address-button"
+          />
         )}
       </div>
       {isOpen ? (
@@ -203,7 +232,7 @@ const Addresses = ({
       ) : (
         <div>
           <div className="text-small-regular">
-            {cart && cart.shipping_address ? (
+            {cart?.shipping_address && hasDeliveryAddress(cart) ? (
               <div className="flex items-start gap-x-8">
                 <div className="grid w-full min-w-0 gap-5 sm:grid-cols-2 lg:grid-cols-3">
                   <div
@@ -213,21 +242,7 @@ const Addresses = ({
                     <Text className="txt-medium-plus text-ui-fg-base mb-1">
                       {text.shippingAddress}
                     </Text>
-                    <Text className="txt-medium text-ui-fg-subtle">
-                      {cart.shipping_address.first_name}{" "}
-                      {cart.shipping_address.last_name}
-                    </Text>
-                    <Text className="txt-medium text-ui-fg-subtle">
-                      {cart.shipping_address.address_1}{" "}
-                      {cart.shipping_address.address_2}
-                    </Text>
-                    <Text className="txt-medium text-ui-fg-subtle">
-                      {cart.shipping_address.postal_code},{" "}
-                      {cart.shipping_address.city}
-                    </Text>
-                    <Text className="txt-medium text-ui-fg-subtle">
-                      {cart.shipping_address.country_code?.toUpperCase()}
-                    </Text>
+                    <AddressLines address={cart.shipping_address} />
                   </div>
 
                   <div
@@ -268,21 +283,7 @@ const Addresses = ({
                       </Text>
                     ) : (
                       <>
-                        <Text className="txt-medium text-ui-fg-subtle">
-                          {cart.billing_address?.first_name}{" "}
-                          {cart.billing_address?.last_name}
-                        </Text>
-                        <Text className="txt-medium text-ui-fg-subtle">
-                          {cart.billing_address?.address_1}{" "}
-                          {cart.billing_address?.address_2}
-                        </Text>
-                        <Text className="txt-medium text-ui-fg-subtle">
-                          {cart.billing_address?.postal_code},{" "}
-                          {cart.billing_address?.city}
-                        </Text>
-                        <Text className="txt-medium text-ui-fg-subtle">
-                          {cart.billing_address?.country_code?.toUpperCase()}
-                        </Text>
+                        <AddressLines address={cart.billing_address} />
                       </>
                     )}
                   </div>

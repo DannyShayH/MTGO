@@ -1,3 +1,5 @@
+import { correctedItem, type FlowCorrection } from "./flow-corrections.ts"
+
 /**
  * Why an issue is Feature evidence only (#65). Evidence never joins the
  * work-item population.
@@ -940,6 +942,7 @@ function observeFeatures(
 export function calculateFlowMetrics(
   dataset: BoardDataset,
   observationTime: string,
+  corrections: FlowCorrection[] = [],
 ): FlowMetrics {
   // ADR-0016: current or retained title evidence identifies Features before decomposition.
   // Apply this before replaying work-item history so a rename cannot change counts.
@@ -958,7 +961,10 @@ export function calculateFlowMetrics(
     return { count: issues.length, limit, issues }
   }
 
-  const completed = items.filter((item): item is ClosedIssue =>
+  // Hand-kept corrections (flow-corrections.ts) change only throughput, cycle
+  // time and data problems; history, WIP and Features keep GitHub's data.
+  const measured = items.map((item) => correctedItem(item, corrections))
+  const completed = measured.filter((item): item is ClosedIssue =>
     closedAs(item, "COMPLETED", observationTime),
   )
   const observationDate = copenhagenDate(observationTime)
@@ -1077,7 +1083,7 @@ export function calculateFlowMetrics(
       ...issueLink(item),
       closedAt: copenhagenDate(item.closedAt),
     }))
-  const dataProblems = items.flatMap((item): DataProblem[] => {
+  const dataProblems = measured.flatMap((item): DataProblem[] => {
     const problem = (text: string): DataProblem[] => [
       { ...issueLink(item), problem: text },
     ]

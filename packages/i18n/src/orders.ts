@@ -112,7 +112,33 @@ type OrderText = Record<
   | "arrival_dismiss"
   | "arrival_new"
   | "sound_label"
-  | "sound_blocked",
+  | "sound_blocked"
+  | "sound_armed"
+  | "filters"
+  | "search_label"
+  | "search_placeholder"
+  | "search_invalid"
+  | "period"
+  | "period_all"
+  | "period_today"
+  | "period_yesterday"
+  | "period_7d"
+  | "period_30d"
+  | "period_custom"
+  | "date_from"
+  | "date_to"
+  | "date_range_invalid"
+  | "reason"
+  | "reason_all"
+  | "reason_restaurant_rejected"
+  | "reason_acceptance_timeout"
+  | "reason_customer_cancelled"
+  | "reason_unassigned_timeout"
+  | "clear_filters"
+  | "empty_filtered"
+  | "timeline"
+  | "cancelled_on"
+  | "next_pickup",
   string
 >
 
@@ -248,6 +274,34 @@ export const ORDER_TEXT: Record<Locale, OrderText> = {
     sound_label: "Lyd ved nye ordrer",
     sound_blocked:
       "Browseren tillod ikke lyd. Nye ordrer vises stadig på skærmen.",
+    sound_armed:
+      "Lyden er slået til. Klik eller tryk et sted på siden, så browseren tillader den.",
+    filters: "Find ordrer",
+    search_label: "Ordrenummer",
+    search_placeholder: "Søg på ordrenummer, fx 1042",
+    search_invalid: "Skriv kun ordrenummeret, fx 1042.",
+    period: "Periode",
+    period_all: "Hele perioden",
+    period_today: "I dag",
+    period_yesterday: "I går",
+    period_7d: "Seneste 7 dage",
+    period_30d: "Seneste 30 dage",
+    period_custom: "Vælg datoer",
+    date_from: "Fra",
+    date_to: "Til og med",
+    date_range_invalid:
+      "Slutdatoen skal være samme dag som eller efter startdatoen.",
+    reason: "Årsag",
+    reason_all: "Alle årsager",
+    reason_restaurant_rejected: "Afvist af jer",
+    reason_acceptance_timeout: "Ikke accepteret i tide",
+    reason_customer_cancelled: "Annulleret af kunden",
+    reason_unassigned_timeout: "Intet bud fundet",
+    clear_filters: "Ryd filtre",
+    empty_filtered: "Ingen ordrer matcher dine filtre.",
+    timeline: "Forløb",
+    cancelled_on: "Annulleret {time}",
+    next_pickup: "Næste skridt: buddet henter maden",
     operator_boundary:
       "Kan I ikke lave maden alligevel? Kontakt MTOGO med ordre #{number}. En accepteret ordre kan kun annulleres af MTOGO.",
   },
@@ -381,6 +435,33 @@ export const ORDER_TEXT: Record<Locale, OrderText> = {
     sound_label: "Sound for new Orders",
     sound_blocked:
       "The browser did not allow sound. New Orders are still shown on screen.",
+    sound_armed:
+      "Sound is on. Click or tap anywhere on the page so the browser allows it.",
+    filters: "Find Orders",
+    search_label: "Order number",
+    search_placeholder: "Search by Order number, e.g. 1042",
+    search_invalid: "Enter the Order number only, e.g. 1042.",
+    period: "Period",
+    period_all: "All time",
+    period_today: "Today",
+    period_yesterday: "Yesterday",
+    period_7d: "Last 7 days",
+    period_30d: "Last 30 days",
+    period_custom: "Choose dates",
+    date_from: "From",
+    date_to: "To (inclusive)",
+    date_range_invalid: "The end date must be on or after the start date.",
+    reason: "Reason",
+    reason_all: "All reasons",
+    reason_restaurant_rejected: "Rejected by you",
+    reason_acceptance_timeout: "Not accepted in time",
+    reason_customer_cancelled: "Cancelled by the Customer",
+    reason_unassigned_timeout: "No Delivery agent found",
+    clear_filters: "Clear filters",
+    empty_filtered: "No Orders match your filters.",
+    timeline: "Timeline",
+    cancelled_on: "Cancelled {time}",
+    next_pickup: "Next: the Delivery agent collects the food",
     operator_boundary:
       "Can you no longer make the food? Contact MTOGO with Order #{number}. Only MTOGO can cancel an accepted Order.",
   },
@@ -462,3 +543,37 @@ const TIME_FORMATS: Record<Locale, Intl.DateTimeFormat> = {
 /** A backend timestamp on the Restaurant's clock, whatever the server's time zone. */
 export const formatOrderTime = (iso: string, locale: Locale) =>
   TIME_FORMATS[locale].format(new Date(iso))
+
+const DATE_TIME_FORMATS: Record<Locale, Intl.DateTimeFormat> = {
+  da: new Intl.DateTimeFormat("da-DK", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Copenhagen",
+  }),
+  en: new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Copenhagen",
+  }),
+}
+
+/** Date and time on the Restaurant's clock, for Orders that may be days old. */
+export const formatOrderDateTime = (iso: string, locale: Locale) =>
+  DATE_TIME_FORMATS[locale].format(new Date(iso))
+
+const DAY_FORMAT = new Intl.DateTimeFormat("en-CA", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  timeZone: "Europe/Copenhagen",
+})
+
+/** Whether two times fall on the same Copenhagen calendar day. */
+export const isSameOrderDay = (a: string, b: string) =>
+  DAY_FORMAT.format(new Date(a)) === DAY_FORMAT.format(new Date(b))

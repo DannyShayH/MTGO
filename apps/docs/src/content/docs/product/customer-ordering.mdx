@@ -234,7 +234,17 @@ server remain visible inline. After the address is saved, checkout selects the
 available zero-price MTOGO delivery option and advances to payment. If that
 option cannot be found, the delivery step remains available with a clear failure
 state; its continue action saves the single option without a separate selection
-click. Order details show the recorded dish thumbnail (or an image placeholder),
+click. The open step follows the cart: a `step` in the address opens only a
+step the cart has reached, so a link without one, or to a later step, opens the
+first unfinished step instead of leaving every step closed. A new cart's
+address holds only the country, so the address step counts as done only once a
+street and an email are saved. Finished steps show a summary without empty
+parts and the same teal **Rediger** / **Edit** button with a pencil, named for
+its step. The delivery step shows MTOGO's one option, door delivery, as a
+selected card with the destination address and "Inkluderet" / "Included".
+**Betal og bestil** / **Pay and place Order** carries a lock and the total; while
+the payment goes through it keeps its colour and width and cross-fades to
+"Gennemfører betaling …" / "Processing payment …". Order details show the recorded dish thumbnail (or an image placeholder),
 quantity, unit price and line total using the Order's recorded currency.
 For existing Orders without a Medusa thumbnail, the storefront reads the linked
 Restaurant's current menu photo by variant. This is a current presentation
@@ -304,7 +314,7 @@ storage, integration seams and verification setup. The team calls
 
 A basket holds dishes of one Restaurant. The storefront menu has an "Add to basket" button on each dish that can be ordered; it is hidden for a sold-out dish and for a Restaurant that is not receiving new Orders. Feedback is a Medusa UI toast in the Customer's language.
 
-On the menu, each orderable dish has a compact "Læg i kurv" / "Add to basket" pill on its price row. Once the dish is in the basket the pill becomes a quantity stepper (minus or trash, the count, plus) that reflects the real basket when the page loads. The stepper is the confirmation: adding a dish shows no toast and does not open the header basket over the menu. On a phone, a "Se kurv" / "View basket" bar with the item count and total stays at the bottom of the menu.
+On the menu, each orderable dish has a compact "Læg i kurv" / "Add to basket" pill on its price row. Once the dish is in the basket the pill becomes a quantity stepper (minus or trash, the count, plus) that reflects the real basket when the page loads. The stepper is the confirmation: adding a dish shows no toast and does not open the header basket over the menu. On a phone, a "Se kurv" / "View basket" bar with the item count and total stays at the bottom of the menu. The tap is answered at once and only moves forward: the pill becomes the stepper once, and the header badge and the basket bar count the dish in the same moment, before the basket is read again. If the add fails, the pill comes back, both counts go back and a toast says why. Each count stays until a basket read made after the server confirmed it, so it never jumps back and forth.
 
 The header basket and the basket page (`/cart`) show the dishes of one Restaurant with their current menu names and photos, the Restaurant's name and one total in DKK that includes VAT and delivery. The basket page uses the same stepper as the menu and has no discount code or delivery charge, since checkout refuses both. A line records its Restaurant in `metadata.mtogo_restaurant_id` so the basket can show the menu's photos; this is display data only, and the backend decides ownership itself.
 

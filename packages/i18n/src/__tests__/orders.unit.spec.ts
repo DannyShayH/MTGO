@@ -4,8 +4,10 @@ import {
   ORDER_ACTION_ERROR_CODES,
   ORDER_ACTION_ERRORS,
   ORDER_TEXT,
+  formatOrderDateTime,
   formatOrderTime,
   isOrderActionErrorCode,
+  isSameOrderDay,
 } from "../orders.ts"
 
 test("Danish and English have the same Orders texts, none of them blank", () => {
@@ -22,6 +24,29 @@ test("EP: a time is shown on the Restaurant's Copenhagen clock in either languag
   // 12:05 UTC is 13:05 in Copenhagen in November (CET).
   assert.equal(formatOrderTime("2026-11-18T12:05:00.000Z", "da"), "13.05")
   assert.equal(formatOrderTime("2026-11-18T12:05:00.000Z", "en"), "13:05")
+})
+
+test("EP: an ended Order shows its date with the time, on the Copenhagen clock", () => {
+  assert.equal(
+    formatOrderDateTime("2026-11-18T12:05:00.000Z", "da"),
+    "18. nov. 2026, 13.05",
+  )
+  assert.equal(
+    formatOrderDateTime("2026-11-18T12:05:00.000Z", "en"),
+    "18 Nov 2026, 13:05",
+  )
+})
+
+test("BVA: the Copenhagen day decides whether two times share a date", () => {
+  // 23:30 UTC on the 17th is already 00:30 on the 18th in Copenhagen.
+  assert.equal(
+    isSameOrderDay("2026-11-17T23:30:00.000Z", "2026-11-18T12:00:00.000Z"),
+    true,
+  )
+  assert.equal(
+    isSameOrderDay("2026-11-17T22:59:59.999Z", "2026-11-18T12:00:00.000Z"),
+    false,
+  )
 })
 
 test("BVA: summer time moves the Copenhagen clock one hour further", () => {

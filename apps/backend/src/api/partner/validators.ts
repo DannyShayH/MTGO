@@ -1,5 +1,6 @@
 import { z } from "@medusajs/framework/zod"
 import {
+  CANCELLATION_CATEGORIES,
   QUEUE_VIEWS,
   REJECTION_REASON_MAX_LENGTH,
   rejectionNote,
@@ -26,12 +27,37 @@ export type PostPartnerCreateCategoryBody = z.infer<typeof categoryCreateSchema>
 export type PostPartnerRenameCategoryBody = z.infer<typeof categoryRenameSchema>
 export type DeletePartnerCategoryBody = z.infer<typeof categoryDeleteSchema>
 
-/** One bounded page of one queue view; awaiting is the kitchen's default. */
-export const GetPartnerOrdersSchema = z.strictObject({
-  view: z.enum(QUEUE_VIEWS).default("awaiting"),
-  limit: z.coerce.number().int().min(1).max(50).default(20),
-  offset: z.coerce.number().int().min(0).default(0),
-})
+/**
+ * One bounded page of one queue view; awaiting is the kitchen's default.
+ * `q` is an Order number as staff read it (`42` or `#42`); the placement
+ * window is from inclusive, to exclusive.
+ */
+export const GetPartnerOrdersSchema = z
+  .strictObject({
+    view: z.enum(QUEUE_VIEWS).default("awaiting"),
+    limit: z.coerce.number().int().min(1).max(50).default(20),
+    offset: z.coerce.number().int().min(0).default(0),
+    q: z
+      .string()
+      .trim()
+      .regex(/^#?\d{1,9}$/, "order_search_invalid")
+      .transform((value) => Number(value.replace("#", "")))
+      .optional(),
+    placed_from: z.iso
+      .datetime({ offset: true })
+      .transform((value) => new Date(value))
+      .optional(),
+    placed_to: z.iso
+      .datetime({ offset: true })
+      .transform((value) => new Date(value))
+      .optional(),
+    cancellation_category: z.enum(CANCELLATION_CATEGORIES).optional(),
+  })
+  .refine(
+    ({ placed_from, placed_to }) =>
+      !placed_from || !placed_to || placed_from < placed_to,
+    { message: "placed_range_invalid", path: ["placed_to"] },
+  )
 export type GetPartnerOrdersQuery = z.infer<typeof GetPartnerOrdersSchema>
 
 export const GetAvailableDeliveriesSchema = z.strictObject({

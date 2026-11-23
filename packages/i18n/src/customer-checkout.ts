@@ -42,6 +42,12 @@ export const CUSTOMER_CHECKOUT_TEXT: Record<
     deliveryIncluded: string
     continueToPayment: string
     edit: string
+    /** The edit button's full name, `{step}` being the step's heading. */
+    editStep: string
+    deliveryToDoor: string
+    deliveryTo: string
+    included: string
+    placingOrder: string
     basketSummary: string
     total: string
     orderNotPlaced: string
@@ -95,6 +101,11 @@ export const CUSTOMER_CHECKOUT_TEXT: Record<
     deliveryIncluded: "Levering er inkluderet",
     continueToPayment: "Fortsæt til betaling",
     edit: "Rediger",
+    editStep: "Rediger {step}",
+    deliveryToDoor: "Levering til døren",
+    deliveryTo: "Til {address}",
+    included: "Inkluderet",
+    placingOrder: "Gennemfører betaling …",
     basketSummary: "Din kurv",
     total: "I alt",
     orderNotPlaced:
@@ -157,6 +168,11 @@ export const CUSTOMER_CHECKOUT_TEXT: Record<
     deliveryIncluded: "Delivery included",
     continueToPayment: "Continue to payment",
     edit: "Edit",
+    editStep: "Edit {step}",
+    deliveryToDoor: "Delivery to your door",
+    deliveryTo: "To {address}",
+    included: "Included",
+    placingOrder: "Processing payment …",
     basketSummary: "Your basket",
     total: "Total",
     orderNotPlaced:

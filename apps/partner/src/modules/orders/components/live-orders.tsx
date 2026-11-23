@@ -42,7 +42,7 @@ export function LiveOrders({
   const styles = STATUS_STYLES[status]
   return (
     <div className="flex flex-col gap-y-2">
-      <div className="border-ui-border-base flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-y py-3">
+      <div className="rounded-card bg-ui-bg-base shadow-borders-base flex flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-2 sm:px-6">
         <div className="flex min-w-0 flex-wrap items-start gap-x-2 gap-y-1">
           <Text
             size="small"

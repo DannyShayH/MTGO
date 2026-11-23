@@ -19,6 +19,8 @@ import { HttpTypes } from "@medusajs/types"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useCallback, useEffect, useState } from "react"
 import { CUSTOMER_CHECKOUT_TEXT, type Locale } from "@dtc/i18n"
+import { useCheckoutStep } from "@lib/hooks/use-checkout-step"
+import StepEditButton from "../step-edit-button"
 
 const Payment = ({
   cart,
@@ -51,7 +53,7 @@ const Payment = ({
   const router = useRouter()
   const pathname = usePathname()
 
-  const isOpen = searchParams.get("step") === "payment"
+  const isOpen = useCheckoutStep(cart) === "payment"
 
   const setPaymentMethod = async (method: string) => {
     setError(null)
@@ -175,15 +177,12 @@ const Payment = ({
           {!isOpen && paymentReady && <CheckCircleSolid />}
         </Heading>
         {!isOpen && paymentReady && (
-          <Text>
-            <button
-              onClick={handleEdit}
-              className="text-ui-fg-interactive hover:text-ui-fg-interactive-hover"
-              data-testid="edit-payment-button"
-            >
-              {text.edit}
-            </button>
-          </Text>
+          <StepEditButton
+            step={text.payment}
+            locale={locale}
+            onClick={handleEdit}
+            data-testid="edit-payment-button"
+          />
         )}
       </div>
       <div>

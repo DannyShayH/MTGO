@@ -1,16 +1,10 @@
 import Link from "next/link"
-import {
-  formatDkk,
-  formatOrderTime,
-  formatText,
-  ORDER_TEXT,
-  type Locale,
-} from "@dtc/i18n"
+import { formatOrderTime, formatText, ORDER_TEXT, type Locale } from "@dtc/i18n"
 import { Container, Heading, Text } from "@medusajs/ui"
 import { ArrowLeft } from "@medusajs/icons"
 import { getMessages } from "@lib/i18n"
 import { requireCurrentStaff } from "@lib/data/staff"
-import { retrieveOrder, type RestaurantOrder } from "@lib/data/orders"
+import { retrieveOrder } from "@lib/data/orders"
 import {
   AcceptanceDeadline,
   OrderStateBadge,
@@ -23,18 +17,14 @@ import { OrderProgressAction } from "@modules/orders/components/order-progress-a
 import { LiveOrders } from "@modules/orders/components/live-orders"
 import { RejectOrder } from "@modules/orders/components/reject-order"
 import { CancellationOutcome } from "@modules/orders/components/cancellation-outcome"
+import { OrderTimeline } from "@modules/orders/components/order-timeline"
+import { orderMoney as money } from "@modules/orders/money"
 
 /** Active kitchen work: only an operator can cancel it now (#49). */
 const ACCEPTED_STATES = new Set(["accepted", "preparing", "ready"])
 
 const LINK_CLASS =
   "focus-visible:ring-mtogo-focus-ring inline-flex min-h-11 items-center rounded border border-mtogo-border-control px-4 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
-
-/** Prices are DKK including VAT; another currency is shown as the backend sent it. */
-const money = (order: RestaurantOrder, amount: number, locale: Locale) =>
-  order.currency_code === "dkk"
-    ? formatDkk(amount, locale)
-    : `${order.currency_code.toUpperCase()} ${amount}`
 
 function BackLink({ locale }: { locale: Locale }) {
   return (
@@ -83,8 +73,12 @@ export default async function OrderPage({
     )
 
   const { order } = result
+  const isAwaiting = order.state === "awaiting_acceptance"
+  const hasNextStep = order.available_actions.some(
+    (action) => action !== "reject",
+  )
   return (
-    <div className="flex max-w-3xl flex-col gap-4">
+    <div className="flex max-w-4xl flex-col gap-4">
       <BackLink locale={locale} />
       <header className="flex flex-wrap items-center gap-3">
         <Heading level="h1">
@@ -98,41 +92,65 @@ export default async function OrderPage({
           time: formatOrderTime(result.server_time, locale),
         })}
       />
-      <Container className="rounded-card flex flex-col gap-y-2 px-4 py-4 sm:px-6 sm:py-5">
-        <AcceptanceDeadline order={order} locale={locale} detailed />
-        {(
-          [
-            [order.ready_at, text.ready_at],
-            [order.preparation_started_at, text.preparation_started_at],
-            [order.accepted_at, text.accepted_at],
-          ] as const
-        ).map(([time, label]) =>
-          time ? (
-            <Text key={label} size="small" weight="plus">
-              {formatText(label, { time: formatOrderTime(time, locale) })}
-            </Text>
-          ) : null,
-        )}
-        {order.placed_at && (
-          <Text size="small" className="text-ui-fg-subtle">
-            {formatText(text.placed, {
-              time: formatOrderTime(order.placed_at, locale),
-            })}
-          </Text>
-        )}
-        <div className="mt-2 flex flex-col gap-4 empty:hidden sm:flex-row sm:items-start sm:justify-between">
-          <OrderProgressAction key={order.id} order={order} locale={locale} />
-          <RejectOrder
-            key={`${order.id}-reject`}
+      <Container className="rounded-card px-4 py-4 sm:px-6 sm:py-5">
+        <section
+          aria-labelledby="order-timeline"
+          className="flex flex-col gap-4"
+        >
+          <Heading id="order-timeline" level="h2">
+            {text.timeline}
+          </Heading>
+          {/* The step staff take now closes the timeline, so Accept and
+              Reject, then Start preparing and Ready, always sit in one place
+              and keep their outcome and focus across the refresh. */}
+          <OrderTimeline
             order={order}
             locale={locale}
+            next={
+              isAwaiting || hasNextStep || order.state === "ready" ? (
+                <div className="flex flex-col gap-y-3">
+                  {isAwaiting && (
+                    <AcceptanceDeadline
+                      order={order}
+                      locale={locale}
+                      detailed
+                    />
+                  )}
+                  {/* After Ready the next step is the Delivery agent's. */}
+                  {order.state === "ready" && (
+                    <Text size="small" weight="plus">
+                      {text.next_pickup}
+                    </Text>
+                  )}
+                  <OrderProgressAction
+                    key={order.id}
+                    order={order}
+                    locale={locale}
+                    secondary={
+                      <RejectOrder
+                        key={`${order.id}-reject`}
+                        order={order}
+                        locale={locale}
+                      />
+                    }
+                  />
+                </div>
+              ) : undefined
+            }
           />
-        </div>
-        {ACCEPTED_STATES.has(order.state) && (
-          <Text size="small" className="text-ui-fg-subtle mt-2 max-w-prose">
-            {formatText(text.operator_boundary, { number: order.display_id })}
-          </Text>
-        )}
+          {!isAwaiting && (
+            <div className="flex flex-col gap-y-1 empty:hidden">
+              <AcceptanceDeadline order={order} locale={locale} detailed />
+              {ACCEPTED_STATES.has(order.state) && (
+                <Text size="small" className="text-ui-fg-subtle max-w-prose">
+                  {formatText(text.operator_boundary, {
+                    number: order.display_id,
+                  })}
+                </Text>
+              )}
+            </div>
+          )}
+        </section>
       </Container>
       {order.cancellation && (
         <Container className="rounded-card px-4 py-4 sm:px-6 sm:py-5">

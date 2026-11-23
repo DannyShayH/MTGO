@@ -26,7 +26,7 @@ import {
   cancelLegacyAwaitingOrdersStep,
   type LegacyCancellationInput,
 } from "./steps/cancel-legacy-awaiting-orders"
-import { MilestoneAction, QueueView } from "./rules"
+import { MilestoneAction, QueueFilters, QueueView } from "./rules"
 import { orderOperationLock } from "./locks"
 import {
   recoverOrderOperationsStep,
@@ -47,6 +47,8 @@ export const listPartnerOrdersWorkflow = createWorkflow(
     view: QueueView
     limit: number
     offset: number
+    display_id?: number
+    filters: QueueFilters
   }) {
     const current = retrieveAuthorizedStaffStep({ staff_id: input.staff_id })
     const page = transform({ input, current }, ({ input, current }) => ({
@@ -54,6 +56,8 @@ export const listPartnerOrdersWorkflow = createWorkflow(
       view: input.view,
       limit: input.limit,
       offset: input.offset,
+      display_id: input.display_id,
+      filters: input.filters,
     }))
     return new WorkflowResponse(listRestaurantOrdersStep(page))
   },

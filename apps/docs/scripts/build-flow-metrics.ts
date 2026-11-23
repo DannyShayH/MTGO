@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { COLLECTED_BOARD } from "./collected-board.ts"
+import { FLOW_CORRECTIONS } from "./flow-corrections.ts"
 import { calculateFlowMetrics, type BoardDataset } from "./flow-metrics.ts"
 
 // The collector (collect-board.ts) saves the live board in COLLECTED_BOARD. Without
@@ -16,7 +17,12 @@ const dataset = JSON.parse(
     "utf8",
   ),
 ) as BoardDataset
-const metrics = calculateFlowMetrics(dataset, dataset.observedAt)
+// Only the live board gets the hand-kept corrections; the sample stays as saved
+const metrics = calculateFlowMetrics(
+  dataset,
+  dataset.observedAt,
+  dataset.source === "board" ? FLOW_CORRECTIONS : [],
+)
 const json = JSON.stringify(metrics, null, 2) + "\n"
 
 // public/ ships the JSON with the site; src/generated/ feeds the page component

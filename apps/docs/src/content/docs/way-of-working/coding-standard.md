@@ -238,14 +238,15 @@ Every work item ships with tests. The Definition of Done sets the scope: the hap
 
 ### 8.1 Test levels
 
-| Level              | Tool and location                                                              | Use for                                                                                           |
-| ------------------ | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
-| Unit               | Jest, `src/**/__tests__/*.unit.spec.ts`, `npm run test:unit`                   | The main place: business rules in pure functions and steps (commission, bonus, activation rules)  |
-| Module integration | Jest, `src/modules/*/__tests__/`, `npm run test:integration:modules`           | A module's service against a real PostgreSQL                                                      |
-| HTTP integration   | Jest, `integration-tests/http/*.spec.ts`, `npm run test:integration:http`      | Routes through HTTP: access (401, 403, 404, 2xx), request shape and one invalid case per rule set |
-| Partner unit       | Node's test runner, `apps/partner/src/**/__tests__/*.unit.spec.ts`, `npm test` | Partner app rules kept free of React, Next.js and the SDK (connection rules, the feed relay)      |
-| Browser journeys   | Playwright, `apps/storefront/e2e`, `apps/partner/e2e`                          | Existing key journeys, run by the ready flow. New UI is checked in the browser and by manual test |
-| Docs app           | Vitest, `apps/docs/scripts/*.test.ts`                                          | Flow metric calculations and generated pages                                                      |
+| Level              | Tool and location                                                                 | Use for                                                                                           |
+| ------------------ | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Unit               | Jest, `src/**/__tests__/*.unit.spec.ts`, `npm run test:unit`                      | The main place: business rules in pure functions and steps (commission, bonus, activation rules)  |
+| Module integration | Jest, `src/modules/*/__tests__/`, `npm run test:integration:modules`              | A module's service against a real PostgreSQL                                                      |
+| HTTP integration   | Jest, `integration-tests/http/*.spec.ts`, `npm run test:integration:http`         | Routes through HTTP: access (401, 403, 404, 2xx), request shape and one invalid case per rule set |
+| Partner unit       | Node's test runner, `apps/partner/src/**/__tests__/*.unit.spec.ts`, `npm test`    | Partner app rules kept free of React, Next.js and the SDK (connection rules, the feed relay)      |
+| Storefront unit    | Node's test runner, `apps/storefront/src/**/__tests__/*.unit.spec.ts`, `npm test` | Storefront rules kept free of React and Next.js (basket line sync, optimistic basket counts)      |
+| Browser journeys   | Playwright, `apps/storefront/e2e`, `apps/partner/e2e`                             | Existing key journeys, run by the ready flow. New UI is checked in the browser and by manual test |
+| Docs app           | Vitest, `apps/docs/scripts/*.test.ts`                                             | Flow metric calculations and generated pages                                                      |
 
 - Put business rules in small pure functions, so they can be unit tested without a database.
 - Tests are independent of each other and of execution order. They never touch a shared or production database.

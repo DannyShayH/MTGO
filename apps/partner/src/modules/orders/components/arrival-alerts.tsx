@@ -5,6 +5,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -20,10 +21,26 @@ import {
   type AwaitingOrder,
   type AwaitingRead,
 } from "../arrivals"
-import { playArrivalTone } from "../arrival-sound"
+import { playArrivalTone, unlockArrivalSound } from "../arrival-sound"
+import {
+  ARRIVAL_SOUND_COOKIE,
+  initialSound,
+  isRemembered,
+  isSwitchOn,
+  nextSound,
+  type Sound,
+  type SoundEvent,
+} from "../arrival-sound-state"
 
-/** Off until staff switch it on; `blocked` when the browser refused sound. */
-type Sound = "off" | "on" | "blocked"
+/** A year, like the language choice; the choice belongs to this device. */
+const REMEMBER_SECONDS = 365 * 24 * 60 * 60
+
+function rememberSound(isOn: boolean) {
+  const secure = location.protocol === "https:" ? "; Secure" : ""
+  document.cookie = `${ARRIVAL_SOUND_COOKIE}=${isOn ? "on" : ""}; Path=/; Max-Age=${
+    isOn ? REMEMBER_SECONDS : 0
+  }; SameSite=Lax${secure}`
+}
 
 type ArrivalAlerts = {
   pending: AwaitingOrder[]
@@ -47,43 +64,80 @@ export const ORDERS_NAV_ID = "orders-nav"
 
 /**
  * Holds the kitchen's arrival alerts (#149) for the whole dashboard, so the
- * Orders it already knows and the sound choice survive moving between pages.
- * Signing out leaves the dashboard and forgets both.
+ * Orders it already knows survive moving between pages; signing out forgets
+ * them. The sound choice is remembered on this device in a cookie the layout
+ * reads, so a reload renders the switch as staff left it.
  */
 export function ArrivalAlertsProvider({
   children,
-}: Readonly<{ children: React.ReactNode }>) {
+  isSoundRemembered = false,
+}: Readonly<{ children: React.ReactNode; isSoundRemembered?: boolean }>) {
   const arrivalsRef = useRef(INITIAL_ARRIVALS)
   const [pending, setPending] = useState<AwaitingOrder[]>([])
   const [awaitingCount, setAwaitingCount] = useState<number | null>(null)
-  const [sound, setSound] = useState<Sound>("off")
-  const soundRef = useRef<Sound>("off")
-  const changeSound = (next: Sound) => {
+  const [sound, setSound] = useState<Sound>(() =>
+    initialSound(isSoundRemembered),
+  )
+  const soundRef = useRef<Sound>(sound)
+  const changeSound = useCallback((event: SoundEvent) => {
+    const previous = soundRef.current
+    const next = nextSound(previous, event)
     soundRef.current = next
     setSound(next)
-  }
-
-  const notice = useCallback((read: AwaitingRead) => {
-    const next = noticeArrivals(arrivalsRef.current, read)
-    arrivalsRef.current = next.state
-    setPending(next.state.pending)
-    setAwaitingCount(read.count)
-    if (next.arrivals.length && soundRef.current === "on")
-      void playArrivalTone().then((isPlayed) => {
-        if (!isPlayed) changeSound("blocked")
-      })
+    if (isRemembered(next) !== isRemembered(previous))
+      rememberSound(isRemembered(next))
   }, [])
+
+  // A remembered choice waits for the page's first click, tap or key press,
+  // the moment the browser lets sound start. Moving here from another page
+  // has already had one, so it unlocks at once.
+  useEffect(() => {
+    if (sound !== "waiting") return
+    let isCurrent = true
+    const unlock = () =>
+      void unlockArrivalSound().then((isUnlocked) => {
+        if (isUnlocked && isCurrent) changeSound({ type: "unlocked" })
+      })
+    unlock()
+    const events = ["pointerdown", "keydown"] as const
+    for (const event of events)
+      window.addEventListener(event, unlock, { capture: true })
+    return () => {
+      isCurrent = false
+      for (const event of events)
+        window.removeEventListener(event, unlock, { capture: true })
+    }
+  }, [sound, changeSound])
+
+  const notice = useCallback(
+    (read: AwaitingRead) => {
+      const next = noticeArrivals(arrivalsRef.current, read)
+      arrivalsRef.current = next.state
+      setPending(next.state.pending)
+      setAwaitingCount(read.count)
+      if (next.arrivals.length && isSwitchOn(soundRef.current))
+        void playArrivalTone().then((isPlayed) =>
+          changeSound(
+            isPlayed ? { type: "unlocked" } : { type: "play_failed" },
+          ),
+        )
+    },
+    [changeSound],
+  )
   const dismiss = useCallback(() => {
     arrivalsRef.current = dismissArrivals(arrivalsRef.current)
     setPending(arrivalsRef.current.pending)
   }, [])
   // The click is what lets the browser play sound; the test tone proves it.
-  const setSoundOn = useCallback((isOn: boolean) => {
-    if (!isOn) return changeSound("off")
-    void playArrivalTone().then((isPlayed) =>
-      changeSound(isPlayed ? "on" : "blocked"),
-    )
-  }, [])
+  const setSoundOn = useCallback(
+    (isOn: boolean) => {
+      if (!isOn) return changeSound({ type: "switched_off" })
+      void playArrivalTone().then((isPlayed) =>
+        changeSound({ type: "switched_on", isPlayed }),
+      )
+    },
+    [changeSound],
+  )
 
   const value = useMemo(
     () => ({ pending, awaitingCount, sound, notice, dismiss, setSoundOn }),
@@ -182,7 +236,7 @@ export function ArrivalSoundSwitch({ locale }: Readonly<{ locale: Locale }>) {
     <div className="flex items-center gap-x-2">
       <Switch
         id={SOUND_SWITCH_ID}
-        checked={alerts.sound === "on"}
+        checked={isSwitchOn(alerts.sound)}
         onCheckedChange={alerts.setSoundOn}
         aria-describedby={SOUND_NOTICE_ID}
       />
@@ -197,19 +251,32 @@ export function ArrivalSoundSwitch({ locale }: Readonly<{ locale: Locale }>) {
 }
 
 /**
- * Says so only when the browser refused sound. The region is always present,
- * so the refusal is announced when it happens.
+ * Speaks only when sound cannot play: the browser refused it, or a
+ * remembered choice waits for a click or tap after a reload. The region is
+ * always present, so the change is announced when it happens.
  */
 export function ArrivalSoundNotice({ locale }: Readonly<{ locale: Locale }>) {
-  const isBlocked = useArrivalAlerts()?.sound === "blocked"
+  const sound = useArrivalAlerts()?.sound
+  const text = ORDER_TEXT[locale]
+  const message =
+    sound === "blocked"
+      ? text.sound_blocked
+      : sound === "waiting"
+        ? text.sound_armed
+        : ""
   return (
     <Text
       id={SOUND_NOTICE_ID}
       size="small"
       role="status"
-      className={clx("text-mtogo-status-warning-text", !isBlocked && "hidden")}
+      className={clx(
+        sound === "blocked"
+          ? "text-mtogo-status-warning-text"
+          : "text-ui-fg-subtle",
+        !message && "hidden",
+      )}
     >
-      {isBlocked ? ORDER_TEXT[locale].sound_blocked : ""}
+      {message}
     </Text>
   )
 }
@@ -240,7 +307,7 @@ export function AwaitingCount({
   )
 }
 
-/** A "New" mark on a queue card while its arrival alert is showing. */
+/** A "New" mark on a queue row while its arrival alert is showing. */
 export function NewOrderMark({
   orderId,
   locale,
@@ -249,11 +316,11 @@ export function NewOrderMark({
   if (!alerts?.pending.some(({ id }) => id === orderId)) return null
   return (
     <>
-      {/* Tints the card once when it appears, linking it to the banner.
+      {/* Tints the row once when it appears, linking it to the banner.
           Reduced motion keeps the mark and skips the tint. */}
       <span
         aria-hidden
-        className="rounded-card bg-mtogo-status-warning-surface pointer-events-none absolute inset-0 -z-10 opacity-0 motion-safe:animate-[arrival-tint_1200ms_cubic-bezier(0.23,1,0.32,1)]"
+        className="bg-mtogo-status-warning-surface pointer-events-none absolute inset-0 -z-10 opacity-0 motion-safe:animate-[arrival-tint_1200ms_cubic-bezier(0.23,1,0.32,1)]"
       />
       <Badge size="small" color="orange" className="gap-x-1">
         <BellAlertSolid aria-hidden className="size-3.5" />

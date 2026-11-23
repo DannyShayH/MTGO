@@ -218,6 +218,82 @@ medusaIntegrationTestRunner({
         expect(data.orders[0].items[0].purchased.status).toBe("preserved")
       })
 
+      it("finds an Order by number, placement window and cancellation reason within the staff member's own Restaurant", async () => {
+        const rejected = await placePaidOrder(pizzeriaId)
+        const timedOut = await placePaidOrder(pizzeriaId)
+        const foreign = await placePaidOrder(burgerId)
+        const lastWeek = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+        const records = await operations().listOrderOperations({
+          order_id: [rejected.id, timedOut.id],
+        })
+        await operations().updateOrderOperations(
+          records.map(({ id, order_id }) => ({
+            id,
+            state: "cancelled" as const,
+            cancelled_at: new Date(),
+            cancellation_category:
+              order_id === rejected.id
+                ? ("restaurant_rejected" as const)
+                : ("acceptance_timeout" as const),
+            ...(order_id === timedOut.id && { placed_at: lastWeek }),
+          })),
+        )
+        const { headers } = await signInAsStaffOf(
+          pizzeriaId,
+          "mette@pizzeria.example",
+        )
+        const ids = async (query: string) => {
+          const response = await queue(headers, `?view=history${query}`)
+          expect(response.status).toBe(200)
+          return {
+            ids: response.data.orders.map(({ id }: QueueOrder) => id),
+            count: response.data.count,
+          }
+        }
+
+        expect(await ids(`&q=${rejected.display_id}`)).toEqual({
+          ids: [rejected.id],
+          count: 1,
+        })
+        // "#" is how staff read the number aloud from the screen.
+        expect((await ids(`&q=%23${timedOut.display_id}`)).ids).toEqual([
+          timedOut.id,
+        ])
+        // Another Restaurant's number is never found, even in the right view.
+        expect(await ids(`&q=${foreign.display_id}`)).toEqual({
+          ids: [],
+          count: 0,
+        })
+        expect((await ids("&q=999999")).ids).toEqual([])
+
+        const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000)
+        expect(
+          (await ids(`&placed_from=${yesterday.toISOString()}`)).ids,
+        ).toEqual([rejected.id])
+        expect(
+          (await ids(`&placed_to=${yesterday.toISOString()}`)).ids,
+        ).toEqual([timedOut.id])
+        expect(
+          (await ids("&cancellation_category=acceptance_timeout")).ids,
+        ).toEqual([timedOut.id])
+        // Filters combine; the count follows the filter for pagination.
+        expect(
+          await ids(
+            `&cancellation_category=restaurant_rejected&placed_to=${yesterday.toISOString()}`,
+          ),
+        ).toEqual({ ids: [], count: 0 })
+
+        for (const invalid of [
+          "&q=abc",
+          "&placed_from=yesterday",
+          "&cancellation_category=lost",
+          `&placed_from=${new Date().toISOString()}&placed_to=${yesterday.toISOString()}`,
+        ])
+          expect((await queue(headers, `?view=history${invalid}`)).status).toBe(
+            400,
+          )
+      })
+
       it("serves twenty simultaneous queue journeys with at least 95% within two seconds", async () => {
         const orders: { id: string }[] = []
         for (let i = 0; i < 5; i++)

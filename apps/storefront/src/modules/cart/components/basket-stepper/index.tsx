@@ -2,7 +2,7 @@
 
 import { CUSTOMER_MENU_TEXT, type Locale } from "@dtc/i18n"
 import { deleteLineItem, updateLineItem } from "@lib/data/cart"
-import { notifyCartUpdated } from "@lib/util/cart-events"
+import { beginCartChange, notifyCartUpdated } from "@lib/util/cart-events"
 import { Minus, Plus, Trash } from "@medusajs/icons"
 import { toast } from "@medusajs/ui"
 import { clx } from "@modules/common/components/ui"
@@ -22,8 +22,9 @@ const stepButton = clx(
 /**
  * One basket line's quantity: minus (a trash at one), the count and plus.
  * Taps show at once and the count ticks in; each tap sends the wanted
- * quantity, so a quick run of taps ends on the right number. A failure puts
- * the count back and says so in a toast.
+ * quantity, so a quick run of taps ends on the right number. The header badge
+ * and phone basket bar count each tap at once (#203). A failure puts the count
+ * back and says so in a toast.
  */
 export default function BasketStepper({
   lineId,
@@ -31,6 +32,7 @@ export default function BasketStepper({
   dishName,
   locale,
   onSettled,
+  unitPrice = 0,
   className,
 }: {
   /** Null while the line is still being added: shown, but not yet changeable. */
@@ -41,6 +43,8 @@ export default function BasketStepper({
   locale: Locale
   /** Called with the saved quantity; 0 means the line was removed. */
   onSettled?: (quantity: number) => void
+  /** Moves the basket bar's total with the count; without it only the count moves. */
+  unitPrice?: number
   className?: string
 }) {
   const text = CUSTOMER_MENU_TEXT[locale]
@@ -55,13 +59,17 @@ export default function BasketStepper({
   const isAdding = lineId === null
   const change = async (next: number) => {
     if (!lineId) return
+    const step = next - shown
     setShown(next)
+    const pending = beginCartChange({ count: step, total: step * unitPrice })
     try {
       if (next === 0) await deleteLineItem(lineId)
       else await updateLineItem({ lineId, quantity: next })
       onSettled?.(next)
+      pending.settle()
       notifyCartUpdated()
     } catch {
+      pending.fail()
       setShown(saved)
       toast.error(text.basket_update_error_title, {
         description: text.basket_update_error_note,

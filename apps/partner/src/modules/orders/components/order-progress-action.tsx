@@ -9,9 +9,18 @@ import {
   type Locale,
   type OrderActionErrorCode,
 } from "@dtc/i18n"
-import { Alert, Button, Text } from "@medusajs/ui"
+import { Alert, Button, Text, clx } from "@medusajs/ui"
+import { Check, FireSolid, ShoppingBag, Spinner } from "@medusajs/icons"
 import { runOrderAction } from "@lib/data/order-actions"
 import type { MilestoneAction, RestaurantOrder } from "@lib/data/orders"
+import { ACTION_BUTTON, PRIMARY_ACTION } from "../action-styles"
+
+/** Each step's icon, so the button reads at a glance across the kitchen. */
+const ICONS: Record<MilestoneAction, React.ReactNode> = {
+  accept: <Check aria-hidden />,
+  start_preparation: <FireSolid aria-hidden />,
+  ready: <ShoppingBag aria-hidden />,
+}
 
 type ActionText = {
   label: string
@@ -51,13 +60,18 @@ const actionText = (locale: Locale): Record<MilestoneAction, ActionText> => {
  * While a request is pending the button is disabled, so a double tap sends
  * one request; every outcome re-reads the Order, so a refusal shows the
  * current state next to its reason. Nothing here undoes a recorded step.
+ *
+ * `secondary` sits on the same row (Reject next to Accept, as Medusa lays
+ * out a primary and a secondary action), and the step's hint follows the row.
  */
 export function OrderProgressAction({
   order,
   locale,
+  secondary,
 }: {
   order: RestaurantOrder
   locale: Locale
+  secondary?: React.ReactNode
 }) {
   const texts = actionText(locale)
   const router = useRouter()
@@ -80,7 +94,7 @@ export function OrderProgressAction({
     if (error || recorded) notice.current?.focus()
   }, [error, recorded])
 
-  if (!next && !error && !recorded) return null
+  if (!next && !error && !recorded && !secondary) return null
 
   const run = (action: MilestoneAction) =>
     startTransition(async () => {
@@ -125,26 +139,40 @@ export function OrderProgressAction({
           </Alert>
         </div>
       )}
-      {next && (
+      {(next || secondary) && (
         <div className="flex flex-col gap-y-2">
-          <Button
-            type="button"
-            size="large"
-            onClick={() => run(next)}
-            disabled={pending}
-            isLoading={pending}
-            aria-describedby="order-action-hint"
-            className="focus-visible:ring-mtogo-focus-ring min-h-12 w-full focus-visible:ring-2 focus-visible:ring-offset-2 sm:w-auto sm:self-start"
-          >
-            {pending ? texts[next].pending : texts[next].label}
-          </Button>
-          <Text
-            id="order-action-hint"
-            size="small"
-            className="text-ui-fg-subtle max-w-prose"
-          >
-            {texts[next].hint}
-          </Text>
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start">
+            {next && (
+              <Button
+                type="button"
+                size="large"
+                // Busy, not disabled: it stays teal while the step is sent,
+                // and a second press is ignored.
+                onClick={() => !pending && run(next)}
+                aria-disabled={pending || undefined}
+                aria-busy={pending || undefined}
+                aria-describedby="order-action-hint"
+                className={clx(PRIMARY_ACTION, ACTION_BUTTON)}
+              >
+                {pending ? (
+                  <Spinner aria-hidden className="animate-spin" />
+                ) : (
+                  ICONS[next]
+                )}
+                {pending ? texts[next].pending : texts[next].label}
+              </Button>
+            )}
+            {secondary}
+          </div>
+          {next && (
+            <Text
+              id="order-action-hint"
+              size="small"
+              className="text-ui-fg-subtle max-w-prose"
+            >
+              {texts[next].hint}
+            </Text>
+          )}
         </div>
       )}
     </div>

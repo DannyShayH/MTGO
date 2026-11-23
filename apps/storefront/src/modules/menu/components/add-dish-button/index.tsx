@@ -4,14 +4,21 @@ import { Plus } from "@medusajs/icons"
 import { toast } from "@medusajs/ui"
 import { CUSTOMER_MENU_TEXT, type Locale } from "@dtc/i18n"
 import { addDishToBasket, type AddDishResult } from "@lib/data/basket"
-import { notifyCartUpdated } from "@lib/util/cart-events"
+import { beginCartChange, notifyCartUpdated } from "@lib/util/cart-events"
+import {
+  confirmLine,
+  initialLineState,
+  withLineProp,
+  type BasketLine,
+  type ConfirmedLine,
+} from "@lib/util/basket-line"
 import BasketStepper, {
   basketPressable,
 } from "@modules/cart/components/basket-stepper"
 import { clx } from "@modules/common/components/ui"
 import { useState } from "react"
 
-export type BasketLine = { lineId: string; quantity: number }
+export type { BasketLine }
 
 type Props = {
   dishName: string
@@ -37,8 +44,9 @@ const addButton = clx(
  * a compact "Add" pill that becomes a quantity stepper once the dish is in the
  * basket. The stepper is the confirmation, so success shows no toast or popup.
  * The press shows the stepper at one at once, while the server adds the line
- * (optimistic); a failure puts the pill back and speaks through a toast, so a
- * wrong count never stays on screen.
+ * (optimistic), and the header badge and phone basket bar count it at the same
+ * moment; a failure puts the pill back, takes the counts back and speaks
+ * through a toast, so a wrong count never stays on screen.
  */
 export default function AddDishButton({
   dishName,
@@ -53,36 +61,29 @@ export default function AddDishButton({
 }: Props) {
   const text = CUSTOMER_MENU_TEXT[locale]
   const label = (key: string) => text[key].replace("{dish}", dishName)
-  // `confirmed` is what the server holds; `quantity` is what is on screen.
-  const [state, setState] = useState({
-    from: line,
-    lineId: line?.lineId ?? null,
-    quantity: line?.quantity ?? 0,
-  })
+  // What the server confirmed, which is what the control shows. The page's
+  // `line` is taken only when it changes, never because it still lags behind
+  // a line just confirmed: after an add it stays null until the revalidated
+  // page arrives, and taking it would bring the pill back for a moment and
+  // replay the swap-in (#203). See `withLineProp`.
+  const [state, setState] = useState(() => initialLineState(line))
+  const synced = withLineProp(state, line)
+  if (synced !== state) setState(synced)
   const [isPending, setIsPending] = useState(false)
   // Only a stepper that just replaced the pill animates, not one on page load.
   const [hasJustAdded, setHasJustAdded] = useState(false)
-  if (
-    state.from?.lineId !== line?.lineId ||
-    state.from?.quantity !== line?.quantity
-  )
-    setState({
-      from: line,
-      lineId: line?.lineId ?? null,
-      quantity: line?.quantity ?? 0,
-    })
-  const { lineId, quantity } = state
-  const confirm = (next: { lineId: string | null; quantity: number }) =>
-    setState({
-      from: next.lineId
-        ? { lineId: next.lineId, quantity: next.quantity }
-        : null,
-      ...next,
-    })
+  const { lineId, quantity } = synced
+  const confirm = (next: ConfirmedLine) =>
+    setState((current) => confirmLine(current, next))
 
   const add = async (isSwitchConfirmed = false) => {
     setIsPending(true)
     setHasJustAdded(true)
+    // Switching Restaurant empties the basket first, so there is no count to
+    // add to; the reload after it shows the new basket.
+    const change = isSwitchConfirmed
+      ? null
+      : beginCartChange({ count: 1, total: price })
     let result: AddDishResult
     try {
       result = await addDishToBasket({
@@ -100,8 +101,12 @@ export default function AddDishButton({
     if (isSwitchConfirmed) notifyCartUpdated()
     if (result.status === "added") {
       confirm({ lineId: result.lineId, quantity: result.quantity })
+      change?.settle()
       notifyCartUpdated()
-    } else if (result.status === "other_restaurant") {
+      return
+    }
+    change?.fail()
+    if (result.status === "other_restaurant") {
       toast.warning(text.other_restaurant_title, {
         id: "basket-other-restaurant",
         description: text.other_restaurant_note,
@@ -146,6 +151,7 @@ export default function AddDishButton({
       quantity={isPending ? Math.max(quantity, 1) : quantity}
       dishName={dishName}
       locale={locale}
+      unitPrice={price}
       onSettled={(next) =>
         confirm({ lineId: next === 0 ? null : lineId, quantity: next })
       }

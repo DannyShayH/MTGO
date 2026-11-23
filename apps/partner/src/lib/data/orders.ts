@@ -6,18 +6,25 @@ import { PARTNER_TOKEN_COOKIE, sdk } from "@lib/config"
 import { log } from "@lib/logger"
 import { sessionEndedCode } from "./staff"
 
-export const ORDER_VIEWS = ["awaiting", "active", "history"] as const
-export type OrderView = (typeof ORDER_VIEWS)[number]
+import type { CancellationCategory, OrderView } from "@lib/order-queue"
+
+export {
+  ORDER_VIEWS,
+  type CancellationCategory,
+  type OrderView,
+} from "@lib/order-queue"
 export const ORDERS_PAGE_SIZE = 20
+
+/** Optional narrowing of a view, as `GET /partner/orders` takes it. */
+export type OrderFilters = {
+  q?: string
+  placed_from?: string
+  placed_to?: string
+  cancellation_category?: CancellationCategory
+}
 
 export type OrderState =
   "awaiting_acceptance" | "accepted" | "preparing" | "ready" | "cancelled"
-
-export type CancellationCategory =
-  | "restaurant_rejected"
-  | "acceptance_timeout"
-  | "customer_cancelled"
-  | "unassigned_timeout"
 
 /** What the backend decided about the acceptance window at `server_time`. */
 export type AcceptanceWindow = "open" | "elapsed" | "unavailable"
@@ -139,12 +146,15 @@ function unavailableUnlessSessionEnded(route: string, error: unknown): null {
 export async function listOrders(
   view: OrderView,
   offset: number,
+  filters: OrderFilters = {},
 ): Promise<OrdersPage | null> {
   const query = new URLSearchParams({
     view,
     limit: String(ORDERS_PAGE_SIZE),
     offset: String(offset),
   })
+  for (const [key, value] of Object.entries(filters))
+    if (value) query.set(key, value)
   try {
     return await partnerFetch<OrdersPage>(`/partner/orders?${query}`)
   } catch (error) {

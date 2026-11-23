@@ -12,6 +12,8 @@ import {
   acceptanceWindow,
   availableActions,
   OrderAction,
+  queueFilter,
+  QueueFilters,
   queueView,
   QueueView,
 } from "../rules"
@@ -46,7 +48,8 @@ type OrderRow = {
   display_id: number
   currency_code: string
   original_total: unknown
-  items?: {
+  /** Always read: ORDER_FIELDS selects them. */
+  items: {
     id: string
     title: string
     product_title?: string | null
@@ -133,7 +136,7 @@ function toRestaurantOrder(
   order: OrderRow,
   refund: RefundOutcomeView | undefined,
   now: Date,
-  food_credit: FoodCreditView | undefined = null,
+  food_credit: FoodCreditView | undefined,
 ): RestaurantOrder {
   const cancellation = cancellationOutcome(operation)
   return {
@@ -160,7 +163,7 @@ function toRestaurantOrder(
     // The purchased total: a cancellation's refund credit line lowers the
     // native `total` to zero, which must not rewrite the purchase.
     total_including_vat: Number(order.original_total),
-    items: (order.items ?? []).map((item) => ({
+    items: order.items.map((item) => ({
       id: item.id,
       name: item.product_title || item.title,
       quantity: Number(item.quantity),
@@ -191,6 +194,25 @@ export type ListRestaurantOrdersInput = {
   view: QueueView
   limit: number
   offset: number
+  /** An Order number (`display_id`) staff searched for. */
+  display_id?: number
+  filters: QueueFilters
+}
+
+/** The Order ids carrying a number; ownership is checked by the queue filter. */
+async function findOrderIdsByNumber(
+  container: MedusaContainer,
+  display_id: number,
+) {
+  const { data } = await container
+    .resolve(ContainerRegistrationKeys.QUERY)
+    // Query types `display_id` filters as text; PostgreSQL compares it as the integer.
+    .graph({
+      entity: "order",
+      fields: ["id"],
+      filters: { display_id: String(display_id) },
+    })
+  return (data as { id: string }[]).map(({ id }) => id)
 }
 
 /**
@@ -201,18 +223,30 @@ export type ListRestaurantOrdersInput = {
 export const listRestaurantOrdersStep = createStep(
   "list-restaurant-orders",
   async (input: ListRestaurantOrdersInput, { container }) => {
-    const { states, order } = queueView(input.view)
-    const [operations, count] = await container
-      .resolve<OrderOperationModuleService>(ORDER_OPERATION_MODULE)
-      .listAndCountOrderOperations(
-        { restaurant_id: input.restaurant_id, state: states },
-        {
-          select: [...OPERATION_FIELDS],
-          order,
-          take: input.limit,
-          skip: input.offset,
-        },
-      )
+    const { order } = queueView(input.view)
+    const orderIds =
+      input.display_id === undefined
+        ? undefined
+        : await findOrderIdsByNumber(container, input.display_id)
+    const [operations, count] =
+      orderIds?.length === 0
+        ? [[], 0]
+        : await container
+            .resolve<OrderOperationModuleService>(ORDER_OPERATION_MODULE)
+            .listAndCountOrderOperations(
+              queueFilter(
+                input.restaurant_id,
+                input.view,
+                input.filters,
+                orderIds,
+              ),
+              {
+                select: [...OPERATION_FIELDS],
+                order,
+                take: input.limit,
+                skip: input.offset,
+              },
+            )
     const rows = operations as unknown as OperationRow[]
     const cancelled = rows
       .filter(({ state }) => state === "cancelled")

@@ -4,6 +4,8 @@ import { CUSTOMER_CART, formatDkk, type Locale } from "@dtc/i18n"
 import { retrieveCart } from "@lib/data/cart"
 import { countBasketItems } from "@lib/util/basket"
 import { CART_UPDATED_EVENT } from "@lib/util/cart-events"
+import { withPending } from "@lib/util/pending-cart"
+import { usePendingCart } from "@lib/hooks/use-pending-cart"
 import { ShoppingCart } from "@medusajs/icons"
 import { clx, focusRing } from "@modules/common/components/ui"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
@@ -14,7 +16,8 @@ type Summary = { count: number; total: number }
 /**
  * The phone menu's way to the basket, as food delivery apps show it: a bar
  * fixed to the bottom with the item count and total once something is in
- * the basket. Wider screens use the header's basket dropdown instead.
+ * the basket. Wider screens use the header's basket dropdown instead. A tap
+ * on a dish counts here at once, before the basket is read again (#203).
  */
 export default function BasketBar({
   initial,
@@ -24,21 +27,21 @@ export default function BasketBar({
   locale: Locale
 }) {
   const text = CUSTOMER_CART[locale]
-  const [summary, setSummary] = useState(initial)
+  const [loaded, setLoaded] = useState(initial)
+  const { pending, track } = usePendingCart()
+  const summary = withPending(loaded, pending)
 
   useEffect(() => {
     const load = () =>
-      retrieveCart()
-        .then((cart) =>
-          setSummary({
-            count: countBasketItems(cart),
-            total: Number(cart?.total ?? 0),
-          }),
-        )
-        .catch(() => {})
+      track(retrieveCart, (cart) =>
+        setLoaded({
+          count: countBasketItems(cart),
+          total: Number(cart?.total ?? 0),
+        }),
+      ).catch(() => {})
     window.addEventListener(CART_UPDATED_EVENT, load)
     return () => window.removeEventListener(CART_UPDATED_EVENT, load)
-  }, [])
+  }, [track])
 
   if (summary.count === 0) return null
 

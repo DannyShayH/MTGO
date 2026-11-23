@@ -6,6 +6,7 @@ import {
   decideAcceptance,
   decideTransition,
   decideCancellation,
+  queueFilter,
   queueView,
   rejectionNote,
 } from "../rules"
@@ -72,6 +73,79 @@ describe("Restaurant Orders queue views", () => {
     },
   ])("$view holds $states: $reason", ({ view, states, order }) => {
     expect(queueView(view)).toEqual({ states, order })
+  })
+})
+
+describe("Filtering a Restaurant's queue", () => {
+  const from = new Date("2026-11-22T23:00:00.000Z")
+  const to = new Date("2026-11-23T23:00:00.000Z")
+
+  it.each([
+    {
+      view: "history" as const,
+      filters: {},
+      orderIds: undefined,
+      expected: { restaurant_id: "res_1", state: ["cancelled"] },
+      reason: "EP: without filters, only the Restaurant and the view's states",
+    },
+    {
+      view: "history" as const,
+      filters: { placed_from: from, placed_to: to },
+      orderIds: undefined,
+      expected: {
+        restaurant_id: "res_1",
+        state: ["cancelled"],
+        placed_at: { $gte: from, $lt: to },
+      },
+      reason: "EP: a placement window is from inclusive and to exclusive",
+    },
+    {
+      view: "active" as const,
+      filters: { placed_from: from },
+      orderIds: undefined,
+      expected: {
+        restaurant_id: "res_1",
+        state: ["accepted", "preparing", "ready"],
+        placed_at: { $gte: from },
+      },
+      reason: "BVA: a window open at the end keeps only its start",
+    },
+    {
+      view: "active" as const,
+      filters: { placed_to: to },
+      orderIds: undefined,
+      expected: {
+        restaurant_id: "res_1",
+        state: ["accepted", "preparing", "ready"],
+        placed_at: { $lt: to },
+      },
+      reason: "BVA: a window open at the start keeps only its end",
+    },
+    {
+      view: "history" as const,
+      filters: { cancellation_category: "acceptance_timeout" as const },
+      orderIds: undefined,
+      expected: {
+        restaurant_id: "res_1",
+        state: ["cancelled"],
+        cancellation_category: "acceptance_timeout",
+      },
+      reason: "EP: a cancellation category narrows by why the Order ended",
+    },
+    {
+      view: "awaiting" as const,
+      filters: {},
+      orderIds: ["order_1", "order_2"],
+      expected: {
+        restaurant_id: "res_1",
+        state: ["awaiting_acceptance"],
+        order_id: ["order_1", "order_2"],
+      },
+      reason:
+        "EP: the Orders with a searched number stay scoped to the Restaurant",
+    },
+  ])("$reason", ({ view, filters, orderIds, expected }) => {
+    expect(queueFilter("res_1", view, filters, orderIds)).toEqual(expected)
   })
 })
 

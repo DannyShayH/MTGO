@@ -113,7 +113,13 @@ Wall-clock time from the first move to In Progress on the Start date to the late
 
 The collector reads each issue's timeline directly by its issue ID, from the first page through every later page. Timelines nested under project items can omit recent events even when GitHub reports no next page, so they are not used. Missing or malformed pages and non-advancing cursors stop collection before publication.
 
-A missing start-time warning does not necessarily mean the Start date is missing: elapsed time also needs an actual move to In Progress on that Copenhagen date. Work that went straight from Backlog to Delivery Initiated can have a Start date but no precise start event. Assignment and commit timestamps do not replace that event, and moving completed work through the board now would record today's time rather than repair its history.
+A missing start-time warning does not necessarily mean the Start date is missing: elapsed time also needs an actual move to In Progress on that Copenhagen date. Work that went straight from Backlog to Delivery Initiated can have a Start date but no precise start event. Assignment and commit timestamps do not replace that event, and moving completed work through the board now would record today's time rather than repair its history. When the team knows roughly how long such work took, a [correction](#correction) can record that estimate instead.
+
+## Correction
+
+A hand-kept entry in `apps/docs/scripts/flow-corrections.ts` for an issue whose board data is wrong and cannot be fixed on GitHub, where a close date cannot be edited. Each entry gives a reason. A close correction applies when an issue was moved to Done but only closed days later: the Done moment replaces the close in throughput, cycle time and elapsed time, but only while GitHub still reports the recorded late close, so reopening and closing the issue again ends the correction. A start correction fills a missing Start date or start time and never replaces a value the board has. It uses the issue's own first move to In Progress, or, when there is none, the team's estimate of how long the work took before the close, stated in the reason. Corrections change throughput, cycle time, elapsed time and data problems only; the cumulative flow, WIP, blocked work and Features keep GitHub's history. The saved sample is never corrected.
+
+Current entries (23 November 2026): #99, #115, #116, #153 and #187 were moved to Done on 12, 14, 14, 18 and 19 November but closed on 23 November. #187 also had no Start date. #69, #82 and #96 went straight to Delivery Initiated; their start time is the close minus the team's estimate of 45 minutes.
 
 ## Work item age
 

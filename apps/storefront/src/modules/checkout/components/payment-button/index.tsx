@@ -3,14 +3,16 @@
 import { isAdyen, isManual, isStripeLike } from "@lib/constants"
 import { placeOrder } from "@lib/data/cart"
 import { HttpTypes } from "@medusajs/types"
-import { Button } from "@modules/common/components/ui"
+import { Button, clx } from "@modules/common/components/ui"
+import Spinner from "@modules/common/icons/spinner"
+import { LockClosedSolid } from "@medusajs/icons"
 import { useElements, useStripe } from "@stripe/react-stripe-js"
 import { unstable_rethrow, useParams } from "next/navigation"
 import React, { useState } from "react"
 import ErrorMessage from "../error-message"
 import { getPaymentErrorMessage } from "@lib/util/payment-error"
 import AdyenPaymentButton from "./adyen-payment-button"
-import { CUSTOMER_CHECKOUT_TEXT, type Locale } from "@dtc/i18n"
+import { CUSTOMER_CHECKOUT_TEXT, formatDkk, type Locale } from "@dtc/i18n"
 
 type PaymentButtonProps = {
   cart: HttpTypes.StoreCart
@@ -54,6 +56,7 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
         <ManualTestPaymentButton
           notReady={notReady}
           locale={locale}
+          total={formatDkk(Number(cart.total ?? 0), locale)}
           data-testid={dataTestId}
         />
       )
@@ -179,12 +182,41 @@ const StripePaymentButton = ({
   )
 }
 
+/**
+ * One of the pay button's two labels. Both share one grid cell, so the
+ * button keeps its width while they cross-fade; a slight blur hides the
+ * hand-over. Transitions rather than keyframes, so a fast answer that swaps
+ * back mid-fade reverses smoothly. Reduced motion keeps only the fade.
+ */
+const PayLabel = ({
+  isShown,
+  children,
+}: {
+  isShown: boolean
+  children: React.ReactNode
+}) => (
+  <span
+    aria-hidden={!isShown}
+    className={clx(
+      "col-start-1 row-start-1 inline-flex items-center justify-center gap-2 transition-[opacity,filter,transform] duration-200 ease-out-strong",
+      isShown
+        ? "opacity-100"
+        : "opacity-0 motion-safe:scale-[0.96] motion-safe:blur-[2px]",
+    )}
+  >
+    {children}
+  </span>
+)
+
 const ManualTestPaymentButton = ({
   notReady,
   locale,
+  total,
 }: {
   notReady: boolean
   locale: Locale
+  /** The amount being paid, shown on the button as checkouts usually do. */
+  total: string
 }) => {
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -215,15 +247,28 @@ const ManualTestPaymentButton = ({
 
   return (
     <>
+      {/* Busy is not disabled: the button keeps its colour while the label
+          says the payment is going through, and a second press is ignored. */}
       <Button
-        disabled={notReady || submitting}
+        disabled={notReady}
+        aria-disabled={submitting || undefined}
+        aria-busy={submitting || undefined}
         className="w-full sm:w-auto"
-        isLoading={submitting}
         onClick={handlePayment}
         size="large"
         data-testid="submit-order-button"
       >
-        {CUSTOMER_CHECKOUT_TEXT[locale].placeOrder}
+        <span className="grid">
+          <PayLabel isShown={!submitting}>
+            <LockClosedSolid aria-hidden="true" />
+            {CUSTOMER_CHECKOUT_TEXT[locale].placeOrder}
+            <span className="font-normal tabular-nums opacity-90">{total}</span>
+          </PayLabel>
+          <PayLabel isShown={submitting}>
+            <Spinner aria-hidden="true" />
+            {CUSTOMER_CHECKOUT_TEXT[locale].placingOrder}
+          </PayLabel>
+        </span>
       </Button>
       <ErrorMessage
         error={errorMessage}

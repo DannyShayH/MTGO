@@ -9,7 +9,9 @@ import {
   type Locale,
   type OrderActionErrorCode,
 } from "@dtc/i18n"
-import { Alert, Button, Label, Text, Textarea } from "@medusajs/ui"
+import { Alert, Button, Label, Text, Textarea, clx } from "@medusajs/ui"
+import { XMarkMini } from "@medusajs/icons"
+import { ACTION_BUTTON } from "../action-styles"
 import { rejectOrder } from "@lib/data/order-actions"
 import type { RestaurantOrder } from "@lib/data/orders"
 
@@ -75,8 +77,16 @@ export function RejectOrder({
       router.refresh()
     })
 
+  // Next to Accept it is one button on the row; the confirmation and the
+  // outcome take the row's full width below it.
+  const isCompact = canReject && !open && !error && !isRejected
   return (
-    <div className="flex flex-col gap-y-3">
+    <div
+      className={clx(
+        "flex flex-col gap-y-3",
+        !isCompact && "w-full sm:basis-full",
+      )}
+    >
       {canReject && !open && (
         <Button
           ref={opener}
@@ -84,15 +94,16 @@ export function RejectOrder({
           variant="secondary"
           size="large"
           onClick={() => setOpen(true)}
-          className={`${FOCUS_RING} min-h-12 w-full sm:w-auto sm:self-start`}
+          className={ACTION_BUTTON}
         >
+          <XMarkMini aria-hidden />
           {text.reject}
         </Button>
       )}
       {canReject && open && (
         <form
           aria-labelledby={`${ids}-title`}
-          className="border-ui-border-error bg-ui-bg-subtle flex flex-col gap-y-3 rounded-lg border p-4"
+          className="border-ui-border-error bg-ui-bg-subtle flex flex-col gap-y-3 rounded-lg border p-4 motion-safe:animate-[panel-in_200ms_cubic-bezier(0.23,1,0.32,1)]"
           onSubmit={(event) => {
             event.preventDefault()
             if (!pending) submit()

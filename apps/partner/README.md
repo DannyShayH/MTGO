@@ -313,17 +313,44 @@ have separate messages. The bearer stays in the httpOnly cookie.
 (`?view=awaiting`, `active`, `history`) and 20 Orders per page (`&page=N`).
 Awaiting acceptance is ordered by the backend: earliest acceptance deadline
 first, with a stable tie-breaker, and Orders without recorded timing last. The
-page is one column at most `max-w-3xl` wide, so that order reads the same at
-every width and the toolbar stays next to the queue. Each card is one link to
-`/orders/{id}` (it presses in slightly) with the Order reference
-(`#display_id`). An Awaiting card leads with the deadline line in larger type
-where other views show the state badge, since every Order in that view awaits
-acceptance, then the placement time and each purchased dish with its quantity
-on its own line. In progress and History cards are denser: the state (and
-refund) badge, and the dishes on one wrapping line next to the placement time.
-The Awaiting tab carries the number of Orders awaiting acceptance, and the
-page links say "Page 1 of 3 · 1–20 of 50". The detail page adds unit prices,
-line totals and the Order total including VAT.
+page is one column at most `max-w-4xl` wide, so that order reads the same at
+every width and the toolbar stays next to the queue. As on Medusa Admin's list
+pages, the views, the filters, the rows and the page links share one
+container, with a divider between rows. Each row is one link to
+`/orders/{id}` (its background darkens while pressed, and a chevron nudges
+on hover where hover exists) with the Order reference (`#display_id`). An
+Awaiting row leads with the deadline line in larger type, since every Order in
+that view awaits acceptance, then the placement time and each purchased dish
+with its quantity on its own line. In progress rows show the state badge and
+the dishes on one wrapping line next to the placement time. History rows show
+the date and time of placement (or of cancellation for an Order placed before
+placement times were recorded), why it was cancelled, the refund badge, the
+Order total and the dishes. In the other views a placement time carries its
+date when it was not today on the backend's clock. The Awaiting tab carries the
+number of Orders awaiting acceptance, and the footer says "1–20 of 50" with
+"Page 1 of 3" and Previous/Next. The detail page shows the recorded milestones
+as a timeline (placement with its date, then Accepted, Preparation started and
+Ready, with the newest filled) and adds unit prices, line totals and the
+Order total including VAT.
+
+### Finding Orders
+
+Every view has a search field for the Order number (`1042` or `#1042`).
+History adds a period (Today, Yesterday, Last 7 days, Last 30 days or chosen
+dates, from and to inclusive) and the cancellation reason (Rejected by you,
+Not accepted in time, Cancelled by the Customer, No Delivery agent found).
+The choices live in the address (`q`, `period`, `from`, `to`, `cancellation_category`, rules
+in `src/lib/order-queue.ts`), so a result survives a reload and the live
+refreshes, and changing a filter returns to page 1. Days are Copenhagen
+calendar days, worked out on the server when the page renders, and sent to
+`GET /partner/orders` as `placed_from`/`placed_to`. The search sends 350 ms
+after typing stops, or at once on Enter; anything other than a number shows
+"Enter the Order number only" and is not sent. An end date before the start
+date says so instead of listing Orders. While a new result loads, the
+current rows stay in place and dim after 150 ms, so fast answers do not
+flicker. **Clear filters** appears once a filter is set, and an empty result
+says that no Orders match, with the same button. The filter bar is a plain
+GET form, so it works before JavaScript loads.
 
 Dish names and food information are the ones purchased (#141), shown in the
 staff member's language whatever the Customer's Order language. Under each
@@ -358,7 +385,7 @@ connection aborts the backend stream. A hint, or the `ready` that follows
 every (re)connection, rereads an Orders page's projections with
 `router.refresh()`, which keeps keyboard focus and scroll position.
 
-On the Orders pages a toolbar between the title and the views holds the
+On the Orders pages a toolbar card between the title and the views holds the
 connection status, "Loaded", the sound switch and Refresh in one row. The
 status is a line with a dot, in Danish and English, as a `role="status"`
 region:
@@ -434,15 +461,25 @@ lost. Hiding is only an acknowledgement: it sends nothing to the backend, and
 an Order accepted, rejected or expired elsewhere leaves the banner by itself.
 The queue keeps its earliest-deadline order and the backend's deadline line.
 
-**Sound for new Orders** is a switch in the Orders toolbar, off on every page
-load. Switching it on plays a short two-note tone made with Web Audio (no
-sound file, no dependency), and the same tone then plays once per batch of
-arrivals on any dashboard page. If the browser refuses sound, the switch
-stays off and a line under the toolbar says so ("The browser did not allow
-sound. New Orders are still shown on screen."); the visual alert is
-unaffected. The choice and the known Orders live in `ArrivalAlertsProvider` in
-the dashboard layout, so they survive moving between pages and are forgotten
-when the staff member signs out or reloads the page.
+**Sound for new Orders** is a switch in the Orders toolbar, off until staff
+switch it on. Switching it on plays a short two-note tone made with Web Audio
+(no sound file, no dependency), and the same tone then plays once per batch of
+arrivals on any dashboard page. The choice is remembered on the device for a
+year in the `mtogo_partner_arrival_sound` cookie, which the dashboard layout
+reads, so after a reload or a new sign-in the switch renders on without
+flashing off. Browsers only start sound after a click, tap or key press on
+the page, so a remembered choice waits for the first one (the line under the
+toolbar says "Sound is on. Click or tap anywhere on the page so the browser
+allows it.") and then plays; arriving from another page that already had one
+unlocks it at once. A tone the browser does not play keeps the choice and
+waits for the next interaction. If the browser refuses the test tone when
+staff switch it on, the switch stays off, nothing is remembered and the line
+says so ("The browser did not allow sound. New Orders are still shown on
+screen."). Switching it off forgets the choice. The visual alert never depends
+on sound. The rules are in `src/modules/orders/arrival-sound-state.ts`, tested
+by its unit spec. The known Orders live in `ArrivalAlertsProvider` in the
+dashboard layout, so they survive moving between pages and are forgotten when
+the staff member signs out or reloads the page.
 
 Arrivals are found by stable Order id in the polling check
 (`GET /api/orders/check`), which now reads the first 50 awaiting Orders
@@ -472,17 +509,24 @@ other data calls do; a revoked or expired session redirects through
 ### Accept, start preparing and mark food ready (#142, #146)
 
 The Order details page shows the one obvious next kitchen step as a large
-button, only when the backend lists it in `available_actions`: **Accept
-Order** while awaiting, **Start preparing** once accepted and **Ready for
-pickup** while preparing. A short line under each explains it: acceptance is
+teal button with an icon (the design brief's primary action), only when the
+backend lists it in `available_actions`: **Accept Order** (check) while
+awaiting, **Start preparing** (flame) once accepted and **Ready for pickup**
+(bag) while preparing. The step sits at the end of the **Timeline**, as its
+current step with a teal ring under the recorded ones, so the action is where
+it will be recorded and keeps its outcome and focus when the page rereads the
+Order. While awaiting, that row also holds the deadline and **Reject Order**
+next to Accept; once Ready, it says the next step is the Delivery agent's
+collection. A short line under each step explains it: acceptance is
 a commitment and preparation is recorded separately; starting needs no
 Delivery agent; readiness does not mean the food was picked up or delivered.
 The server action `runOrderAction` in `src/lib/data/order-actions.ts` posts an
 empty body to `POST /partner/orders/{id}/accept`, `/start-preparation` or
 `/ready`. The backend decides the time and the actor.
 
-While a request is pending, the button is disabled and reads "Accepting…",
-"Starting preparation…" or "Recording…", so a double tap sends one request.
+While a request is pending, the button stays teal, shows a spinner and reads
+"Accepting…", "Starting preparation…" or "Recording…"; it is `aria-disabled`,
+so a double tap sends one request.
 Every outcome revalidates the Orders pages and refreshes the screen. A success
 shows a notice such as "Preparation of Order #N has started." followed by the
 next step's button, and the recorded "Accepted 13:02", "Preparation started
@@ -496,8 +540,9 @@ contact an MTOGO operator with the Order number if they cannot fulfil it.
 
 ### Reject an Order (#143)
 
-**Reject Order** is a secondary button next to Accept, offered only while the
-backend lists `reject`. The first press only opens a confirmation, with the
+**Reject Order** is a secondary button with a cross on the same row as Accept,
+offered only while the backend lists `reject`. The first press only opens a
+confirmation below the row (it unfolds in 200 ms, skipped with reduced motion), with the
 consequence ("cancelled, refunded in full automatically"), an optional reason
 (1000 characters, counted) noted as hidden from the Customer, and **Reject and
 refund** next to **Keep Order**. Escape or Keep Order closes it and returns

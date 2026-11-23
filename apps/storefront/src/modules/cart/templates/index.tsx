@@ -1,4 +1,5 @@
 import { CUSTOMER_CART, formatDkk, type Locale } from "@dtc/i18n"
+import { reachedCheckoutStep } from "@lib/util/checkout-step"
 import type { BasketDishes } from "@lib/data/basket-dishes"
 import { countBasketItems } from "@lib/util/basket"
 import { Plus, ShoppingCart } from "@medusajs/icons"
@@ -14,12 +15,6 @@ const primaryLink = clx(
   "flex min-h-12 w-full items-center justify-center rounded-full bg-mtogo-action-primary px-6 text-base font-semibold text-mtogo-text-on-primary active:bg-mtogo-action-primary-pressed [@media(hover:hover)_and_(pointer:fine)]:hover:bg-mtogo-action-primary-hover",
   basketPressable,
 )
-
-function checkoutStep(cart: HttpTypes.StoreCart) {
-  if (!cart.shipping_address?.address_1 || !cart.email) return "address"
-  if (!cart.shipping_methods?.length) return "delivery"
-  return "payment"
-}
 
 function EmptyBasket({ locale }: { locale: Locale }) {
   const text = CUSTOMER_CART[locale]
@@ -154,7 +149,7 @@ export default function CartTemplate({
                   </p>
                 )}
                 <LocalizedClientLink
-                  href={`/checkout?step=${checkoutStep(cart)}`}
+                  href={`/checkout?step=${reachedCheckoutStep(cart)}`}
                   // Phones use the bar fixed to the bottom instead.
                   className={clx(primaryLink, "hidden small:flex")}
                   data-testid="checkout-button"
@@ -167,7 +162,7 @@ export default function CartTemplate({
             <div aria-hidden="true" className="h-24 small:hidden" />
             <div className="fixed inset-x-0 bottom-0 z-40 px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] small:hidden">
               <LocalizedClientLink
-                href={`/checkout?step=${checkoutStep(cart)}`}
+                href={`/checkout?step=${reachedCheckoutStep(cart)}`}
                 className={clx(
                   primaryLink,
                   "min-h-14 justify-between shadow-lg motion-safe:animate-rise-in",

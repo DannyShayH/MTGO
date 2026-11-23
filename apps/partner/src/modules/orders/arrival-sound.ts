@@ -1,8 +1,10 @@
 /**
  * The optional arrival tone (#149): two short notes made with Web Audio, so
  * no sound file or dependency is needed. Browsers only allow sound after a
- * click on the page, so staff switch it on themselves; every failure is
- * reported as refused, and the visual alert never depends on it.
+ * click on the page, so staff switch it on themselves; the choice is
+ * remembered, and after a reload the next click unlocks it again
+ * (`arrival-sound-state.ts`). Every failure is reported as refused, and the
+ * visual alert never depends on it.
  */
 type AudioContextClass = typeof AudioContext
 
@@ -13,18 +15,39 @@ const audioContextClass = (): AudioContextClass | undefined =>
   (window as unknown as { webkitAudioContext?: AudioContextClass })
     .webkitAudioContext
 
+/**
+ * Whether the page has had a click, tap or key press. Without one, a
+ * browser never lets audio start, and Chrome leaves `resume()` pending
+ * instead of refusing, so it is not called at all.
+ */
+const hasUserActivation = () =>
+  (navigator as { userActivation?: { hasBeenActive: boolean } }).userActivation
+    ?.hasBeenActive ?? true
+
 /** Resumes (or creates) the page's audio; true when sound may play now. */
 async function resumeAudio(): Promise<boolean> {
   try {
     const AudioContextClass = audioContextClass()
     if (!AudioContextClass) return false
+    if (context?.state !== "running" && !hasUserActivation()) return false
     context ??= new AudioContextClass()
-    if (context.state !== "running") await context.resume()
+    if (context.state !== "running")
+      await Promise.race([
+        context.resume(),
+        new Promise((resolve) => setTimeout(resolve, 1000)),
+      ])
     return context.state === "running"
   } catch {
     return false
   }
 }
+
+/**
+ * Lets a remembered sound choice play again after a reload, without a
+ * tone. Call it from a click, tap or key press, or once the page already
+ * had one; true when sound may play now.
+ */
+export const unlockArrivalSound = resumeAudio
 
 function playNotes(audio: AudioContext) {
   const start = audio.currentTime + 0.02

@@ -3,7 +3,7 @@
 import { Heading, Text, clx } from "@modules/common/components/ui"
 
 import PaymentButton from "../payment-button"
-import { useSearchParams } from "next/navigation"
+import { useCheckoutStep } from "@lib/hooks/use-checkout-step"
 import { HttpTypes } from "@medusajs/types"
 import { CUSTOMER_CHECKOUT_TEXT, type Locale } from "@dtc/i18n"
 
@@ -15,9 +15,7 @@ const Review = ({
   locale: Locale
 }) => {
   const text = CUSTOMER_CHECKOUT_TEXT[locale]
-  const searchParams = useSearchParams()
-
-  const isOpen = searchParams.get("step") === "review"
+  const isOpen = useCheckoutStep(cart) === "review"
 
   const paidByGiftcard = !!(
     (cart as unknown as Record<string, unknown>)?.gift_cards &&
