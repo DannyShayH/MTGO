@@ -15,16 +15,17 @@ API and Grafana have loopback host ports.
 ## Query tests
 
 `tests/dashboard-queries.test.yaml` is a `promtool test rules` file holding
-every dashboard expression verbatim (the low-traffic query with each
-representative Viewer input substituted as Grafana encodes it), evaluated against synthetic series:
+every dashboard expression verbatim (the two traffic-indication queries with
+each representative Viewer setting substituted as Grafana encodes it), evaluated against synthetic series:
 healthy zero traffic, only 4xx, 5xx, DOWN and absent targets, insufficient
 history, a missing duration histogram and a counter reset, and the
 HTTP-serving process's CPU, memory and event-loop delay panels (healthy,
 DOWN, absent, one scrape, a collection gap, CPU counter reset). It also covers the
 stream and interruption panels (with idle ordinary traffic, quiet zero, DOWN,
-one scrape and a counter reset), and the low-traffic indication for each
-class of Viewer input, encoded as Grafana encodes it, against exact,
-boundary, zero, DOWN, absent and one-scrape counts. The backend unit
+one scrape and a counter reset), and the low- and high-traffic indications
+for each class of each Viewer control and the cross-field bounds, encoded as
+Grafana encodes them, against exact, boundary, zero, DOWN, absent and
+one-scrape counts. The backend unit
 test `src/observability/__tests__/dashboard-queries.unit.spec.ts` fails when a
 dashboard query is not in that file. Change both together.
 

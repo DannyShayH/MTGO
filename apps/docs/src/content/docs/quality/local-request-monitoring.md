@@ -8,8 +8,9 @@ This implements the local journeys of
 [#170](https://github.com/DannyShayH/MTGO/issues/170),
 [#171](https://github.com/DannyShayH/MTGO/issues/171),
 [#172](https://github.com/DannyShayH/MTGO/issues/172),
-[#173](https://github.com/DannyShayH/MTGO/issues/173) and
-[#174](https://github.com/DannyShayH/MTGO/issues/174), under
+[#173](https://github.com/DannyShayH/MTGO/issues/173),
+[#174](https://github.com/DannyShayH/MTGO/issues/174) and
+[#175](https://github.com/DannyShayH/MTGO/issues/175), under
 [#167](https://github.com/DannyShayH/MTGO/issues/167). It measures every
 completed ordinary API response from one backend process, including
 authentication, publishable-key and body refusals before application
@@ -48,7 +49,7 @@ For a native development server, use `PORT` rather than a CLI `--port`
 override and keep the default exporter bind at `127.0.0.1`.
 
 There is no application-log collection, host/container/database/Redis or
-Next.js process metrics, separate-worker runtime metrics or high-traffic warning yet.
+Next.js process metrics or separate-worker runtime metrics yet.
 The [confirmed discovery](/MTGO/quality/prometheus-monitoring-discovery/)
 describes the later work. Seven-day Prometheus retention is a time policy,
 not a storage quota or evidence that the full four-component stack fits staging.
@@ -375,59 +376,86 @@ in the rolling value. Like other outcomes, an interruption series seen for the
 first time inside the window misses its first increment; the raw counter
 `mtogo_http_requests_interrupted_total` has the exact count.
 
-## Low-traffic indication per Viewer (#174)
+## Traffic indications per Viewer (#174, #175)
 
-The **Low traffic below** box at the top of the dashboard holds a whole
-number. The **Low-traffic indication — rolling 5 minutes** panel compares it
-with **Estimated completed responses — rolling 5 minutes**: the same
-extrapolated count of completed ordinary API responses, with the same
-exclusions (health, scrapes, Admin assets, established streams and
-interrupted requests). It is not a count of users, Orders or the lifetime
-counter, and it is evaluated at the end of the displayed range whatever range
-you choose. It is a visual indication only: no request limit, capacity claim
-or notification.
+Three controls sit at the top of the dashboard: **Low traffic below**, the
+**High-traffic warning** switch (**Disabled** or **Enabled**) and **High
+traffic above**. Two panels, **Low-traffic indication — rolling 5 minutes**
+and **High-traffic indication — rolling 5 minutes**, compare them with
+**Estimated completed responses — rolling 5 minutes**: the same extrapolated
+count of completed ordinary API responses, with the same exclusions (health,
+scrapes, Admin assets, established streams and interrupted requests). It is
+not a count of users, Orders or the lifetime counter, and it is evaluated at
+the end of the displayed range whatever range you choose. Both are visual
+indications only: no request limit, rate limiting, capacity guarantee or
+notification. HIGH means the count is above your number, not that the
+backend is near capacity.
 
-| Panel reads                                           | When                                                                                                   |
-| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| **Configuration error — invalid Low traffic below**   | The value is not digits only from `0` to `999999999999999`. No threshold is applied, saved or rounded. |
-| **Unavailable — no valid count**                      | The target is DOWN or absent, or there are fewer than two samples. Also with threshold 0.              |
-| **Off — threshold 0**                                 | The threshold is `0` and a valid count exists. This is the Git default.                                |
-| **LOW traffic — read p95 with its observation count** | The count is strictly below the threshold. Read the p95 with its observation count.                    |
-| **Not low — at or above**                             | The count is equal to or above the threshold.                                                          |
+| Panel reads                                            | When                                                                                                                                                    |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Configuration error — invalid Low traffic below**    | Both panels. Low traffic below is not digits only from `0` to `999999999999999`. No threshold is applied, saved or rounded.                             |
+| **Configuration error — invalid high-traffic warning** | Both panels. The switch value is not exactly `off` or `on` (possible from a URL), or High traffic above is invalid, even while the warning is Disabled. |
+| **Configuration error — Low above High**               | Both panels. The warning is Enabled and Low traffic below is greater than High traffic above. Equal bounds are valid.                                   |
+| **Unavailable — no valid count**                       | Both panels. The target is DOWN or absent, or there are fewer than two samples. Also with low 0 or an enabled high 0.                                   |
+| **Off — threshold 0**                                  | Low panel. Low traffic below is `0` and a valid count exists. This is the Git default.                                                                  |
+| **LOW traffic — read p95 with its observation count**  | Low panel. The count is strictly below Low traffic below. Read the p95 with its observation count.                                                      |
+| **Not low — at or above**                              | Low panel. The count is equal to or above Low traffic below.                                                                                            |
+| **Off — warning disabled**                             | High panel. The switch is Disabled and a valid count exists. This is the Git default; High traffic above is still validated but not compared.           |
+| **HIGH traffic — above your warning**                  | High panel. The warning is Enabled and the count is strictly above High traffic above.                                                                  |
+| **Not high — at or below**                             | High panel. The warning is Enabled and the count is equal to or below High traffic above.                                                               |
 
-Accepted values are `0` and whole numbers without a leading zero, up to 15
-digits (exact as a floating-point number). Everything else is a configuration
-error: negative, fractional (`1.5`, `100.0`), exponent (`1e3`), hexadecimal,
-signed (`+5`), leading zeros (`007`), separators (`1_000`), spaces, empty,
-`NaN`, `Infinity`, 16 or more digits and text such as `100) or vector(1`.
-The count is an estimate, so 99.99 against 100 is LOW; 100 exactly is not.
+The errors are checked in the order of the table, and any configuration
+error replaces both panels' results: an invalid setting never looks normal.
 
-**Your view only.** Typing a value updates the panel and the URL
-(`?var-low_traffic_threshold=750`) without a redeploy. Share that URL to share
-the setting. Nobody else's view changes, and the Git default (`0`) stays:
-Viewers cannot save the dashboard. To change the shared default, change
+For low 100 and an enabled high 500: a count of 99 is LOW, 100 and 500 are
+neither LOW nor HIGH, and 501 is HIGH. An enabled high `0` is a real
+threshold: with low `0`, any completed response makes it HIGH and a valid zero
+count reads **Not high**, while Disabled reads **Off**.
+
+Accepted threshold values are `0` and whole numbers without a leading zero, up
+to 15 digits (exact as a floating-point number). Everything else is a
+configuration error: negative, fractional (`1.5`, `100.0`), exponent (`1e3`),
+hexadecimal, signed (`+5`), leading zeros (`007`), separators (`1_000`),
+spaces, empty, `NaN`, `Infinity`, 16 or more digits and text such as
+`100) or vector(1`. The count is an estimate, so 99.99 against a low of 100
+is LOW and 500.01 against a high of 500 is HIGH; the exact values are neither.
+
+**Your view only.** Typing a value or choosing Enabled updates the panels and
+the URL (`?var-low_traffic_threshold=100&var-high_traffic_warning=on&var-high_traffic_threshold=500`)
+without a redeploy. Share that URL to share the settings. Nobody else's view
+changes, and the Git defaults (low `0`, warning `off`, high `0`) stay:
+Viewers cannot save the dashboard. To change a shared default, change
 `templating` in `grafana/dashboards/backend-requests.json` in an issue.
 Grafana 13.3.1 keeps the first value of a repeated URL parameter
 (`?var-low_traffic_threshold=100&var-low_traffic_threshold=750` shows and
-uses `100`) and rewrites the URL to that single value.
+uses `100`) and rewrites the URL to that single value. It also keeps a switch
+value from the URL that is not one of its options, such as
+`var-high_traffic_warning=true`; the query rejects it as a configuration error.
 
-**How the value reaches the query.** Grafana inserts the value only as
-`"${low_traffic_threshold:percentencode}"`, inside a PromQL string. Percent
-encoding leaves only letters, digits and `-_.~%`, so input can never end the
-string, become a query or expand a `label_replace` reference such as `$1`.
-The query checks that string against `0|[1-9][0-9]{0,14}` and converts it to
-a number with `histogram_quantile(1, …)` over a one-bucket histogram whose
-`le` is the value: PromQL's only way to read a number from a label. A rejected
-value yields no number, and the panel shows the configuration error. A unit
-test fails if the variable appears anywhere in another form.
+**How the values reach the query.** Grafana inserts each control only as
+`"${name:percentencode}"`, inside a PromQL string. Percent encoding leaves only
+letters, digits and `-_.~%`, so input can never end the string, become a query
+or expand a `label_replace` reference such as `$1`. The query checks a
+threshold string against `0|[1-9][0-9]{0,14}`, and the switch against `on` and
+`off`; `label_replace` regular expressions are anchored, so `on ` or `ON` do
+not match. A threshold becomes a number through `histogram_quantile(1, …)`
+over two buckets, one whose `le` is the value and `+Inf`: PromQL's only way
+to read a number from a label. A rejected value leaves only `+Inf`, which
+gives `NaN`, and `>= 0` drops it, so no number exists and the panels show the
+configuration error. A unit test fails if a control appears anywhere in
+another form.
 
-The promtool file holds the acceptance table against the pinned engine: low 0,
-99, 100, 101, 750, 749, 751 and the 15-digit maximum, against counts of
-exactly 100, just under 100, exactly 750 and valid zero; DOWN, absent and
-one-scrape targets; and each invalid class above, as Grafana encodes it. The
-backend unit test fails if any of its 24 representative inputs (each
-invalid class, 0, 99, 100, 101, 750 and both 15/16-digit boundaries) is
-missing from the file.
+The promtool file holds the acceptance table against the pinned engine. With
+a count of exactly 100 it holds every setting the backend unit test lists,
+for both panels: 24 classes of Low traffic below with the warning disabled,
+the same 24 classes of High traffic above with it enabled, nine values of the
+switch (including empty, `ON`, `true`, `1`, `on ` and two values) and nine
+cross-field rows (specified, equal, low one below high, reversed by one and
+reversed bounds; a
+disabled high that is lower (not compared) or invalid (still an error); an invalid low with an enabled high;
+larger bounds). Further cases cover counts just under 100, exactly 500, just
+over 500, exactly 750 and valid zero, and DOWN, absent and one-scrape targets.
+The unit test fails if any setting it lists is missing for either panel.
 
 ## Operation, failure and cleanup
 
@@ -469,32 +497,33 @@ docker compose down
 
 ## Troubleshooting
 
-| Symptom                                            | Check/action                                                                                                                                                                                       |
-| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Target DOWN                                        | Check backend logs for the constant metrics warning, backend startup, port 9464 and the shared network alias. Never publish 9464 to fix connectivity.                                              |
-| Raw 0 after read                                   | Confirm the read returned 200, the API uses `PORT=9000`, metrics is enabled and the next scrape occurred. Excluded paths and established streams are not counted.                                  |
-| Rolling count unavailable or surprising            | Wait for two scrapes; generate another request. Inspect raw count and `up`. Increases are estimates and new series lack earlier history.                                                           |
-| Health is OK, scrape fails                         | API health and exporter availability are independent. Check exporter bind/configuration and private DNS.                                                                                           |
-| Exporter warning                                   | Check port collision, a valid integer port and bind address. API startup continues; restart the backend after fixing configuration.                                                                |
-| Grafana login fails after `.env` changes           | Stored credentials survive recreation. Restore the original local file or deliberately reset disposable volumes.                                                                                   |
-| p95 or 5xx proportion Unavailable while UP         | Expected with no completed responses or no duration observations in five minutes. Check **Data state** and the observation count; send a real read.                                                |
-| Data state shows Insufficient history              | Fewer than two successful scrapes in five minutes, for example right after Prometheus or the backend started. Wait 30 seconds.                                                                     |
-| p95 shows exactly 10 s                             | The 95th percentile is in the overflow bucket: at least 10 s. Investigate the slow route in **p95 by route pattern**.                                                                              |
-| Process panels Unavailable while requests show     | The CPU rate needs two scrapes; wait 30 seconds. If memory is also Unavailable, the backend release predates #172 and exports no process collectors.                                               |
-| CPU above 1 core or much lower than `top`          | It is this one process, in cores, averaged over five minutes. `top` shows instantaneous whole-host or per-thread figures; they are different measurements.                                         |
-| Event-loop delay jumps when you `curl` `/metrics`  | A manual scrape resets the delay window. Read the values in Grafana, or query Prometheus, instead of scraping the exporter by hand.                                                                |
-| Active streams stay at 0 while a kitchen is open   | The feed may be refused (401/403 are ordinary responses) or the partner app may be polling instead. A stream endpoint missing from `STREAM_ROUTES` is counted as an ordinary request when it ends. |
-| Many `disconnected` terminations                   | Not a backend error. Check the proxy timeouts, the network and whether clients reconnect; a deploy ends feeds without recording them, because collection stops with the old process.               |
-| Interrupted requests rise                          | Clients gave up before the response finished. Check the p95 of the same route and the event-loop delay: slow responses lead to timeouts.                                                           |
-| Low-traffic panel shows a configuration error      | The box holds something other than digits only, 0 to 999999999999999. Remove spaces, signs, decimals and leading zeros; 0 turns the indication off.                                                |
-| Low-traffic panel Unavailable with a valid value   | No valid five-minute count: check **Data state**. A threshold, including 0, never turns DOWN or missing samples into data.                                                                         |
-| Someone else sees a different low-traffic result   | Thresholds live in each view's URL. Compare the `var-low_traffic_threshold` values; the Git default is 0.                                                                                          |
-| `test rules` fails after a dashboard change        | Update the expression and expected values in `tests/dashboard-queries.test.yaml` together; the backend unit test names any query the file lacks.                                                   |
-| Dashboard absent                                   | Check Grafana provisioning logs and the mounted dashboard/provider/data-source paths; keep the pinned versions together.                                                                           |
-| `docker: command not found`                        | Rebuild and reopen the devcontainer with the Docker-in-Docker feature, then check `docker version` and `docker compose version`.                                                                   |
-| Docker client exists but cannot reach its server   | Check the feature startup log `/tmp/dockerd.log` and host support for privileged development containers; a client alone cannot run the journey.                                                    |
-| No configuration file found                        | Run the monitoring commands from `deploy/monitoring`, not the repository root.                                                                                                                     |
-| PostgreSQL refuses `localhost:5432` for HTTP tests | Rebuild the repository devcontainer. Do not redirect tests to `postgres`, which causes Medusa SSL problems. The Compose demo owns a separate database.                                             |
+| Symptom                                            | Check/action                                                                                                                                                                                                                                                                                           |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Target DOWN                                        | Check backend logs for the constant metrics warning, backend startup, port 9464 and the shared network alias. Never publish 9464 to fix connectivity.                                                                                                                                                  |
+| Raw 0 after read                                   | Confirm the read returned 200, the API uses `PORT=9000`, metrics is enabled and the next scrape occurred. Excluded paths and established streams are not counted.                                                                                                                                      |
+| Rolling count unavailable or surprising            | Wait for two scrapes; generate another request. Inspect raw count and `up`. Increases are estimates and new series lack earlier history.                                                                                                                                                               |
+| Health is OK, scrape fails                         | API health and exporter availability are independent. Check exporter bind/configuration and private DNS.                                                                                                                                                                                               |
+| Exporter warning                                   | Check port collision, a valid integer port and bind address. API startup continues; restart the backend after fixing configuration.                                                                                                                                                                    |
+| Grafana login fails after `.env` changes           | Stored credentials survive recreation. Restore the original local file or deliberately reset disposable volumes.                                                                                                                                                                                       |
+| p95 or 5xx proportion Unavailable while UP         | Expected with no completed responses or no duration observations in five minutes. Check **Data state** and the observation count; send a real read.                                                                                                                                                    |
+| Data state shows Insufficient history              | Fewer than two successful scrapes in five minutes, for example right after Prometheus or the backend started. Wait 30 seconds.                                                                                                                                                                         |
+| p95 shows exactly 10 s                             | The 95th percentile is in the overflow bucket: at least 10 s. Investigate the slow route in **p95 by route pattern**.                                                                                                                                                                                  |
+| Process panels Unavailable while requests show     | The CPU rate needs two scrapes; wait 30 seconds. If memory is also Unavailable, the backend release predates #172 and exports no process collectors.                                                                                                                                                   |
+| CPU above 1 core or much lower than `top`          | It is this one process, in cores, averaged over five minutes. `top` shows instantaneous whole-host or per-thread figures; they are different measurements.                                                                                                                                             |
+| Event-loop delay jumps when you `curl` `/metrics`  | A manual scrape resets the delay window. Read the values in Grafana, or query Prometheus, instead of scraping the exporter by hand.                                                                                                                                                                    |
+| Active streams stay at 0 while a kitchen is open   | The feed may be refused (401/403 are ordinary responses) or the partner app may be polling instead. A stream endpoint missing from `STREAM_ROUTES` is counted as an ordinary request when it ends.                                                                                                     |
+| Many `disconnected` terminations                   | Not a backend error. Check the proxy timeouts, the network and whether clients reconnect; a deploy ends feeds without recording them, because collection stops with the old process.                                                                                                                   |
+| Interrupted requests rise                          | Clients gave up before the response finished. Check the p95 of the same route and the event-loop delay: slow responses lead to timeouts.                                                                                                                                                               |
+| A traffic panel shows a configuration error        | The label names the cause. Invalid Low traffic below or High traffic above: remove spaces, signs, decimals and leading zeros (digits only, 0 to 999999999999999). Invalid high-traffic warning: choose Disabled or Enabled again. Low above High: lower Low traffic below or raise High traffic above. |
+| A traffic panel Unavailable with valid values      | No valid five-minute count: check **Data state**. No setting, including low 0 or an enabled high 0, turns DOWN or missing samples into data.                                                                                                                                                           |
+| HIGH traffic shown                                 | The count is above your own number, not a capacity limit: nothing is throttled and nobody is notified. Check the p95, 5xx proportion and event-loop delay before concluding the backend is overloaded.                                                                                                 |
+| Someone else sees a different traffic result       | Settings live in each view's URL. Compare the `var-low_traffic_threshold`, `var-high_traffic_warning` and `var-high_traffic_threshold` values; the Git defaults are 0, off and 0.                                                                                                                      |
+| `test rules` fails after a dashboard change        | Update the expression and expected values in `tests/dashboard-queries.test.yaml` together; the backend unit test names any query the file lacks.                                                                                                                                                       |
+| Dashboard absent                                   | Check Grafana provisioning logs and the mounted dashboard/provider/data-source paths; keep the pinned versions together.                                                                                                                                                                               |
+| `docker: command not found`                        | Rebuild and reopen the devcontainer with the Docker-in-Docker feature, then check `docker version` and `docker compose version`.                                                                                                                                                                       |
+| Docker client exists but cannot reach its server   | Check the feature startup log `/tmp/dockerd.log` and host support for privileged development containers; a client alone cannot run the journey.                                                                                                                                                        |
+| No configuration file found                        | Run the monitoring commands from `deploy/monitoring`, not the repository root.                                                                                                                                                                                                                         |
+| PostgreSQL refuses `localhost:5432` for HTTP tests | Rebuild the repository devcontainer. Do not redirect tests to `postgres`, which causes Medusa SSL problems. The Compose demo owns a separate database.                                                                                                                                                 |
 
 ## Verification and manual acceptance record
 
@@ -779,3 +808,68 @@ were spread over eight scrapes so the rolling count included them (about 50):
 
 The first plain-dashboard read in a new browser was taken before any panel
 had loaded; repeated after eight seconds it showed Off.
+
+### High-traffic warning with validated bounds (#175)
+
+No collection changed; the slice is the two new dashboard controls, the
+queries of both indications and the Viewer journey. Agent verification on
+23 November 2026, on the uncommitted #175 working tree:
+
+| Boundary                | Observed result                                                                                                                                                                                                                                                                                                                   |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dashboard queries       | **268 dashboard-query unit tests passed**: defaults low `0`, warning `off` with exactly the options `off` and `on`, high `0`; each control appears only as a quoted `percentencode` string; every state of both panels has a label; and each of 72 settings is in the promtool file for both panels. Full unit suite: 954 passed. |
+| Prometheus query engine | `promtool test rules` with the pinned v3.16.0 image: **SUCCESS**. Comparing high with "at or above" fails the equality cases, and removing the reversed-bounds check fails the cross-field cases, so the file detects both errors.                                                                                                |
+| Grafana 13.3.1 Viewer   | Signed in as `local-viewer` in headless Chromium with about 120 to 150 synthetic responses in five minutes. Results are listed below. Saving the dashboard returned 403.                                                                                                                                                          |
+
+| Viewer action                                                                    | Low panel, High panel                                                                                                                                 |
+| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Plain URL (Git defaults)                                                         | Off — threshold 0, Off — warning disabled; the controls read `0`, Disabled, `0`                                                                       |
+| URL warning `on` (high `0`), and high `5`                                        | Off, HIGH traffic                                                                                                                                     |
+| URL warning `on`, high `100000`                                                  | Off, Not high                                                                                                                                         |
+| URL low `10`, warning `on`, high `5`                                             | Configuration error — Low above High on both                                                                                                          |
+| URL low `10`, warning `off`, high `5`                                            | Not low, Off: a disabled high is not compared                                                                                                         |
+| URL warning `on`, high `abc` or `1e3`                                            | Configuration error — invalid high-traffic warning on both                                                                                            |
+| URL warning `off`, high `abc`                                                    | Configuration error — invalid high-traffic warning on both: a disabled high is still validated (rechecked after review, about 45 responses)           |
+| URL warning `true`, `ON` or empty                                                | Configuration error — invalid high-traffic warning on both; Grafana kept the value in the URL                                                         |
+| URL warning `on` then `off` (repeated)                                           | Grafana used `on`: Off, HIGH traffic                                                                                                                  |
+| Chose Enabled, typed high `500`, low `100`, high `50`, `100) or vector(1`, `5`   | HIGH; Not high; Not low and Not high; Low above High; invalid warning; Low above High. The URL carried each value                                     |
+| Then chose Disabled                                                              | Not low, Off                                                                                                                                          |
+| Window A with low `100`, warning `on`, high `120`; window B on the plain URL     | A: Not low, HIGH. B: the defaults and Off, Off. A's reload kept its values; B opening A's URL matched A                                               |
+| Backend stopped: warning `on` with high `0`; low `100` with high `500`; defaults | Unavailable on both panels in each case                                                                                                               |
+| Backend stopped: high `abc`; low `101` above high `100`                          | The matching configuration error on both panels                                                                                                       |
+| 1440 and 390 pixels                                                              | No horizontal overflow. The HIGH label wrapped at 390 pixels and was shortened; the help panel was raised to height 6 so its text fits at 1440 pixels |
+
+Repeat the startup above, run the `test rules` command, then check as a Viewer:
+
+- The plain dashboard reads **Off — threshold 0** and **Off — warning
+  disabled**, with `0`, **Disabled** and `0` in the controls.
+- Send reads and wait 30 seconds. Choose **Enabled** with **High traffic
+  above** `0`: **HIGH traffic**. Type a value above **Estimated completed
+  responses**: **Not high**. The URL shows `var-high_traffic_warning=on` and
+  each value.
+- Type a **Low traffic below** greater than **High traffic above**: both
+  panels read **Configuration error — Low above High**. Choose **Disabled**:
+  the low panel returns and the high panel reads Off.
+- Open a URL with `var-high_traffic_warning=true`, and one with the warning
+  `on` and `var-high_traffic_threshold=1e3`: both panels read **Configuration
+  error — invalid high-traffic warning**.
+- Open the plain URL in another browser or private window: the defaults.
+  Open the copied URL there: the same values and results.
+- Stop the backend: valid settings read **Unavailable** on both panels, never
+  LOW, HIGH or Off.
+
+Acceptance run on 23 November 2026, at the developer's request, on the stack
+with the dashboard from commit `96011f3` (Grafana 13.3.1, signed in as
+`local-viewer`, rendered in headless Chromium at 1440 and 390 pixels). Reads
+were spread over eight scrapes so the rolling count included them (about 60):
+
+| Checklist item       | Observed result                                                                                                                                                                                       |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Startup              | `promtool test rules` succeeded; Prometheus scraped the backend and the count rose to about 60.                                                                                                       |
+| Plain dashboard      | **Off — threshold 0** and **Off — warning disabled**, with `0`, **Disabled** and `0` in the controls.                                                                                                 |
+| Enable and tune high | Chose **Enabled** with high `0`: **HIGH traffic — above your warning**. Typed `500`: **Not high — at or below**. The URL showed `var-high_traffic_warning=on`, then `var-high_traffic_threshold=500`. |
+| Low above high       | Typed low `1000`: both panels **Configuration error — Low above High**. Chose **Disabled**: **LOW traffic** and **Off — warning disabled**.                                                           |
+| Invalid URL values   | `var-high_traffic_warning=true`, and the warning `on` with `var-high_traffic_threshold=1e3`: both panels **Configuration error — invalid high-traffic warning**, with the value kept in the URL.      |
+| Another window       | Plain URL: the defaults, Off and Off. The copied URL (low `100`, warning `on`, high `120`): the same values, **LOW traffic** and **Not high**. Saving the dashboard as the Viewer returned 403.       |
+| Backend stopped      | Low `1000`; warning `on` with high `0`; low `10` with high `500`; the defaults: **Unavailable — no valid count** on both panels. High `abc` with the warning on: the configuration error on both.     |
+| 1440 and 390 pixels  | Labels readable and no horizontal overflow. The help text fits its panel at 1440 pixels and scrolls inside it at 390 pixels, like the other text panels.                                              |

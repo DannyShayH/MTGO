@@ -64,7 +64,11 @@ describe("provisioned backend dashboard queries", () => {
     },
   )
 
-  const thresholdControl = "low_traffic_threshold"
+  // Viewer controls, each interpolated into the traffic indications.
+  const LOW_CONTROL = "low_traffic_threshold"
+  const WARNING_CONTROL = "high_traffic_warning"
+  const HIGH_CONTROL = "high_traffic_threshold"
+  const controls = [LOW_CONTROL, WARNING_CONTROL, HIGH_CONTROL]
 
   // Grafana 13.3.1 (Scenes) "percentencode": encodeURIComponent, then
   // !'()* as %XX, and a multi-value array as "{a,b}". A textbox keeps the
@@ -77,14 +81,13 @@ describe("provisioned backend dashboard queries", () => {
       (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
     )
 
-  // Equivalence and boundary classes from control or URL input. The promtool
-  // file is the oracle: it holds the expected state of each in the pinned
-  // query engine (README: deploy/monitoring/README.md).
-  const viewerInputs: { input: string | string[]; reason: string }[] = [
-    { input: "0", reason: "EP valid, BVA lowest: 0 turns the indication off" },
+  // Equivalence and boundary classes of a threshold from control or URL
+  // input, used for both the Low traffic below and High traffic above boxes.
+  const thresholdInputs: { input: string | string[]; reason: string }[] = [
+    { input: "0", reason: "EP valid, BVA lowest: 0" },
     { input: "99", reason: "BVA: just below a count of 100" },
-    { input: "100", reason: "BVA: equal to a count of 100 is not low" },
-    { input: "101", reason: "BVA: just above a count of 100 is low" },
+    { input: "100", reason: "BVA: equal to a count of 100" },
+    { input: "101", reason: "BVA: just above a count of 100" },
     { input: "750", reason: "EP valid: an arbitrary larger whole number" },
     { input: "999999999999999", reason: "BVA highest valid: 15 digits" },
     {
@@ -119,22 +122,130 @@ describe("provisioned backend dashboard queries", () => {
     { input: ["100", "750"], reason: "EP invalid: multiple values" },
   ]
 
+  // The enable control is a dropdown, but a URL can carry any value.
+  const warningInputs: { input: string | string[]; reason: string }[] = [
+    { input: "off", reason: "EP valid: disabled, the Git default" },
+    { input: "on", reason: "EP valid: enabled" },
+    { input: "", reason: "EP invalid: empty" },
+    { input: "ON", reason: "EP invalid: wrong case" },
+    { input: "true", reason: "EP invalid: another boolean spelling" },
+    { input: "1", reason: "EP invalid: numeric" },
+    { input: "on ", reason: "EP invalid: trailing whitespace" },
+    { input: "on) or vector(1", reason: "EP invalid: PromQL expression" },
+    { input: ["off", "on"], reason: "EP invalid: multiple values" },
+  ]
+
+  type ControlValues = Record<"low" | "warning" | "high", string | string[]>
+  type Setting = ControlValues & { reason: string }
+  const controlOf: Record<keyof ControlValues, string> = {
+    low: LOW_CONTROL,
+    warning: WARNING_CONTROL,
+    high: HIGH_CONTROL,
+  }
+
+  // Each class varies one control from the Git defaults (low 0, warning
+  // off, high 0) or, for the high value, from an enabled warning; the
+  // cross-field rows hold both bounds valid. The promtool file is the oracle:
+  // it holds the expected state of each in the pinned query engine
+  // (README: deploy/monitoring/README.md).
+  const settings: Setting[] = [
+    ...thresholdInputs.map(({ input, reason }) => ({
+      low: input,
+      warning: "off",
+      high: "0",
+      reason: `low ${reason}`,
+    })),
+    ...thresholdInputs.map(({ input, reason }) => ({
+      low: "0",
+      warning: "on",
+      high: input,
+      reason: `enabled high ${reason}`,
+    })),
+    ...warningInputs.map(({ input, reason }) => ({
+      low: "0",
+      warning: input,
+      high: "0",
+      reason: `warning ${reason}`,
+    })),
+    {
+      low: "100",
+      warning: "on",
+      high: "500",
+      reason: "cross-field valid: the specified bounds",
+    },
+    {
+      low: "100",
+      warning: "on",
+      high: "100",
+      reason: "cross-field BVA valid: equal bounds",
+    },
+    {
+      low: "99",
+      warning: "on",
+      high: "100",
+      reason: "cross-field BVA valid: low one below high",
+    },
+    {
+      low: "101",
+      warning: "on",
+      high: "100",
+      reason: "cross-field BVA invalid: low one above high",
+    },
+    {
+      low: "100",
+      warning: "on",
+      high: "50",
+      reason: "cross-field invalid: reversed bounds",
+    },
+    {
+      low: "100",
+      warning: "off",
+      high: "50",
+      reason: "cross-field EP: a disabled high is not compared",
+    },
+    {
+      low: "100",
+      warning: "off",
+      high: "abc",
+      reason: "EP invalid: a disabled high is still validated",
+    },
+    {
+      low: "abc",
+      warning: "on",
+      high: "50",
+      reason: "EP invalid: an invalid low is reported before the bounds",
+    },
+    {
+      low: "750",
+      warning: "on",
+      high: "1000",
+      reason: "EP valid: arbitrary larger bounds",
+    },
+  ]
+
+  const substitute = (expr: string, setting: Setting) =>
+    (Object.keys(controlOf) as (keyof ControlValues)[]).reduce(
+      (filled, key) =>
+        filled.replaceAll(
+          `\${${controlOf[key]}:percentencode}`,
+          percentEncode(setting[key]),
+        ),
+      expr,
+    )
+
   it.each(
     queries
       .filter(({ expr }) => expr.includes("${"))
       .flatMap(({ title, expr }) =>
-        viewerInputs.map(({ input, reason }) => ({
+        settings.map((setting) => ({
           title,
-          input: JSON.stringify(input),
-          reason,
-          expr: expr.replaceAll(
-            `\${${thresholdControl}:percentencode}`,
-            percentEncode(input),
-          ),
+          values: JSON.stringify([setting.low, setting.warning, setting.high]),
+          reason: setting.reason,
+          expr: substitute(expr, setting),
         })),
       ),
   )(
-    "$title is exercised by promtool for viewer input $input ($reason)",
+    "$title is exercised by promtool for low, warning, high $values ($reason)",
     ({ expr }) => {
       expect(expr).not.toContain("${")
       expect(promtoolTests).toContain(promtoolCase(expr))
@@ -309,65 +420,156 @@ describe("provisioned backend dashboard queries", () => {
     })
   })
 
-  describe("viewer-tuned low-traffic indication", () => {
-    const indication = panels.find(
-      ({ title }) => title === "Low-traffic indication — rolling 5 minutes",
-    )
-
-    it("offers a textbox control whose shared default in Git is 0 (off)", () => {
-      const variable = dashboard.templating.list.find(
-        ({ name }: { name: string }) => name === thresholdControl,
+  describe("viewer-tuned low- and high-traffic indications", () => {
+    const variable = (name: string) =>
+      dashboard.templating.list.find(
+        (control: { name: string }) => control.name === name,
       )
-      expect(variable).toMatchObject({ type: "textbox", query: "0" })
-      expect(variable.current).toMatchObject({ value: "0" })
+    const indications = [
+      "Low-traffic indication — rolling 5 minutes",
+      "High-traffic indication — rolling 5 minutes",
+    ].map((title) => panels.find((panel) => panel.title === title)!)
+
+    it("offers a Low traffic below textbox whose shared default in Git is 0 (off)", () => {
+      expect(variable(LOW_CONTROL)).toMatchObject({
+        type: "textbox",
+        query: "0",
+        current: { value: "0" },
+      })
       // A Viewer changes only the current view and URL; Git stays authoritative.
       expect(dashboard.editable).toBe(false)
+    })
+
+    it("starts the high-traffic warning disabled, with an explicit enable control", () => {
+      const warning = variable(WARNING_CONTROL)
+      expect(warning).toMatchObject({
+        type: "custom",
+        multi: false,
+        includeAll: false,
+        current: { value: "off" },
+      })
+      expect(
+        warning.options.map(({ value }: { value: string }) => value),
+      ).toEqual(["off", "on"])
+    })
+
+    it("offers a High traffic above textbox whose shared default in Git is 0", () => {
+      expect(variable(HIGH_CONTROL)).toMatchObject({
+        type: "textbox",
+        query: "0",
+        current: { value: "0" },
+      })
     })
 
     // Raw interpolation would execute "100) or vector(1" as PromQL. Percent
     // encoding leaves only [A-Za-z0-9-_.~%], which cannot leave the string or
     // become a label_replace "$1" reference.
-    it("interpolates the control only as a percent-encoded PromQL string", () => {
-      const uses = JSON.stringify(dashboard).match(
-        new RegExp(`.{0,2}\\$\\{?${thresholdControl}[^"\\\\]*.{0,2}`, "g"),
-      )
-      expect(uses?.length).toBeGreaterThan(0)
-      expect(new Set(uses)).toEqual(
-        new Set([`\\"\${${thresholdControl}:percentencode}\\"`]),
-      )
-      expect(indication?.targets?.length).toBe(1)
-    })
+    it.each(controls)(
+      "interpolates %s only as a percent-encoded PromQL string",
+      (control) => {
+        const uses = JSON.stringify(dashboard).match(
+          new RegExp(`.{0,2}\\$\\{?${control}[^"\\\\]*.{0,2}`, "g"),
+        )
+        expect(uses?.length).toBeGreaterThan(0)
+        expect(new Set(uses)).toEqual(
+          new Set([`\\"\${${control}:percentencode}\\"`]),
+        )
+      },
+    )
 
     // The promtool oracle returns these state numbers; each needs its words.
-    it.each([
-      { state: "0", text: /^Configuration error — / },
-      { state: "1", text: /^Unavailable — / },
-      { state: "2", text: /^Off — threshold 0$/ },
-      { state: "3", text: /^Not low — / },
-      { state: "4", text: /^LOW traffic — .*p95 with its observation count$/ },
-    ])("labels state $state as $text", ({ state, text }) => {
-      const mappings = (
-        indication as Panel & {
+    const mappingsOf = (panel: Panel) =>
+      (
+        panel as Panel & {
           fieldConfig: {
             defaults: {
               mappings: { options: Record<string, { text: string }> }[]
             }
           }
         }
-      ).fieldConfig.defaults.mappings
-      expect(mappings[0].options[state].text).toMatch(text)
-    })
+      ).fieldConfig.defaults.mappings[0].options
+    // Configuration errors and missing data read the same on both panels.
+    const sharedStateLabels = [
+      {
+        state: "0",
+        text: /^Configuration error — invalid Low traffic below$/,
+        reason: "EP invalid: low threshold",
+      },
+      {
+        state: "1",
+        text: /^Unavailable — /,
+        reason: "EP: no valid count, whatever the settings",
+      },
+      {
+        state: "5",
+        text: /^Configuration error — invalid high-traffic /,
+        reason: "EP invalid: warning switch or high threshold",
+      },
+      {
+        state: "6",
+        text: /^Configuration error — Low above High$/,
+        reason: "cross-field EP invalid: reversed bounds",
+      },
+    ]
+    it.each(
+      [
+        ...sharedStateLabels.map((row) => ({ panel: 0, ...row })),
+        ...sharedStateLabels.map((row) => ({ panel: 1, ...row })),
+        {
+          panel: 0,
+          state: "2",
+          text: /^Off — threshold 0$/,
+          reason: "EP valid: low 0 is off",
+        },
+        {
+          panel: 0,
+          state: "3",
+          text: /^Not low — /,
+          reason: "BVA: at or above the low threshold",
+        },
+        {
+          panel: 0,
+          state: "4",
+          text: /^LOW traffic — .*p95 with its observation count$/,
+          reason: "BVA: strictly below the low threshold",
+        },
+        {
+          panel: 1,
+          state: "2",
+          text: /^Off — warning disabled$/,
+          reason: "EP valid: the warning disabled",
+        },
+        {
+          panel: 1,
+          state: "3",
+          text: /^Not high — /,
+          reason: "BVA: at or below an enabled high threshold",
+        },
+        {
+          panel: 1,
+          state: "4",
+          text: /^HIGH traffic — /,
+          reason: "BVA: strictly above an enabled high threshold",
+        },
+      ].map((row) => ({ ...row, title: indications[row.panel].title })),
+    )(
+      "labels $title state $state as $text ($reason)",
+      ({ panel, state, text }) => {
+        expect(mappingsOf(indications[panel])[state].text).toMatch(text)
+      },
+    )
 
-    it("evaluates at the end of any displayed range, on the five-minute count", () => {
-      const [target] = indication!.targets! as {
-        expr: string
-        instant?: boolean
-      }[]
-      expect(target.instant).toBe(true)
-      expect(target.expr).toContain(
-        'sum(increase(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))',
-      )
-    })
+    it.each(indications)(
+      "$title evaluates at the end of any displayed range, on the five-minute count",
+      ({ targets }) => {
+        const [target] = targets! as { expr: string; instant?: boolean }[]
+        expect(targets).toHaveLength(1)
+        expect(target.instant).toBe(true)
+        expect(target.expr).toContain(
+          'sum(increase(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))',
+        )
+      },
+    )
   })
 
   it("states that HTTP latency is not Order processing time", () => {

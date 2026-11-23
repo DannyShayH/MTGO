@@ -1,9 +1,9 @@
 {
   "uid": "mtogo-backend-requests",
   "title": "MTOGO — backend API requests and process",
-  "description": "Slices #169/#170/#194/#171/#172/#173/#174: completed ordinary API responses, 5xx proportion, p95 latency and process CPU, memory and event-loop delay, with established streams and interrupted requests kept apart, from one HTTP-serving Medusa process, with explicit unavailable states. A per-view low-traffic indication. No business counts.",
+  "description": "Slices #169/#170/#194/#171/#172/#173/#174/#175: completed ordinary API responses, 5xx proportion, p95 latency and process CPU, memory and event-loop delay, with established streams and interrupted requests kept apart, from one HTTP-serving Medusa process, with explicit unavailable states. Per-view low- and high-traffic indications. No business counts.",
   "schemaVersion": 41,
-  "version": 7,
+  "version": 8,
   "editable": false,
   "refresh": "30s",
   "timezone": "browser",
@@ -22,6 +22,52 @@
         "name": "low_traffic_threshold",
         "label": "Low traffic below (responses / 5 min, 0 = off)",
         "description": "Whole number 0–999999999999999. Changes only your view and its URL.",
+        "query": "0",
+        "current": {
+          "text": "0",
+          "value": "0"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "0",
+            "value": "0"
+          }
+        ],
+        "hide": 0
+      },
+      {
+        "type": "custom",
+        "name": "high_traffic_warning",
+        "label": "High-traffic warning",
+        "description": "Disabled by default. Enable to compare the count with High traffic above. Changes only your view and its URL.",
+        "query": "Disabled : off,Enabled : on",
+        "current": {
+          "text": "Disabled",
+          "value": "off"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "Disabled",
+            "value": "off"
+          },
+          {
+            "selected": false,
+            "text": "Enabled",
+            "value": "on"
+          }
+        ],
+        "multi": false,
+        "includeAll": false,
+        "allowCustomValue": false,
+        "hide": 0
+      },
+      {
+        "type": "textbox",
+        "name": "high_traffic_threshold",
+        "label": "High traffic above (responses / 5 min)",
+        "description": "Whole number 0–999999999999999, validated always and compared only when the warning is enabled. Changes only your view and its URL.",
         "query": "0",
         "current": {
           "text": "0",
@@ -77,13 +123,13 @@
         "x": 0,
         "y": 8,
         "w": 12,
-        "h": 7
+        "h": 5
       },
       "datasource": {
         "type": "prometheus",
         "uid": "mtogo-prometheus"
       },
-      "description": "Compares Estimated completed responses — rolling 5 minutes with your Low traffic below control, whatever time range is displayed. Strictly below the threshold is low; equal is not. 0 turns the indication off. A visual indication only: no request limit and no notification. A configuration error means the value is not digits only from 0 to 999999999999999; no threshold is applied.",
+      "description": "Compares Estimated completed responses — rolling 5 minutes with your Low traffic below control, whatever time range is displayed. Strictly below the threshold is low; equal is not. 0 turns the indication off. A visual indication only: no request limit and no notification. A configuration error means a control is invalid (digits only, 0 to 999999999999999) or Low traffic below is above an enabled High traffic above; no threshold is applied.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -114,6 +160,14 @@
                 "4": {
                   "text": "LOW traffic — read p95 with its observation count",
                   "color": "orange"
+                },
+                "5": {
+                  "text": "Configuration error — invalid high-traffic warning",
+                  "color": "red"
+                },
+                "6": {
+                  "text": "Configuration error — Low above High",
+                  "color": "red"
                 }
               }
             }
@@ -124,7 +178,89 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "(vector(0) unless on() histogram_quantile(1, sum by (le) ((label_replace(label_replace(vector(1), \"threshold_text\", \"${low_traffic_threshold:percentencode}\", \"\", \"\"), \"le\", \"$1\", \"threshold_text\", \"(0|[1-9][0-9]{0,14})\") unless on(le) vector(1)) or label_replace(label_replace(label_replace(vector(1), \"threshold_text\", \"${low_traffic_threshold:percentencode}\", \"\", \"\"), \"le\", \"$1\", \"threshold_text\", \"(0|[1-9][0-9]{0,14})\") unless on(le) vector(1), \"le\", \"+Inf\", \"\", \"\")))) or on() (vector(1) unless on() sum(increase(mtogo_http_requests_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))) or on() (vector(2) and on() (histogram_quantile(1, sum by (le) ((label_replace(label_replace(vector(1), \"threshold_text\", \"${low_traffic_threshold:percentencode}\", \"\", \"\"), \"le\", \"$1\", \"threshold_text\", \"(0|[1-9][0-9]{0,14})\") unless on(le) vector(1)) or label_replace(label_replace(label_replace(vector(1), \"threshold_text\", \"${low_traffic_threshold:percentencode}\", \"\", \"\"), \"le\", \"$1\", \"threshold_text\", \"(0|[1-9][0-9]{0,14})\") unless on(le) vector(1), \"le\", \"+Inf\", \"\", \"\"))) == 0)) or on() (vector(4) and on() (sum(increase(mtogo_http_requests_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) < on() histogram_quantile(1, sum by (le) ((label_replace(label_replace(vector(1), \"threshold_text\", \"${low_traffic_threshold:percentencode}\", \"\", \"\"), \"le\", \"$1\", \"threshold_text\", \"(0|[1-9][0-9]{0,14})\") unless on(le) vector(1)) or label_replace(label_replace(label_replace(vector(1), \"threshold_text\", \"${low_traffic_threshold:percentencode}\", \"\", \"\"), \"le\", \"$1\", \"threshold_text\", \"(0|[1-9][0-9]{0,14})\") unless on(le) vector(1), \"le\", \"+Inf\", \"\", \"\"))))) or on() vector(3)",
+          "expr": "((vector(0) unless on() (histogram_quantile(1, sum by (le) ((label_replace(label_replace(vector(1), \"threshold_text\", \"${low_traffic_threshold:percentencode}\", \"\", \"\"), \"le\", \"$1\", \"threshold_text\", \"(0|[1-9][0-9]{0,14})\") unless on(le) vector(1)) or label_replace(vector(1), \"le\", \"+Inf\", \"\", \"\"))) >= 0)) or on() (vector(5) unless on() (((label_replace(label_replace(vector(1), \"warning_text\", \"${high_traffic_warning:percentencode}\", \"\", \"\"), \"warning\", \"$1\", \"warning_text\", \"(off)\") unless on(warning) vector(1)) or on() (label_replace(label_replace(vector(1), \"warning_text\", \"${high_traffic_warning:percentencode}\", \"\", \"\"), \"warning\", \"$1\", \"warning_text\", \"(on)\") unless on(warning) vector(1))) and on() (histogram_quantile(1, sum by (le) ((label_replace(label_replace(vector(1), \"threshold_text\", \"${high_traffic_threshold:percentencode}\", \"\", \"\"), \"le\", \"$1\", \"threshold_text\", \"(0|[1-9][0-9]{0,14})\") unless on(le) vector(1)) or label_replace(vector(1), \"le\", \"+Inf\", \"\", \"\"))) >= 0))) or on() (vector(6) and on() ((histogram_quantile(1, sum by (le) ((label_replace(label_replace(vector(1), \"threshold_text\", \"${low_traffic_threshold:percentencode}\", \"\", \"\"), \"le\", \"$1\", \"threshold_text\", \"(0|[1-9][0-9]{0,14})\") unless on(le) vector(1)) or label_replace(vector(1), \"le\", \"+Inf\", \"\", \"\"))) >= 0) > on() ((histogram_quantile(1, sum by (le) ((label_replace(label_replace(vector(1), \"threshold_text\", \"${high_traffic_threshold:percentencode}\", \"\", \"\"), \"le\", \"$1\", \"threshold_text\", \"(0|[1-9][0-9]{0,14})\") unless on(le) vector(1)) or label_replace(vector(1), \"le\", \"+Inf\", \"\", \"\"))) >= 0) and on() (label_replace(label_replace(vector(1), \"warning_text\", \"${high_traffic_warning:percentencode}\", \"\", \"\"), \"warning\", \"$1\", \"warning_text\", \"(on)\") unless on(warning) vector(1)))))) or on() (vector(1) unless on() sum(increase(mtogo_http_requests_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))) or on() (vector(2) and on() ((histogram_quantile(1, sum by (le) ((label_replace(label_replace(vector(1), \"threshold_text\", \"${low_traffic_threshold:percentencode}\", \"\", \"\"), \"le\", \"$1\", \"threshold_text\", \"(0|[1-9][0-9]{0,14})\") unless on(le) vector(1)) or label_replace(vector(1), \"le\", \"+Inf\", \"\", \"\"))) >= 0) == 0)) or on() (vector(4) and on() (sum(increase(mtogo_http_requests_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) < on() (histogram_quantile(1, sum by (le) ((label_replace(label_replace(vector(1), \"threshold_text\", \"${low_traffic_threshold:percentencode}\", \"\", \"\"), \"le\", \"$1\", \"threshold_text\", \"(0|[1-9][0-9]{0,14})\") unless on(le) vector(1)) or label_replace(vector(1), \"le\", \"+Inf\", \"\", \"\"))) >= 0))) or on() vector(3)",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "wideLayout": true,
+        "justifyMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 32,
+      "title": "High-traffic indication — rolling 5 minutes",
+      "type": "stat",
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Compares Estimated completed responses — rolling 5 minutes with your High traffic above control when the High-traffic warning is Enabled, whatever time range is displayed. Strictly above the threshold is high; equal is not. Disabled (the default) is off; an enabled 0 is a real threshold. A visual indication only: no request limit, capacity guarantee or notification. A configuration error means a control is invalid or Low traffic below is above High traffic above; no threshold is applied.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B8BEC9"
+          },
+          "noValue": "Unavailable — no indication evaluated",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Configuration error — invalid Low traffic below",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "Unavailable — no valid count",
+                  "color": "#B8BEC9"
+                },
+                "2": {
+                  "text": "Off — warning disabled",
+                  "color": "#B8BEC9"
+                },
+                "3": {
+                  "text": "Not high — at or below",
+                  "color": "green"
+                },
+                "4": {
+                  "text": "HIGH traffic — above your warning",
+                  "color": "purple"
+                },
+                "5": {
+                  "text": "Configuration error — invalid high-traffic warning",
+                  "color": "red"
+                },
+                "6": {
+                  "text": "Configuration error — Low above High",
+                  "color": "red"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "((vector(0) unless on() (histogram_quantile(1, sum by (le) ((label_replace(label_replace(vector(1), \"threshold_text\", \"${low_traffic_threshold:percentencode}\", \"\", \"\"), \"le\", \"$1\", \"threshold_text\", \"(0|[1-9][0-9]{0,14})\") unless on(le) vector(1)) or label_replace(vector(1), \"le\", \"+Inf\", \"\", \"\"))) >= 0)) or on() (vector(5) unless on() (((label_replace(label_replace(vector(1), \"warning_text\", \"${high_traffic_warning:percentencode}\", \"\", \"\"), \"warning\", \"$1\", \"warning_text\", \"(off)\") unless on(warning) vector(1)) or on() (label_replace(label_replace(vector(1), \"warning_text\", \"${high_traffic_warning:percentencode}\", \"\", \"\"), \"warning\", \"$1\", \"warning_text\", \"(on)\") unless on(warning) vector(1))) and on() (histogram_quantile(1, sum by (le) ((label_replace(label_replace(vector(1), \"threshold_text\", \"${high_traffic_threshold:percentencode}\", \"\", \"\"), \"le\", \"$1\", \"threshold_text\", \"(0|[1-9][0-9]{0,14})\") unless on(le) vector(1)) or label_replace(vector(1), \"le\", \"+Inf\", \"\", \"\"))) >= 0))) or on() (vector(6) and on() ((histogram_quantile(1, sum by (le) ((label_replace(label_replace(vector(1), \"threshold_text\", \"${low_traffic_threshold:percentencode}\", \"\", \"\"), \"le\", \"$1\", \"threshold_text\", \"(0|[1-9][0-9]{0,14})\") unless on(le) vector(1)) or label_replace(vector(1), \"le\", \"+Inf\", \"\", \"\"))) >= 0) > on() ((histogram_quantile(1, sum by (le) ((label_replace(label_replace(vector(1), \"threshold_text\", \"${high_traffic_threshold:percentencode}\", \"\", \"\"), \"le\", \"$1\", \"threshold_text\", \"(0|[1-9][0-9]{0,14})\") unless on(le) vector(1)) or label_replace(vector(1), \"le\", \"+Inf\", \"\", \"\"))) >= 0) and on() (label_replace(label_replace(vector(1), \"warning_text\", \"${high_traffic_warning:percentencode}\", \"\", \"\"), \"warning\", \"$1\", \"warning_text\", \"(on)\") unless on(warning) vector(1)))))) or on() (vector(1) unless on() sum(increase(mtogo_http_requests_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))) or on() (vector(2) and on() (label_replace(label_replace(vector(1), \"warning_text\", \"${high_traffic_warning:percentencode}\", \"\", \"\"), \"warning\", \"$1\", \"warning_text\", \"(off)\") unless on(warning) vector(1))) or on() (vector(4) and on() (sum(increase(mtogo_http_requests_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) > on() (histogram_quantile(1, sum by (le) ((label_replace(label_replace(vector(1), \"threshold_text\", \"${high_traffic_threshold:percentencode}\", \"\", \"\"), \"le\", \"$1\", \"threshold_text\", \"(0|[1-9][0-9]{0,14})\") unless on(le) vector(1)) or label_replace(vector(1), \"le\", \"+Inf\", \"\", \"\"))) >= 0))) or on() vector(3)",
           "legendFormat": "",
           "range": false,
           "instant": true
@@ -145,17 +281,17 @@
     },
     {
       "id": 31,
-      "title": "Tune the low-traffic indication",
+      "title": "Tune the traffic indications",
       "type": "text",
       "gridPos": {
-        "x": 12,
-        "y": 8,
-        "w": 12,
-        "h": 7
+        "x": 0,
+        "y": 13,
+        "w": 24,
+        "h": 6
       },
       "options": {
         "mode": "markdown",
-        "content": "Enter **Low traffic below** at the top: completed ordinary API responses in the rolling five minutes, the same estimate and exclusions as **Estimated completed responses**. A count strictly below it is **LOW**; equal is not. **0 turns it off.** Allowed: digits only, `0` to `999999999999999`, no sign, decimal, exponent, spaces or leading zeros; anything else shows a **configuration error**, never a fallback. Your value changes this view and its URL (share the URL to share the setting), not the Git default or anyone else's view. Low 0 never makes DOWN or missing data valid."
+        "content": "Both compare the controls at the top with **Estimated completed responses** (rolling five minutes, same estimate and exclusions), whatever range is displayed. **Low traffic below:** a count strictly below it is **LOW**; equal is not; **0 turns it off.** **High-traffic warning:** **Disabled** by default; when **Enabled**, a count strictly above **High traffic above** is **HIGH**; equal is not, and an enabled `0` is a real threshold, unlike Disabled. Thresholds allow digits only, `0` to `999999999999999`, no sign, decimal, exponent, spaces or leading zeros. An invalid value, or Low traffic below above an enabled High traffic above, shows a **configuration error** on both panels, never a fallback; High traffic above is validated even while Disabled, but only compared with Low traffic below when Enabled. Equal bounds are valid. Your values change this view and its URL (share the URL to share the settings), not the Git defaults or anyone else's view. No setting turns DOWN or missing data into a count, and HIGH is not a request limit, capacity claim or notification."
       }
     },
     {
@@ -164,7 +300,7 @@
       "type": "stat",
       "gridPos": {
         "x": 0,
-        "y": 15,
+        "y": 19,
         "w": 6,
         "h": 5
       },
@@ -224,7 +360,7 @@
       "type": "stat",
       "gridPos": {
         "x": 6,
-        "y": 15,
+        "y": 19,
         "w": 6,
         "h": 5
       },
@@ -292,7 +428,7 @@
       "type": "stat",
       "gridPos": {
         "x": 12,
-        "y": 15,
+        "y": 19,
         "w": 6,
         "h": 5
       },
@@ -338,7 +474,7 @@
       "type": "stat",
       "gridPos": {
         "x": 18,
-        "y": 15,
+        "y": 19,
         "w": 6,
         "h": 5
       },
@@ -383,7 +519,7 @@
       "type": "stat",
       "gridPos": {
         "x": 0,
-        "y": 20,
+        "y": 24,
         "w": 6,
         "h": 5
       },
@@ -430,7 +566,7 @@
       "type": "stat",
       "gridPos": {
         "x": 6,
-        "y": 20,
+        "y": 24,
         "w": 6,
         "h": 5
       },
@@ -477,7 +613,7 @@
       "type": "stat",
       "gridPos": {
         "x": 12,
-        "y": 20,
+        "y": 24,
         "w": 6,
         "h": 5
       },
@@ -524,7 +660,7 @@
       "type": "stat",
       "gridPos": {
         "x": 18,
-        "y": 20,
+        "y": 24,
         "w": 6,
         "h": 5
       },
@@ -570,7 +706,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 25,
+        "y": 29,
         "w": 24,
         "h": 8
       },
@@ -616,7 +752,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 33,
+        "y": 37,
         "w": 12,
         "h": 8
       },
@@ -663,7 +799,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 33,
+        "y": 37,
         "w": 12,
         "h": 8
       },
@@ -712,7 +848,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 41,
+        "y": 45,
         "w": 12,
         "h": 8
       },
@@ -759,7 +895,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 12,
-        "y": 41,
+        "y": 45,
         "w": 12,
         "h": 8
       },
@@ -806,7 +942,7 @@
       "type": "text",
       "gridPos": {
         "x": 0,
-        "y": 49,
+        "y": 53,
         "w": 24,
         "h": 6
       },
@@ -821,7 +957,7 @@
       "type": "stat",
       "gridPos": {
         "x": 0,
-        "y": 55,
+        "y": 59,
         "w": 8,
         "h": 5
       },
@@ -867,7 +1003,7 @@
       "type": "stat",
       "gridPos": {
         "x": 8,
-        "y": 55,
+        "y": 59,
         "w": 8,
         "h": 5
       },
@@ -913,7 +1049,7 @@
       "type": "stat",
       "gridPos": {
         "x": 16,
-        "y": 55,
+        "y": 59,
         "w": 8,
         "h": 5
       },
@@ -959,7 +1095,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 60,
+        "y": 64,
         "w": 8,
         "h": 8
       },
@@ -1007,7 +1143,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 8,
-        "y": 60,
+        "y": 64,
         "w": 8,
         "h": 8
       },
@@ -1055,7 +1191,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 16,
-        "y": 60,
+        "y": 64,
         "w": 8,
         "h": 8
       },
@@ -1103,7 +1239,7 @@
       "type": "text",
       "gridPos": {
         "x": 0,
-        "y": 68,
+        "y": 72,
         "w": 24,
         "h": 5
       },
@@ -1118,7 +1254,7 @@
       "type": "stat",
       "gridPos": {
         "x": 0,
-        "y": 73,
+        "y": 77,
         "w": 8,
         "h": 5
       },
@@ -1165,7 +1301,7 @@
       "type": "stat",
       "gridPos": {
         "x": 8,
-        "y": 73,
+        "y": 77,
         "w": 8,
         "h": 5
       },
@@ -1212,7 +1348,7 @@
       "type": "stat",
       "gridPos": {
         "x": 16,
-        "y": 73,
+        "y": 77,
         "w": 8,
         "h": 5
       },
@@ -1259,7 +1395,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 0,
-        "y": 78,
+        "y": 82,
         "w": 8,
         "h": 8
       },
@@ -1307,7 +1443,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 8,
-        "y": 78,
+        "y": 82,
         "w": 8,
         "h": 8
       },
@@ -1369,7 +1505,7 @@
       "type": "timeseries",
       "gridPos": {
         "x": 16,
-        "y": 78,
+        "y": 82,
         "w": 8,
         "h": 8
       },
