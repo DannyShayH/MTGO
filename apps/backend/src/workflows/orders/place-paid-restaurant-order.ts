@@ -18,6 +18,7 @@ import {
   releaseLockStep,
 } from "@medusajs/medusa/core-flows"
 import { RESTAURANT_MODULE } from "../../modules/restaurant"
+import type RestaurantModuleService from "../../modules/restaurant/service"
 import {
   cartVariantIds,
   restaurantsOfVariants,
@@ -28,6 +29,11 @@ import {
   readFrozenPurchase,
   PurchasedItem,
 } from "../order-operations/purchased-items"
+import {
+  captureFinancialBasis,
+  type PlacedOrder,
+  type StoredFinancialBasis,
+} from "../order-operations/financial-basis"
 import { consumePurchaseReviewStep } from "../order-operations/steps/consume-purchase-review"
 import { markPaidPlacementsStep } from "../order-operations/steps/mark-paid-placements"
 import { hasPaidPlacement } from "./placed-order-visibility"
@@ -42,6 +48,7 @@ type PlacementFacts = {
   linked: boolean
   purchased_items: PurchasedItem[] | null
   purchase_review_id: string | null
+  financial_basis: StoredFinancialBasis | null
 }
 
 /** Read-only: decides what is still missing, so each write below is a compensable core step. */
@@ -64,20 +71,28 @@ const loadPlacementFactsStep = createStep(
           "restaurant.id",
           "payment_collections.payments.id",
           "payment_collections.payments.captured_at",
+          // The purchase as placed, for its financial basis (#226).
+          "version",
+          "currency_code",
+          "items.id",
+          "items.variant_id",
+          "items.raw_unit_price",
+          "items.is_tax_inclusive",
+          "items.quantity",
         ],
         filters: { id: order_id },
       }),
     ])
     const cart = carts[0] as ReviewedCart | undefined
     const order = orders[0] as unknown as
-      | {
+      | (PlacedOrder & {
           metadata?: Record<string, unknown> | null
           order_operation?: { id: string } | null
           restaurant?: { id: string } | null
           payment_collections?: {
             payments?: { id: string; captured_at?: Date | string | null }[]
           }[]
-        }
+        })
       | undefined
     if (!cart || !order)
       throw new MedusaError(MedusaError.Types.NOT_FOUND, "order_not_found")
@@ -104,6 +119,22 @@ const loadPlacementFactsStep = createStep(
       )
     // Frozen when completion reviewed the basket; never reread from the menu.
     const frozen = await readFrozenPurchase(container, cart_id)
+    // The terms in force now, at placement, are the ones this purchase keeps.
+    const [agreement] = await container
+      .resolve<RestaurantModuleService>(RESTAURANT_MODULE)
+      .listCommercialTermsAgreements(
+        { restaurant_id: restaurantId },
+        { select: ["id", "terms_version", "agreed_at"], take: 1 },
+      )
+    const financialBasis = captureFinancialBasis(order, agreement ?? null)
+    // A new placement that cannot preserve its basis is an evidence problem,
+    // not a reason to refuse a paid Order (spec #52 §2): it stays visible.
+    if (!financialBasis)
+      container
+        .resolve(ContainerRegistrationKeys.LOGGER)
+        .warn(
+          `financial_basis_unavailable order_id=${order_id} restaurant_id=${restaurantId}`,
+        )
     return new StepResponse({
       placed: false,
       restaurant_id: restaurantId,
@@ -112,6 +143,7 @@ const loadPlacementFactsStep = createStep(
       linked: !!order.restaurant,
       purchased_items: frozen?.items ?? null,
       purchase_review_id: frozen?.id ?? null,
+      financial_basis: financialBasis,
     })
   },
 )
@@ -162,6 +194,7 @@ export const placePaidRestaurantOrderWorkflow = createWorkflow(
         order_id: input.order_id,
         restaurant_id: (facts as PlacementFacts).restaurant_id,
         purchased_items: (facts as PlacementFacts).purchased_items,
+        financial_basis: (facts as PlacementFacts).financial_basis,
       }))
       const record = recordPaidPlacementStep(placement)
       // Order lists filter on this copy of the record (#154).

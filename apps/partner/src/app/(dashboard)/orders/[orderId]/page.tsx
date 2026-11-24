@@ -19,6 +19,7 @@ import { RejectOrder } from "@modules/orders/components/reject-order"
 import { CancellationOutcome } from "@modules/orders/components/cancellation-outcome"
 import { OrderTimeline } from "@modules/orders/components/order-timeline"
 import { orderMoney as money } from "@modules/orders/money"
+import { FinancialBasisDisclosure } from "@modules/orders/components/financial-basis"
 
 /** Active kitchen work: only an operator can cancel it now (#49), until its delivery ends. */
 const ACCEPTED_STATES = new Set(["accepted", "preparing", "ready"])
@@ -212,6 +213,11 @@ export default async function OrderPage({
           </span>
         </div>
       </Container>
+      {order.financial_basis && (
+        <Container className="rounded-card overflow-hidden p-0">
+          <FinancialBasisDisclosure order={order} locale={locale} />
+        </Container>
+      )}
     </div>
   )
 }

@@ -73,6 +73,43 @@ export type KitchenFacts =
 export type MilestoneAction = "accept" | "start_preparation" | "ready"
 export type OrderAction = MilestoneAction | "reject"
 
+/**
+ * The purchased financial basis frozen at paid placement (#226), present
+ * only while the backend releases Restaurant statements (ADR-0022). Amounts
+ * are exact decimal strings, never floats.
+ */
+export type FinancialBasis =
+  | {
+      status: "preserved"
+      restaurant_id: string
+      placed_at: string
+      currency_code: string
+      order_version: number
+      terms: {
+        terms_version: string
+        agreement_id: string
+        agreed_at: string
+        prices_include_vat: true
+        vat_rate: string
+        commission_tiers: {
+          from_amount: string
+          to_amount: string | null
+          rate_percent: string
+        }[]
+        monthly_service_fee: { amount: string; currency_code: string }
+      }
+      lines: {
+        line_item_id: string
+        variant_id: string | null
+        quantity: string
+        unit_price_including_vat: string
+        total_including_vat: string
+      }[]
+      food_value_including_vat: string
+      food_value_excluding_vat: string
+    }
+  | { status: "unavailable" }
+
 export type RestaurantOrder = {
   id: string
   display_id: number
@@ -120,6 +157,8 @@ export type RestaurantOrder = {
     total_including_vat: number
     purchased: KitchenFacts
   }[]
+  /** Absent while the backend withholds it; only the Order detail carries it. */
+  financial_basis?: FinancialBasis
 }
 
 export type OrdersPage = {

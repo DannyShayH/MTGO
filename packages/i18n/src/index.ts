@@ -134,3 +134,9 @@ export {
   ratingLabel,
   type CustomerFeedbackErrorCode,
 } from "./customer-feedback.ts"
+export {
+  ORDER_FINANCIAL_BASIS_TEXT,
+  formatExactDkk,
+  formatExactPercent,
+  commissionTierLabel,
+} from "./order-financial-basis.ts"

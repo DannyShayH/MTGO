@@ -369,6 +369,20 @@ additional food label as yes, no or unknown. An Order placed before these
 facts were recorded shows its retained title and says the information is
 unavailable.
 
+While the backend's Restaurant statements flag is on, the detail page ends
+with **Purchased financial terms** (#226), a collapsed `<details>` panel laid
+out like a Medusa detail panel. Its header carries a status badge ("Kept at
+payment" or "Unavailable", in text, not colour alone) and, when kept, the food
+value excluding VAT, so staff see the key figure without opening it. Opened, it
+shows divided sections:
+placement time and Order version, each purchased line with quantity, exact
+unit price and line total, the food value including and excluding VAT
+(exact, up to three decimals), the agreed terms with VAT, commission bands
+and the monthly service fee. It says commission is calculated at delivery
+and that it is not a statement, invoice or payout. It renders only when
+`GET /partner/orders/{id}` returns `financial_basis`; the app has no flag of
+its own. An older Order says its terms were not recorded.
+
 The deadline line only reports the backend's `acceptance_window`: "Accept by
 13:05" while open, "Acceptance window ended 13:05" once elapsed, and "Timing
 unknown" for an Order placed before timings were recorded. The page never uses

@@ -53,6 +53,13 @@ const OrderOperation = model
      * them, so the kitchen shows them as unavailable instead of today's menu.
      */
     purchased_items: model.json().nullable(),
+    /**
+     * The purchased financial basis frozen at paid placement (#226): agreed
+     * terms with their VAT and commission inputs, the Order version and each
+     * line's exact price and quantity. Never changed; null for Orders placed
+     * before it was recorded, which show it as unavailable.
+     */
+    financial_basis: model.json().nullable(),
     /** The acceptance milestone: actual server time and the accepting staff member. */
     accepted_at: model.dateTime().nullable(),
     accepted_by: model.text().nullable(),

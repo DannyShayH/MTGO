@@ -370,20 +370,21 @@ issue.
 
 ### Values summary
 
-| Where                        | Name                                                                                                                         | Purpose                                                     |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| GitHub repository secrets    | `STAGING_SSH_HOST`, `STAGING_SSH_USER`, `STAGING_SSH_KEY`, `STAGING_SSH_KNOWN_HOSTS`                                         | SSH to the Droplet as the deploy user                       |
-| GitHub repository variable   | `STAGING_DEPLOY_ENABLED`                                                                                                     | `true` activates the two staging jobs; unset until approved |
-| GitHub, automatic            | `GITHUB_TOKEN`                                                                                                               | Push to GHCR; one-off pull login on the Droplet             |
-| Droplet `.env`               | `STAGING_STOREFRONT_URL`, `STAGING_BACKEND_URL`, `STAGING_PARTNER_URL`                                                       | Public origins; also CORS, invite links and upload URLs     |
-| Droplet `.env`               | `STAGING_IMAGE_PREFIX`, `STAGING_BIND_ADDRESS`, `STAGING_*_PORT`, `STAGING_DEFAULT_REGION`                                   | Images, where Caddy reaches the apps, seed region           |
-| Droplet `.env`               | `STAGING_DB_NETWORK`, `STAGING_DB_HOST`, `STAGING_DB_PORT`, `STAGING_DB_NAME`, `STAGING_DB_USER`, `STAGING_DB_PASSWORD`      | The existing `db` container and the restricted role         |
-| Droplet `.env`               | `JWT_SECRET`, `COOKIE_SECRET`, `STAGING_SPLIT_WORKER`, `BACKEND_HEAP_MB`                                                     | Medusa secrets, worker mode and memory                      |
-| Droplet `.env`               | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` (optional)                                                                             | Customer verification emails via Resend (`corral.dk`)       |
-| Droplet `.env`               | `ORS_API_KEY` (optional)                                                                                                     | Delivery distances via openrouteservice                     |
-| Droplet `.env`               | `MTOGO_FF_FEEDBACK` (`true` in the template, off when unset)                                                                 | Feature flag releasing Feedback (#51, ADR-0022)             |
-| Droplet `.env`               | `STAGING_METRICS_ENABLED`, `STAGING_GRAFANA_URL`, `STAGING_GRAFANA_PORT`, `GRAFANA_ADMIN_PASSWORD` (optional)                | Private request monitoring (`mtogo-deploy.sh monitoring`)   |
-| Storefront image, build time | `NEXT_PUBLIC_MEDUSA_BACKEND_URL`, `NEXT_PUBLIC_BASE_URL`, `NEXT_PUBLIC_DEFAULT_REGION`, `NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY` | Returned by `prepare`, inlined by Next.js                   |
+| Where                        | Name                                                                                                                         | Purpose                                                      |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| GitHub repository secrets    | `STAGING_SSH_HOST`, `STAGING_SSH_USER`, `STAGING_SSH_KEY`, `STAGING_SSH_KNOWN_HOSTS`                                         | SSH to the Droplet as the deploy user                        |
+| GitHub repository variable   | `STAGING_DEPLOY_ENABLED`                                                                                                     | `true` activates the two staging jobs; unset until approved  |
+| GitHub, automatic            | `GITHUB_TOKEN`                                                                                                               | Push to GHCR; one-off pull login on the Droplet              |
+| Droplet `.env`               | `STAGING_STOREFRONT_URL`, `STAGING_BACKEND_URL`, `STAGING_PARTNER_URL`                                                       | Public origins; also CORS, invite links and upload URLs      |
+| Droplet `.env`               | `STAGING_IMAGE_PREFIX`, `STAGING_BIND_ADDRESS`, `STAGING_*_PORT`, `STAGING_DEFAULT_REGION`                                   | Images, where Caddy reaches the apps, seed region            |
+| Droplet `.env`               | `STAGING_DB_NETWORK`, `STAGING_DB_HOST`, `STAGING_DB_PORT`, `STAGING_DB_NAME`, `STAGING_DB_USER`, `STAGING_DB_PASSWORD`      | The existing `db` container and the restricted role          |
+| Droplet `.env`               | `JWT_SECRET`, `COOKIE_SECRET`, `STAGING_SPLIT_WORKER`, `BACKEND_HEAP_MB`                                                     | Medusa secrets, worker mode and memory                       |
+| Droplet `.env`               | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` (optional)                                                                             | Customer verification emails via Resend (`corral.dk`)        |
+| Droplet `.env`               | `ORS_API_KEY` (optional)                                                                                                     | Delivery distances via openrouteservice                      |
+| Droplet `.env`               | `MTOGO_FF_FEEDBACK` (`true` in the template, off when unset)                                                                 | Feature flag releasing Feedback (#51, ADR-0022)              |
+| Droplet `.env`               | `MTOGO_FF_RESTAURANT_STATEMENTS` (`true` in the template, off when unset)                                                    | Feature flag releasing Restaurant statements (#52, ADR-0022) |
+| Droplet `.env`               | `STAGING_METRICS_ENABLED`, `STAGING_GRAFANA_URL`, `STAGING_GRAFANA_PORT`, `GRAFANA_ADMIN_PASSWORD` (optional)                | Private request monitoring (`mtogo-deploy.sh monitoring`)    |
+| Storefront image, build time | `NEXT_PUBLIC_MEDUSA_BACKEND_URL`, `NEXT_PUBLIC_BASE_URL`, `NEXT_PUBLIC_DEFAULT_REGION`, `NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY` | Returned by `prepare`, inlined by Next.js                    |
 
 Missing or malformed values fail visibly: Compose refuses to start with a
 message naming the variable, the deploy script names the missing `.env` key or

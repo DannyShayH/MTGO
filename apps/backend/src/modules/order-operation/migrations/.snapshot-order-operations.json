@@ -424,6 +424,22 @@
           "enumItems": [],
           "mappedType": "json"
         },
+        "financial_basis": {
+          "name": "financial_basis",
+          "type": "jsonb",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "json"
+        },
         "accepted_at": {
           "name": "accepted_at",
           "type": "timestamptz",

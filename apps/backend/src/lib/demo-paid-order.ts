@@ -45,8 +45,11 @@ export function demoAddress(customer: DemoCustomer, postal_code: string) {
   }
 }
 
+/** One basket line of a demo checkout. */
+export type DemoBasketLine = { dish: DemoDish; quantity: number }
+
 /**
- * A Customer's whole paid checkout of one dish, for synthetic demo seeds
+ * A Customer's whole paid checkout of one dish, or of `basket` when given, for synthetic demo seeds
  * (#147, #198): the real cart, mock payment and Restaurant completion
  * workflows, so the Order is placed exactly as a storefront checkout places
  * it. `metadata` marks the cart as demo data.
@@ -57,6 +60,8 @@ export async function placeDemoPaidOrder(
     region_id: string
     customer: DemoCustomer
     dish: DemoDish
+    /** Several dishes and quantities; defaults to one of `dish`. */
+    basket?: DemoBasketLine[]
     postal_code: string
     metadata: Record<string, unknown>
   },
@@ -98,18 +103,15 @@ export async function placeDemoPaidOrder(
   await addToCartWorkflow(container).run({
     input: {
       cart_id: cart.id,
-      items: [
-        {
-          variant_id: input.dish.variant_id,
-          quantity: 1,
+      items: (input.basket ?? [{ dish: input.dish, quantity: 1 }]).map(
+        ({ dish, quantity }) => ({
+          variant_id: dish.variant_id,
+          quantity,
           metadata: {
-            mtogo_dish: {
-              revision: input.dish.revision,
-              price: input.dish.price.amount,
-            },
+            mtogo_dish: { revision: dish.revision, price: dish.price.amount },
           },
-        },
-      ],
+        }),
+      ),
     },
   })
   const { result: options } = await listShippingOptionsForCartWorkflow(

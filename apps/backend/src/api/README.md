@@ -1890,6 +1890,54 @@ with the same Order fields as the list, including `available_actions`.
 | `403`  | `code: "staff_access_revoked"`: as for `GET /partner/me`                                              |
 | `404`  | `code: "order_not_found"`: another Restaurant's Order, an unpaid or unknown one, answered identically |
 
+**Financial basis (#226).** While the default-off `restaurant_statements`
+Feature flag (`MTOGO_FF_RESTAURANT_STATEMENTS`, ADR-0022) is on, the Order
+also carries a read-only `financial_basis`, the purchase facts frozen at paid
+placement. Off, the field is absent and every other field is unchanged; the
+facts are still recorded. Only this detail route carries it, not the list or
+the stream. Amounts are exact decimal strings in the Order's currency.
+
+```json
+{
+  "status": "preserved",
+  "restaurant_id": "res_...",
+  "placed_at": "2026-11-24T18:30:00.000Z",
+  "currency_code": "dkk",
+  "order_version": 1,
+  "terms": {
+    "terms_version": "common_mvp_v1",
+    "agreement_id": "cta_...",
+    "agreed_at": "2026-11-01T09:00:00.000Z",
+    "prices_include_vat": true,
+    "vat_rate": "0.25",
+    "commission_tiers": [
+      { "from_amount": "0", "to_amount": "100", "rate_percent": "6" },
+      { "from_amount": "100", "to_amount": "500", "rate_percent": "5" },
+      { "from_amount": "500", "to_amount": "1000", "rate_percent": "4" },
+      { "from_amount": "1000", "to_amount": null, "rate_percent": "3" }
+    ],
+    "monthly_service_fee": { "amount": "100", "currency_code": "dkk" }
+  },
+  "lines": [
+    {
+      "line_item_id": "ordli_...",
+      "variant_id": "variant_...",
+      "quantity": "2",
+      "unit_price_including_vat": "50.31",
+      "total_including_vat": "100.62"
+    }
+  ],
+  "food_value_including_vat": "100.62",
+  "food_value_excluding_vat": "80.496"
+}
+```
+
+`food_value_excluding_vat` is exact (the value including VAT divided by
+`1 + vat_rate`) and unrounded: rounding belongs to an amount a later
+statement books. The basis states terms, never earned commission. An Order
+placed before #226, or whose facts are incomplete, returns
+`{ "status": "unavailable" }`; nothing is rebuilt from today's menu or terms.
+
 ### POST /partner/orders/{id}/accept
 
 **Actor:** Restaurant staff (`restaurant_staff`, bearer token only). Accepts an

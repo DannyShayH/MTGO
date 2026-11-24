@@ -54,9 +54,9 @@ export const parsePurchasedItems = (value: unknown): PurchasedItem[] | null =>
 export const orderOperationsOf = (container: MedusaContainer) =>
   container.resolve<OrderOperationModuleService>(ORDER_OPERATION_MODULE)
 
-/** The model types a JSON column as a record; the stored value is the list. */
-export const toJsonColumn = (items: PurchasedItem[] | null) =>
-  items as unknown as Record<string, unknown> | null
+/** The model types a JSON column as a record; the stored value is the list or basis. */
+export const toJsonColumn = (value: object | null) =>
+  value as unknown as Record<string, unknown> | null
 
 /**
  * Freezes the kitchen facts of a basket that passed the server review. The

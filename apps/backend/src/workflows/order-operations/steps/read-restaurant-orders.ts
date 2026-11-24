@@ -18,6 +18,7 @@ import {
   QueueView,
 } from "../rules"
 import { KitchenFacts, toKitchenFacts } from "../purchased-items"
+import { financialBasisView } from "../financial-basis"
 import {
   iso,
   cancellationOutcome,
@@ -308,15 +309,25 @@ export const orderNotFound = () =>
  */
 export async function readRestaurantOrder(
   container: MedusaContainer,
-  input: { restaurant_id: string; order_id: string },
+  input: {
+    restaurant_id: string
+    order_id: string
+    /** Adds the purchased financial basis (#226) while it is released. */
+    include_financial_basis?: boolean
+  },
 ) {
   const [operation] = await container
     .resolve<OrderOperationModuleService>(ORDER_OPERATION_MODULE)
     .listOrderOperations(
       { order_id: input.order_id, restaurant_id: input.restaurant_id },
-      { select: [...OPERATION_FIELDS], take: 1 },
+      {
+        select: [...OPERATION_FIELDS, "restaurant_id", "financial_basis"],
+        take: 1,
+      },
     )
-  const row = operation as unknown as OperationRow | undefined
+  const row = operation as unknown as
+    | (OperationRow & { restaurant_id: string; financial_basis: unknown })
+    | undefined
   const order = row && (await readOrders(container, [row])).get(row.order_id)
   if (!row || !order) throw orderNotFound()
   const [refunds, credits] = await Promise.all([
@@ -324,20 +335,32 @@ export async function readRestaurantOrder(
     foodCreditsOf(container, [row.order_id]),
   ])
   const now = new Date()
+  const restaurantOrder = toRestaurantOrder(
+    row,
+    order,
+    refunds.get(row.order_id),
+    now,
+    credits.get(row.order_id),
+  )
   return {
-    order: toRestaurantOrder(
-      row,
-      order,
-      refunds.get(row.order_id),
-      now,
-      credits.get(row.order_id),
-    ),
+    order: input.include_financial_basis
+      ? {
+          ...restaurantOrder,
+          financial_basis: financialBasisView(row.financial_basis, row),
+        }
+      : restaurantOrder,
     server_time: now.toISOString(),
   }
 }
 
 export const retrieveRestaurantOrderStep = createStep(
   "retrieve-restaurant-order",
-  async (input: { restaurant_id: string; order_id: string }, { container }) =>
-    new StepResponse(await readRestaurantOrder(container, input)),
+  async (
+    input: {
+      restaurant_id: string
+      order_id: string
+      include_financial_basis?: boolean
+    },
+    { container },
+  ) => new StepResponse(await readRestaurantOrder(container, input)),
 )

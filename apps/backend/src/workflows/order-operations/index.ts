@@ -72,13 +72,23 @@ export const listPartnerOrdersWorkflow = createWorkflow(
   },
 )
 
+/**
+ * One of the staff member's Restaurant's Orders. With the Restaurant
+ * statements flag on (the route decides, ADR-0022), it also carries the
+ * Order's purchased financial basis (#226); off, the field is absent.
+ */
 export const retrievePartnerOrderWorkflow = createWorkflow(
   "retrieve-partner-order",
-  function (input: { staff_id: string; order_id: string }) {
+  function (input: {
+    staff_id: string
+    order_id: string
+    include_financial_basis?: boolean
+  }) {
     const current = retrieveAuthorizedStaffStep({ staff_id: input.staff_id })
     const scope = transform({ input, current }, ({ input, current }) => ({
       restaurant_id: current.restaurant.id,
       order_id: input.order_id,
+      include_financial_basis: !!input.include_financial_basis,
     }))
     return new WorkflowResponse(retrieveRestaurantOrderStep(scope))
   },
