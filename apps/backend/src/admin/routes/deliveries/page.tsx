@@ -13,6 +13,14 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useRef, useState } from "react"
 import { sdk } from "../../lib/restaurant-api"
+import {
+  OperatorCancelAction,
+  RefundsLink,
+  type OnCancelled,
+} from "../../components/operator-cancel"
+
+/** What the page says after an Operator cancellation (#199). */
+type Notice = { message: string; refundFailed: boolean }
 
 type Unclaimed = {
   id: string
@@ -266,11 +274,13 @@ function DeliveryRow({
   delivery,
   serverTime,
   onAssigned,
+  onCancelled,
   onDone,
 }: Readonly<{
   delivery: Unclaimed
   serverTime: string
   onAssigned: (message: string) => void
+  onCancelled: OnCancelled
   onDone: () => Promise<unknown>
 }>) {
   const minutes = Math.floor(
@@ -321,22 +331,39 @@ function DeliveryRow({
           Accepted {time(delivery.accepted_at)}
         </Text>
       </div>
-      <AssignDelivery
-        delivery={delivery}
-        onAssigned={onAssigned}
-        onDone={onDone}
-      />
+      <div className="flex flex-col gap-3">
+        <AssignDelivery
+          delivery={delivery}
+          onAssigned={onAssigned}
+          onDone={onDone}
+        />
+        <div>
+          <OperatorCancelAction
+            orderId={delivery.order_id}
+            orderReference={delivery.order_reference}
+            onCancelled={onCancelled}
+          />
+        </div>
+      </div>
     </div>
   )
 }
 
 /**
  * Outstanding operator attention (#158, #163): conditions the backend raised
- * from durable deadlines, oldest first. It only shows them; an assignment in
- * the list below removes unassigned attention, the agent's pickup or
- * handover removes stalled-work attention, and nothing here cancels work.
+ * from durable deadlines, oldest first. An assignment in the list below
+ * removes unassigned attention and the agent's pickup or handover removes
+ * stalled-work attention. Raising attention never cancels work; only the
+ * operator's explicit Cancel with full refund (#199) does, and it resolves
+ * the Order's attention.
  */
-function AttentionList({ limit }: Readonly<{ limit: number }>) {
+function AttentionList({
+  limit,
+  onCancelled,
+}: Readonly<{
+  limit: number
+  onCancelled: OnCancelled
+}>) {
   const [offset, setOffset] = useState(0)
   const list = useQuery({
     queryKey: ["delivery-attention", offset],
@@ -361,8 +388,9 @@ function AttentionList({ limit }: Readonly<{ limit: number }>) {
         <Text size="small" leading="compact" className="text-ui-fg-subtle">
           Reported problems and deliveries past an attention deadline, oldest
           first. Attention only shows the problem: it never cancels, releases or
-          completes a delivery. Assign unassigned work below before the claim
-          deadline.
+          completes a delivery by itself. Assign unassigned work below before
+          the claim deadline, or cancel an Order that cannot be completed with a
+          full refund.
         </Text>
       </div>
       {list.isLoading && (
@@ -399,6 +427,8 @@ function AttentionList({ limit }: Readonly<{ limit: number }>) {
         return (
           <div
             key={item.id}
+            role="group"
+            aria-label={`Order #${item.order_reference}: ${condition.label}`}
             className="grid gap-2 px-6 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:gap-8"
           >
             <div className="flex min-w-0 flex-col gap-1">
@@ -494,6 +524,13 @@ function AttentionList({ limit }: Readonly<{ limit: number }>) {
                     : `Claim deadline ${time(item.claim_deadline)}`}
                 </Text>
               )}
+              <div className="pt-1">
+                <OperatorCancelAction
+                  orderId={item.order_id}
+                  orderReference={item.order_reference}
+                  onCancelled={onCancelled}
+                />
+              </div>
             </div>
           </div>
         )
@@ -526,6 +563,7 @@ const DeliveriesPage = () => {
   const queryClient = useQueryClient()
   const [offset, setOffset] = useState(0)
   const [notice, setNotice] = useState<string | null>(null)
+  const [cancelled, setCancelled] = useState<Notice | null>(null)
   const limit = 20
   const list = useQuery({
     queryKey: ["unclaimed-deliveries", offset],
@@ -542,9 +580,22 @@ const DeliveriesPage = () => {
       queryClient.invalidateQueries({ queryKey: ["delivery-attention"] }),
     ])
   const count = list.data?.deliveries.length ?? 0
+  // A cancellation ends the delivery and resolves its attention.
+  const onCancelled: OnCancelled = (message, refundFailed) => {
+    setCancelled({ message, refundFailed })
+    void refresh()
+  }
   return (
     <div className="flex flex-col gap-y-3">
-      <AttentionList limit={limit} />
+      {cancelled && (
+        <Alert
+          variant={cancelled.refundFailed ? "warning" : "success"}
+          dismissible
+        >
+          {cancelled.message} {cancelled.refundFailed && <RefundsLink />}
+        </Alert>
+      )}
+      <AttentionList limit={limit} onCancelled={onCancelled} />
       <Container className="divide-y p-0">
         <div className="flex flex-wrap items-start justify-between gap-4 px-6 py-4">
           <div className="flex flex-col gap-1">
@@ -597,6 +648,7 @@ const DeliveriesPage = () => {
             delivery={delivery}
             serverTime={list.data.server_time}
             onAssigned={setNotice}
+            onCancelled={onCancelled}
             onDone={refresh}
           />
         ))}

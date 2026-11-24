@@ -207,6 +207,9 @@ export const DELIVERY_AGENT_TEXT = {
     completedTitle: "Levering afsluttet",
     completedAt: "Afleveret kl. {time}",
     completedNext: "Du kan nu påtage dig en ny levering.",
+    cancelledTitle: "MTOGO har annulleret leveringen",
+    cancelledAt:
+      "Annulleret kl. {time}. Du skal hverken hente eller aflevere maden.",
     history: "Afsluttede leveringer",
     historyLink: "Se afsluttede leveringer",
     historyEmpty: "Du har endnu ingen afsluttede leveringer.",
@@ -409,6 +412,8 @@ export const DELIVERY_AGENT_TEXT = {
     completedTitle: "Delivery completed",
     completedAt: "Handed over at {time}",
     completedNext: "You can now claim a new delivery.",
+    cancelledTitle: "MTOGO cancelled this delivery",
+    cancelledAt: "Cancelled at {time}. Do not collect or hand over the food.",
     history: "Completed deliveries",
     historyLink: "View completed deliveries",
     historyEmpty: "You have no completed deliveries yet.",

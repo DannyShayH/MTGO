@@ -3,6 +3,7 @@ import { MedusaError } from "@medusajs/framework/utils"
 import { withResponseFields } from "../../common/response-fields"
 import { ORDER_CHANGED } from "../rules"
 import type { CancellationCommit } from "../cancellation"
+import type { OperatorCancellationCommit } from "../operator-cancellation"
 import { orderNotFound } from "./read-restaurant-orders"
 
 /**
@@ -14,14 +15,15 @@ export type CancellationResult =
   | { cancelled: false; cancelled_by: null }
 
 /**
- * The HTTP outcome of a guarded pre-acceptance cancellation, shared by staff
- * rejection (#143) and Customer cancellation (#145). A refusal carries the
- * Order as the caller may see it now (`readCurrent`), so the page shows the
- * truth; a recorded cancellation is the current outcome for a repeat.
+ * The HTTP outcome of a guarded cancellation, shared by staff rejection
+ * (#143), Customer cancellation (#145) and Operator cancellation (#199). A
+ * refusal carries the Order as the caller may see it now (`readCurrent`), so
+ * the page shows the truth; the operator's refusal carries only its code. A
+ * recorded cancellation is the current outcome for a repeat.
  */
 export async function cancellationStepResponse(
-  result: CancellationCommit,
-  readCurrent: () => Promise<Record<string, unknown>>,
+  result: CancellationCommit | OperatorCancellationCommit,
+  readCurrent: () => Promise<Record<string, unknown>> = async () => ({}),
 ): Promise<StepResponse<CancellationResult>> {
   const refuse = async (code: string) =>
     withResponseFields(

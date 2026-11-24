@@ -16,6 +16,8 @@ export const CUSTOMER_ORDER_DETAIL_TEXT = {
     cancelled_customer_cancelled: "Du annullerede ordren {time}.",
     cancelled_unassigned_timeout:
       "Vi fandt ikke et bud til din ordre inden {time}, så MTOGO annullerede den. Du får hele beløbet tilbage.",
+    cancelled_operator_cancelled:
+      "MTOGO kunne ikke gennemføre din ordre og annullerede den {time}. Du får hele beløbet tilbage.",
     refund_pending: "Vi er ved at refundere {amount}. Det kan tage et øjeblik.",
     refund_failed:
       "Refusionen af {amount} er ikke gået igennem endnu. Du får stadig pengene tilbage, og MTOGO følger op.",
@@ -99,6 +101,8 @@ export const CUSTOMER_ORDER_DETAIL_TEXT = {
     cancelled_customer_cancelled: "You cancelled this Order at {time}.",
     cancelled_unassigned_timeout:
       "We could not find a Delivery agent for your Order by {time}, so MTOGO cancelled it. You will get the full amount back.",
+    cancelled_operator_cancelled:
+      "MTOGO could not complete your Order and cancelled it at {time}. You will get the full amount back.",
     refund_pending: "We are refunding {amount}. This may take a moment.",
     refund_failed:
       "The refund of {amount} has not gone through yet. You will still get your money back, and MTOGO will follow up.",

@@ -585,7 +585,8 @@
             "restaurant_rejected",
             "acceptance_timeout",
             "customer_cancelled",
-            "unassigned_timeout"
+            "unassigned_timeout",
+            "operator_cancelled"
           ],
           "mappedType": "enum"
         },

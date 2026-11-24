@@ -11,16 +11,18 @@ export const ORDER_OPERATION_STATES = [
 export type OrderOperationState = (typeof ORDER_OPERATION_STATES)[number]
 
 /**
- * Why an Order was cancelled (spec #47, #48). Each names its actor type:
- * Restaurant staff, the system at the acceptance deadline, the Customer, or
- * the system when accepted work was still unassigned thirty minutes after
- * acceptance (#162).
+ * Why an Order was cancelled (spec #47, #48, #49). Each names its actor
+ * type: Restaurant staff, the system at the acceptance deadline, the
+ * Customer, the system when accepted work was still unassigned thirty
+ * minutes after acceptance (#162), or an MTOGO operator after acceptance
+ * (#199), always with a full refund.
  */
 export const CANCELLATION_CATEGORIES = [
   "restaurant_rejected",
   "acceptance_timeout",
   "customer_cancelled",
   "unassigned_timeout",
+  "operator_cancelled",
 ] as const
 export type CancellationCategory = (typeof CANCELLATION_CATEGORIES)[number]
 

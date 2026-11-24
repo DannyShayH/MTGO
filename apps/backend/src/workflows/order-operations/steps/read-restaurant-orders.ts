@@ -83,7 +83,11 @@ export type RestaurantOrder = {
   /** Null until cancelled; then the category and actual server time. */
   cancellation:
     | (NonNullable<CancellationOutcome> & {
-        /** The rejecting staff member's optional note, for their own Restaurant only. */
+        /**
+         * The rejecting staff member's optional note, for their own
+         * Restaurant only. An operator's cancellation reason (#199) is
+         * MTOGO-internal and never shown to staff.
+         */
         note: string | null
       })
     | null
@@ -168,7 +172,10 @@ function toRestaurantOrder(
     available_actions: availableActions(operation, now),
     cancellation: cancellation && {
       ...cancellation,
-      note: operation.cancellation_note,
+      note:
+        operation.cancellation_category === "restaurant_rejected"
+          ? operation.cancellation_note
+          : null,
     },
     delivery: operation.delivery_outcome
       ? {

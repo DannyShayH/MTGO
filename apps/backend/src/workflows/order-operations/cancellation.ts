@@ -1,5 +1,9 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
-import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import {
+  ContainerRegistrationKeys,
+  MedusaError,
+  Modules,
+} from "@medusajs/framework/utils"
 import { ORDER_OPERATION_MODULE } from "../../modules/order-operation"
 import type OrderOperationModuleService from "../../modules/order-operation/service"
 import type {
@@ -12,6 +16,7 @@ import {
   SYSTEM_ACTOR,
 } from "./rules"
 import { owedFullRefund, type PaymentFacts } from "./refund-rules"
+import type { PurchasedLine } from "./unassigned-cancellation-rules"
 import {
   attemptFullRefund,
   logCancellationUpstreamFailure,
@@ -82,6 +87,30 @@ export async function owedRefund(container: MedusaContainer, order_id: string) {
       ({ payments }) => payments ?? [],
     ),
   )
+}
+
+/** The Order's purchased food lines and currency, as the credit calculation reads them. */
+export async function purchasedFood(
+  container: MedusaContainer,
+  order_id: string,
+) {
+  const { data } = await container
+    .resolve(ContainerRegistrationKeys.QUERY)
+    .graph({
+      entity: "order",
+      fields: ["currency_code", "items.raw_unit_price", "items.quantity"],
+      filters: { id: order_id },
+    })
+  const order = data[0] as unknown as
+    { currency_code: string; items: PurchasedLine[] } | undefined
+  // A paid placement always has its Order, so a missing one is a bug; never
+  // credit a guessed amount.
+  if (!order)
+    throw new MedusaError(
+      MedusaError.Types.UNEXPECTED_STATE,
+      `Order ${order_id} of a recorded placement was not found`,
+    )
+  return { currency_code: order.currency_code, lines: order.items }
 }
 
 /**

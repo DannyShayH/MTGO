@@ -1,18 +1,17 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
-import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import { Modules } from "@medusajs/framework/utils"
 import { DELIVERY_MODULE } from "../../modules/delivery"
 import type DeliveryModuleService from "../../modules/delivery/service"
 import { ORDER_OPERATION_MODULE } from "../../modules/order-operation"
 import type OrderOperationModuleService from "../../modules/order-operation/service"
 import type { OrderOperationState } from "../../modules/order-operation/models/order-operation"
 import { endDeliveryForOrder } from "../delivery/terminal"
-import { owedRefund, settleCancellation } from "./cancellation"
+import { commitAcceptedCancellation } from "./accepted-cancellation"
+import { settleCancellation } from "./cancellation"
 import { orderOperationLock } from "./locks"
 import { SYSTEM_ACTOR } from "./rules"
 import {
   decideUnassignedCancellation,
-  preparedFoodCredit,
-  type PurchasedLine,
   type UnassignedDeadlineOutcome,
 } from "./unassigned-cancellation-rules"
 
@@ -26,21 +25,6 @@ type GuardedRecord = {
   preparation_started_at: Date | null
   ready_at: Date | null
   revision: number
-}
-
-async function purchasedFood(container: MedusaContainer, order_id: string) {
-  const { data } = await container
-    .resolve(ContainerRegistrationKeys.QUERY)
-    .graph({
-      entity: "order",
-      fields: ["currency_code", "items.raw_unit_price", "items.quantity"],
-      filters: { id: order_id },
-    })
-  const order = data[0] as unknown as
-    { currency_code: string; items: PurchasedLine[] } | undefined
-  // A paid placement always has its Order; never credit a guessed amount.
-  if (!order) throw new Error(`order_not_found: ${order_id}`)
-  return { currency_code: order.currency_code, lines: order.items }
 }
 
 /**
@@ -93,29 +77,18 @@ export async function commitUnassignedCancellation(
   if (decision.outcome === "already_cancelled")
     await endUnassignedWork(container, request)
   if (decision.outcome !== "cancel") return decision
-  const food = await purchasedFood(container, request.order_id)
-  const credit = preparedFoodCredit(
+  const commit = await commitAcceptedCancellation(container, {
     record,
-    food.lines,
-    food.currency_code,
-    // The decision above proved the delivery exists.
-    delivery!.claim_deadline,
-  )
-  const committed = await service.cancelWithRefundObligation({
-    id: record.id,
     order_id: request.order_id,
-    revision: record.revision,
-    state: record.state,
-    cancelled_at: request.now,
+    now: request.now,
     cancelled_by: SYSTEM_ACTOR,
     category: decision.category,
     note: null,
-    refund: await owedRefund(container, request.order_id),
-    food_credit: credit && { ...credit, reason: decision.category },
+    // The decision above proved the delivery exists.
+    prepared_before: delivery!.claim_deadline,
   })
-  if (!committed) return { outcome: "changed" }
-  await endUnassignedWork(container, request)
-  return { outcome: "cancelled", has_food_credit: !!credit }
+  if (!commit.committed) return { outcome: "changed" }
+  return { outcome: "cancelled", has_food_credit: commit.has_food_credit }
 }
 
 /**

@@ -91,6 +91,7 @@ type OrderText = Record<
   | "cancelled_acceptance_timeout"
   | "cancelled_customer_cancelled"
   | "cancelled_unassigned_timeout"
+  | "cancelled_operator_cancelled"
   | "food_credit_mtogo"
   | "cancellation_note"
   | "refund"
@@ -134,6 +135,7 @@ type OrderText = Record<
   | "reason_acceptance_timeout"
   | "reason_customer_cancelled"
   | "reason_unassigned_timeout"
+  | "reason_operator_cancelled"
   | "clear_filters"
   | "empty_filtered"
   | "timeline"
@@ -253,6 +255,7 @@ export const ORDER_TEXT: Record<Locale, OrderText> = {
     cancelled_customer_cancelled: "Annulleret af kunden {time}",
     cancelled_unassigned_timeout:
       "Annulleret automatisk, fordi intet bud tog leveringen inden {time} (registreret {processed})",
+    cancelled_operator_cancelled: "Annulleret af MTOGO {time}",
     food_credit_mtogo:
       "MTOGO godskriver jeres restaurant {amount} ekskl. moms for den tilberedte mad. Der trækkes ingen kommission.",
     cancellation_note: "Jeres begrundelse",
@@ -301,6 +304,7 @@ export const ORDER_TEXT: Record<Locale, OrderText> = {
     reason_acceptance_timeout: "Ikke accepteret i tide",
     reason_customer_cancelled: "Annulleret af kunden",
     reason_unassigned_timeout: "Intet bud fundet",
+    reason_operator_cancelled: "Annulleret af MTOGO",
     clear_filters: "Ryd filtre",
     empty_filtered: "Ingen ordrer matcher dine filtre.",
     timeline: "Forløb",
@@ -418,6 +422,7 @@ export const ORDER_TEXT: Record<Locale, OrderText> = {
     cancelled_customer_cancelled: "Cancelled by the Customer at {time}",
     cancelled_unassigned_timeout:
       "Cancelled automatically because no Delivery agent took the delivery by {time} (recorded {processed})",
+    cancelled_operator_cancelled: "Cancelled by MTOGO at {time}",
     food_credit_mtogo:
       "MTOGO credits your Restaurant {amount} excluding VAT for the prepared food. No commission is charged.",
     cancellation_note: "Your reason",
@@ -465,6 +470,7 @@ export const ORDER_TEXT: Record<Locale, OrderText> = {
     reason_acceptance_timeout: "Not accepted in time",
     reason_customer_cancelled: "Cancelled by the Customer",
     reason_unassigned_timeout: "No Delivery agent found",
+    reason_operator_cancelled: "Cancelled by MTOGO",
     clear_filters: "Clear filters",
     empty_filtered: "No Orders match your filters.",
     timeline: "Timeline",

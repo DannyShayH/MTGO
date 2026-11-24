@@ -24,6 +24,7 @@ import {
   REFUND_NOT_FOUND,
   REFUND_RETRY_REFUSALS,
 } from "../workflows/order-operations/refund-rules"
+import { OPERATOR_CANCELLATION_REFUSALS } from "../workflows/order-operations/operator-cancellation-rules"
 import {
   ASSIGNMENT_CONFLICTS,
   ASSIGNMENT_REFUSALS,
@@ -280,6 +281,7 @@ export function mtogoErrorHandler(): MedusaErrorHandlerFunction {
     ...ACCEPTANCE_REFUSALS,
     ...PROGRESS_REFUSALS,
     ORDER_CHANGED,
+    ...OPERATOR_CANCELLATION_REFUSALS,
     ...REFUND_RETRY_REFUSALS,
     REFUND_NOT_FOUND,
     "order_restaurant_mismatch",

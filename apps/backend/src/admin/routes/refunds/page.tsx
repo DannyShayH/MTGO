@@ -68,6 +68,7 @@ const CANCELLATIONS: Record<string, string> = {
   acceptance_timeout: "Not accepted in time",
   customer_cancelled: "Cancelled by the Customer",
   unassigned_timeout: "No Delivery agent within 30 min",
+  operator_cancelled: "Cancelled by an operator",
 }
 
 const STATUS: Record<

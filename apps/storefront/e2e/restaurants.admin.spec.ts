@@ -551,3 +551,76 @@ test("operator sees a failed refund with its history on the Refunds page and Ret
     contentType: "image/png",
   })
 })
+
+test("operator cancels an Order with a reported problem from the attention list with a full refund", async ({
+  page,
+}, testInfo) => {
+  expect(process.env.E2E_DISPOSABLE).toBe("1")
+  test.setTimeout(180_000)
+  const errors: string[] = []
+  page.on("pageerror", (error) => errors.push(error.message))
+  const backend = process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL!
+  // A real accepted Order whose agent reported that the Restaurant is closed.
+  const seeded = execFileSync(
+    "npm",
+    [
+      "exec",
+      "--no",
+      "--",
+      "medusa",
+      "exec",
+      "./src/scripts/seed-demo-reported-problem.ts",
+      randomUUID().slice(0, 8),
+    ],
+    { cwd: resolve(process.cwd(), "../backend"), encoding: "utf8" },
+  )
+  const fixture = JSON.parse(
+    seeded
+      .split("\n")
+      .filter((line) => line.startsWith('{"order_id"'))
+      .at(-1)!,
+  ) as { order_reference: number; restaurant_name: string }
+  await page.goto(`${backend}/app/login`)
+  await page
+    .getByPlaceholder("Email", { exact: true })
+    .fill(process.env.E2E_ADMIN_EMAIL!)
+  await page
+    .getByPlaceholder("Password", { exact: true })
+    .fill(process.env.E2E_ADMIN_PASSWORD!)
+  await page.getByRole("button", { name: "Continue with email" }).click()
+  await expect(page).not.toHaveURL(/\/login/)
+  await page.getByRole("link", { name: "Deliveries", exact: true }).click()
+  const item = page.getByRole("group", {
+    name: `Order #${fixture.order_reference}: Agent reported a problem`,
+  })
+  await expect(item).toContainText(fixture.restaurant_name)
+  await expect(item).toContainText("Demo: the Restaurant is closed")
+
+  await item.getByRole("button", { name: "Cancel with full refund" }).click()
+  const dialog = page.getByRole("dialog")
+  await expect(dialog).toContainText(/The Customer will be refunded .+\./)
+  // A reason is required before anything is sent.
+  await dialog.getByRole("button", { name: "Cancel with full refund" }).click()
+  await expect(dialog).toContainText("Enter a reason for the cancellation.")
+  await dialog.getByLabel("Reason").fill("Demo: Restaurant closed for the day")
+  await testInfo.attach("operator-cancel-confirmation", {
+    body: await page.screenshot({ fullPage: true }),
+    contentType: "image/png",
+  })
+  await dialog.getByRole("button", { name: "Cancel with full refund" }).click()
+
+  await expect(
+    page.getByText(
+      new RegExp(
+        `Order #${fixture.order_reference} is cancelled\\. Its delivery ended and the agent is free for new work\\. .+ was refunded\\.`,
+      ),
+    ),
+  ).toBeVisible()
+  // The cancellation resolves the Order's attention.
+  await expect(item).toHaveCount(0)
+  expect(errors).toEqual([])
+  await testInfo.attach("operator-cancelled", {
+    body: await page.screenshot({ fullPage: true }),
+    contentType: "image/png",
+  })
+})

@@ -41,9 +41,16 @@ import seedDemoMenu from "./seed-demo-menu"
 
 const POSTAL_CODE = "2200"
 
-/** An active, open Restaurant of its own, with a menu and authorized staff. */
-async function demoRestaurant(container: MedusaContainer, runId: string) {
-  const name = `Refund demo kitchen ${runId}`
+/**
+ * An active, open Restaurant of its own, with a menu and authorized staff.
+ * Also used by `seed-demo-reported-problem.ts` (#199) with its own `label`.
+ */
+export async function demoRestaurant(
+  container: MedusaContainer,
+  runId: string,
+  label = "Refund demo kitchen",
+) {
+  const name = `${label} ${runId}`
   const {
     result: { restaurant },
   } = await createRestaurantWorkflow(container).run({

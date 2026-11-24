@@ -17,6 +17,7 @@ export const CANCELLATION_CATEGORIES = [
   "acceptance_timeout",
   "customer_cancelled",
   "unassigned_timeout",
+  "operator_cancelled",
 ] as const
 export type CancellationCategory = (typeof CANCELLATION_CATEGORIES)[number]
 

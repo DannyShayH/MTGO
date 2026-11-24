@@ -989,6 +989,100 @@ once and both get `200`.
 | `400`  | `invalid_data`      | The body has any field.                                     |
 | `404`  | `refund_not_found`  | The Order owes no full refund (unknown or never cancelled). |
 
+## Operator cancellation (#199)
+
+### GET /admin/orders/{id}/operator-cancel
+
+The Full refund a cancellation would owe now, for the confirmation step:
+everything captured and not yet refunded, with the same exact calculation the
+cancellation commits. Read-only.
+
+**Actor:** MTOGO operator (admin user), as below.
+
+**Success:** `200` with
+`{ "preview": { "order_id": "order_01...", "refund": { "amount_including_vat": 190, "currency_code": "dkk" } } }`;
+`refund` is `null` when nothing captured is left to refund.
+
+| Status | `code`            | When                        |
+| ------ | ----------------- | --------------------------- |
+| `404`  | `order_not_found` | No paid Order with this id. |
+
+### POST /admin/orders/{id}/operator-cancel
+
+Cancels an accepted, unfinished Order with a full refund. Allowed while the
+Order is `accepted`, `preparing` or `ready`, also when its delivery is
+assigned or picked up.
+
+**Actor:** MTOGO operator (admin user, session or bearer). Restaurant staff,
+Delivery agents and signed-out callers get `401` from Medusa's `/admin`
+authentication, without effects.
+
+| Field    | Type   | Required | Rules                                                                                                                   |
+| -------- | ------ | -------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `reason` | string | yes      | Control characters removed and trimmed; must not be empty afterwards; at most 1000 characters. Kept for operators only. |
+
+```json
+{ "reason": "Restaurant lost power" }
+```
+
+Under the Order's guard, the cancellation (`operator_cancelled`, the operator
+as actor, the reason), the full-refund obligation and, when preparation had
+started, the MTOGO-funded prepared-food credit commit together; the delivery
+ends as `cancelled`, the agent is free for new work and the Order's open
+attention is resolved. Then the refund is attempted as the operator's and
+native Medusa cancellation follows. A repeat, or a second request racing the
+first, returns the recorded outcome with `cancelled_now: false` and cancels
+nothing again; if an interrupted request left the delivery active, the repeat
+ends it as `cancelled`.
+
+**Success:** `200`
+
+```json
+{
+  "cancellation": {
+    "order_id": "order_01...",
+    "cancelled_now": true,
+    "cancellation": {
+      "category": "operator_cancelled",
+      "cancelled_at": "2026-11-24T10:29:15.000Z",
+      "effective_at": "2026-11-24T10:29:15.000Z",
+      "cancelled_by": "user_01...",
+      "reason": "Restaurant lost power"
+    },
+    "delivery": {
+      "outcome": "cancelled",
+      "ended_at": "2026-11-24T10:29:15.000Z"
+    },
+    "refund": {
+      "status": "succeeded",
+      "amount_including_vat": 190,
+      "currency_code": "dkk",
+      "last_attempted_at": "2026-11-24T10:29:15.000Z",
+      "succeeded_at": "2026-11-24T10:29:15.000Z"
+    },
+    "food_credit": {
+      "amount_excluding_vat": 152,
+      "currency_code": "dkk",
+      "funded_by": "mtogo"
+    }
+  }
+}
+```
+
+`refund.status` is `failed` when the provider failed: the Order stays
+cancelled and the refund is listed by `GET /admin/refunds` for a retry.
+`food_credit` is `null` when preparation had not started. `reason` is `null`
+for a cancellation by anyone else.
+
+| Status | `code`               | When                                                                                                                     |
+| ------ | -------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `400`  | `order_not_accepted` | The Order is still awaiting Restaurant acceptance.                                                                       |
+| `400`  | `order_delivered`    | The handover was confirmed.                                                                                              |
+| `400`  | `invalid_data`       | `reason` is missing, blank, not text or another field was sent (`operator_cancellation_reason_required` in the message). |
+| `400`  | `invalid_data`       | `reason` is longer than 1000 characters (`field_too_long`).                                                              |
+| `404`  | `order_not_found`    | No paid Order with this id.                                                                                              |
+| `409`  | `order_changed`      | Another change to the Order won the guarded write; read it again.                                                        |
+
 ## Supported HTTP methods
 
 The file based routing supports the following HTTP methods:

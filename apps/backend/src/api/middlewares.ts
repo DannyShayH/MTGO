@@ -108,6 +108,7 @@ import {
   GetAdminRefundsSchema,
   PostAdminRetryRefundSchema,
 } from "./admin/refunds/validators"
+import { PostAdminOperatorCancelSchema } from "./admin/orders/validators"
 import { recordSessionExpiry } from "./session-expiry"
 
 /** Medusa has no path-parameter validator, so the postal code in the path is checked here. */
@@ -173,6 +174,11 @@ export default defineMiddlewares({
       matcher: "/admin/refunds/:order_id/retry",
       method: "POST",
       middlewares: [validateAndTransformBody(PostAdminRetryRefundSchema)],
+    },
+    {
+      matcher: "/admin/orders/:id/operator-cancel",
+      method: "POST",
+      middlewares: [validateAndTransformBody(PostAdminOperatorCancelSchema)],
     },
     {
       matcher: "/admin/deliveries/:id/assign",

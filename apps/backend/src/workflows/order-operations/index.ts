@@ -37,6 +37,13 @@ import {
 } from "./steps/operator-refunds"
 import type { ListOpenRefundsInput } from "./refunds"
 import {
+  commitOperatorCancellationStep,
+  previewOperatorCancellationStep,
+  readOperatorCancellationStep,
+} from "./steps/cancel-accepted-order"
+import type { OperatorCancellationRequest } from "./operator-cancellation"
+import { recordDeliveryEndOnOrderStep } from "../delivery/order-outcome"
+import {
   recoverOrderOperationsStep,
   type RecoveryInput,
 } from "./steps/recover-order-operations"
@@ -44,6 +51,7 @@ import {
 export type { RestaurantOrder } from "./steps/read-restaurant-orders"
 export type { OrderProgress } from "./steps/read-order-progress"
 export type { OperatorRefund } from "./refunds"
+export type { OperatorCancellationView } from "./steps/cancel-accepted-order"
 
 /**
  * Staff read their own Restaurant's paid Orders (spec #47 stories 1-5). The
@@ -382,5 +390,56 @@ export const retryFullRefundWorkflow = createWorkflow(
   "retry-full-refund",
   function (input: { order_id: string; actor_id: string }) {
     return new WorkflowResponse(retryFullRefundStep(input))
+  },
+)
+
+/**
+ * An operator cancels an accepted, unfinished Order with a full refund
+ * (#199; spec #49 stories 25-42). Under the Order's guard the cancellation,
+ * the full-refund obligation and any prepared-food credit commit together and
+ * the delivery ends as `cancelled`. Only the request that cancelled settles:
+ * the refund attempt as the operator's, then native cancellation, then the
+ * delivery's end is recorded on the kitchen record (#204). A repeat returns
+ * the recorded outcome without new effects.
+ */
+export const cancelAcceptedOrderWorkflow = createWorkflow(
+  "cancel-accepted-order",
+  function (input: Omit<OperatorCancellationRequest, "now">) {
+    const cancellation = commitOperatorCancellationStep(input)
+    const order = transform({ input }, ({ input }) => ({
+      order_id: input.order_id,
+    }))
+    when(
+      "settle-operator-cancellation",
+      { cancellation },
+      ({ cancellation }) => cancellation.cancelled,
+    ).then(() => {
+      const settled = settleOrderCancellationStep(
+        transform({ order, cancellation }, ({ order, cancellation }) => ({
+          ...order,
+          attempted_by: cancellation.cancelled_by as string,
+        })),
+      ).config({ name: "settle-operator-cancellation-effects" })
+      recordDeliveryEndOnOrderStep(
+        // `settled` only orders the record after the settlement.
+        transform({ order, settled }, ({ order }) => order),
+      )
+    })
+    return new WorkflowResponse(
+      readOperatorCancellationStep(
+        transform({ order, cancellation }, ({ order, cancellation }) => ({
+          ...order,
+          cancelled_now: cancellation.cancelled,
+        })),
+      ),
+    )
+  },
+)
+
+/** The amount the operator's confirmation shows before cancelling (#199). */
+export const previewOperatorCancellationWorkflow = createWorkflow(
+  "preview-operator-cancellation",
+  function (input: { order_id: string }) {
+    return new WorkflowResponse(previewOperatorCancellationStep(input))
   },
 )

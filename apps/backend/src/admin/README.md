@@ -224,3 +224,27 @@ stack at narrow widths, long names wrap without page or row overflow, history
 expands, keyboard Tab moves Order link, Retry refund and Attempt history with a
 visible focus ring, Enter on the Order link opens the Order, and no browser
 runtime errors were raised. Admin is English only (ADR-0018).
+
+## Cancel with full refund (#199)
+
+The Deliveries route offers **Cancel with full refund** on every item in
+"Needs attention" and on every unclaimed delivery
+(`components/operator-cancel.tsx`). The confirmation reads the amount the
+Customer gets back from `GET /admin/orders/{id}/operator-cancel`, the
+server's own calculation, and requires a reason, which only operators see. It posts to
+`POST /admin/orders/{id}/operator-cancel`; the server decides whether the
+Order may still be cancelled, so a refused cancellation (not yet accepted,
+already delivered, changed at the same time) shows its reason in English.
+After success the page says whether the Order was cancelled now or already,
+that the delivery ended and the agent is free, and the refund outcome. A
+failed refund links to the Refunds page. The lists reread, so the Order
+leaves attention and the unclaimed list. The rules are proven by
+`integration-tests/http/operator-cancellation.spec.ts`; the operator browser
+journey cancels an Order from the attention list.
+
+The Order details page has the same action in the
+`widgets/operator-cancel-order.tsx` widget (`order.details.side`). That covers
+an assigned or picked-up Order with no open attention, which neither
+Deliveries list shows. The widget is hidden for a cancelled Order, and after
+a cancellation it shows the same outcome message. Placement is controlled in
+the Dashboard Editor.

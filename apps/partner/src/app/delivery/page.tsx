@@ -2,13 +2,18 @@ import { randomUUID } from "node:crypto"
 import { cookies } from "next/headers"
 import { unstable_rethrow } from "next/navigation"
 import Link from "next/link"
-import { ArrowPath, CheckCircleSolid } from "@medusajs/icons"
+import {
+  ArrowPath,
+  CheckCircleSolid,
+  ExclamationCircleSolid,
+} from "@medusajs/icons"
 import { DELIVERY_AGENT_TEXT, formatText } from "@dtc/i18n"
 import { getMessages } from "@lib/i18n"
 import {
   requireDeliveryAgent,
   getDeliveryFilter,
   getAvailableDeliveries,
+  getCompletedDeliveries,
   getCompletedDelivery,
   getCurrentDelivery,
   signOutDeliveryAgent,
@@ -23,6 +28,7 @@ import {
   SHARE_CHOICE_COOKIE,
 } from "@modules/delivery/copy"
 import { CurrentDeliveryCard } from "@modules/delivery/current-delivery"
+import { recentlyCancelled } from "@modules/delivery/cancelled-notice"
 import { BrandMark } from "@modules/layout/components/brand-mark"
 import { DeliveryHeader } from "@modules/delivery/delivery-header"
 import { DeliveryFeed } from "@modules/delivery/delivery-feed"
@@ -69,6 +75,19 @@ export default async function DeliveryPage({
           return null
         })
       : null
+  // Work an operator cancelled under the agent (#199) leaves the current
+  // section; the newest ended delivery, when it was cancelled recently, says
+  // why, so the agent stops travelling.
+  const cancelled =
+    current === null && !completed
+      ? await getCompletedDeliveries(0, 1)
+          .then(({ deliveries }) => deliveries[0] ?? null)
+          .catch((error) => {
+            unstable_rethrow(error)
+            return null
+          })
+      : null
+  const cancelledNotice = recentlyCancelled(cancelled, new Date())
   const deliveries = await getAvailableDeliveries(
     selected,
     (page - 1) * 20,
@@ -151,6 +170,29 @@ export default async function DeliveryPage({
                   })}
                 </span>
                 {!current && <span>{copy.completedNext}</span>}
+              </span>
+            </div>
+          )}
+          {cancelledNotice && (
+            <div
+              role="status"
+              className="bg-mtogo-status-warning-surface text-mtogo-status-warning-text flex items-start gap-2 rounded-lg p-4 text-base"
+            >
+              <ExclamationCircleSolid aria-hidden className="mt-0.5 shrink-0" />
+              <span className="flex min-w-0 flex-col gap-0.5">
+                <span className="font-semibold">{copy.cancelledTitle}</span>
+                <span className="break-words">
+                  {cancelledNotice.restaurant_name}{" "}
+                  <span className="tabular-nums">
+                    #{cancelledNotice.order_reference}
+                  </span>
+                </span>
+                <span className="tabular-nums">
+                  {formatText(copy.cancelledAt, {
+                    time: formatTime(cancelledNotice.ended_at),
+                  })}
+                </span>
+                <span>{copy.completedNext}</span>
               </span>
             </div>
           )}

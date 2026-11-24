@@ -126,6 +126,7 @@ export type OrderProgress = {
       | "acceptance_timeout"
       | "customer_cancelled"
       | "unassigned_timeout"
+      | "operator_cancelled"
     cancelled_at: string
     /** When it took effect: the deadline for a timeout, else `cancelled_at`. */
     effective_at: string
