@@ -116,6 +116,7 @@ environment files. Build initialization uses the installed Medusa CLI's
 | `DATABASE_URL`                                         | `postgres://postgres:postgres@localhost:5432/medusa_ci_build`                                                                  |
 | `DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`     | `localhost`, `5432`, `postgres`, `postgres`; existing integration test settings                                                |
 | `JWT_SECRET`, `COOKIE_SECRET`                          | Public CI-only strings defined in the ready workflow                                                                           |
+| `MTOGO_FF_FEEDBACK`                                    | `true`: the ready workflow and the verification script release the flagged Feedback Feature (ADR-0022)                         |
 | `STORE_CORS`                                           | `http://localhost:8000`                                                                                                        |
 | `ADMIN_CORS`                                           | `http://localhost:9000`                                                                                                        |
 | `AUTH_CORS`                                            | `http://localhost:8000,http://localhost:9000`                                                                                  |

@@ -9,7 +9,9 @@ import { log } from "@lib/logger"
 import {
   customerCancelErrorCode,
   type CustomerCancelErrorCode,
+  type CustomerFeedbackErrorCode,
 } from "@dtc/i18n"
+import type { FeedbackRatings } from "@lib/util/feedback-ratings"
 
 export const retrieveOrder = async (id: string) => {
   const headers = {
@@ -200,6 +202,109 @@ export async function cancelOrder(id: string): Promise<CancelOrderResult> {
         ? (error as { message?: unknown }).message
         : undefined
     return { ok: false, error: customerCancelErrorCode(code) }
+  }
+}
+
+/** The owning Customer's Feedback state on an Order (#218). */
+export type OrderFeedback = {
+  feedback: (FeedbackRatings & { submitted_at: string }) | null
+  can_submit: boolean
+  /** Null until the Feedback window lands with its own work item. */
+  closes_at: string | null
+}
+
+/**
+ * The Feedback read, or `hidden` when the page shows no Feedback section:
+ * the `feedback` flag is off (the backend answers 404), the Customer may not
+ * read it, or it could not be read. Feedback is additional to the Order, so
+ * a failure never blocks the page; it is logged.
+ */
+export type OrderFeedbackRead =
+  { state: "success"; feedback: OrderFeedback } | { state: "hidden" }
+
+/**
+ * The status of a failed Feedback request, logged unless it is one of the
+ * expected answers the caller handles itself.
+ */
+function feedbackFailureStatus(
+  error: unknown,
+  method: "GET" | "POST",
+  expected: number[],
+): number | undefined {
+  const status = (error as { status?: number }).status
+  if (status === undefined || !expected.includes(status))
+    log("upstream.request.failed", {
+      route: "/store/orders/:id/feedback",
+      method,
+      status,
+    })
+  return status
+}
+
+export async function readOrderFeedback(
+  id: string,
+): Promise<OrderFeedbackRead> {
+  try {
+    const feedback = await sdk.client.fetch<OrderFeedback>(
+      `/store/orders/${encodeURIComponent(id)}/feedback`,
+      { method: "GET", headers: await getAuthHeaders(), cache: "no-store" },
+    )
+    return { state: "success", feedback }
+  } catch (error) {
+    feedbackFailureStatus(error, "GET", [401, 404])
+    return { state: "hidden" }
+  }
+}
+
+export type SubmitFeedbackResult =
+  | { ok: true; feedback: OrderFeedback }
+  | { ok: false; error: CustomerFeedbackErrorCode }
+
+/**
+ * Sends the Customer's three ratings once (#218). A repeat, a double click
+ * or a retry after a lost response is answered with the recorded ratings,
+ * read back here because the refusal carries no body the SDK keeps. The SDK
+ * keeps only the status, so a `400` is told apart by that same read: an
+ * Order that cannot be rated, or else ratings the backend refused.
+ */
+export async function submitOrderFeedback(
+  id: string,
+  ratings: FeedbackRatings,
+): Promise<SubmitFeedbackResult> {
+  try {
+    const feedback = await sdk.client.fetch<OrderFeedback>(
+      `/store/orders/${encodeURIComponent(id)}/feedback`,
+      {
+        method: "POST",
+        body: ratings,
+        headers: await getAuthHeaders(),
+        cache: "no-store",
+      },
+    )
+    return { ok: true, feedback }
+  } catch (error) {
+    const status = feedbackFailureStatus(error, "POST", [400, 409])
+    // The first submission may have counted, and a refusal is told apart by
+    // the Order's state: read what was recorded.
+    if (
+      status === 400 ||
+      status === 409 ||
+      status === undefined ||
+      status >= 500
+    ) {
+      const read = await readOrderFeedback(id)
+      if (read.state === "success") {
+        if (read.feedback.feedback) return { ok: true, feedback: read.feedback }
+        if (status === 400)
+          return {
+            ok: false,
+            error: read.feedback.can_submit
+              ? "feedback_ratings_invalid"
+              : "order_not_delivered",
+          }
+      }
+    }
+    return { ok: false, error: "unknown_error" }
   }
 }
 

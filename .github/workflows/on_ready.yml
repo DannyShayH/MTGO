@@ -56,6 +56,8 @@ jobs:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/medusa_ci_build
           JWT_SECRET: ci-only-jwt-secret
           COOKIE_SECRET: ci-only-cookie-secret
+          # Release the flagged Feedback Feature in CI (ADR-0022).
+          MTOGO_FF_FEEDBACK: "true"
           STORE_CORS: http://localhost:8000
           ADMIN_CORS: http://localhost:9000
           AUTH_CORS: http://localhost:8000,http://localhost:9000
@@ -138,6 +140,8 @@ jobs:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/medusa_ci_build
           JWT_SECRET: ci-only-jwt-secret
           COOKIE_SECRET: ci-only-cookie-secret
+          # Release the flagged Feedback Feature in CI (ADR-0022).
+          MTOGO_FF_FEEDBACK: "true"
           STORE_CORS: http://localhost:8000
           ADMIN_CORS: http://localhost:9000
           AUTH_CORS: http://localhost:8000,http://localhost:9000
@@ -246,6 +250,8 @@ jobs:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/medusa_ci_build
           JWT_SECRET: ci-only-jwt-secret
           COOKIE_SECRET: ci-only-cookie-secret
+          # Release the flagged Feedback Feature in CI (ADR-0022).
+          MTOGO_FF_FEEDBACK: "true"
           STORE_CORS: http://localhost:8000
           ADMIN_CORS: http://localhost:9000
           AUTH_CORS: http://localhost:8000,http://localhost:9000

@@ -46,6 +46,10 @@ import {
   LOCATION_CONFLICTS,
   LOCATION_REFUSALS,
 } from "../workflows/delivery/location-rules"
+import {
+  FEEDBACK_ALREADY_SUBMITTED,
+  FEEDBACK_REFUSALS,
+} from "../workflows/feedback/rules"
 
 const CATEGORY_ROUTE =
   /^\/partner\/restaurants\/[^/]+\/categories(?:\/[^/]+)?\/?$/
@@ -230,6 +234,29 @@ const shareLocationRefusalBody = positionRefusalBody(
 )
 
 /**
+ * Customer Feedback ratings (#218): any body Medusa's validation refuses
+ * answers one code, while the route's business refusals keep theirs.
+ */
+function feedbackRatingsRefusalBody(
+  url: string,
+  statusCode: number,
+  body: { type?: string },
+  stableErrorCode?: string,
+) {
+  if (
+    statusCode !== 400 ||
+    stableErrorCode ||
+    !/^\/store\/orders\/[^/]+\/feedback\/?$/.test(url.split("?")[0])
+  )
+    return undefined
+  return {
+    type: body.type,
+    code: "feedback_ratings_invalid",
+    message: "feedback_ratings_invalid",
+  }
+}
+
+/**
  * Preserve Medusa responses and additional refusal fields. The correlated
  * sign-in path handles failures safely and logs once when the response ends.
  */
@@ -268,6 +295,8 @@ export function mtogoErrorHandler(): MedusaErrorHandlerFunction {
     ...CONTACT_ATTEMPT_CONFLICTS,
     ...LOCATION_REFUSALS,
     ...LOCATION_CONFLICTS,
+    ...FEEDBACK_REFUSALS,
+    FEEDBACK_ALREADY_SUBMITTED,
   ])
   return (error, req, res, next) => {
     if (error.message === "customer_identity_exists") {
@@ -300,6 +329,12 @@ export function mtogoErrorHandler(): MedusaErrorHandlerFunction {
       : undefined
     if (stableErrorCode) body.code = stableErrorCode
     const categoryBody =
+      feedbackRatingsRefusalBody(
+        req.originalUrl,
+        statusCode,
+        body,
+        stableErrorCode,
+      ) ??
       pickupDistancesRefusalBody(req.originalUrl, statusCode, body) ??
       shareLocationRefusalBody(
         req.originalUrl,

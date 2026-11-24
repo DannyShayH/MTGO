@@ -736,6 +736,50 @@ retries it with `POST /admin/refunds/{order_id}/retry`, #198). Refusals carry `c
 | `400`  | `acceptance_timing_unavailable` | A legacy Order without a recorded deadline is left to an operator. |
 | `409`  | `order_changed`                 | The record changed between read and write (a lost race).           |
 
+## Customer Feedback (#218)
+
+Both routes sit behind the default-off `feedback` Feature flag
+(`MTOGO_FF_FEEDBACK`, ADR-0022). `requireFeatureFlag("feedback")` from
+`feature-flag.ts` runs first and answers `404` while the flag is off, before
+authentication, so a signed-out caller learns nothing either. Use the same
+middleware for later flagged Features. Both routes then require a Customer
+session, `requireIsolatedCustomerIdentity` and `requireOwnedOrder`, like Order
+progress: another Customer's or an unknown Order answers `404`.
+
+### GET /store/orders/:id/feedback
+
+```json
+{
+  "feedback": {
+    "food_rating": 4,
+    "experience_rating": 5,
+    "agent_rating": 3,
+    "submitted_at": "2026-11-24T19:00:00.000Z"
+  },
+  "can_submit": false,
+  "closes_at": null
+}
+```
+
+`feedback` is `null` until the Customer submits. `can_submit` is true only for a
+delivered Order without Feedback. `closes_at` is `null` until the 168-hour
+Feedback window lands with its own work item. The agent and Restaurant are
+never returned. The response is never cached.
+
+### POST /store/orders/:id/feedback
+
+Body: `{ "food_rating": 4, "experience_rating": 5, "agent_rating": 3 }`, all
+required whole numbers from 1 to 5 and nothing else. The workflow copies the
+Delivery's Restaurant, assigned agent and handover time into the Feedback.
+
+| Status | Code                         | When                                                                    |
+| ------ | ---------------------------- | ----------------------------------------------------------------------- |
+| `201`  |                              | Recorded; the body is the read above                                    |
+| `400`  | `feedback_ratings_invalid`   | A rating missing, outside 1 to 5, not a whole number, or an extra field |
+| `400`  | `order_not_delivered`        | Before handover, or the Order was cancelled or its delivery failed      |
+| `404`  |                              | Flag off, unknown Order or another Customer's Order                     |
+| `409`  | `feedback_already_submitted` | A repeat or a concurrent loser; `feedback` holds the recorded ratings   |
+
 ## Partner dish availability (#108)
 
 ### POST /partner/restaurants/:id/dishes/:dish_id/availability

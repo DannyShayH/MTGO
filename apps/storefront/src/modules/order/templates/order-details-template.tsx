@@ -5,20 +5,24 @@ import { ArrowLeft, Calendar, MapPin, ShoppingBag } from "@medusajs/icons"
 import { HttpTypes } from "@medusajs/types"
 import { convertToLocale } from "@lib/util/money"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
-import type { OrderProgressRead } from "@lib/data/orders"
+import type { OrderFeedbackRead, OrderProgressRead } from "@lib/data/orders"
 import OrderProgressPanel from "@modules/order/components/order-progress"
+import OrderFeedbackSection from "@modules/order/components/order-feedback"
 
 export default function OrderDetailsTemplate({
   order,
   locale,
   confirmation = false,
   progress,
+  feedback,
 }: {
   order: HttpTypes.StoreOrder
   locale: Locale
   confirmation?: boolean
   /** The authorized progress read; a refused one shows no timeline. */
   progress?: OrderProgressRead
+  /** The Feedback read (#218); hidden while the `feedback` flag is off. */
+  feedback?: OrderFeedbackRead
 }) {
   const text = CUSTOMER_ORDER_DETAIL_TEXT[locale]
   const showsProgress = !!progress && !!order.display_id
@@ -92,6 +96,14 @@ export default function OrderDetailsTemplate({
           orderId={order.id}
           orderNumber={order.display_id!}
           initial={progress}
+          locale={locale}
+        />
+      )}
+
+      {!confirmation && feedback?.state === "success" && (
+        <OrderFeedbackSection
+          orderId={order.id}
+          initial={feedback.feedback}
           locale={locale}
         />
       )}

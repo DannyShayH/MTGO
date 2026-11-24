@@ -381,6 +381,7 @@ issue.
 | Droplet `.env`               | `JWT_SECRET`, `COOKIE_SECRET`, `STAGING_SPLIT_WORKER`, `BACKEND_HEAP_MB`                                                     | Medusa secrets, worker mode and memory                      |
 | Droplet `.env`               | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` (optional)                                                                             | Customer verification emails via Resend (`corral.dk`)       |
 | Droplet `.env`               | `ORS_API_KEY` (optional)                                                                                                     | Delivery distances via openrouteservice                     |
+| Droplet `.env`               | `MTOGO_FF_FEEDBACK` (`true` in the template, off when unset)                                                                 | Feature flag releasing Feedback (#51, ADR-0022)             |
 | Droplet `.env`               | `STAGING_METRICS_ENABLED`, `STAGING_GRAFANA_URL`, `STAGING_GRAFANA_PORT`, `GRAFANA_ADMIN_PASSWORD` (optional)                | Private request monitoring (`mtogo-deploy.sh monitoring`)   |
 | Storefront image, build time | `NEXT_PUBLIC_MEDUSA_BACKEND_URL`, `NEXT_PUBLIC_BASE_URL`, `NEXT_PUBLIC_DEFAULT_REGION`, `NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY` | Returned by `prepare`, inlined by Next.js                   |
 

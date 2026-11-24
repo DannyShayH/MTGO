@@ -73,7 +73,12 @@ import {
   PostStoreUpdateCustomerAddressSchema,
   PostStoreUpdateCustomerSchema,
 } from "./store/customers/validators"
-import { PostStoreCancelOrderSchema } from "./store/orders/validators"
+import {
+  PostStoreCancelOrderSchema,
+  PostStoreOrderFeedbackSchema,
+} from "./store/orders/validators"
+import { requireFeatureFlag } from "./feature-flag"
+import FeedbackFeatureFlag from "../feature-flags/feedback"
 import { PostCustomerVerificationRequestSchema } from "./auth/customer-verification/validators"
 import {
   PostCustomerEmailChangeConfirmSchema,
@@ -119,6 +124,17 @@ function validatePostalCodeParam(
     ),
   )
 }
+
+/**
+ * Customer Feedback (#218): withheld while the `feedback` flag is off, then
+ * only the signed-in Customer's own Order.
+ */
+const orderFeedbackAccess = [
+  requireFeatureFlag(FeedbackFeatureFlag.key),
+  authenticate("customer", ["bearer", "session"]),
+  requireIsolatedCustomerIdentity,
+  requireOwnedOrder,
+]
 
 // The product index declares filterable `status` and `sales_channel_ids`, so
 // the route narrows it to published products in the key's sales channels.
@@ -242,6 +258,19 @@ export default defineMiddlewares({
         requireIsolatedCustomerIdentity,
         requireOwnedOrder,
         validateAndTransformBody(PostStoreCancelOrderSchema),
+      ],
+    },
+    {
+      matcher: "/store/orders/:id/feedback",
+      method: "GET",
+      middlewares: orderFeedbackAccess,
+    },
+    {
+      matcher: "/store/orders/:id/feedback",
+      method: "POST",
+      middlewares: [
+        ...orderFeedbackAccess,
+        validateAndTransformBody(PostStoreOrderFeedbackSchema),
       ],
     },
     {

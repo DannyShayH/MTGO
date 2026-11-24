@@ -45,6 +45,10 @@ x-backend-environment: &backend-environment
   RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
   # Delivery distances (openrouteservice). Without a key they show as unavailable.
   ORS_API_KEY: ${ORS_API_KEY:-}
+  # Feature flags (ADR-0022): off unless the Droplet .env switches them on.
+  # Staging releases Feedback (#51) with MTOGO_FF_FEEDBACK=true there; set it
+  # to false and restart the backend to withhold it again.
+  MTOGO_FF_FEEDBACK: ${MTOGO_FF_FEEDBACK:-false}
   STOREFRONT_PUBLIC_URL: ${STAGING_STOREFRONT_URL:?}
   PARTNER_PUBLIC_URL: ${STAGING_PARTNER_URL:?}
   MEDUSA_TELEMETRY_DISABLED: "1"

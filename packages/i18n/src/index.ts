@@ -128,3 +128,9 @@ export {
   isDeliveryContactAttemptErrorCode,
   type DeliveryContactAttemptErrorCode,
 } from "./delivery-agent.ts"
+export {
+  CUSTOMER_FEEDBACK_TEXT,
+  CUSTOMER_FEEDBACK_ERROR_CODES,
+  ratingLabel,
+  type CustomerFeedbackErrorCode,
+} from "./customer-feedback.ts"
