@@ -42,11 +42,13 @@ export default function OrderCancellation({
   locale: Locale
 }) {
   const { cancellation, refund } = progress
-  if (!cancellation) return null
+  if (!cancellation && !refund) return null
   const text = CUSTOMER_ORDER_DETAIL_TEXT[locale]
   // When it took effect: a timeout at its deadline, however much later
   // recovery processed it (#144).
-  const time = TIME_FORMAT[locale].format(new Date(cancellation.effective_at))
+  const time = cancellation
+    ? TIME_FORMAT[locale].format(new Date(cancellation.effective_at))
+    : null
   return (
     <section
       aria-labelledby="order-cancellation-heading"
@@ -58,12 +60,14 @@ export default function OrderCancellation({
           <XCircle aria-hidden="true" />
         </span>
         <h2 id="order-cancellation-heading" className="text-lg font-semibold">
-          {text.cancellation}
+          {cancellation ? text.cancellation : text.refund_heading}
         </h2>
       </div>
-      <p className="mt-3 max-w-prose text-sm leading-6">
-        {formatText(text[`cancelled_${cancellation.category}`], { time })}
-      </p>
+      {cancellation && time && (
+        <p className="mt-3 max-w-prose text-sm leading-6">
+          {formatText(text[`cancelled_${cancellation.category}`], { time })}
+        </p>
+      )}
       {refund && (
         <p
           role="status"

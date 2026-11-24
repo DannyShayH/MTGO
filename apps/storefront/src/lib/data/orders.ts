@@ -109,6 +109,15 @@ export type OrderProgress = {
   /** Food milestones recorded by the Restaurant (#146). */
   preparation_started_at: string | null
   ready_at: string | null
+  delivery: {
+    assigned_at: string | null
+    picked_up_at: string | null
+    delivered_at: string | null
+    ended_at: string | null
+    outcome: "delivered" | "cancelled" | "failed" | null
+  } | null
+  /** Unknown includes follow-up whose producer is not connected yet. */
+  follow_up: { status: "unknown" | "pending" | "settled" }
   /** What the Customer may do now, decided at the server's time (#145). */
   available_actions: "cancel"[]
   cancellation: {

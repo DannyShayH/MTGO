@@ -495,6 +495,7 @@ medusaIntegrationTestRunner({
           assigned_at: expect.any(String),
           picked_up_at: delivered.data.delivery.picked_up_at,
           delivered_at: delivered.data.delivery.ended_at,
+          ended_at: delivered.data.delivery.ended_at,
           outcome: "delivered",
         })
         // Paid placement facts stay as they were.

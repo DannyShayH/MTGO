@@ -8,6 +8,7 @@ export const CUSTOMER_ORDER_DETAIL_TEXT = {
     contact: "Kontakt",
     total: "I alt",
     cancellation: "Annulleret ordre",
+    refund_heading: "Refusion",
     cancelled_restaurant_rejected:
       "Restauranten kunne ikke lave din ordre og annullerede den {time}.",
     cancelled_acceptance_timeout:
@@ -43,6 +44,11 @@ export const CUSTOMER_ORDER_DETAIL_TEXT = {
     step_preparing: "Tilberedes",
     step_ready: "Klar til afhentning",
     step_cancelled: "Annulleret",
+    step_assigned: "Et bud er fundet",
+    step_finding_agent: "Vi finder et bud",
+    step_picked_up: "Afhentet",
+    step_delivered: "Leveret",
+    step_failed: "Leveringen kunne ikke gennemføres",
     step_completed: "Gennemført",
     step_current: "Nu",
     step_upcoming: "Kommer senere",
@@ -53,11 +59,17 @@ export const CUSTOMER_ORDER_DETAIL_TEXT = {
     now_preparing: "Restauranten er i gang med at lave din mad.",
     now_ready: "Maden er klar hos restauranten og venter på at blive hentet.",
     now_cancelled: "Ordren er annulleret.",
+    now_delivered: "Din ordre er leveret.",
+    now_failed: "Leveringen kunne ikke gennemføres.",
+    now_picked_up: "Buddet har afhentet din ordre.",
     state_awaiting_acceptance: "Venter på restauranten",
     state_accepted: "Accepteret",
     state_preparing: "Tilberedes",
     state_ready: "Klar til afhentning",
     state_cancelled: "Annulleret",
+    state_delivered: "Leveret",
+    state_failed: "Levering afsluttet",
+    state_picked_up: "Afhentet",
     progress_updated: "Opdateret {time}",
     progress_updating: "Opdaterer …",
     progress_refresh: "Opdater",
@@ -79,6 +91,7 @@ export const CUSTOMER_ORDER_DETAIL_TEXT = {
     contact: "Contact",
     total: "Total",
     cancellation: "Cancelled Order",
+    refund_heading: "Refund",
     cancelled_restaurant_rejected:
       "The Restaurant could not make your Order and cancelled it at {time}.",
     cancelled_acceptance_timeout:
@@ -114,6 +127,11 @@ export const CUSTOMER_ORDER_DETAIL_TEXT = {
     step_preparing: "Preparing",
     step_ready: "Ready for pickup",
     step_cancelled: "Cancelled",
+    step_assigned: "Delivery agent assigned",
+    step_finding_agent: "Finding a Delivery agent",
+    step_picked_up: "Picked up",
+    step_delivered: "Delivered",
+    step_failed: "Delivery could not be completed",
     step_completed: "Done",
     step_current: "Now",
     step_upcoming: "Upcoming",
@@ -124,11 +142,17 @@ export const CUSTOMER_ORDER_DETAIL_TEXT = {
     now_preparing: "The Restaurant is preparing your food.",
     now_ready: "Your food is ready at the Restaurant, waiting to be picked up.",
     now_cancelled: "This Order is cancelled.",
+    now_delivered: "Your Order has been delivered.",
+    now_failed: "Delivery could not be completed.",
+    now_picked_up: "The Delivery agent has picked up your Order.",
     state_awaiting_acceptance: "Waiting for the Restaurant",
     state_accepted: "Accepted",
     state_preparing: "Preparing",
     state_ready: "Ready for pickup",
     state_cancelled: "Cancelled",
+    state_delivered: "Delivered",
+    state_failed: "Delivery ended",
+    state_picked_up: "Picked up",
     progress_updated: "Updated {time}",
     progress_updating: "Updating …",
     progress_refresh: "Refresh",
@@ -172,10 +196,24 @@ export type FoodProgressFacts = {
   preparation_started_at: string | null
   ready_at: string | null
   cancellation: { effective_at: string } | null
+  delivery?: {
+    assigned_at: string | null
+    picked_up_at: string | null
+    delivered_at: string | null
+    ended_at: string | null
+    outcome: "delivered" | "cancelled" | "failed" | null
+  } | null
 }
 
 export type FoodStep = {
-  key: FoodStepKey | "cancelled"
+  key:
+    | FoodStepKey
+    | "cancelled"
+    | "finding_agent"
+    | "assigned"
+    | "picked_up"
+    | "delivered"
+    | "failed"
   status: "completed" | "current" | "upcoming"
   /** The recorded time, or null when none was recorded or it is upcoming. */
   at: string | null
@@ -202,7 +240,7 @@ export const foodProgressSteps = (facts: FoodProgressFacts): FoodStep[] => {
     preparing: facts.preparation_started_at,
     ready: facts.ready_at,
   }
-  if (facts.state === "cancelled") {
+  if (facts.state === "cancelled" || facts.delivery?.outcome) {
     // Placement is a fact of every Order; later stages only when recorded.
     const reachedStages = FOOD_STEPS.filter(
       (key, index) => index === 0 || times[key] !== null,
@@ -214,15 +252,39 @@ export const foodProgressSteps = (facts: FoodProgressFacts): FoodStep[] => {
         status: "completed" as const,
         at: times[key],
       })),
+      ...(facts.delivery?.assigned_at
+        ? [
+            {
+              key: "assigned" as const,
+              status: "completed" as const,
+              at: facts.delivery.assigned_at,
+            },
+          ]
+        : []),
+      ...(facts.delivery?.picked_up_at
+        ? [
+            {
+              key: "picked_up" as const,
+              status: "completed" as const,
+              at: facts.delivery.picked_up_at,
+            },
+          ]
+        : []),
       {
-        key: "cancelled",
+        key:
+          facts.state === "cancelled" || facts.delivery?.outcome === "cancelled"
+            ? "cancelled"
+            : facts.delivery?.outcome === "delivered"
+              ? "delivered"
+              : "failed",
         status: "completed",
-        at: facts.cancellation?.effective_at ?? null,
+        at:
+          facts.cancellation?.effective_at ?? facts.delivery?.ended_at ?? null,
       },
     ]
   }
   const reached = REACHED_BY_STATE[facts.state]
-  return FOOD_STEPS.map((key, index) => ({
+  const food: FoodStep[] = FOOD_STEPS.map((key, index) => ({
     key,
     status:
       index < reached
@@ -232,4 +294,25 @@ export const foodProgressSteps = (facts: FoodProgressFacts): FoodStep[] => {
           : "upcoming",
     at: index <= reached ? times[key] : null,
   }))
+  if (!facts.delivery) return food
+  const { assigned_at, picked_up_at, delivered_at, outcome } = facts.delivery
+  if (outcome === "delivered" || picked_up_at)
+    for (const step of food)
+      if (step.status === "current") step.status = "completed"
+  return [
+    ...food,
+    assigned_at
+      ? { key: "assigned", status: "completed", at: assigned_at }
+      : { key: "finding_agent", status: "current", at: null },
+    {
+      key: "picked_up",
+      status: picked_up_at ? "completed" : "upcoming",
+      at: picked_up_at,
+    },
+    {
+      key: "delivered",
+      status: delivered_at ? "completed" : "upcoming",
+      at: delivered_at,
+    },
+  ]
 }

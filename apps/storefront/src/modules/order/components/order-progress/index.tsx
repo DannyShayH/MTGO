@@ -20,21 +20,10 @@ import CancelOrder from "@modules/order/components/cancel-order"
 import OrderCancellation from "@modules/order/components/order-cancellation"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { usePathname } from "next/navigation"
-
-/** Automatic refresh while the page is visible; doubled per repeated failure. */
-const POLL_MS = 15_000
-const MAX_BACKOFF_MS = 120_000
-/** About ten minutes at the base rate, then only on return or request. */
-const MAX_AUTOMATIC_READS = 40
-/** Returning sooner than this after a read does not read again. */
-const RETURN_THROTTLE_MS = 5_000
+import { isSettled, serializeRefresh, startPolling } from "./polling"
 
 /** A successful read: the progress and the server's time of reading it. */
 type ConfirmedProgress = { progress: OrderProgress; server_time: string }
-
-/** Nothing more can happen to the food or the refund on this page. */
-const isSettled = ({ state, refund }: OrderProgress) =>
-  state === "ready" || (state === "cancelled" && refund?.status === "succeeded")
 
 /** Keep the later of two reads, so a slow older read never undoes a newer one. */
 const later = (
@@ -48,7 +37,7 @@ const later = (
 /**
  * The Customer's Order timeline of food progress (#147) and the outcome
  * panels that share its progress read. It renders only recorded facts,
- * refreshes them with bounded polling while the page is visible, again on
+ * checks them every ten seconds while the page is visible, again on
  * returning to it, and adopts the server's re-read after an action such as
  * cancelling. A failed refresh keeps the last progress and says how old it
  * is; a refused one (signed out, no longer the Customer's) stops refreshing.
@@ -70,13 +59,12 @@ export default function OrderProgressPanel({
   const [failures, setFailures] = useState(initial.state === "failed" ? 1 : 0)
   const [isRefused, setIsRefused] = useState(initial.state === "not_found")
   const [isBusy, setIsBusy] = useState(false)
-  const [isPaused, setIsPaused] = useState(false)
-  const [pollTick, setPollTick] = useState(0)
   const [isLive, setIsLive] = useState(false)
   const [adoptedRead, setAdoptedRead] = useState(initial)
-  const isReading = useRef(false)
-  const automaticReads = useRef(0)
-  const lastReadAt = useRef(0)
+  const generation = useRef(0)
+  const serializedRefresh = useRef<ReturnType<typeof serializeRefresh> | null>(
+    null,
+  )
 
   // The page re-rendered on the server (after an action): adopt its read
   // and restart polling from it.
@@ -87,84 +75,75 @@ export default function OrderProgressPanel({
       setIsLive(true)
       setIsRefused(false)
       setFailures(0)
-      setIsPaused(false)
-      setPollTick((tick) => tick + 1)
     } else if (initial.state === "not_found") {
       setConfirmed(null)
       setIsRefused(true)
     }
   }
-  useEffect(() => {
-    lastReadAt.current = Date.now()
-    automaticReads.current = 0
-  }, [initial])
-
-  const refresh = useCallback(
-    async (isAutomatic: boolean) => {
-      if (isReading.current) return
-      isReading.current = true
-      if (isAutomatic) automaticReads.current += 1
-      else {
-        automaticReads.current = 0
-        setIsPaused(false)
-        setIsBusy(true)
-      }
-      const result = await readOrderProgress(orderId).catch(
-        () => ({ state: "failed" }) as const,
-      )
-      isReading.current = false
-      lastReadAt.current = Date.now()
-      if (result.state === "success") {
-        setConfirmed((current) => later(current, result))
-        setIsLive(true)
-        setFailures(0)
-        setIsRefused(false)
-      } else if (result.state === "not_found") {
-        setConfirmed(null)
-        setIsRefused(true)
-      } else setFailures((count) => count + 1)
-      if (automaticReads.current >= MAX_AUTOMATIC_READS) setIsPaused(true)
-      setIsBusy(false)
-      setPollTick((tick) => tick + 1)
+  useEffect(
+    () => () => {
+      generation.current += 1
     },
-    [orderId],
+    [initial, orderId],
   )
+  const read = useCallback(async () => {
+    const readGeneration = generation.current
+    const result = await readOrderProgress(orderId).catch(
+      () => ({ state: "failed" }) as const,
+    )
+    if (readGeneration !== generation.current) return false
+    if (result.state === "success") {
+      setConfirmed((current) => later(current, result))
+      setIsLive(true)
+      setFailures(0)
+      setIsRefused(false)
+    } else if (result.state === "not_found") {
+      setConfirmed(null)
+      setIsRefused(true)
+      return false
+    } else setFailures((count) => count + 1)
+    return true
+  }, [orderId])
+  useEffect(() => {
+    serializedRefresh.current = serializeRefresh(read)
+    return () => {
+      serializedRefresh.current = null
+    }
+  }, [read])
+  const refresh = useCallback(async (automatic: boolean) => {
+    if (!automatic) setIsBusy(true)
+    try {
+      await serializedRefresh.current?.(automatic)
+    } finally {
+      if (!automatic) setIsBusy(false)
+    }
+  }, [])
 
   const isFinal = confirmed ? isSettled(confirmed.progress) : false
   useEffect(() => {
-    if (isPaused || isFinal || isRefused) return
-    const delay = Math.min(
-      POLL_MS * 2 ** Math.max(0, failures - 1),
-      MAX_BACKOFF_MS,
+    if (isFinal || isRefused) return
+    return startPolling(
+      () => document.visibilityState === "visible",
+      () => void refresh(true),
     )
-    const timer = setTimeout(() => {
-      // A hidden page waits; returning to it reads and restarts the timer.
-      if (document.visibilityState === "visible") void refresh(true)
-    }, delay)
-    return () => clearTimeout(timer)
-  }, [pollTick, failures, isPaused, isFinal, isRefused, refresh])
+  }, [isFinal, isRefused, refresh])
 
   useEffect(() => {
     const onReturn = () => {
-      if (document.visibilityState !== "visible") return
-      if (Date.now() - lastReadAt.current < RETURN_THROTTLE_MS) return
+      if (document.visibilityState !== "visible" || isRefused) return
       void refresh(false)
     }
     document.addEventListener("visibilitychange", onReturn)
-    window.addEventListener("focus", onReturn)
     return () => {
       document.removeEventListener("visibilitychange", onReturn)
-      window.removeEventListener("focus", onReturn)
     }
-  }, [refresh])
+  }, [refresh, isRefused])
 
   const freshness: Freshness = isRefused
     ? "refused"
     : failures > 0
       ? "stale"
-      : isPaused && !isFinal
-        ? "paused"
-        : "current"
+      : "current"
 
   return (
     <>
@@ -190,7 +169,7 @@ export default function OrderProgressPanel({
   )
 }
 
-type Freshness = "current" | "stale" | "paused" | "refused"
+type Freshness = "current" | "stale" | "refused"
 
 const NOTICE =
   "mt-5 max-w-prose rounded-lg p-4 text-sm leading-6 [overflow-wrap:anywhere] motion-safe:animate-swap-in"
@@ -198,12 +177,18 @@ const WARNING = `${NOTICE} bg-mtogo-status-warning-surface text-mtogo-status-war
 const ERROR = `${NOTICE} bg-mtogo-status-error-surface text-mtogo-status-error-text`
 
 /** The Order's state at a glance, in the pairs the design brief assigns. */
-const STATE_TONE: Record<OrderProgress["state"], string> = {
+const STATE_TONE: Record<
+  OrderProgress["state"] | "delivered" | "failed" | "picked_up",
+  string
+> = {
   awaiting_acceptance: "bg-mtogo-surface-selected text-mtogo-text-link",
   accepted: "bg-mtogo-surface-selected text-mtogo-text-link",
   preparing: "bg-mtogo-surface-selected text-mtogo-text-link",
   ready: "bg-mtogo-status-success-surface text-mtogo-status-success-text",
   cancelled: "bg-mtogo-status-error-surface text-mtogo-status-error-text",
+  delivered: "bg-mtogo-status-success-surface text-mtogo-status-success-text",
+  failed: "bg-mtogo-status-error-surface text-mtogo-status-error-text",
+  picked_up: "bg-mtogo-surface-selected text-mtogo-text-link",
 }
 
 /** Press feedback and a quiet outline, as the basket's pill controls have. */
@@ -230,8 +215,25 @@ function Timeline({
   const pathname = usePathname()
   const headingId = useId()
   const steps = confirmed ? foodProgressSteps(confirmed.progress) : []
+  const assignment = steps.find(
+    (step) => step.key === "assigned" || step.key === "finding_agent",
+  )
+  const timeline = steps.filter(
+    (step) => step.key !== "assigned" && step.key !== "finding_agent",
+  )
   const asOf = confirmed ? formatOrderTime(confirmed.server_time, locale) : ""
-  const state = confirmed?.progress.state
+  const progress = confirmed?.progress
+  const state =
+    progress?.state === "cancelled" ||
+    progress?.delivery?.outcome === "cancelled"
+      ? "cancelled"
+      : progress?.delivery?.outcome === "failed"
+        ? "failed"
+        : progress?.delivery?.outcome === "delivered"
+          ? "delivered"
+          : progress?.delivery?.picked_up_at
+            ? "picked_up"
+            : progress?.state
 
   return (
     <section
@@ -264,13 +266,30 @@ function Timeline({
         {state && text[`now_${state}`]}
       </p>
 
+      {assignment && (
+        <p className="mt-5 rounded-lg bg-mtogo-surface-page p-4 text-sm leading-6">
+          {
+            text[
+              `step_${assignment.key === "assigned" ? "assigned" : "finding_agent"}`
+            ]
+          }
+          {assignment.at && (
+            <time
+              dateTime={assignment.at}
+              className="ml-2 tabular-nums text-mtogo-text-secondary"
+            >
+              {formatOrderTime(assignment.at, locale)}
+            </time>
+          )}
+        </p>
+      )}
       {confirmed && (
         <ol className="mt-5" data-testid="order-progress-steps">
-          {steps.map((step, index) => (
+          {timeline.map((step, index) => (
             <StepItem
               key={step.key}
               step={step}
-              isLast={index === steps.length - 1}
+              isLast={index === timeline.length - 1}
               isLive={isLive}
               locale={locale}
             />
@@ -297,11 +316,6 @@ function Timeline({
               {CUSTOMER_AUTH[locale].signIn}
             </LocalizedClientLink>
           </div>
-        )}
-        {freshness === "paused" && (
-          <p className="mt-5 max-w-prose text-sm leading-6 text-mtogo-text-secondary motion-safe:animate-swap-in">
-            {text.progress_paused}
-          </p>
         )}
       </div>
 

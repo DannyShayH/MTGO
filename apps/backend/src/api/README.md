@@ -554,10 +554,12 @@ data; the Customer's delivery charge remains zero.
 
 The owning Customer's uncached tracking projection returns `order` (the safe
 Order ID and recorded checkout `language`), `progress` and `server_time`.
-Food milestones, cancellation and refund use the same recorded facts as the
-progress endpoint. Unknown, unpublished and other Customers' Orders return the
-same not-found response. Authentication is required. This first projection
-does not claim that location or Feedback follow-up is available.
+Food milestones and cancellation use the same recorded facts as the progress
+endpoint. The refund projection contains only status, amount, currency and
+success time. `progress.follow_up.status` is `pending` for an unresolved refund
+and otherwise `unknown` until Feedback follow-up is connected. Unknown,
+unpublished and other Customers' Orders return the same not-found response.
+Authentication is required. Location and Feedback are not yet available.
 
 | Status | Meaning                                                      |
 | ------ | ------------------------------------------------------------ |
@@ -569,8 +571,9 @@ does not claim that location or Feedback follow-up is available.
 
 Since #161 `progress.delivery` carries the committed delivery milestones
 that the #50 timeline reads. It is `null` before acceptance, otherwise
-`{ assigned_at, picked_up_at, delivered_at, outcome }`, each `null` until
-recorded. `delivered_at` is set only for a confirmed handover. The agent's
+`{ assigned_at, picked_up_at, delivered_at, ended_at, outcome }`, each `null`
+until recorded. `delivered_at` is set only for a confirmed handover; `ended_at`
+records the time of any terminal outcome. The agent's
 identity is never included.
 
 **Actor:** the owning Customer (`customer`, bearer or session), with the same

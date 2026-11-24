@@ -2,6 +2,8 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import SystemProviderService from "@medusajs/payment/dist/providers/system"
 import { createOrderWorkflow } from "@medusajs/medusa/core-flows"
 import { restaurantOrdersHarness } from "../helpers/restaurant-orders"
+import { DELIVERY_MODULE } from "../../src/modules/delivery"
+import type DeliveryModuleService from "../../src/modules/delivery/service"
 
 jest.setTimeout(240000)
 
@@ -60,6 +62,7 @@ medusaIntegrationTestRunner({
           assigned_at: null,
           picked_up_at: null,
           delivered_at: null,
+          ended_at: null,
           outcome: null,
         },
       }
@@ -136,6 +139,11 @@ medusaIntegrationTestRunner({
             succeeded_at: expect.any(String),
           },
         })
+        const tracking = await api.get(`/store/orders/${order.id}/tracking`, {
+          headers: customer,
+        })
+        expect(tracking.data.progress.refund.status).toBe("succeeded")
+        expect(tracking.data.progress.follow_up.status).toBe("unknown")
       })
 
       it("shows a failed refund as still owed, without the provider's failure", async () => {
@@ -156,6 +164,12 @@ medusaIntegrationTestRunner({
         const body = JSON.stringify(shown.data)
         expect(body).not.toContain("secret-detail")
         expect(body).not.toContain("failure_code")
+        const tracking = await api.get(`/store/orders/${order.id}/tracking`, {
+          headers: customer,
+        })
+        expect(tracking.data.progress.refund.status).toBe("failed")
+        expect(tracking.data.progress.follow_up.status).toBe("pending")
+        expect(JSON.stringify(tracking.data)).not.toContain("last_attempted_at")
       })
 
       it("shows a refund still in progress as pending", async () => {
@@ -176,6 +190,34 @@ medusaIntegrationTestRunner({
           succeeded_at: null,
         })
       })
+    })
+
+    it("shows the owning Customer a recorded failed delivery without private operational details", async () => {
+      const order = await placePaidOrder(pizzeriaId)
+      await accept(staff.headers, order.id)
+      await startPreparation(staff.headers, order.id)
+      const delivery =
+        getContainer().resolve<DeliveryModuleService>(DELIVERY_MODULE)
+      const [record] = await delivery.listIntendedDeliveries({
+        order_id: order.id,
+      })
+      const endedAt = new Date("2026-01-01T12:00:00.000Z")
+      await delivery.updateIntendedDeliveries({
+        id: record.id,
+        terminal_outcome: "failed",
+        terminal_at: endedAt,
+        terminal_by: "private-operator",
+      })
+      const read = await api.get(`/store/orders/${order.id}/tracking`, {
+        headers: customer,
+      })
+      expect(read.data.progress.delivery).toMatchObject({
+        outcome: "failed",
+        ended_at: endedAt.toISOString(),
+        delivered_at: null,
+      })
+      expect(read.data.progress.follow_up.status).toBe("unknown")
+      expect(JSON.stringify(read.data)).not.toContain("private-operator")
     })
 
     it("hides a provisional Order from an unfinished checkout", async () => {

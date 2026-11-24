@@ -43,6 +43,8 @@ export type DeliveryProgress = {
   picked_up_at: string | null
   /** The confirmed handover; only a delivered outcome has one. */
   delivered_at: string | null
+  /** Recorded end time for any terminal delivery outcome. */
+  ended_at: string | null
   outcome: TerminalOutcome | null
 } | null
 
@@ -68,6 +70,7 @@ export function deliveryProgressOf(record: {
     picked_up_at: iso(record.picked_up_at),
     delivered_at:
       record.terminal_outcome === "delivered" ? iso(record.terminal_at) : null,
+    ended_at: record.terminal_outcome ? iso(record.terminal_at) : null,
     outcome: record.terminal_outcome,
   }
 }
@@ -165,6 +168,20 @@ export const readOrderTrackingStep = createStep(
       { order_language?: unknown } | undefined
     const language = review?.order_language === "en" ? "en" : "da"
     const progress = await readOrderProgress(container, input.order_id)
-    return new StepResponse({ order: { id: order.id, language }, ...progress })
+    const { refund } = progress.progress
+    const customerRefund = refund && {
+      status: refund.status,
+      amount_including_vat: refund.amount_including_vat,
+      currency_code: refund.currency_code,
+      succeeded_at: refund.succeeded_at,
+    }
+    const follow_up = {
+      status: refund && refund.status !== "succeeded" ? "pending" : "unknown",
+    }
+    return new StepResponse({
+      order: { id: order.id, language },
+      ...progress,
+      progress: { ...progress.progress, refund: customerRefund, follow_up },
+    })
   },
 )

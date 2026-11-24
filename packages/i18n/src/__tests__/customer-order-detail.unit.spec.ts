@@ -131,3 +131,117 @@ test("every step, step status and Order state has a Danish and an English text",
     }
   }
 })
+
+test("delivery milestones preserve kitchen progress and end with the recorded failure", () => {
+  const steps = foodProgressSteps({
+    ...awaiting,
+    state: "preparing",
+    accepted_at: accepted,
+    preparation_started_at: started,
+    delivery: {
+      assigned_at: "2026-11-19T11:03:00.000Z",
+      picked_up_at: null,
+      delivered_at: null,
+      ended_at: "2026-11-19T11:10:00.000Z",
+      outcome: "failed",
+    },
+  })
+  assert.deepEqual(
+    steps.map(({ key, status, at }) => [key, status, at]),
+    [
+      ["placed", "completed", placed],
+      ["accepted", "completed", accepted],
+      ["preparing", "completed", started],
+      ["assigned", "completed", "2026-11-19T11:03:00.000Z"],
+      ["failed", "completed", "2026-11-19T11:10:00.000Z"],
+    ],
+  )
+})
+
+test("assignment and preparation can both be current", () => {
+  const steps = foodProgressSteps({
+    ...awaiting,
+    state: "preparing",
+    accepted_at: accepted,
+    preparation_started_at: started,
+    delivery: {
+      assigned_at: null,
+      picked_up_at: null,
+      delivered_at: null,
+      ended_at: null,
+      outcome: null,
+    },
+  })
+  assert.ok(
+    steps.some((step) => step.key === "preparing" && step.status === "current"),
+  )
+  assert.ok(
+    steps.some(
+      (step) => step.key === "finding_agent" && step.status === "current",
+    ),
+  )
+})
+
+test("handover preserves recorded delivery times", () => {
+  const steps = foodProgressSteps({
+    ...awaiting,
+    state: "ready",
+    accepted_at: accepted,
+    preparation_started_at: started,
+    ready_at: ready,
+    delivery: {
+      assigned_at: accepted,
+      picked_up_at: ready,
+      delivered_at: cancelledAt,
+      ended_at: cancelledAt,
+      outcome: "delivered",
+    },
+  })
+  assert.deepEqual(
+    steps.slice(-3).map(({ key, status, at }) => [key, status, at]),
+    [
+      ["assigned", "completed", accepted],
+      ["picked_up", "completed", ready],
+      ["delivered", "completed", cancelledAt],
+    ],
+  )
+})
+
+test("delivery outcome decisions retain only recorded milestones", () => {
+  const cases = [
+    {
+      reason: "pickup without a terminal outcome remains in progress",
+      delivery: {
+        assigned_at: accepted,
+        picked_up_at: ready,
+        delivered_at: null,
+        ended_at: null,
+        outcome: null,
+      },
+      last: ["delivered", "upcoming", null],
+    },
+    {
+      reason: "a cancelled delivery ends at its recorded time",
+      delivery: {
+        assigned_at: accepted,
+        picked_up_at: null,
+        delivered_at: null,
+        ended_at: cancelledAt,
+        outcome: "cancelled" as const,
+      },
+      last: ["cancelled", "completed", cancelledAt],
+    },
+  ]
+  for (const { reason, delivery, last } of cases) {
+    const steps = foodProgressSteps({
+      ...awaiting,
+      state: "ready",
+      accepted_at: accepted,
+      preparation_started_at: started,
+      ready_at: ready,
+      delivery,
+    })
+    const step = steps.at(-1)
+    assert.deepEqual(step && [step.key, step.status, step.at], last, reason)
+  }
+})

@@ -154,6 +154,15 @@ performance verification has been performed by this documentation-only discovery
 Read-only inspection on 24 November 2026 found the following. These are source
 observations, not runtime verification or proof that Feature #50 is delivered.
 
+The later delivery-outcome slice extends the tracking read with the recorded
+delivery end time and shows assignment independently of kitchen progress. The
+timeline retains recorded milestones when delivery ends, and the refund outcome
+remains separate from that outcome. While visible, the page checks every ten
+seconds and refreshes on return; an unresolved or unknown follow-up continues
+checking. A delivered Order's Feedback follow-up remains unknown until the
+invitation integration supplies its own state. The Customer read does not expose
+refund retry timestamps or delivery actors.
+
 - The delivered #147 food-progress panel distinguishes completed, current and
   upcoming stages. It polls every fifteen seconds, stops at readiness and pauses
   after forty automatic reads. It needs delivery-aware continuation and recovery
