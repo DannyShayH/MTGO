@@ -4,6 +4,7 @@ import { accountText } from "@lib/util/account-text"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import OrderDetailsTemplate from "@modules/order/templates/order-details-template"
 import { notFound } from "next/navigation"
+import { reviewedCheckoutLanguage } from "@dtc/i18n"
 
 type Props = { params: Promise<{ id: string }> }
 export default async function OrderDetailPage({ params }: Props) {
@@ -31,7 +32,7 @@ export default async function OrderDetailPage({ params }: Props) {
   return (
     <OrderDetailsTemplate
       order={result.order}
-      locale={locale}
+      locale={reviewedCheckoutLanguage(result.order.metadata) ?? "da"}
       progress={progress}
     />
   )

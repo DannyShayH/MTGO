@@ -21,7 +21,10 @@ import type { AnnouncedRevisions } from "./order-feed"
 import { cancelRestaurantOrderStep } from "./steps/cancel-restaurant-order"
 import { settleOrderCancellationStep } from "./steps/settle-order-cancellation"
 import { cancelCustomerOrderStep } from "./steps/cancel-customer-order"
-import { readOrderProgressStep } from "./steps/read-order-progress"
+import {
+  readOrderProgressStep,
+  readOrderTrackingStep,
+} from "./steps/read-order-progress"
 import {
   cancelLegacyAwaitingOrdersStep,
   type LegacyCancellationInput,
@@ -253,6 +256,13 @@ export const retrieveOrderProgressWorkflow = createWorkflow(
   "retrieve-order-progress",
   function (input: { order_id: string }) {
     return new WorkflowResponse(readOrderProgressStep(input))
+  },
+)
+
+export const retrieveOrderTrackingWorkflow = createWorkflow(
+  "retrieve-order-tracking",
+  function (input: { order_id: string }) {
+    return new WorkflowResponse(readOrderTrackingStep(input))
   },
 )
 

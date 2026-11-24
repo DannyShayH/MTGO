@@ -149,7 +149,7 @@ export async function readOrderProgress(
     const { progress, server_time } = await sdk.client.fetch<{
       progress: OrderProgress
       server_time: string
-    }>(`/store/orders/${encodeURIComponent(id)}/progress`, {
+    }>(`/store/orders/${encodeURIComponent(id)}/tracking`, {
       method: "GET",
       headers: await getAuthHeaders(),
       cache: "no-store",
@@ -157,9 +157,10 @@ export async function readOrderProgress(
     return { state: "success", progress, server_time }
   } catch (error) {
     const status = (error as { status?: number }).status
-    if (status === 401 || status === 404) return { state: "not_found" }
+    if (status === 401 || status === 403 || status === 404)
+      return { state: "not_found" }
     log("upstream.request.failed", {
-      route: "/store/orders/:id/progress",
+      route: "/store/orders/:id/tracking",
       method: "GET",
       status,
     })

@@ -21,8 +21,7 @@ export default function OrderDetailsTemplate({
   progress?: OrderProgressRead
 }) {
   const text = CUSTOMER_ORDER_DETAIL_TEXT[locale]
-  const showsProgress =
-    !!progress && progress.state !== "not_found" && !!order.display_id
+  const showsProgress = !!progress && !!order.display_id
   const address = order.shipping_address
   const account = accountText[locale]
   const statuses: Record<string, string> = {

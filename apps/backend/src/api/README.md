@@ -550,6 +550,21 @@ The zero-cost `MTOGO delivery included` shipping option is created by the
 run again without adding another option. The option is internal fulfillment
 data; the Customer's delivery charge remains zero.
 
+### GET /store/orders/:id/tracking
+
+The owning Customer's uncached tracking projection returns `order` (the safe
+Order ID and recorded checkout `language`), `progress` and `server_time`.
+Food milestones, cancellation and refund use the same recorded facts as the
+progress endpoint. Unknown, unpublished and other Customers' Orders return the
+same not-found response. Authentication is required. This first projection
+does not claim that location or Feedback follow-up is available.
+
+| Status | Meaning                                                      |
+| ------ | ------------------------------------------------------------ |
+| `200`  | Customer-owned tracking projection                           |
+| `401`  | Authentication is missing or invalid                         |
+| `404`  | Order is unknown, unpublished or belongs to another Customer |
+
 ### GET /store/orders/:id/progress
 
 Since #161 `progress.delivery` carries the committed delivery milestones

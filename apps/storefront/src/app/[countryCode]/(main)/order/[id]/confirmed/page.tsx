@@ -1,14 +1,15 @@
-import { retrieveOrder } from "@lib/data/orders"
+import { readOrderProgress, retrieveOrder } from "@lib/data/orders"
+import { retrieveCustomer } from "@lib/data/current-customer"
 import {
   CUSTOMER_ORDER_CONFIRMATION_TEXT,
   reviewedCheckoutLanguage,
 } from "@dtc/i18n"
 import OrderCompletedTemplate from "@modules/order/templates/order-completed-template"
 import { Metadata } from "next"
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
 
 type Props = {
-  params: Promise<{ id: string }>
+  params: Promise<{ id: string; countryCode: string }>
 }
 export async function generateMetadata(props: Props): Promise<Metadata> {
   const { id } = await props.params
@@ -20,16 +21,23 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
 
 export default async function OrderConfirmedPage(props: Props) {
   const params = await props.params
+  if (!(await retrieveCustomer())) {
+    const next = `/${params.countryCode}/order/${encodeURIComponent(params.id)}/confirmed`
+    redirect(`/${params.countryCode}/account?next=${encodeURIComponent(next)}`)
+  }
   const order = await retrieveOrder(params.id).catch(() => null)
 
   if (!order) {
     return notFound()
   }
 
+  const progress = await readOrderProgress(params.id)
+
   return (
     <OrderCompletedTemplate
       order={order}
       locale={reviewedCheckoutLanguage(order.metadata) ?? "da"}
+      progress={progress}
     />
   )
 }

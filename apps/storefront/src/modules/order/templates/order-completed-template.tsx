@@ -4,13 +4,16 @@ import { CheckCircleSolid } from "@medusajs/icons"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { CUSTOMER_ORDER_DETAIL_TEXT } from "@dtc/i18n"
 import OrderDetailsTemplate from "./order-details-template"
+import type { OrderProgressRead } from "@lib/data/orders"
 
 export default function OrderCompletedTemplate({
   order,
   locale,
+  progress,
 }: {
   order: HttpTypes.StoreOrder
   locale: Locale
+  progress: OrderProgressRead
 }) {
   const text = CUSTOMER_ORDER_CONFIRMATION_TEXT[locale]
 
@@ -41,7 +44,12 @@ export default function OrderCompletedTemplate({
           </p>
         </header>
         <div className="rounded-card border border-mtogo-border-subtle bg-mtogo-surface-card p-6 sm:p-8">
-          <OrderDetailsTemplate order={order} locale={locale} confirmation />
+          <OrderDetailsTemplate
+            order={order}
+            locale={locale}
+            progress={progress}
+            confirmation
+          />
         </div>
         <LocalizedClientLink
           href="/account/orders"

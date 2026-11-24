@@ -17,6 +17,8 @@ medusaIntegrationTestRunner({
     const {
       operations,
       placePaidOrder,
+      reviewedCartOf,
+      complete,
       registerCustomer,
       signInAsStaffOf,
       queue,
@@ -492,6 +494,98 @@ medusaIntegrationTestRunner({
     })
 
     describe("GET /store/orders/:id/progress", () => {
+      it("provides the owning Customer an uncached tracking projection", async () => {
+        const order = await placePaidOrder(pizzeriaId)
+        const shown = await api.get(`/store/orders/${order.id}/tracking`, {
+          headers: customer,
+          validateStatus: () => true,
+        })
+        expect(shown.status).toBe(200)
+        expect(shown.headers["cache-control"]).toContain("no-store")
+        expect(shown.data).toMatchObject({
+          order: { id: order.id, language: "da" },
+          progress: {
+            order_id: order.id,
+            placed_at: order.order_operation.placed_at,
+          },
+          server_time: expect.any(String),
+        })
+      })
+
+      it.each([
+        { actor: "owner", exists: true, status: 200, reason: "DT: owner" },
+        {
+          actor: "other",
+          exists: true,
+          status: 404,
+          reason: "DT: another Customer",
+        },
+        {
+          actor: "other",
+          exists: false,
+          status: 404,
+          reason: "DT: unknown Order",
+        },
+        {
+          actor: "anonymous",
+          exists: true,
+          status: 401,
+          reason: "DT: signed out",
+        },
+      ])("$reason", async ({ actor, exists, status }) => {
+        const order = await placePaidOrder(pizzeriaId)
+        const other = await registerCustomer("tracking-other@example.test")
+        const read = (id: string, headers: Record<string, string>) =>
+          api.get(`/store/orders/${id}/tracking`, {
+            headers,
+            validateStatus: () => true,
+          })
+        const headers =
+          actor === "owner"
+            ? customer
+            : actor === "other"
+              ? other.headers
+              : {
+                  "x-publishable-api-key":
+                    other.headers["x-publishable-api-key"],
+                }
+        const response = await read(
+          exists ? order.id : "order_unknown",
+          headers,
+        )
+        expect(response.status).toBe(status)
+        if (status === 404) {
+          const comparison = await read(
+            exists ? "order_unknown" : order.id,
+            other.headers,
+          )
+          expect(response.data).toEqual(comparison.data)
+          expect(JSON.stringify(response.data)).not.toContain(order.id)
+        }
+      })
+
+      it("preserves the Order language and recorded food milestones", async () => {
+        const { cartId } = await reviewedCartOf(pizzeriaId, 1, "en")
+        const order = (await complete(cartId)).data.order
+        const accepted = (await accept(staff.headers, order.id)).data.order
+        const started = (await startPreparation(staff.headers, order.id)).data
+          .order
+        const ready = (await markReady(staff.headers, order.id)).data.order
+        const read = await api.get(`/store/orders/${order.id}/tracking`, {
+          headers: customer,
+        })
+        expect(read.data).toMatchObject({
+          order: { id: order.id, language: "en" },
+          progress: {
+            state: "ready",
+            placed_at: order.order_operation.placed_at,
+            accepted_at: accepted.accepted_at,
+            preparation_started_at: started.preparation_started_at,
+            ready_at: ready.ready_at,
+          },
+        })
+        expect(JSON.stringify(read.data)).not.toContain(staff.staffId)
+      })
       it("shows an awaiting Order with no cancellation or refund", async () => {
         const order = await placePaidOrder(pizzeriaId)
         const shown = await progress(customer, order.id)

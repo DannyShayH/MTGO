@@ -207,6 +207,15 @@ export default defineMiddlewares({
       ],
     },
     {
+      matcher: "/store/orders/:id/tracking",
+      method: "GET",
+      middlewares: [
+        authenticate("customer", ["bearer", "session"]),
+        requireIsolatedCustomerIdentity,
+        requireOwnedOrder,
+      ],
+    },
+    {
       matcher: "/store/orders/:id/progress",
       method: "GET",
       middlewares: [

@@ -1,4 +1,5 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
+import { Modules } from "@medusajs/framework/utils"
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
 import { DELIVERY_MODULE } from "../../../modules/delivery"
 import type DeliveryModuleService from "../../../modules/delivery/service"
@@ -149,4 +150,21 @@ export const readOrderProgressStep = createStep(
   "read-order-progress",
   async (input: { order_id: string }, { container }) =>
     new StepResponse(await readOrderProgress(container, input.order_id)),
+)
+
+/** Customer-safe identity and recorded food progress for tracking. */
+export const readOrderTrackingStep = createStep(
+  "read-order-tracking",
+  async (input: { order_id: string }, { container }) => {
+    const order = await container
+      .resolve(Modules.ORDER)
+      .retrieveOrder(input.order_id, {
+        select: ["id", "metadata"],
+      })
+    const review = order.metadata?.mtogo_checkout_review as
+      { order_language?: unknown } | undefined
+    const language = review?.order_language === "en" ? "en" : "da"
+    const progress = await readOrderProgress(container, input.order_id)
+    return new StepResponse({ order: { id: order.id, language }, ...progress })
+  },
 )

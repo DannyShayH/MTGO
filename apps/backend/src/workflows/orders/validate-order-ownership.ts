@@ -18,6 +18,12 @@ const validateOrderOwnership = createStep(
       .retrieveOrder(input.order_id, {
         select: ["id", "metadata", "customer_id"],
       })
+      .catch((error) => {
+        if (error.type === MedusaError.Types.NOT_FOUND) {
+          throw new MedusaError(MedusaError.Types.NOT_FOUND, "order_not_found")
+        }
+        throw error
+      })
     // Only a reviewed checkout needs its placement record looked up.
     const placed =
       isVisiblePlacedOrder(order) ||

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react"
 import {
   CUSTOMER_ORDER_DETAIL_TEXT,
+  CUSTOMER_AUTH,
   foodProgressSteps,
   formatOrderTime,
   formatText,
@@ -17,6 +18,8 @@ import {
 } from "@lib/data/orders"
 import CancelOrder from "@modules/order/components/cancel-order"
 import OrderCancellation from "@modules/order/components/order-cancellation"
+import LocalizedClientLink from "@modules/common/components/localized-client-link"
+import { usePathname } from "next/navigation"
 
 /** Automatic refresh while the page is visible; doubled per repeated failure. */
 const POLL_MS = 15_000
@@ -65,7 +68,7 @@ export default function OrderProgressPanel({
     initial.state === "success" ? initial : null,
   )
   const [failures, setFailures] = useState(initial.state === "failed" ? 1 : 0)
-  const [isRefused, setIsRefused] = useState(false)
+  const [isRefused, setIsRefused] = useState(initial.state === "not_found")
   const [isBusy, setIsBusy] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
   const [pollTick, setPollTick] = useState(0)
@@ -82,9 +85,13 @@ export default function OrderProgressPanel({
     if (initial.state === "success") {
       setConfirmed((current) => later(current, initial))
       setIsLive(true)
+      setIsRefused(false)
       setFailures(0)
       setIsPaused(false)
       setPollTick((tick) => tick + 1)
+    } else if (initial.state === "not_found") {
+      setConfirmed(null)
+      setIsRefused(true)
     }
   }
   useEffect(() => {
@@ -112,8 +119,10 @@ export default function OrderProgressPanel({
         setIsLive(true)
         setFailures(0)
         setIsRefused(false)
-      } else if (result.state === "not_found") setIsRefused(true)
-      else setFailures((count) => count + 1)
+      } else if (result.state === "not_found") {
+        setConfirmed(null)
+        setIsRefused(true)
+      } else setFailures((count) => count + 1)
       if (automaticReads.current >= MAX_AUTOMATIC_READS) setIsPaused(true)
       setIsBusy(false)
       setPollTick((tick) => tick + 1)
@@ -218,6 +227,7 @@ function Timeline({
   locale: Locale
 }) {
   const text = CUSTOMER_ORDER_DETAIL_TEXT[locale]
+  const pathname = usePathname()
   const headingId = useId()
   const steps = confirmed ? foodProgressSteps(confirmed.progress) : []
   const asOf = confirmed ? formatOrderTime(confirmed.server_time, locale) : ""
@@ -278,7 +288,15 @@ function Timeline({
           </p>
         )}
         {freshness === "refused" && (
-          <p className={ERROR}>{text.progress_refused}</p>
+          <div className={ERROR}>
+            <p>{text.progress_refused}</p>
+            <LocalizedClientLink
+              href={`/account?next=${encodeURIComponent(pathname)}`}
+              className="mt-2 inline-flex min-h-11 items-center underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mtogo-focus-ring"
+            >
+              {CUSTOMER_AUTH[locale].signIn}
+            </LocalizedClientLink>
+          </div>
         )}
         {freshness === "paused" && (
           <p className="mt-5 max-w-prose text-sm leading-6 text-mtogo-text-secondary motion-safe:animate-swap-in">
@@ -382,6 +400,12 @@ function StepItem({
             dateTime={step.at}
             className="text-sm tabular-nums text-mtogo-text-secondary"
           >
+            {new Intl.DateTimeFormat(locale === "da" ? "da-DK" : "en-GB", {
+              timeZone: "Europe/Copenhagen",
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            }).format(new Date(step.at))}{" "}
             {formatOrderTime(step.at, locale)}
           </time>
         ) : (

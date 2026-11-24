@@ -151,7 +151,11 @@ export function restaurantOrdersHarness({
   }
 
   /** The Customer's whole paid checkout through the public completion route. */
-  const reviewedCartOf = async (restaurantId: string, quantity = 1) => {
+  const reviewedCartOf = async (
+    restaurantId: string,
+    quantity = 1,
+    language: "da" | "en" = "da",
+  ) => {
     const [{ dishes }] = await readPublishedMenu(getContainer(), restaurantId)
     const dish = dishes[0]
     const cartId = (
@@ -178,7 +182,7 @@ export function restaurantOrdersHarness({
         email: "orders-customer@example.test",
         shipping_address: address,
         billing_address: address,
-        locale: "da",
+        locale: language,
         metadata: {
           mtogo_checkout_review: {
             version: 1,
@@ -190,7 +194,7 @@ export function restaurantOrdersHarness({
               phone: address.phone,
               email: "orders-customer@example.test",
             },
-            order_language: "da",
+            order_language: language,
             reviewed_at: new Date().toISOString(),
           },
         },
