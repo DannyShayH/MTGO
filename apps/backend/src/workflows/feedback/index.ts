@@ -92,7 +92,7 @@ export const retrieveOrderFeedbackStateStep = createStep(
       readFeedback(container, input.order_id),
     ])
     return new StepResponse(
-      feedbackView(decideFeedback({ delivery, feedback })),
+      feedbackView(decideFeedback({ delivery, feedback, now: new Date() })),
     )
   },
 )
@@ -129,7 +129,11 @@ export const recordFeedbackStep = createStep(
       readDelivery(container, input.order_id),
       readFeedback(container, input.order_id),
     ])
-    const decision = decideFeedback({ delivery, feedback: existing })
+    const decision = decideFeedback({
+      delivery,
+      feedback: existing,
+      now: new Date(),
+    })
     if (decision.status === "submitted")
       throw alreadySubmitted(decision.feedback)
     if (decision.status === "unavailable") throw refusal(decision.reason)

@@ -219,7 +219,7 @@ export async function cancelOrder(id: string): Promise<CancelOrderResult> {
 export type OrderFeedback = {
   feedback: (FeedbackRatings & { submitted_at: string }) | null
   can_submit: boolean
-  /** Null until the Feedback window lands with its own work item. */
+  /** When the 168-hour window ends while Feedback can be given; else null. */
   closes_at: string | null
 }
 
@@ -273,9 +273,11 @@ export type SubmitFeedbackResult =
 /**
  * Sends the Customer's three ratings once (#218). A repeat, a double click
  * or a retry after a lost response is answered with the recorded ratings,
- * read back here because the refusal carries no body the SDK keeps. The SDK
- * keeps only the status, so a `400` is told apart by that same read: an
- * Order that cannot be rated, or else ratings the backend refused.
+ * read back here because the refusal carries no body the SDK keeps. A `400`
+ * is told apart by that same read: ratings the backend refused while the
+ * Order can still be rated, or else the window closed (#219). The form only
+ * shows while Feedback can be given, and a delivered Order stays delivered,
+ * so a closed read after an open one means the window ended meanwhile.
  */
 export async function submitOrderFeedback(
   id: string,
@@ -310,7 +312,7 @@ export async function submitOrderFeedback(
             ok: false,
             error: read.feedback.can_submit
               ? "feedback_ratings_invalid"
-              : "order_not_delivered",
+              : "feedback_window_closed",
           }
       }
     }

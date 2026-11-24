@@ -765,9 +765,12 @@ progress: another Customer's or an unknown Order answers `404`.
 ```
 
 `feedback` is `null` until the Customer submits. `can_submit` is true only for a
-delivered Order without Feedback. `closes_at` is `null` until the 168-hour
-Feedback window lands with its own work item. The agent and Restaurant are
-never returned. The response is never cached.
+delivered Order without Feedback whose window is open: the window ends exactly
+168 hours after the recorded handover instant (#219), with no time zone
+involved. While it is open, `closes_at` is that end as an ISO timestamp, for
+example `"2026-12-01T18:30:00.000Z"`; otherwise it is `null`. Recorded Feedback
+stays readable after the window, and switching the flag never extends it. The
+agent and Restaurant are never returned. The response is never cached.
 
 ### POST /store/orders/:id/feedback
 
@@ -780,6 +783,7 @@ Delivery's Restaurant, assigned agent and handover time into the Feedback.
 | `201`  |                              | Recorded; the body is the read above                                    |
 | `400`  | `feedback_ratings_invalid`   | A rating missing, outside 1 to 5, not a whole number, or an extra field |
 | `400`  | `order_not_delivered`        | Before handover, or the Order was cancelled or its delivery failed      |
+| `400`  | `feedback_window_closed`     | 168 hours or more after the handover, without earlier Feedback          |
 | `404`  |                              | Flag off, unknown Order or another Customer's Order                     |
 | `409`  | `feedback_already_submitted` | A repeat or a concurrent loser; `feedback` holds the recorded ratings   |
 

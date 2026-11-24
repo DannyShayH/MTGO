@@ -134,7 +134,8 @@ function RatingGroup({
  * The ordering Customer's Feedback on a delivered Order (#218): three 1-5
  * star groups, Submit disabled until all three are chosen, then the recorded
  * ratings read-only. The backend decides; this only shows what it answered.
- * Nothing renders when Feedback cannot be given and none was recorded.
+ * Nothing renders when Feedback cannot be given and none was recorded, so
+ * the section disappears silently once the 168-hour window closes (#219).
  */
 export default function OrderFeedbackSection({
   orderId,

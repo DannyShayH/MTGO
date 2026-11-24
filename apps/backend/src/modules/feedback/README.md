@@ -40,10 +40,14 @@ Order to its Feedback on `order_id`, like the Order's operation record.
 
 `src/workflows/feedback/`:
 
-- `rules.ts`: the pure eligibility rule `decideFeedback` (already submitted, open,
-  or `order_not_delivered`) and the Customer view. There is no Feedback window
-  yet, so `closes_at` is `null` and any delivered Order can be rated until the
-  window's own work item lands.
+- `rules.ts`: the pure eligibility rule `decideFeedback` (already submitted, open
+  with its `closes_at`, `order_not_delivered` or `feedback_window_closed`) and
+  the Customer view. The Feedback window
+  ([#219](https://github.com/DannyShayH/MTGO/issues/219), ADR-0010) runs for
+  exactly 168 hours (`FEEDBACK_WINDOW_MS`) from the Delivery's recorded
+  handover instant `terminal_at`; at the closing instant it is already closed.
+  It ignores the Feature flag, so switching the flag never extends it.
+  Recorded Feedback stays readable after the window.
 - `retrieveOrderFeedbackWorkflow` reads the Customer's state;
   `submitFeedbackWorkflow` records the Feedback.
 

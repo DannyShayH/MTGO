@@ -9,15 +9,20 @@ import type DeliveryModuleService from "../../src/modules/delivery/service"
 import { FEEDBACK_MODULE } from "../../src/modules/feedback"
 import type FeedbackModuleService from "../../src/modules/feedback/service"
 import { endDeliveryWorkflow } from "../../src/workflows/delivery/terminal"
+import { FEEDBACK_WINDOW_MS } from "../../src/workflows/feedback"
 import { restaurantOrdersHarness } from "../helpers/restaurant-orders"
 
 jest.setTimeout(240000)
 
+const MINUTE = 60 * 1000
+
 /**
  * The ordering Customer rates a delivered Order (#218) through
  * `GET` and `POST /store/orders/:id/feedback`, behind the default-off
- * `feedback` Feature flag (ADR-0022). The flag is switched on Medusa's flag
- * router inside this one app boot.
+ * `feedback` Feature flag (ADR-0022), within 168 hours of the handover
+ * (#219). The flag is switched on Medusa's flag router inside this one app
+ * boot; the handover is moved back in time on the Delivery to reach the end
+ * of the window.
  */
 medusaIntegrationTestRunner({
   dbName: "medusa_ci_customer_feedback_http",
@@ -140,11 +145,15 @@ medusaIntegrationTestRunner({
 
       const open = await readFeedback(customer, order.id)
       expect(open.status).toBe(200)
+      const [handover] = await delivery().listIntendedDeliveries({
+        order_id: order.id,
+      })
       expect(open.data).toEqual({
         feedback: null,
         can_submit: true,
-        // No Feedback window yet: it lands with its own work item.
-        closes_at: null,
+        closes_at: new Date(
+          new Date(handover.terminal_at!).getTime() + FEEDBACK_WINDOW_MS,
+        ).toISOString(),
       })
 
       const submitted = await submitFeedback(customer, order.id)
@@ -269,6 +278,109 @@ medusaIntegrationTestRunner({
           input: { order_id: failed.id, outcome: "failed", actor_id: "user_1" },
         })
         await refusedFor(failed.id)
+      })
+    })
+
+    describe("the 168-hour Feedback window (#219)", () => {
+      /** Moves the recorded handover so it lies `ago` milliseconds back. */
+      const handedOverAgo = async (orderId: string, ago: number) => {
+        const [handover] = await delivery().listIntendedDeliveries({
+          order_id: orderId,
+        })
+        const terminal_at = new Date(Date.now() - ago)
+        await delivery().updateIntendedDeliveries({
+          id: handover.id,
+          terminal_at,
+        })
+        return terminal_at
+      }
+      const closedRead = {
+        feedback: null,
+        can_submit: false,
+        closes_at: null,
+      }
+      const expectRefusedAsClosed = async (orderId: string) => {
+        const submitted = await submitFeedback(customer, orderId)
+        expect(submitted.status).toBe(400)
+        expect(submitted.data.code).toBe("feedback_window_closed")
+        expect(await feedback().listFeedbacks({ order_id: orderId })).toEqual(
+          [],
+        )
+      }
+
+      it("BVA 168 h - 1 min: the read names the closing time and the submission is recorded", async () => {
+        const { order } = await orderUntil("delivered")
+        const handover = await handedOverAgo(
+          order.id,
+          FEEDBACK_WINDOW_MS - MINUTE,
+        )
+
+        const read = await readFeedback(customer, order.id)
+        expect(read.data).toEqual({
+          feedback: null,
+          can_submit: true,
+          closes_at: new Date(
+            handover.getTime() + FEEDBACK_WINDOW_MS,
+          ).toISOString(),
+        })
+        const submitted = await submitFeedback(customer, order.id)
+        expect(submitted.status).toBe(201)
+        expect(submitted.data.closes_at).toBeNull()
+      })
+
+      // The exact instant is proven by rules.unit.spec.ts; over HTTP the
+      // request always lands a few milliseconds after the moved handover.
+      it.each([
+        {
+          reason: "BVA 168 h as the request arrives: closed",
+          ago: FEEDBACK_WINDOW_MS,
+        },
+        {
+          reason: "BVA 168 h + 1 min: closed",
+          ago: FEEDBACK_WINDOW_MS + MINUTE,
+        },
+      ])(
+        "$reason: the read closes and a submission is refused",
+        async ({ ago }) => {
+          const { order } = await orderUntil("delivered")
+          await handedOverAgo(order.id, ago)
+
+          expect((await readFeedback(customer, order.id)).data).toEqual(
+            closedRead,
+          )
+          await expectRefusedAsClosed(order.id)
+        },
+      )
+
+      it("keeps recorded Feedback readable after the window", async () => {
+        const { order } = await orderUntil("delivered")
+        const submitted = await submitFeedback(customer, order.id)
+        expect(submitted.status).toBe(201)
+        await handedOverAgo(order.id, FEEDBACK_WINDOW_MS + 32 * 60 * MINUTE)
+
+        expect((await readFeedback(customer, order.id)).data).toEqual(
+          submitted.data,
+        )
+        const repeat = await submitFeedback(customer, order.id)
+        expect(repeat.status).toBe(409)
+        expect(repeat.data.code).toBe("feedback_already_submitted")
+      })
+
+      it("is not extended by switching the flag off and on", async () => {
+        const { order } = await orderUntil("delivered")
+        expect((await readFeedback(customer, order.id)).data.can_submit).toBe(
+          true,
+        )
+
+        setFeedbackFlag(false)
+        // The window ends while the flag is off.
+        await handedOverAgo(order.id, FEEDBACK_WINDOW_MS + MINUTE)
+        setFeedbackFlag(true)
+
+        expect((await readFeedback(customer, order.id)).data).toEqual(
+          closedRead,
+        )
+        await expectRefusedAsClosed(order.id)
       })
     })
 

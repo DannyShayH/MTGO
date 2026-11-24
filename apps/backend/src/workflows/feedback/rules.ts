@@ -1,7 +1,10 @@
 import type { TerminalOutcome } from "../../modules/delivery/models/intended-delivery"
 
-/** Refusals a Feedback submission answers with (#218). */
-export const FEEDBACK_REFUSALS = ["order_not_delivered"] as const
+/** Refusals a Feedback submission answers with (#218, #219). */
+export const FEEDBACK_REFUSALS = [
+  "order_not_delivered",
+  "feedback_window_closed",
+] as const
 export type FeedbackRefusal = (typeof FEEDBACK_REFUSALS)[number]
 
 /** A repeat, a double click or a concurrent loser: the recorded Feedback wins. */
@@ -33,26 +36,35 @@ export type FeedbackFacts = {
     assigned_agent_id: string | null
   } | null
   feedback: RecordedFeedback | null
+  /** The instant the decision is made. */
+  now: Date
 }
 
 /**
- * `closes_at` stays null until the Feedback window lands with its own work
- * item: until then any delivered Order can be rated.
+ * The Feedback window (ADR-0010, #219): exactly 168 hours from the recorded
+ * handover instant, with no time zone or calendar day involved, so the bonus
+ * month (#53) can be finalized on the 8th.
  */
+export const FEEDBACK_WINDOW_MS = 168 * 60 * 60 * 1000
+
 export type FeedbackDecision =
   | { status: "submitted"; feedback: RecordedFeedback }
-  | { status: "open"; closes_at: null; subjects: FeedbackSubjects }
+  | { status: "open"; closes_at: Date; subjects: FeedbackSubjects }
   | { status: "unavailable"; reason: FeedbackRefusal }
 
 /**
  * Whether the ordering Customer may give Feedback (#218, ADR-0010): once,
  * and only on an Order whose Delivery ended with the recorded handover by
- * its responsible agent. A cancelled or failed Order, or one still under
- * way, cannot be rated. An open decision names what the Feedback copies.
+ * its responsible agent, and before the window closes 168 hours after that
+ * handover (#219). A cancelled or failed Order, or one still under way,
+ * cannot be rated. Recorded Feedback stays visible after the window. The
+ * Feature flag plays no part, so switching it never extends the window. An
+ * open decision names what the Feedback copies and when the window closes.
  */
 export function decideFeedback({
   delivery,
   feedback,
+  now,
 }: FeedbackFacts): FeedbackDecision {
   if (feedback) return { status: "submitted", feedback }
   if (
@@ -61,9 +73,14 @@ export function decideFeedback({
     !delivery.assigned_agent_id
   )
     return { status: "unavailable", reason: "order_not_delivered" }
+  const closes_at = new Date(
+    delivery.terminal_at.getTime() + FEEDBACK_WINDOW_MS,
+  )
+  if (now.getTime() >= closes_at.getTime())
+    return { status: "unavailable", reason: "feedback_window_closed" }
   return {
     status: "open",
-    closes_at: null,
+    closes_at,
     subjects: {
       restaurant_id: delivery.restaurant_id,
       agent_id: delivery.assigned_agent_id,
@@ -94,9 +111,11 @@ export function feedbackView(decision: FeedbackDecision): CustomerFeedbackView {
       closes_at: null,
     }
   }
-  return {
-    feedback: null,
-    can_submit: decision.status === "open",
-    closes_at: null,
-  }
+  if (decision.status === "open")
+    return {
+      feedback: null,
+      can_submit: true,
+      closes_at: decision.closes_at.toISOString(),
+    }
+  return { feedback: null, can_submit: false, closes_at: null }
 }
