@@ -108,6 +108,10 @@ _Avoid_: Complaint, Feedback, escalation (when the Customer is unreachable)
 The Customer's website view of the recorded business progress of one Order. Location on a delivery map is separate from confirmed pickup and handover milestones.
 _Avoid_: SMS delivery history, live location tracking
 
+**Delivery map**:
+The ordering Customer's view of the Delivery agent's latest shared position during an active Delivery, with its age and accuracy. It does not establish pickup, arrival or handover.
+_Avoid_: Route plan, arrival estimate, proof of delivery
+
 **Commission**:
 The variable fee a Restaurant owes MTOGO on a successfully delivered Order's value excluding VAT.
 _Avoid_: Service fee, delivery charge

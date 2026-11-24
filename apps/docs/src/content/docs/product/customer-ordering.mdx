@@ -20,7 +20,7 @@ import "../../../styles/review-documents.css"
   </p>
 </aside>
 
-A customer chooses food, pays with the order, follows its progress and rates the experience after delivery. The agreed MVP uses website ordering with mocked payment and SMS services, in Danish and English. Native apps, telephone ordering and scheduled orders are outside the MVP; see the [MVP boundary](/MTGO/product/mvp-and-roadmap/).
+A customer chooses food, pays with the order, follows its progress and rates the experience after delivery. The agreed MVP uses website ordering with mocked payment and browser SSE updates, in Danish and English. Native apps, telephone ordering and scheduled orders are outside the MVP; see the [MVP boundary](/MTGO/product/mvp-and-roadmap/). The [Customer Order tracking discovery](/MTGO/product/customer-order-tracking/) records Feature #50's timeline, delivery map and recovery decisions.
 
 <nav class="review-jump not-content" aria-label="Customer ordering sections">
   <a href="#case-requirements">Case requirements</a>
@@ -80,7 +80,7 @@ A customer chooses food, pays with the order, follows its progress and rates the
     {
       title: "Receive confirmation and updates",
       detail:
-        "See the Order reference awaiting acceptance. Rejection or no acceptance within five minutes cancels it with a full refund owed. Follow the same business progress in the website Order timeline and mocked SMS, using the language recorded with the Order.",
+        "See the Order reference awaiting acceptance. Rejection or no acceptance within five minutes cancels it with a full refund owed. Follow recorded business progress through browser updates to the website Order timeline, using the language recorded with the Order.",
     },
     {
       title: "Receive the food",

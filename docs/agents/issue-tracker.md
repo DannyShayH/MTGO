@@ -1,6 +1,6 @@
 # Issue tracker: GitHub
 
-Issues and specs for this repo live as GitHub issues in [DannyShayH/MTGO](https://github.com/DannyShayH/MTGO). Use the `gh` CLI for all operations. The [TakT workflow rules in AGENTS.md](../../AGENTS.md#workflow-takt--kanban) take precedence over anything in this file.
+Issues for this repo live in [DannyShayH/MTGO](https://github.com/DannyShayH/MTGO). Feature specifications live in the docs site source and are linked from the Feature and its implementation slices. Use the `gh` CLI for issue operations. The [TakT workflow rules in AGENTS.md](../../AGENTS.md#workflow-takt--kanban) take precedence over anything in this file.
 
 ## Status and labels (TakT)
 
@@ -27,7 +27,13 @@ AI agents push only through `gh wrapup` on the issue branch and never open PRs i
 
 ## When a skill says "publish to the issue tracker"
 
-Create a GitHub issue using the MoM template, and leave it in Backlog.
+For `/to-spec`, write the specification under `apps/docs/src/content/docs/product/`
+and link it from the existing Feature. Implementation slices reference that
+document and belong directly to the Feature. A specification is documentation,
+not a separate work item.
+
+For `/to-tickets` and other work-item creation, create GitHub issues using the
+MoM template and leave them in Backlog.
 
 ## When a skill says "fetch the relevant ticket"
 
