@@ -154,6 +154,10 @@ _Avoid_: Work item cycle time, Feature lead time
 A demonstrable business capability represented by a parent issue whose eventual sub-issues are the work items. It remains a Feature while it has no sub-issues and is complete when its agreed business outcome is accepted and all required work items are delivered.
 _Avoid_: Work item, task (when referring to the capability)
 
+**Feature flag**:
+A switch that releases or withholds a Feature's behaviour independently of deployment. It never changes recorded business facts, and it is removed once the Feature is accepted.
+_Avoid_: Toggle, kill switch
+
 **Feature lead time**:
 The Copenhagen calendar days from the earliest Start date of a Feature's sub-issues, including discovery work items and former sub-issues that were moved or unlinked after they started, to completion of its last required work item. Discussion only on the parent does not supply a start.
 _Avoid_: Work item cycle time, time since the parent was created
