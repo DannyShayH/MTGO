@@ -39,6 +39,12 @@ renumbers, deletes or replaces existing records. Names are not identity keys.
 No catalogue mutation API or administration screen exists. A future correction
 requires a reviewed migration that preserves IDs and existing references.
 
+Because the catalogue is fixed, the menu read and the purchase review keep it
+in memory per application container (issue #202, see
+`workflows/menu/food-information.ts`). They read it again when a dish declares
+an id the kept copy lacks, which
+happens only after a new seed; an empty or failed read is never kept.
+
 Dish declarations are stored with Restaurant-owned `MenuDish` content as catalogue
 record IDs. The guarded dish workflow verifies every group and subordinate cereal
 or nut ID against the seeded rows, rejects duplicate and contradictory choices,

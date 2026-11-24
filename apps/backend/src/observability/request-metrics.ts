@@ -12,6 +12,8 @@ import {
   Registry,
 } from "@prometheus-io/client"
 import { MedusaError } from "@medusajs/framework/utils"
+import { DURATION_BUCKETS_SECONDS } from "./duration-buckets"
+import { registerMenuReadMetrics } from "./menu-read-timing"
 
 type RequestStart = {
   request: IncomingMessage
@@ -114,15 +116,6 @@ function routeLabel(request: RoutedRequest, status: number): string {
   return status >= 400 ? EARLY_REJECTION : UNROUTED
 }
 
-/**
- * Seconds. Subsecond resolution, the agreed two-second browsing/status and
- * five-second Order-submission exercise boundaries, one bucket above five
- * seconds and the implicit +Inf overflow.
- */
-const DURATION_BUCKETS_SECONDS = [
-  0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10,
-]
-
 /** Owns an isolated registry, diagnostic subscription and private exporter. */
 export function startRequestMetrics({
   host,
@@ -209,6 +202,7 @@ export function startRequestMetrics({
       closedStreams.inc({ route, outcome }, 0)
   interrupted.inc({ method: "GET", route: "/store/products" }, 0)
   interrupted.inc({ method: "GET", route: UNROUTED }, 0)
+  registerMenuReadMetrics(registry)
 
   let isStopped = false
   const pending = new Set<() => void>()

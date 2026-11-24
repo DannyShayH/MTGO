@@ -69,8 +69,10 @@ export async function freezePurchaseReview(
   cartId: string,
   dishes: PublishedDish[],
 ) {
-  const translateFoodInformation =
-    await loadFoodInformationTranslator(container)
+  const translateFoodInformation = await loadFoodInformationTranslator(
+    container,
+    dishes,
+  )
   const items: PurchasedItem[] = dishes.map((dish) => ({
     variant_id: dish.variant_id,
     dish_id: dish.id,

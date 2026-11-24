@@ -11,11 +11,32 @@ const events = {
   "request.failed": ["error", "Request failed"],
   pickup_location_missing: ["error", "Restaurant pickup location is missing"],
   "refund.attempted": ["info", "Refund attempted"],
+  "menu.read.slow": ["warn", "Slow Customer menu read"],
+  "monitoring.exporter.unavailable": [
+    "warn",
+    "Metrics exporter unavailable; the app continues",
+  ],
   "monitoring.demo_read.succeeded": [
     "info",
     "Disposable backend product read completed",
   ],
 }
+
+/**
+ * `menu.read.slow` only: part times in whole milliseconds and dish counts,
+ * each a whole number from 0 up to a day's milliseconds.
+ */
+const MENU_READ_FIELDS = [
+  "whole_read_ms",
+  "restaurant_ms",
+  "dish_prices_ms",
+  "photos_ms",
+  "photo_urls_ms",
+  "food_information_ms",
+  "dishes",
+  "photos",
+]
+const MAX_MENU_READ_VALUE = 86_400_000
 
 /** A refund attempt's outcome class, never the provider's own words. */
 const REFUND_ATTEMPT_OUTCOMES = ["succeeded", "failed", "in_progress"]
@@ -100,6 +121,14 @@ function createLogRecord(
     REFUND_ATTEMPT_OUTCOMES.includes(fields.outcome)
   )
     record.outcome = fields.outcome
+  if (event === "menu.read.slow")
+    for (const field of MENU_READ_FIELDS)
+      if (
+        Number.isInteger(fields[field]) &&
+        fields[field] >= 0 &&
+        fields[field] <= MAX_MENU_READ_VALUE
+      )
+        record[field] = fields[field]
   if (event === "request.failed") record.err = safeError(fields.err)
   return record
 }

@@ -6,3 +6,10 @@ scrape_configs:
   - job_name: mtogo-backend
     static_configs:
       - targets: [backend-metrics:9464]
+
+  # Storefront page render time (#202). Only the staging storefront runs this
+  # exporter; in the local demo this target is reported DOWN and its panels
+  # stay empty.
+  - job_name: mtogo-storefront
+    static_configs:
+      - targets: [storefront-metrics:9465]

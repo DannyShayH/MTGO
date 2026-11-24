@@ -1,7 +1,7 @@
 {
   "uid": "mtogo-backend-requests",
   "title": "MTOGO — backend API requests and process",
-  "description": "Slices #169/#170/#194/#171/#172/#173/#174/#175: completed ordinary API responses, 5xx proportion, p95 latency and process CPU, memory and event-loop delay, with established streams and interrupted requests kept apart, from one HTTP-serving Medusa process, with explicit unavailable states. Per-view low- and high-traffic indications. No business counts.",
+  "description": "Slices #169/#170/#194/#171/#172/#173/#174/#175/#202: completed ordinary API responses, 5xx proportion, p95 latency and process CPU, memory and event-loop delay, with established streams and interrupted requests kept apart, from one HTTP-serving Medusa process, plus the Customer menu read by part and the storefront restaurant menu page render time, with explicit unavailable states. Per-view low- and high-traffic indications. No business counts.",
   "schemaVersion": 41,
   "version": 8,
   "editable": false,
@@ -1547,6 +1547,279 @@
           "refId": "C",
           "expr": "nodejs_eventloop_lag_max_seconds{job=\"mtogo-backend\"} and on(job, instance) (up{job=\"mtogo-backend\"} == 1)",
           "legendFormat": "max ({{instance}})",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 33,
+      "title": "Customer menu read and restaurant menu page",
+      "type": "text",
+      "gridPos": {
+        "x": 0,
+        "y": 90,
+        "w": 24,
+        "h": 6
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**What a Customer waits for on a Restaurant's menu** (#202). The backend route `GET /store/restaurants/:id/menu` comes from the request histogram above. Its parts come from the same backend target: `restaurant` (Restaurant, categories and dish ids), `dish_prices` (dishes with Medusa's calculated DKK prices), `photos` (dish photo records and the cover URL), `photo_urls` (signing the published dishes' photo URLs) and `food_information` (allergen and food-label catalogue, kept in memory between reads), plus `whole_read`, which counts only reads that answer with a menu. `dish_prices` and `photos` run at the same time, so the parts do not add up to the whole read. A read over 1 s also writes one `menu.read.slow` log line with each part in milliseconds. The page panels come from a **second private exporter, the staging `storefront` container**, target `storefront-metrics:9465` (job `mtogo-storefront`): server-side render time of `/[countryCode]/restaurants/[id]` from request start to the last byte, by kind: `document` (full page load), `navigation` (client-side navigation), `prefetch` (link prefetch) and `action` (a basket change answered with a fresh render of the page). Redirects (3xx) and renders whose connection closed first are not counted. No Restaurant ids, URLs or query strings are labels. In the local demo there is no storefront, so its target is DOWN and the page panels stay empty."
+      }
+    },
+    {
+      "id": 34,
+      "title": "Customer menu reads over 1 s — rolling 5 minutes",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 96,
+        "w": 12,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Share of completed menu reads that took over one second on the backend. The issue #202 target is below 5%. Unavailable without menu reads in the window.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B8BEC9"
+          },
+          "noValue": "Unavailable",
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "1 - (sum(rate(mtogo_http_request_duration_seconds_bucket{job=\"mtogo-backend\",method=\"GET\",route=\"/store/restaurants/:id/menu\",le=\"1\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) / (sum(rate(mtogo_http_request_duration_seconds_count{job=\"mtogo-backend\",method=\"GET\",route=\"/store/restaurants/:id/menu\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) > 0))",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 35,
+      "title": "Storefront exporter scrape availability (not page readiness)",
+      "type": "stat",
+      "gridPos": {
+        "x": 12,
+        "y": 96,
+        "w": 12,
+        "h": 5
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "1 = scrape succeeded; 0 = scrape failed; no data = no target observations. The local demo has no storefront, so it shows DOWN there.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B8BEC9"
+          },
+          "noValue": "Unavailable",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "DOWN — scrape failed",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "UP — scrape succeeded",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "up{job=\"mtogo-storefront\"}",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 36,
+      "title": "Customer menu read p95 — route and each part, rolling 5 minutes",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 101,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "The menu route's p95 next to the p95 of each part of the read. Parts overlap, so they do not add up. Only series with observations in the window are drawn.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false
+          },
+          "noValue": "Unavailable",
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(mtogo_http_request_duration_seconds_bucket{job=\"mtogo-backend\",method=\"GET\",route=\"/store/restaurants/:id/menu\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))) and on() (sum(increase(mtogo_http_request_duration_seconds_count{job=\"mtogo-backend\",method=\"GET\",route=\"/store/restaurants/:id/menu\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) > 0)",
+          "legendFormat": "route GET /store/restaurants/:id/menu",
+          "range": true,
+          "instant": false
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.95, sum by (le, part) (rate(mtogo_menu_read_part_duration_seconds_bucket{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))) and on(part) (sum by (part) (increase(mtogo_menu_read_part_duration_seconds_count{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) > 0)",
+          "legendFormat": "part {{part}}",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 37,
+      "title": "Restaurant menu page p95 server-side render — rolling 5 minutes",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 101,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Storefront render time of the Restaurant menu page by kind, from request start to the last byte. Only kinds with renders in the window are drawn.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false
+          },
+          "noValue": "Unavailable",
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, kind) (rate(mtogo_storefront_page_render_duration_seconds_bucket{job=\"mtogo-storefront\",route=\"/[countryCode]/restaurants/[id]\"}[5m]) and on(job, instance) (up{job=\"mtogo-storefront\"} == 1))) and on(kind) (sum by (kind) (increase(mtogo_storefront_page_render_duration_seconds_count{job=\"mtogo-storefront\",route=\"/[countryCode]/restaurants/[id]\"}[5m]) and on(job, instance) (up{job=\"mtogo-storefront\"} == 1)) > 0)",
+          "legendFormat": "{{kind}}",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 38,
+      "title": "Restaurant menu page renders by kind — rolling 5 minutes",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 109,
+        "w": 24,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Estimated renders of the Restaurant menu page by kind. Each render reads the menu from the backend, so many action renders mean basket changes are re-reading the menu.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false
+          },
+          "noValue": "Unavailable",
+          "unit": "short",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (kind) (increase(mtogo_storefront_page_render_duration_seconds_count{job=\"mtogo-storefront\",route=\"/[countryCode]/restaurants/[id]\"}[5m]) and on(job, instance) (up{job=\"mtogo-storefront\"} == 1))",
+          "legendFormat": "{{kind}}",
           "range": true,
           "instant": false
         }

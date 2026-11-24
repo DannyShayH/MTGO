@@ -161,3 +161,67 @@ test("rejects a trailing newline rather than accepting it as an end anchor", () 
   const { requestId } = require("../index.cjs")
   assert.match(requestId("login-28\n"), /^[0-9a-f-]{36}$/)
 })
+
+test("records a slow menu read with only whole-millisecond part times and counts", () => {
+  const record = createLogRecord("backend", "menu.read.slow", {
+    whole_read_ms: 1700,
+    restaurant_ms: 200,
+    dish_prices_ms: 1500,
+    photos_ms: 0,
+    photo_urls_ms: 2,
+    food_information_ms: 3,
+    dishes: 12,
+    photos: 9,
+    restaurant_id: "res_01",
+    url: "/store/restaurants/res_01/menu?secret=1",
+  })
+
+  assert.equal(record.level, "warn")
+  assert.equal(record.event, "menu.read.slow")
+  assert.equal(record.msg, "Slow Customer menu read")
+  assert.equal(record.whole_read_ms, 1700)
+  assert.equal(record.restaurant_ms, 200)
+  assert.equal(record.dish_prices_ms, 1500)
+  assert.equal(record.photos_ms, 0)
+  assert.equal(record.photo_urls_ms, 2)
+  assert.equal(record.food_information_ms, 3)
+  assert.equal(record.dishes, 12)
+  assert.equal(record.photos, 9)
+  assert.equal(record.url, undefined)
+  assert.doesNotMatch(JSON.stringify(record), /secret/)
+})
+
+test("keeps a menu read time or count only as a whole number from 0 up to a day", () => {
+  for (const value of [0, 1, 86_400_000])
+    assert.equal(
+      createLogRecord("backend", "menu.read.slow", { whole_read_ms: value })
+        .whole_read_ms,
+      value,
+    )
+  for (const value of [-1, 1.5, 86_400_001, "1700", Number.NaN, Infinity])
+    assert.equal(
+      createLogRecord("backend", "menu.read.slow", { whole_read_ms: value })
+        .whole_read_ms,
+      undefined,
+    )
+  assert.equal(
+    createLogRecord("backend", "request.failed", { whole_read_ms: 5 })
+      .whole_read_ms,
+    undefined,
+  )
+})
+
+test("records an unavailable metrics exporter with no detail", () => {
+  const record = createLogRecord(
+    "storefront",
+    "monitoring.exporter.unavailable",
+    {
+      err: new Error("listen EADDRINUSE 127.0.0.1:9465"),
+      port: 9465,
+    },
+  )
+  assert.equal(record.level, "warn")
+  assert.equal(record.msg, "Metrics exporter unavailable; the app continues")
+  assert.equal(record.err, undefined)
+  assert.doesNotMatch(JSON.stringify(record), /9465/)
+})

@@ -18,7 +18,7 @@ const S3_PATHNAME = process.env.MEDUSA_CLOUD_S3_PATHNAME
  */
 const nextConfig = {
   reactStrictMode: true,
-  serverExternalPackages: ["winston", "@dtc/logging"],
+  serverExternalPackages: ["winston", "@dtc/logging", "@prometheus-io/client"],
   transpilePackages: ["@dtc/i18n"],
   // AGENTS.md at the repository root guides agents; do not generate one here.
   agentRules: false,

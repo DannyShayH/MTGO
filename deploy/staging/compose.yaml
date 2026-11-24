@@ -204,10 +204,17 @@ services:
       MTOGO_RELEASE: ${MTOGO_RELEASE:?}
       NEXT_TELEMETRY_DISABLED: "1"
       NODE_OPTIONS: --max-old-space-size=256
+      # Private page render metrics (#202), same switch and network as the
+      # backend exporter. The port is never published and has no Caddy route.
+      MTOGO_METRICS_ENABLED: ${STAGING_METRICS_ENABLED:-0}
+      MTOGO_METRICS_HOST: storefront-metrics
+      MTOGO_METRICS_PORT: "9465"
     ports:
       - "${STAGING_BIND_ADDRESS:-127.0.0.1}:${STAGING_STOREFRONT_PORT:-8000}:8000"
     networks:
-      - web
+      web:
+      metrics:
+        aliases: [storefront-metrics]
     healthcheck:
       test:
         [
@@ -272,6 +279,7 @@ networks:
   web:
   # Scrape network for the separate monitoring project
   # (deploy/monitoring/compose.staging.yaml), which joins it by this fixed name.
+  # The backend and storefront exporters listen only here.
   # No published ports, no internet. Created here so deploys never depend on
   # the monitoring stack.
   metrics:

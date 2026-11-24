@@ -40,21 +40,88 @@ export type FoodInformation = {
   }[]
 }
 
-/**
- * Reads the fixed allergen catalogue once and returns a translator from a
- * dish's stored declaration ids to the catalogue's stable codes and names.
- */
-export async function loadFoodInformationTranslator(
-  container: MedusaContainer,
-) {
-  const service = container.resolve<FoodCatalogueModuleService>(
-    FOOD_CATALOGUE_MODULE,
-  )
+type CatalogueService = Pick<
+  FoodCatalogueModuleService,
+  "listAllergens" | "listAllergenDetails" | "listFoodLabels"
+>
+type Catalogue = Awaited<ReturnType<typeof readCatalogue>>
+type Declarations = {
+  allergens: AllergenDeclaration
+  food_labels: FoodLabelDeclaration
+}
+
+async function readCatalogue(service: CatalogueService) {
   const [allergens, details, labels] = await Promise.all([
     service.listAllergens({}, { take: null, order: { number: "ASC" } }),
     service.listAllergenDetails({}, { take: null }),
     service.listFoodLabels({}, { take: null }),
   ])
+  return { allergens, details, labels }
+}
+
+/** Every catalogue id the dishes declare is in the catalogue. */
+function knowsEvery(catalogue: Catalogue, dishes: Declarations[]) {
+  const known = new Set(
+    [...catalogue.allergens, ...catalogue.details, ...catalogue.labels].map(
+      ({ id }) => id,
+    ),
+  )
+  return dishes.every(
+    ({ allergens, food_labels }) =>
+      (allergens.status === "unknown"
+        ? []
+        : [...allergens.contains, ...allergens.may_contain]
+      ).every(
+        ({ allergen_id, detail_ids }) =>
+          known.has(allergen_id) && detail_ids.every((id) => known.has(id)),
+      ) &&
+      (food_labels ?? []).every(({ food_label_id }) =>
+        known.has(food_label_id),
+      ),
+  )
+}
+
+/**
+ * The catalogue kept per application container. It is fixed reference data
+ * that only a reviewed migration changes, so a read reuses it (#202). A
+ * declared id it does not know means the catalogue was seeded again, so it is
+ * read once more. An empty or failed read is never kept.
+ */
+const keptCatalogues = new WeakMap<CatalogueService, Promise<Catalogue>>()
+
+async function catalogueFor(service: CatalogueService, dishes: Declarations[]) {
+  const reread = () => {
+    const read = readCatalogue(service)
+    keptCatalogues.set(service, read)
+    read.then(
+      ({ allergens }) => {
+        if (!allergens.length && keptCatalogues.get(service) === read)
+          keptCatalogues.delete(service)
+      },
+      () => {
+        if (keptCatalogues.get(service) === read) keptCatalogues.delete(service)
+      },
+    )
+    return read
+  }
+  const existing = keptCatalogues.get(service)
+  if (!existing) return reread()
+  const catalogue = await existing.catch(() => null)
+  return catalogue && knowsEvery(catalogue, dishes) ? catalogue : reread()
+}
+
+/**
+ * Returns a translator from a dish's stored declaration ids to the fixed
+ * catalogue's stable codes and names, for the dishes about to be translated.
+ */
+export async function loadFoodInformationTranslator(
+  container: MedusaContainer,
+  dishes: Declarations[],
+) {
+  const { allergens, details, labels } = await catalogueFor(
+    container.resolve<FoodCatalogueModuleService>(FOOD_CATALOGUE_MODULE),
+    dishes,
+  )
   const allergenById = new Map(allergens.map((row) => [row.id, row]))
   const detailById = new Map(details.map((row) => [row.id, row]))
   const translate = (

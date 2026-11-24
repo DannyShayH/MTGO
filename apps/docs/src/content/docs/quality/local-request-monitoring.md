@@ -34,6 +34,11 @@ and request correlation retain their existing contracts.
 | Grafana OSS                  | 13.3.1                                     | `127.0.0.1:3000`, login required         |
 | Disposable database          | PostgreSQL 16.16                           | Internal only, `medusa_ci_monitoring`    |
 
+The dashboard's Customer menu page panels (#202) read a second target,
+`storefront-metrics:9465`, which only the staging storefront runs. The demo has
+no storefront, so that target is DOWN and those panels stay empty; see
+[staging request monitoring](/MTGO/quality/staging-request-monitoring/#customer-menu-read-and-restaurant-menu-page).
+
 The source configuration lives in `deploy/monitoring/`. Two Compose projects
 separate the application lifecycle from monitoring. The shared scrape network
 and the database network are internal. The exporter binds to its alias on the

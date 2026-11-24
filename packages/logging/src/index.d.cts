@@ -10,6 +10,8 @@ export type LogEvent =
   | "request.failed"
   | "pickup_location_missing"
   | "refund.attempted"
+  | "menu.read.slow"
+  | "monitoring.exporter.unavailable"
   | "monitoring.demo_read.succeeded"
 export type LogFields = {
   request_id?: string
@@ -23,6 +25,15 @@ export type LogFields = {
   /** `refund.attempted` only: its outcome class; anything else is discarded. */
   outcome?: "succeeded" | "failed" | "in_progress"
   err?: unknown
+  /** `menu.read.slow` only: whole milliseconds and counts, 0 up to a day. */
+  whole_read_ms?: number
+  restaurant_ms?: number
+  dish_prices_ms?: number
+  photos_ms?: number
+  photo_urls_ms?: number
+  food_information_ms?: number
+  dishes?: number
+  photos?: number
 }
 export type Service = "partner" | "storefront" | "backend"
 export type LogRecord = LogFields & {

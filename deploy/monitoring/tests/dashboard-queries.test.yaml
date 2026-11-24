@@ -1824,3 +1824,130 @@ tests:
         exp_samples:
           - labels: "{}"
             value: 1
+
+  # menu read and page (#202): menu reads with a slow tail, page renders by kind
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-backend",instance="backend-metrics:9464"}'
+        values: "1x40"
+      - series: 'up{job="mtogo-storefront",instance="storefront-metrics:9465"}'
+        values: "1x40"
+      - series: 'mtogo_http_request_duration_seconds_bucket{job="mtogo-backend",instance="backend-metrics:9464",method="GET",route="/store/restaurants/:id/menu",le="1"}'
+        values: "0+3x40"
+      - series: 'mtogo_http_request_duration_seconds_bucket{job="mtogo-backend",instance="backend-metrics:9464",method="GET",route="/store/restaurants/:id/menu",le="2"}'
+        values: "0+4x40"
+      - series: 'mtogo_http_request_duration_seconds_bucket{job="mtogo-backend",instance="backend-metrics:9464",method="GET",route="/store/restaurants/:id/menu",le="0.5"}'
+        values: "0+2x40"
+      - series: 'mtogo_http_request_duration_seconds_bucket{job="mtogo-backend",instance="backend-metrics:9464",method="GET",route="/store/restaurants/:id/menu",le="+Inf"}'
+        values: "0+4x40"
+      - series: 'mtogo_http_request_duration_seconds_count{job="mtogo-backend",instance="backend-metrics:9464",method="GET",route="/store/restaurants/:id/menu"}'
+        values: "0+4x40"
+      - series: 'mtogo_menu_read_part_duration_seconds_bucket{job="mtogo-backend",instance="backend-metrics:9464",part="dish_prices",le="1"}'
+        values: "0+2x40"
+      - series: 'mtogo_menu_read_part_duration_seconds_bucket{job="mtogo-backend",instance="backend-metrics:9464",part="dish_prices",le="0.5"}'
+        values: "0x40"
+      - series: 'mtogo_menu_read_part_duration_seconds_bucket{job="mtogo-backend",instance="backend-metrics:9464",part="dish_prices",le="+Inf"}'
+        values: "0+2x40"
+      - series: 'mtogo_menu_read_part_duration_seconds_count{job="mtogo-backend",instance="backend-metrics:9464",part="dish_prices"}'
+        values: "0+2x40"
+      - series: 'mtogo_menu_read_part_duration_seconds_bucket{job="mtogo-backend",instance="backend-metrics:9464",part="photos",le="1"}'
+        values: "0x40"
+      - series: 'mtogo_menu_read_part_duration_seconds_bucket{job="mtogo-backend",instance="backend-metrics:9464",part="photos",le="0.5"}'
+        values: "0x40"
+      - series: 'mtogo_menu_read_part_duration_seconds_bucket{job="mtogo-backend",instance="backend-metrics:9464",part="photos",le="+Inf"}'
+        values: "0x40"
+      - series: 'mtogo_menu_read_part_duration_seconds_count{job="mtogo-backend",instance="backend-metrics:9464",part="photos"}'
+        values: "0x40"
+      - series: 'mtogo_storefront_page_render_duration_seconds_bucket{job="mtogo-storefront",instance="storefront-metrics:9465",route="/[countryCode]/restaurants/[id]",kind="document",le="0.25"}'
+        values: "0+1x40"
+      - series: 'mtogo_storefront_page_render_duration_seconds_bucket{job="mtogo-storefront",instance="storefront-metrics:9465",route="/[countryCode]/restaurants/[id]",kind="document",le="0.5"}'
+        values: "0+2x40"
+      - series: 'mtogo_storefront_page_render_duration_seconds_bucket{job="mtogo-storefront",instance="storefront-metrics:9465",route="/[countryCode]/restaurants/[id]",kind="document",le="+Inf"}'
+        values: "0+2x40"
+      - series: 'mtogo_storefront_page_render_duration_seconds_count{job="mtogo-storefront",instance="storefront-metrics:9465",route="/[countryCode]/restaurants/[id]",kind="document"}'
+        values: "0+2x40"
+      - series: 'mtogo_storefront_page_render_duration_seconds_bucket{job="mtogo-storefront",instance="storefront-metrics:9465",route="/[countryCode]/restaurants/[id]",kind="action",le="0.25"}'
+        values: "0x40"
+      - series: 'mtogo_storefront_page_render_duration_seconds_bucket{job="mtogo-storefront",instance="storefront-metrics:9465",route="/[countryCode]/restaurants/[id]",kind="action",le="0.5"}'
+        values: "0x40"
+      - series: 'mtogo_storefront_page_render_duration_seconds_bucket{job="mtogo-storefront",instance="storefront-metrics:9465",route="/[countryCode]/restaurants/[id]",kind="action",le="+Inf"}'
+        values: "0x40"
+      - series: 'mtogo_storefront_page_render_duration_seconds_count{job="mtogo-storefront",instance="storefront-metrics:9465",route="/[countryCode]/restaurants/[id]",kind="action"}'
+        values: "0x40"
+    promql_expr_test:
+      - expr: '1 - (sum(rate(mtogo_http_request_duration_seconds_bucket{job="mtogo-backend",method="GET",route="/store/restaurants/:id/menu",le="1"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) / (sum(rate(mtogo_http_request_duration_seconds_count{job="mtogo-backend",method="GET",route="/store/restaurants/:id/menu"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) > 0))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0.25
+      - expr: 'up{job="mtogo-storefront"}'
+        eval_time: 10m
+        exp_samples:
+          - labels: 'up{instance="storefront-metrics:9465", job="mtogo-storefront"}'
+            value: 1
+      - expr: 'histogram_quantile(0.95, sum by (le) (rate(mtogo_http_request_duration_seconds_bucket{job="mtogo-backend",method="GET",route="/store/restaurants/:id/menu"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))) and on() (sum(increase(mtogo_http_request_duration_seconds_count{job="mtogo-backend",method="GET",route="/store/restaurants/:id/menu"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) > 0)'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 1.8
+      - expr: 'histogram_quantile(0.95, sum by (le, part) (rate(mtogo_menu_read_part_duration_seconds_bucket{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))) and on(part) (sum by (part) (increase(mtogo_menu_read_part_duration_seconds_count{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) > 0)'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{part="dish_prices"}'
+            value: 0.975
+      - expr: 'histogram_quantile(0.95, sum by (le, kind) (rate(mtogo_storefront_page_render_duration_seconds_bucket{job="mtogo-storefront",route="/[countryCode]/restaurants/[id]"}[5m]) and on(job, instance) (up{job="mtogo-storefront"} == 1))) and on(kind) (sum by (kind) (increase(mtogo_storefront_page_render_duration_seconds_count{job="mtogo-storefront",route="/[countryCode]/restaurants/[id]"}[5m]) and on(job, instance) (up{job="mtogo-storefront"} == 1)) > 0)'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{kind="document"}'
+            value: 0.475
+      - expr: 'sum by (kind) (increase(mtogo_storefront_page_render_duration_seconds_count{job="mtogo-storefront",route="/[countryCode]/restaurants/[id]"}[5m]) and on(job, instance) (up{job="mtogo-storefront"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{kind="action"}'
+            value: 0
+          - labels: '{kind="document"}'
+            value: 40
+  # menu read and page (#202): no menu reads, storefront target DOWN
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-backend",instance="backend-metrics:9464"}'
+        values: "1x40"
+      - series: 'up{job="mtogo-storefront",instance="storefront-metrics:9465"}'
+        values: "0x40"
+      - series: 'mtogo_menu_read_part_duration_seconds_bucket{job="mtogo-backend",instance="backend-metrics:9464",part="dish_prices",le="1"}'
+        values: "0x40"
+      - series: 'mtogo_menu_read_part_duration_seconds_bucket{job="mtogo-backend",instance="backend-metrics:9464",part="dish_prices",le="0.5"}'
+        values: "0x40"
+      - series: 'mtogo_menu_read_part_duration_seconds_bucket{job="mtogo-backend",instance="backend-metrics:9464",part="dish_prices",le="+Inf"}'
+        values: "0x40"
+      - series: 'mtogo_menu_read_part_duration_seconds_count{job="mtogo-backend",instance="backend-metrics:9464",part="dish_prices"}'
+        values: "0x40"
+      - series: 'mtogo_storefront_page_render_duration_seconds_bucket{job="mtogo-storefront",instance="storefront-metrics:9465",route="/[countryCode]/restaurants/[id]",kind="document",le="0.25"}'
+        values: "0+1x40"
+      - series: 'mtogo_storefront_page_render_duration_seconds_bucket{job="mtogo-storefront",instance="storefront-metrics:9465",route="/[countryCode]/restaurants/[id]",kind="document",le="0.5"}'
+        values: "0+2x40"
+      - series: 'mtogo_storefront_page_render_duration_seconds_bucket{job="mtogo-storefront",instance="storefront-metrics:9465",route="/[countryCode]/restaurants/[id]",kind="document",le="+Inf"}'
+        values: "0+2x40"
+      - series: 'mtogo_storefront_page_render_duration_seconds_count{job="mtogo-storefront",instance="storefront-metrics:9465",route="/[countryCode]/restaurants/[id]",kind="document"}'
+        values: "0+2x40"
+    promql_expr_test:
+      - expr: '1 - (sum(rate(mtogo_http_request_duration_seconds_bucket{job="mtogo-backend",method="GET",route="/store/restaurants/:id/menu",le="1"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) / (sum(rate(mtogo_http_request_duration_seconds_count{job="mtogo-backend",method="GET",route="/store/restaurants/:id/menu"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) > 0))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'up{job="mtogo-storefront"}'
+        eval_time: 10m
+        exp_samples:
+          - labels: 'up{instance="storefront-metrics:9465", job="mtogo-storefront"}'
+            value: 0
+      - expr: 'histogram_quantile(0.95, sum by (le) (rate(mtogo_http_request_duration_seconds_bucket{job="mtogo-backend",method="GET",route="/store/restaurants/:id/menu"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))) and on() (sum(increase(mtogo_http_request_duration_seconds_count{job="mtogo-backend",method="GET",route="/store/restaurants/:id/menu"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) > 0)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'histogram_quantile(0.95, sum by (le, part) (rate(mtogo_menu_read_part_duration_seconds_bucket{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))) and on(part) (sum by (part) (increase(mtogo_menu_read_part_duration_seconds_count{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) > 0)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'histogram_quantile(0.95, sum by (le, kind) (rate(mtogo_storefront_page_render_duration_seconds_bucket{job="mtogo-storefront",route="/[countryCode]/restaurants/[id]"}[5m]) and on(job, instance) (up{job="mtogo-storefront"} == 1))) and on(kind) (sum by (kind) (increase(mtogo_storefront_page_render_duration_seconds_count{job="mtogo-storefront",route="/[countryCode]/restaurants/[id]"}[5m]) and on(job, instance) (up{job="mtogo-storefront"} == 1)) > 0)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum by (kind) (increase(mtogo_storefront_page_render_duration_seconds_count{job="mtogo-storefront",route="/[countryCode]/restaurants/[id]"}[5m]) and on(job, instance) (up{job="mtogo-storefront"} == 1))'
+        eval_time: 10m
+        exp_samples: []

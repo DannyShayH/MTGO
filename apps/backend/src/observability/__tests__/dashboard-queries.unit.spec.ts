@@ -572,6 +572,78 @@ describe("provisioned backend dashboard queries", () => {
     )
   })
 
+  describe("Customer menu read and restaurant menu page (#202)", () => {
+    const MENU_ROUTE =
+      'job="mtogo-backend",method="GET",route="/store/restaurants/:id/menu"'
+    const panelTitled = (title: string) => {
+      const panel = panels.find((candidate) => candidate.title === title)
+      expect(panel).toBeDefined()
+      return panel as Panel & {
+        fieldConfig: { defaults: { unit?: string; min?: number; max?: number } }
+      }
+    }
+    const exprsOf = (title: string) =>
+      (panelTitled(title).targets ?? []).map(({ expr }) => expr)
+
+    it("shows the share of menu reads over one second on a fixed 0–100% scale", () => {
+      const title = "Customer menu reads over 1 s — rolling 5 minutes"
+      const [expr] = exprsOf(title)
+      expect(expr).toContain(
+        `mtogo_http_request_duration_seconds_bucket{${MENU_ROUTE},le="1"}`,
+      )
+      expect(expr).toContain(
+        `mtogo_http_request_duration_seconds_count{${MENU_ROUTE}}`,
+      )
+      expect(panelTitled(title).fieldConfig.defaults).toMatchObject({
+        unit: "percentunit",
+        min: 0,
+        max: 1,
+      })
+    })
+
+    it("draws the menu route p95 next to the p95 of each part of the read", () => {
+      const exprs = exprsOf(
+        "Customer menu read p95 — route and each part, rolling 5 minutes",
+      )
+      expect(exprs).toHaveLength(2)
+      expect(exprs[0]).toContain(
+        `mtogo_http_request_duration_seconds_bucket{${MENU_ROUTE}}`,
+      )
+      expect(exprs[1]).toContain(
+        "sum by (le, part) (rate(mtogo_menu_read_part_duration_seconds_bucket",
+      )
+    })
+
+    it.each([
+      "Restaurant menu page p95 server-side render — rolling 5 minutes",
+      "Restaurant menu page renders by kind — rolling 5 minutes",
+    ])("%s reads only the scraped storefront exporter", (title) => {
+      const [expr] = exprsOf(title)
+      expect(expr).toContain(
+        'mtogo_storefront_page_render_duration_seconds_count{job="mtogo-storefront",route="/[countryCode]/restaurants/[id]"}',
+      )
+      expect(expr).toContain('(up{job="mtogo-storefront"} == 1)')
+      expect(expr).toContain("kind")
+    })
+
+    it("shows whether Prometheus reaches the storefront exporter", () => {
+      expect(
+        exprsOf("Storefront exporter scrape availability (not page readiness)"),
+      ).toEqual(['up{job="mtogo-storefront"}'])
+    })
+
+    it("names the storefront target in the scope text", () => {
+      const text = panels
+        .filter(({ type }) => type === "text")
+        .map((panel) => JSON.stringify(panel))
+        .join(" ")
+      expect(text).toContain("storefront-metrics:9465")
+      expect(read("prometheus.yaml")).toContain(
+        "targets: [storefront-metrics:9465]",
+      )
+    })
+  })
+
   it("states that HTTP latency is not Order processing time", () => {
     const text = panels
       .filter(({ type }) => type === "text")

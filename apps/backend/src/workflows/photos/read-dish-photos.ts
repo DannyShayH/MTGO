@@ -3,19 +3,28 @@ import { RESTAURANT_MODULE } from "../../modules/restaurant"
 import type RestaurantModuleService from "../../modules/restaurant/service"
 import { signedPhotoUrl } from "./signed-url"
 
-/** Resolve only registered owned photos; a storage outage must not hide dish text. */
-export async function readDishPhotos(
+type DishPhotoAttachment = { resource_id: string; file_id: string }
+
+/** The registered owned photos of the given dishes, without URLs yet. */
+export async function listDishPhotoAttachments(
   container: MedusaContainer,
   restaurantId: string,
   productIds: string[],
-) {
-  if (!productIds.length) return new Map<string, { url: string } | null>()
-  const attachments = await container
+): Promise<DishPhotoAttachment[]> {
+  if (!productIds.length) return []
+  return container
     .resolve<RestaurantModuleService>(RESTAURANT_MODULE)
     .listPhotoAttachments(
       { restaurant_id: restaurantId, kind: "dish", resource_id: productIds },
       { take: null },
     )
+}
+
+/** Each dish's photo URL; a storage outage must not hide dish text. */
+export async function signDishPhotos(
+  container: MedusaContainer,
+  attachments: DishPhotoAttachment[],
+) {
   return new Map(
     await Promise.all(
       attachments.map(
@@ -28,5 +37,17 @@ export async function readDishPhotos(
           ] as const,
       ),
     ),
+  )
+}
+
+/** Resolve only registered owned photos; a storage outage must not hide dish text. */
+export async function readDishPhotos(
+  container: MedusaContainer,
+  restaurantId: string,
+  productIds: string[],
+) {
+  return signDishPhotos(
+    container,
+    await listDishPhotoAttachments(container, restaurantId, productIds),
   )
 }

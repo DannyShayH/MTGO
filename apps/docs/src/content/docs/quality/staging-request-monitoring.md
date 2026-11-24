@@ -53,15 +53,15 @@ Update the issue's acceptance criteria to match before acceptance.
 
 ## Files
 
-| Repository file                          | Role                                                                                                     |
-| ---------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `deploy/monitoring/compose.staging.yaml` | Project `mtogo-staging-monitoring`: Prometheus and Grafana with memory caps and named volumes            |
-| `deploy/monitoring/prometheus.yaml`      | Scrape target `backend-metrics:9464`, the same file the local demo uses                                  |
-| `deploy/monitoring/grafana/`             | Provisioned data source and the read-only dashboard `mtogo-backend-requests`, shared with the local demo |
-| `deploy/staging/compose.yaml`            | Creates `mtogo-staging-metrics`, attaches the backend; `STAGING_METRICS_ENABLED=1` turns the exporter on |
-| `deploy/staging/.env.template`           | `STAGING_METRICS_ENABLED`, `STAGING_GRAFANA_URL`, `STAGING_GRAFANA_PORT`, `GRAFANA_ADMIN_PASSWORD`       |
-| `deploy/staging/mtogo-deploy.sh`         | `monitoring up`, `down`, `status`, `viewer-add` and `viewer-remove`, for administrators only             |
-| `deploy/staging/Caddyfile.example`       | The Grafana site block                                                                                   |
+| Repository file                          | Role                                                                                                                      |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `deploy/monitoring/compose.staging.yaml` | Project `mtogo-staging-monitoring`: Prometheus and Grafana with memory caps and named volumes                             |
+| `deploy/monitoring/prometheus.yaml`      | Scrape targets `backend-metrics:9464` and `storefront-metrics:9465`, the same file the local demo uses                    |
+| `deploy/monitoring/grafana/`             | Provisioned data source and the read-only dashboard `mtogo-backend-requests`, shared with the local demo                  |
+| `deploy/staging/compose.yaml`            | Creates `mtogo-staging-metrics`, attaches the backend and storefront; `STAGING_METRICS_ENABLED=1` turns both exporters on |
+| `deploy/staging/.env.template`           | `STAGING_METRICS_ENABLED`, `STAGING_GRAFANA_URL`, `STAGING_GRAFANA_PORT`, `GRAFANA_ADMIN_PASSWORD`                        |
+| `deploy/staging/mtogo-deploy.sh`         | `monitoring up`, `down`, `status`, `viewer-add` and `viewer-remove`, for administrators only                              |
+| `deploy/staging/Caddyfile.example`       | The Grafana site block                                                                                                    |
 
 The monitoring stack is a separate Compose project. Deploys (`prepare`,
 `release`, `rollback`) never start, stop or recreate it, and the CI identity
@@ -292,6 +292,50 @@ need two scrapes after the restart, and the dashboard shows the gap. Stopping
 Prometheus or Grafana never affects the application. A rollback of the
 application to a release from before #194 detaches the backend from the scrape
 network: the dashboard shows **DOWN** until a release with #194 runs again.
+
+## Customer menu read and restaurant menu page
+
+Issue #202 adds a section at the bottom of the dashboard to find where a slow
+Customer menu read spends its time and what the Customer waits for.
+
+- **Customer menu reads over 1 s** is the share of completed
+  `GET /store/restaurants/:id/menu` responses above one second. The #202 target
+  is below 5% in a window with real browsing.
+- **Customer menu read p95, route and each part** draws the route's p95 next to
+  `mtogo_menu_read_part_duration_seconds{part}` from the backend exporter:
+  `restaurant`, `dish_prices`, `photos` (photo records and the cover),
+  `photo_urls` (signing the published dishes' photo URLs), `food_information`
+  and `whole_read`. `dish_prices` and `photos` run at the same time, so the
+  parts do not add up. `whole_read` counts only reads that answer with a menu.
+  The route p95 minus the `whole_read` p95 roughly shows time outside the menu
+  step: middleware, the workflow engine and waiting for the event loop.
+- **Restaurant menu page p95 server-side render** and **renders by kind** come
+  from a second private exporter in the `storefront` container
+  (`storefront-metrics:9465`, job `mtogo-storefront`), switched on by the same
+  `STAGING_METRICS_ENABLED=1`. Like the backend exporter it listens only on the
+  internal `mtogo-staging-metrics` network, publishes no port and has no Caddy
+  route. Its histogram `mtogo_storefront_page_render_duration_seconds{route,kind}`
+  measures `/[countryCode]/restaurants/[id]` from request start to the last
+  byte; redirects are not counted. `kind` is `document`, `navigation`,
+  `prefetch` or `action`; an `action`
+  is a basket change that the page answers with a fresh render, and each render
+  reads the menu again. The storefront needs a release with #202 and a deploy
+  before its target shows UP.
+
+A menu read over one second also writes one `menu.read.slow` log line
+([logging](/MTGO/quality/logging/)) with each part in milliseconds, so a single
+slow read can be explained:
+
+```bash
+docker compose -p mtogo-staging logs --since 15m backend | grep '"event":"menu.read.slow"'
+```
+
+To compare a window with the acceptance criterion, read the share panel and the
+same command as in #202 for the request durations:
+
+```bash
+docker compose -p mtogo-staging logs --since 15m backend | grep '"path":"/store/restaurants/' | grep -o '"duration":[0-9.]*\|"timestamp":"[^"]*"' | paste - -
+```
 
 ## Rollback
 
