@@ -6,4 +6,8 @@ These are acceptance requirements for the relevant Features; later Feature grill
 
 ## Exercise growth and performance baseline
 
-Demonstrate twenty simultaneous user journeys, with ordinary browsing and status requests completing within two seconds for 95% of requests, and Order submission within five seconds when the mock payment service responds immediately. Verify management and financial reporting with synthetic data representing 50,000 Customers and 200,000 historical Orders. These are explicit school-project validation assumptions that can be tested and revisited, not a production capacity or service guarantee. Each Feature grill chooses the relevant setup and evidence.
+Demonstrate twenty simultaneous user journeys, with ordinary browsing and status requests completing within two seconds for 95% of requests, and Order submission within five seconds when the mock payment service responds immediately. Verify management and financial reporting with the current agreed synthetic dataset below. These are explicit school-project validation assumptions that can be tested and revisited, not a production capacity or service guarantee. Each Feature grill chooses the relevant setup and evidence.
+
+## Reporting dataset revision
+
+On 24 November 2026 in Feature #52 discovery #223, Q19, the team confirmed that the reporting verification population is **100 synthetic Customers and 500 Orders**, replacing the original exercise target of 50,000 Customers and 200,000 historical Orders. Any seed script must produce realistic people, purchases and coherent operational histories, rather than numbered placeholder records and identical Orders. The concurrency and response-time targets remain. The assignment's future growth figures remain business context; this smaller verification does not demonstrate that capacity.

@@ -424,7 +424,7 @@ Restaurants and operators need reproducible fees, food credits and commercial ba
 
 - DKK 600 excluding VAT gives DKK 30 commission; fifteen active days in a thirty-day month give DKK 50 service fee excluding VAT.
 - An MTOGO-caused failure after preparation credits the full food value excluding VAT with no commission; historical terms remain unchanged.
-- Verify management/financial results with 50,000 synthetic Customers and 200,000 historical Orders.
+- Verify management/financial results with 100 synthetic Customers and 500 realistic Orders (revised in discovery #223, Q19).
 
 #### References
 
@@ -486,7 +486,7 @@ Management needs shared Order-volume and processing measures with visible period
 - Average processing time is placement to handover for Orders delivered in the last 24 hours.
 - Show unresolved payments/refunds and deliveries needing attention separately.
 - Missing history/timestamps is unavailable with visible exclusions; show population and period.
-- Operators see the platform; Restaurant staff only their Restaurant. Verify reporting with the agreed 50,000-Customer/200,000-Order synthetic dataset.
+- Operators see the platform; Restaurant staff only their Restaurant. Verify reporting with the agreed 100-Customer/500-Order synthetic dataset (revised in discovery #223, Q19), using realistic people and coherent Order histories.
 
 #### Acceptance examples to refine
 

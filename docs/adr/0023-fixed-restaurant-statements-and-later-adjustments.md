@@ -1,0 +1,17 @@
+# Keep closed Restaurant statements fixed and explain later adjustments
+
+Agreed on 24 November 2026 in Feature #52 discovery #223, questions Q2–Q3. The current Copenhagen calendar month's Restaurant statement is provisional and closes automatically at the month boundary. A closed statement stays fixed; a later adjustment appears in the month it is recorded and links to the original statement. This preserves the account staff previously saw instead of silently changing past monthly balances.
+
+Food credit and commission for successful delivery belong to the Copenhagen month of delivery, even when payment was in the previous month. Prepared-food compensation belongs to the month of the qualifying cancellation. Payment alone does not earn commission. ADR-0006's amounts, precision and responsibility rules remain authoritative.
+
+Q4–Q8 were subsequently agreed in the same discovery. Commercial terms and purchased amounts are preserved when successful payment places the Order. When financial processing of an earlier outcome happens after its month closed, the missing amount appears once as a linked adjustment in the month recovered, keeping the actual outcome date. The balance represents that month's activity only; it carries no prior balance.
+
+Missing historical evidence makes the affected totals and balance unavailable, with the month visibly incomplete. Current participation status does not establish historical billable days. Q9 confirms that such a month closes as incomplete and keeps its warning; reliably established missing amounts later appear once as linked current-month adjustments. Manual historical repair tools are deferred.
+
+Q10–Q12 clarify calculation and dates. A provisional service fee counts only days already active, including today, without predicting future participation. Food credit and commission each use the exact VAT-exclusive purchased amount and round independently; totals sum those recorded amounts. An automatic unassigned cancellation uses its deadline as the compensation's original date, preserving the later processing date when recovery produces an adjustment after the month closed.
+
+Q13–Q15 preserve the surrounding boundaries. Distinct commission, compensation and reversal evidence retains original outcome dates and posting months for the later bonus Feature; service fees and Restaurant monthly balances do not define bonus funding. Operational alerts do not establish financial responsibility. Authorized Restaurant staff retain statement access after deactivation, while revocation removes it immediately.
+
+This decision does not introduce manual adjustments, a new refund action or a bank payout. The reduced refund scope agreed in discovery #196 stands: original commission amounts are retained and full-reversal calculations are verified financially, but a delivered-Order refund journey remains outside this MVP. The later specification must state the resulting limit on Feature #52's full-refund acceptance evidence.
+
+Q17–Q18 require one entry per financial entitlement and one service fee per Restaurant/month through retries, concurrency and restarts. Unfinished work is recovered; known pending financial processing is visible and withholds affected balances. Use the existing common MVP policy and retain the terms version and amounts needed to explain charges, without introducing a terms editor. Q19 revises the shared reporting dataset in ADR-0014; implementation and verification follow separately.

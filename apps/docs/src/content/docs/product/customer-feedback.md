@@ -22,7 +22,7 @@ Discovery [#209](https://github.com/DannyShayH/MTGO/issues/209) for [Feature #51
 - No Feedback code exists. The Customer Order detail page (`account/@dashboard/orders/details/[id]`) already shows Order progress.
 - **Medusa has no Feedback or review module.** None of the installed `@medusajs/*` packages models ratings, and the Medusa backend guidance treats reviews as a new domain concept built as a custom module. Feedback is therefore a custom module, with its mutations in a workflow, a Customer-authenticated store route and an operator admin route, linked to the Order with a module link.
 - **Medusa has native project feature flags.** At boot the installed loader discovers flag definitions (`key`, `env_key`, `default_val`) in any `feature-flags` directory of the app, and the environment variable overrides the default. The built-in `GET /admin/feature-flags` route lists them, and the Admin dashboard already reads it.
-- No generator exists yet for the 200,000-Order synthetic dataset in [product acceptance](/MTGO/quality/product-acceptance/).
+- At this discovery, no generator existed for the then-proposed 200,000-Order reporting dataset. Discovery #223, Q19, later revised [product acceptance](/MTGO/quality/product-acceptance/) to 100 synthetic Customers and 500 Orders.
 
 ## Agreed decisions
 
@@ -59,7 +59,7 @@ Discovery [#209](https://github.com/DannyShayH/MTGO/issues/209) for [Feature #51
 
 ### Deviation from product acceptance
 
-[Product acceptance](/MTGO/quality/product-acceptance/) asks for reporting verified on 50,000 synthetic Customers and 200,000 Orders. For #51 the team chose 500 seeded delivered Orders, because this is a school project and a full generator is out of proportion for one Feature. #54 owns any larger reporting dataset.
+At the #51 discovery, [product acceptance](/MTGO/quality/product-acceptance/) asked for reporting verified on 50,000 synthetic Customers and 200,000 Orders. For #51 the team chose 500 seeded delivered Orders, because this is a school project and a full generator is out of proportion for one Feature. Discovery #223, Q19, subsequently revised the shared reporting target to 100 synthetic Customers and 500 Orders with realistic people and coherent histories. The #51 decision to seed 500 delivered Orders for Feedback remains a separate fixture requirement.
 
 ## Acceptance examples
 

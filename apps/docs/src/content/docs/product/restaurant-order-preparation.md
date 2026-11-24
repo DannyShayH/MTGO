@@ -118,7 +118,7 @@ This is discovery evidence, not proof that the Feature has been implemented. Lat
 
 For UI work, check Danish and English, narrow and wide widths, keyboard focus and long text in the browser. Verify the SSE connection through the deployed proxy, isolation by Restaurant, disconnect cleanup, reconnect reconciliation, fallback polling and optional sound behavior. Check that Customer progress and refund outcomes use actual business facts.
 
-Apply the agreed exercise target of twenty simultaneous journeys and 95% of ordinary browsing/status requests within two seconds to the relevant Order queue/status evidence. The 50,000-Customer and 200,000-Order reporting population remains relevant to the later management and financial reporting Features; this discovery does not claim that capacity has been demonstrated.
+Apply the agreed exercise target of twenty simultaneous journeys and 95% of ordinary browsing/status requests within two seconds to the relevant Order queue/status evidence. The shared reporting population, revised to 100 synthetic Customers and 500 Orders in discovery #223, Q19, remains relevant to the later management and financial reporting Features; this discovery does not claim that the assignment's future capacity has been demonstrated.
 
 ## Handoff
 

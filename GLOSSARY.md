@@ -121,8 +121,12 @@ The food value owed to a Restaurant for an Order, excluding VAT, determined by i
 _Avoid_: Commission, Customer refund, bank payout
 
 **Restaurant statement**:
-A calendar month's commercial account of a Restaurant's food credits, commission, service fees, adjustments and resulting balance, excluding VAT.
+A Copenhagen calendar month's commercial account of a Restaurant's food credits, commission, service fees, adjustments and resulting balance, excluding VAT. The current month is provisional; a closed month stays fixed and later adjustments appear in the month they are recorded.
 _Avoid_: Tax invoice, completed bank payout, settlement (when referring to an actual transfer)
+
+**Monthly statement balance**:
+A Restaurant statement's food credits minus commission and service fee, plus signed adjustments, excluding VAT. It represents that month's activity without carrying earlier monthly balances forward.
+_Avoid_: Bank balance, outstanding payout, cumulative amount owed
 
 **Service fee**:
 A fixed monthly fee per active Restaurant, separate from Commission.
