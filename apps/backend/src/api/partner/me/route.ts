@@ -3,7 +3,13 @@ import {
   MedusaResponse,
 } from "@medusajs/framework/http"
 import { retrieveAuthorizedStaffWorkflow } from "../../../workflows/restaurant-staff"
+import { isFeatureReleased } from "../../feature-flag"
+import RestaurantStatementsFeatureFlag from "../../../feature-flags/restaurant-statements"
 
+/**
+ * The signed-in staff member and their Restaurant, with the backend-owned
+ * Features the partner app shows navigation for (ADR-0022).
+ */
 export async function GET(
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse,
@@ -11,5 +17,13 @@ export async function GET(
   const { result } = await retrieveAuthorizedStaffWorkflow(req.scope).run({
     input: { staff_id: req.auth_context.actor_id },
   })
-  res.json(result)
+  res.json({
+    ...result,
+    features: {
+      restaurant_statements: isFeatureReleased(
+        req.scope,
+        RestaurantStatementsFeatureFlag.key,
+      ),
+    },
+  })
 }

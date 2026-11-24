@@ -31,3 +31,20 @@ export function requireFeatureFlag(key: string) {
     next(new MedusaError(MedusaError.Types.NOT_FOUND, "Not found"))
   }
 }
+
+/**
+ * `requireFeatureFlag` for only the paths a pattern matches, for a flagged
+ * route under a matcher that authenticates a wider path first: placed
+ * before that authentication, it still answers `404` first.
+ */
+export function requireFeatureFlagFor(key: string, path: RegExp) {
+  const gate = requireFeatureFlag(key)
+  return function pathFeatureFlagGate(
+    req: MedusaRequest,
+    res: MedusaResponse,
+    next: MedusaNextFunction,
+  ) {
+    if (!path.test(req.originalUrl.split("?")[0])) return next()
+    gate(req, res, next)
+  }
+}

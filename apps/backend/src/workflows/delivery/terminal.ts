@@ -18,6 +18,7 @@ import { readCompletedDeliveryStep } from "./history"
 import { deliveryAgentLockKey } from "./locks"
 import { settleNativeFulfillment } from "./native-fulfillment"
 import { recordDeliveryEndOnOrderStep } from "./order-outcome"
+import { recognizeDeliveredOrderStep } from "../restaurant-finance/recognition"
 import {
   HANDOVER_CONFLICTS,
   decideTermination,
@@ -106,7 +107,8 @@ const settleNativeHandoverStep = createStep(
  * synchronizes the native Order and returns the completed entry as the
  * agent's history shows it, without the Customer's contact details. The
  * Order's kitchen record then records the handover (#204), so the Order
- * leaves the Restaurant's In progress for History.
+ * leaves the Restaurant's In progress for History, and Restaurant finance
+ * recognizes its food credit and commission (#227).
  */
 export const confirmHandoverWorkflow = createWorkflow(
   "confirm-handover",
@@ -114,6 +116,8 @@ export const confirmHandoverWorkflow = createWorkflow(
     const recorded = recordHandoverStep(input)
     settleNativeHandoverStep(recorded)
     recordDeliveryEndOnOrderStep(recorded)
+    // After every guard is released: finance takes its own (#227).
+    recognizeDeliveredOrderStep(recorded)
     return new WorkflowResponse(
       readCompletedDeliveryStep(
         // `recorded` only orders the read after the write.

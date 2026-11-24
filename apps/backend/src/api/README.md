@@ -1725,9 +1725,14 @@ curl http://localhost:9000/partner/me -H "Authorization: Bearer $TOKEN"
     "status": "authorized",
     "restaurant_id": "res_01..."
   },
-  "restaurant": { "id": "res_01...", "name": "Pizzeria Nørrebro" }
+  "restaurant": { "id": "res_01...", "name": "Pizzeria Nørrebro" },
+  "features": { "restaurant_statements": false }
 }
 ```
+
+`features` names the backend-owned Feature flags (ADR-0022) whose navigation
+the partner app shows: `restaurant_statements` (#227) is `true` only while
+`MTOGO_FF_RESTAURANT_STATEMENTS` releases the Statements workspace.
 
 | Status | When                                                                                                       |
 | ------ | ---------------------------------------------------------------------------------------------------------- |
@@ -1834,6 +1839,117 @@ curl http://localhost:9000/partner/restaurants/$RESTAURANT_ID \
 | `401`  | As for `GET /partner/me`                                                                   |
 | `403`  | `code: "staff_access_revoked"`: as for `GET /partner/me`                                   |
 | `404`  | `code: "restaurant_not_found"`: another Restaurant or an unknown one, answered identically |
+
+### GET /partner/restaurants/{id}/statements and GET /partner/restaurants/{id}/statements/{month}
+
+**Actor:** Restaurant staff (`restaurant_staff`, bearer token only) of that
+very Restaurant, also after the Restaurant is deactivated. Read-only monthly
+statements (#227, spec #52 §8, §10): Copenhagen calendar months in DKK
+excluding VAT. Both routes answer `404` while the default-off
+`restaurant_statements` Feature flag is off, before authentication (ADR-0022).
+Reading never books, recognizes or closes anything.
+
+```bash
+curl "http://localhost:9000/partner/restaurants/$RESTAURANT_ID/statements/2026-11?limit=20&offset=0" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Query: `limit` (1-50, default 20) and `offset` (default 0). `{month}` is a real
+`YYYY-MM` month from the Restaurant's creation month to the current Copenhagen
+month. The list route returns the month summaries newest first as
+`{ restaurant, statements, count, limit, offset, verified_at }`; each summary
+is the header below without entries.
+
+```json
+{
+  "statement": {
+    "restaurant": { "id": "res_...", "name": "Pizzeria Nørrebro" },
+    "month": "2026-11",
+    "timezone": "Europe/Copenhagen",
+    "period": {
+      "starts_at": "2026-10-31T23:00:00.000Z",
+      "ends_at": "2026-11-30T23:00:00.000Z"
+    },
+    "lifecycle": "provisional",
+    "completeness": "incomplete",
+    "totals": {
+      "food_credits": { "status": "available", "amount": "76" },
+      "commission": { "status": "available", "amount": "4.56" },
+      "service_fee": { "status": "unavailable", "reason": "not_yet_supported" },
+      "adjustments": { "status": "unavailable", "reason": "not_yet_supported" },
+      "balance": { "status": "unavailable", "reason": "depends_on_unavailable" }
+    },
+    "problems": [],
+    "currency_code": "dkk",
+    "amounts_exclude_vat": true,
+    "service_fee_evidence": {
+      "status": "unavailable",
+      "reason": "not_yet_supported"
+    },
+    "verified_at": "2026-11-24T19:00:00.000Z"
+  },
+  "entries": [
+    {
+      "id": "fjrnl_...",
+      "kind": "delivered_order",
+      "source": { "kind": "order_delivered", "id": "order_..." },
+      "order": { "id": "order_...", "display_id": 1042 },
+      "outcome": "delivered",
+      "occurred_at": "2026-11-24T18:52:10.000Z",
+      "original_month": "2026-11",
+      "posted_at": "2026-11-24T18:52:10.120Z",
+      "posting_month": "2026-11",
+      "amounts": { "food_credit": "76", "commission": "4.56", "net": "71.44" },
+      "funded_by": "customer",
+      "calculation": {
+        "terms_version": "common_mvp_v1",
+        "vat_rate": "0.25",
+        "food_value_including_vat": "95",
+        "food_value_excluding_vat": "76",
+        "commission_tiers": ["..."],
+        "lines": ["..."]
+      },
+      "original_statement": null
+    }
+  ],
+  "count": 1,
+  "limit": 20,
+  "offset": 0
+}
+```
+
+- **Totals are whole-month** on every page and sum the booked amounts; amounts
+  are exact decimal strings. Entries sort by `posted_at` then `id`, newest first.
+  Commission is a charge, shown as a positive amount the balance deducts.
+- **An unknown amount is never zero.** A total is `unavailable` with a
+  `reason`: `not_yet_supported` (service fee and adjustments are not
+  calculated yet), `evidence_missing`, `processing_pending` or
+  `depends_on_unavailable` (the balance). An ended month is `closed` from the
+  Copenhagen boundary on: nothing posts into it afterwards, and later
+  processing belongs to the current month. Closing is not verification: an
+  ended month with an unrecognized handover keeps that handover's problem and
+  withholds its delivered totals. While any component is unavailable, the
+  balance is too.
+- **`completeness`** is `incomplete` when evidence is missing,
+  `processing_pending` when known processing is still owed, otherwise
+  `incomplete` while a component is not calculated yet, and `complete` only
+  when every total is available.
+- **`problems`** lists, with counts and identified sources:
+  `missing_financial_basis` (a delivered Order without a preserved purchase
+  basis), `conflicting_recognition` (a repeat recognition that disagrees with
+  what was booked; the booked amount is kept), `recognition_pending` (a
+  handover of the statement's month not booked yet; in an ended month it waits
+  for the later adjustment work), `earlier_month_processing_pending` (on the
+  current month: handovers of ended months, left for the later adjustment work
+  rather than backdated) and `prepared_food_credit_pending` (compensation not
+  recognized yet).
+
+| Status | When                                                                                                                                        |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `400`  | `code: "statement_month_invalid"`, or `limit`/`offset` out of range                                                                         |
+| `401`  | As for `GET /partner/me`; Customer and Delivery agent tokens included                                                                       |
+| `403`  | `code: "staff_access_revoked"`: as for `GET /partner/me`                                                                                    |
+| `404`  | The flag is off; another Restaurant (`restaurant_not_found`); `statement_not_found` for a future month or one before the Restaurant existed |
 
 ### GET /partner/orders
 

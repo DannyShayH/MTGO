@@ -21,6 +21,8 @@ export type CurrentStaff = {
     restaurant_id: string
   }
   restaurant: { id: string; name: string }
+  /** Backend-owned Features the app shows navigation for (ADR-0022). */
+  features?: { restaurant_statements?: boolean }
 }
 
 export { SESSION_ENDED_CODES, type SessionEndedCode }

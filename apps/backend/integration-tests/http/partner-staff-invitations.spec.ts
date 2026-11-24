@@ -138,7 +138,12 @@ medusaIntegrationTestRunner({
       const me = await api.get("/partner/me", {
         headers: { authorization: `Bearer ${signedIn.data.token}` },
       })
-      expect(me.data).toEqual(response.data)
+      expect(me.data).toEqual({
+        ...response.data,
+        // Backend-owned Feature flags (#227, ADR-0022); their values are
+        // covered by the Feature's own specs.
+        features: { restaurant_statements: expect.any(Boolean) },
+      })
 
       const restaurant = await adminStaff()
       expect(restaurant.staff.pending).toEqual([])

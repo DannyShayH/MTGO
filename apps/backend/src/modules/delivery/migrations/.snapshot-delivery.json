@@ -1932,6 +1932,24 @@
           "expression": "CREATE INDEX IF NOT EXISTS \"IDX_intended_delivery_terminal_at_id\" ON \"intended_delivery\" (\"terminal_at\", \"id\") WHERE terminal_outcome IS NOT NULL AND order_outcome_recorded_at IS NULL AND deleted_at IS NULL"
         },
         {
+          "keyName": "IDX_intended_delivery_delivered_terminal_at_id",
+          "columnNames": [],
+          "composite": false,
+          "constraint": false,
+          "primary": false,
+          "unique": false,
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_intended_delivery_delivered_terminal_at_id\" ON \"intended_delivery\" (\"terminal_at\", \"id\") WHERE terminal_outcome = 'delivered' AND deleted_at IS NULL"
+        },
+        {
+          "keyName": "IDX_intended_delivery_restaurant_id_terminal_at_id",
+          "columnNames": [],
+          "composite": false,
+          "constraint": false,
+          "primary": false,
+          "unique": false,
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_intended_delivery_restaurant_id_terminal_at_id\" ON \"intended_delivery\" (\"restaurant_id\", \"terminal_at\", \"id\") WHERE terminal_outcome = 'delivered' AND deleted_at IS NULL"
+        },
+        {
           "keyName": "IDX_intended_delivery_assigned_agent_id_terminal_at_id",
           "columnNames": [],
           "composite": false,

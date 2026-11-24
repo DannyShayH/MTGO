@@ -372,6 +372,13 @@ minute, 50 per sweep, oldest `terminal_at` first). The
 is owed, so work that ended before #204 leaves the kitchen's In progress view
 on deploy. Neither module imports the other: the workflow writes to both.
 
+A delivered handover is also the authoritative source of the Restaurant's
+delivered food credit and commission (#227): `terminal_at` dates the
+recognition, never a later synchronization. Restaurant finance reads delivered
+work through two partial indexes on `terminal_outcome = 'delivered'`, by
+`terminal_at` for its recovery sweep and by `restaurant_id, terminal_at` for
+one Restaurant's month; this module knows nothing of finance.
+
 The agent's own history (`src/workflows/delivery/history.ts`) reads ended
 work by `assigned_agent_id`, newest `terminal_at` first, filtered and paged
 in the module query. Each entry has only the Order reference, Restaurant,

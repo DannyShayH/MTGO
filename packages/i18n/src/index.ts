@@ -140,3 +140,8 @@ export {
   formatExactPercent,
   commissionTierLabel,
 } from "./order-financial-basis.ts"
+export {
+  RESTAURANT_STATEMENTS_TEXT,
+  formatStatementMonth,
+  statementProblemText,
+} from "./restaurant-statements.ts"

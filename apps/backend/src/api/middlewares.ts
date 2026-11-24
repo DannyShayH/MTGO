@@ -49,6 +49,7 @@ import {
   GetCompletedDeliveriesSchema,
   PostPartnerOrderActionSchema,
   PostPartnerRejectOrderSchema,
+  GetPartnerStatementsSchema,
 } from "./partner/validators"
 import { isDanishPostalCode } from "../workflows/restaurants/postal-code"
 import { RESTAURANT_STAFF_ACTOR } from "../workflows/restaurant-staff"
@@ -77,8 +78,9 @@ import {
   PostStoreCancelOrderSchema,
   PostStoreOrderFeedbackSchema,
 } from "./store/orders/validators"
-import { requireFeatureFlag } from "./feature-flag"
+import { requireFeatureFlag, requireFeatureFlagFor } from "./feature-flag"
 import FeedbackFeatureFlag from "../feature-flags/feedback"
+import RestaurantStatementsFeatureFlag from "../feature-flags/restaurant-statements"
 import { PostCustomerVerificationRequestSchema } from "./auth/customer-verification/validators"
 import {
   PostCustomerEmailChangeConfirmSchema,
@@ -714,7 +716,25 @@ export default defineMiddlewares({
     },
     {
       matcher: "/partner/restaurants*",
-      middlewares: [authenticate(RESTAURANT_STAFF_ACTOR, "bearer")],
+      middlewares: [
+        // Restaurant statements (#227) are withheld while their flag is off,
+        // before authentication can tell otherwise (ADR-0022).
+        requireFeatureFlagFor(
+          RestaurantStatementsFeatureFlag.key,
+          /^\/partner\/restaurants\/[^/]+\/statements(\/|$)/,
+        ),
+        authenticate(RESTAURANT_STAFF_ACTOR, "bearer"),
+      ],
+    },
+    {
+      matcher: "/partner/restaurants/:id/statements",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(GetPartnerStatementsSchema, {})],
+    },
+    {
+      matcher: "/partner/restaurants/:id/statements/:month",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(GetPartnerStatementsSchema, {})],
     },
     {
       matcher: "/partner/restaurants/:id/cover",

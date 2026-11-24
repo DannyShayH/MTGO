@@ -10,6 +10,7 @@ import {
   Receipt,
   Tag,
   InformationCircle,
+  DocumentText,
 } from "@medusajs/icons"
 import { signOut } from "@lib/data/session"
 import { BrandMark } from "../brand-mark"
@@ -28,18 +29,30 @@ const NAVIGATION = [
   { href: "/allergens", label: "allergens", Icon: InformationCircle },
 ] as const
 
+/** Shown only while the backend releases Restaurant statements (#227). */
+const STATEMENTS = {
+  href: "/statements",
+  label: "statements",
+  Icon: DocumentText,
+} as const
+
 export function Sidebar({
   locale,
   text,
   staffName,
   restaurantName,
+  isStatementsReleased = false,
 }: {
   locale: Locale
   text: Messages["text"]
   staffName: string
   restaurantName: string
+  isStatementsReleased?: boolean
 }) {
   const pathname = usePathname()
+  const navigation = isStatementsReleased
+    ? [...NAVIGATION, STATEMENTS]
+    : NAVIGATION
   return (
     <aside className="bg-ui-bg-base border-ui-border-base flex w-full flex-col border-b md:sticky md:top-0 md:h-screen md:w-60 md:shrink-0 md:border-b-0 md:border-r">
       <div className="border-ui-border-base flex flex-col gap-y-1 border-b px-4 py-4">
@@ -55,7 +68,7 @@ export function Sidebar({
         className="overflow-x-auto px-2 py-2 md:flex-1 md:overflow-visible md:py-3"
       >
         <ul className="flex flex-row gap-x-1 md:flex-col md:gap-x-0 md:gap-y-0.5">
-          {NAVIGATION.map(({ href, label, Icon }) => {
+          {navigation.map(({ href, label, Icon }) => {
             const current = pathname === href || pathname.startsWith(`${href}/`)
             return (
               <li key={href} className="shrink-0">

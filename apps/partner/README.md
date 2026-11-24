@@ -577,6 +577,31 @@ line. "In progress", "failed – still owed, MTOGO will follow up" or "refunded"
 History cards carry a short refund badge. An accepted Order offers no Reject.
 It shows a line that only MTOGO can cancel it, with the Order number to give.
 
+## Statements (#227)
+
+**Statements** (`/statements`) appears in the navigation only while
+`GET /partner/me` reports `features.restaurant_statements`, the backend's
+default-off Feature flag (ADR-0022); the page itself is then not found and the
+backend withholds its routes. It is read-only. The current Copenhagen month is
+selected first; a plain GET form (`?month=YYYY-MM`) chooses another month from
+`GET /partner/restaurants/{id}/statements`, and `?page=` pages 20 entries at a
+time. Paging keeps the month, a new month starts at page 1, and changing
+language keeps both because they live in the address.
+
+The page labels the amounts DKK excluding VAT and says the statement is not an
+invoice, payout or running amount owed. It shows the month's lifecycle and
+completeness as text badges, then the five whole-month totals (food credits,
+commission and service fee marked as deducted, adjustments and the monthly
+balance). A total the backend withholds says "Unavailable" with its reason,
+never zero. Problems (missing purchase terms, conflicting recognition, pending
+processing) are listed in words with their counts, and the service-fee panel
+says the fee is not calculated yet. Entries are a table from tablet width and
+a list on a phone: the Order (linked to its detail), handover and booking
+times, food credit, commission and net, who funded the credit and the
+calculation (food value incl. and excl. VAT, VAT rate and terms). Loading shows
+a skeleton, a failed read says it does not mean the month is empty and offers
+a retry, and a revoked session ends as on every page.
+
 ## Run it
 
 Start the backend first, then seed a staff member (see the `restaurant` module

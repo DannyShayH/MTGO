@@ -149,6 +149,17 @@ const IntendedDelivery = model
       where:
         "terminal_outcome IS NOT NULL AND order_outcome_recorded_at IS NULL",
     },
+    // Restaurant finance's reads of authoritative handovers (#227): the
+    // recovery sweep by handover time, and one Restaurant's month.
+    {
+      name: "IDX_intended_delivery_delivered_terminal_at_id",
+      on: ["terminal_at", "id"],
+      where: "terminal_outcome = 'delivered'",
+    },
+    {
+      on: ["restaurant_id", "terminal_at", "id"],
+      where: "terminal_outcome = 'delivered'",
+    },
     // The agent's own completed history, newest first.
     {
       on: ["assigned_agent_id", "terminal_at", "id"],

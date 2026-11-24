@@ -1,0 +1,36 @@
+import { model } from "@medusajs/framework/utils"
+import { FINANCE_SOURCE_KINDS } from "./finance-receipt"
+
+/**
+ * Why a source cannot be recognized as it is (spec #52 §3, §8): its purchase
+ * basis was never preserved, or a repeated recognition carried another
+ * payload than the one already booked.
+ */
+export const FINANCE_PROBLEM_CODES = [
+  "missing_financial_basis",
+  "conflicting_recognition",
+] as const
+export type FinanceProblemCode = (typeof FINANCE_PROBLEM_CODES)[number]
+
+/**
+ * A visible evidence problem on a source, recorded once per source and code,
+ * so recovery stops retrying it and the statement withholds what it affects
+ * instead of presenting a guessed or overwritten amount.
+ */
+const FinanceProblem = model
+  .define("finance_problem", {
+    id: model.id({ prefix: "fprob" }).primaryKey(),
+    source_kind: model.enum([...FINANCE_SOURCE_KINDS]),
+    source_id: model.text(),
+    restaurant_id: model.text(),
+    order_id: model.text().nullable(),
+    code: model.enum([...FINANCE_PROBLEM_CODES]),
+    original_month: model.text(),
+    detected_at: model.dateTime(),
+  })
+  .indexes([
+    { on: ["source_kind", "source_id", "code"], unique: true },
+    { on: ["restaurant_id", "original_month"] },
+  ])
+
+export default FinanceProblem

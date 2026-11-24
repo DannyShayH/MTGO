@@ -144,6 +144,7 @@ module.exports = defineConfig({
     { resolve: "./src/modules/order-operation" },
     { resolve: "./src/modules/delivery" },
     { resolve: "./src/modules/feedback" },
+    { resolve: "./src/modules/restaurant-finance" },
     {
       // Trip and pickup distances (#191). Without a key every distance is
       // unavailable and nothing is sent to openrouteservice.

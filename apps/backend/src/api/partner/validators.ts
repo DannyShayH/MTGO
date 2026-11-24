@@ -203,3 +203,12 @@ export const PostPartnerRejectOrderSchema = z.strictObject({
 export type PostPartnerRejectOrderBody = z.infer<
   typeof PostPartnerRejectOrderSchema
 >
+
+/** A page of Restaurant statement entries or month summaries (#227). */
+export const GetPartnerStatementsSchema = z.strictObject({
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+  offset: z.coerce.number().int().min(0).default(0),
+})
+export type GetPartnerStatementsQuery = z.infer<
+  typeof GetPartnerStatementsSchema
+>

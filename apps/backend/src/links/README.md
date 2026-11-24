@@ -27,6 +27,11 @@ resolve the Restaurant that owns the Order instead of a platform-wide location.
 Customer's Feedback (#218) whose `order_id` names the Order. Recording the
 Feedback is the only write, so there is no link row to keep in step.
 
+`order-restaurant-finance.ts` is read-only: `order.finance_receipt` is the
+Restaurant finance recognition (#227) whose `order_id` names the Order. The
+receipt is the only write, and having no link table means removing an Order's
+operational data never cascades into financial history.
+
 Then, in the Medusa application, run the following command to sync the links to the database:
 
 ```bash
