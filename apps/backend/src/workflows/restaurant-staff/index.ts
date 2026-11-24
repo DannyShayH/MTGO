@@ -40,6 +40,7 @@ import {
   PendingStaffInput,
   resendStaffInvitationStep,
   retrieveUsableStaffInvitationStep,
+  sendStaffInvitationEmailStep,
   StaffInvitationInput,
 } from "./steps/staff-invitations"
 
@@ -85,7 +86,19 @@ const withRestaurant = (
     restaurant,
   }))
 
-/** Invites a person as pending staff and returns the one-time invite link (ADR-0008). */
+/** Invite and resend email the link to the invited person (issue #225). */
+const emailInvitation = (
+  issued: WorkflowData<IssuedStaffInvitation>,
+  restaurant: ReturnType<typeof retrieveRestaurantDetailStep>,
+) =>
+  sendStaffInvitationEmailStep(
+    transform({ issued, restaurant }, ({ issued, restaurant }) => ({
+      issued,
+      restaurant_name: restaurant.name,
+    })),
+  )
+
+/** Invites a person as pending staff, emails them the one-time invite link and returns it (ADR-0008). */
 export const inviteRestaurantStaffWorkflow = createWorkflow(
   "invite-restaurant-staff",
   function (input: StaffInvitationInput) {
@@ -103,6 +116,7 @@ export const inviteRestaurantStaffWorkflow = createWorkflow(
     const issued = createStaffInvitationStep(staff)
     releaseLockStep(lock)
     const restaurant = retrieveRestaurantDetailStep({ id: input.restaurant_id })
+    emailInvitation(issued, restaurant)
     return new WorkflowResponse(withRestaurant(issued, restaurant))
   },
 )
@@ -117,6 +131,7 @@ export const resendStaffInvitationWorkflow = createWorkflow(
     const issued = resendStaffInvitationStep(input)
     releaseLockStep(lock)
     const restaurant = retrieveRestaurantDetailStep({ id: input.restaurant_id })
+    emailInvitation(issued, restaurant)
     return new WorkflowResponse(withRestaurant(issued, restaurant))
   },
 )

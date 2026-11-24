@@ -36,6 +36,7 @@ const copy = {
 
 export const supportedTemplates = [
   "delivery-agent-invitation",
+  "restaurant-staff-invitation",
   "customer-verification",
   "customer-password-reset",
   "customer-email-change",
@@ -61,6 +62,34 @@ export function renderDeliveryAgentInvitation(
     subject,
     text: `${danish}\n\n${english}\n\n${url}`,
     html: `<p>${danish}</p><p>${english}</p><p><a href="${escapeHtml(url)}">Acceptér invitation / Accept invitation</a></p>`,
+  }
+}
+
+export function renderRestaurantStaffInvitation(
+  data:
+    { invitation_url?: unknown; restaurant_name?: unknown } | null | undefined,
+): EmailContent {
+  const url =
+    typeof data?.invitation_url === "string" ? data.invitation_url : ""
+  if (!url)
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "invitation_url is required",
+    )
+  const restaurant =
+    typeof data?.restaurant_name === "string" && data.restaurant_name.trim()
+      ? data.restaurant_name.trim()
+      : ""
+  const subject = "Invitation til MTogo / MTogo invitation"
+  const danish = (name: string) =>
+    `Du er inviteret som medarbejder hos ${name || "en restaurant"} på MTogo. Åbn linket inden 24 timer for at oprette dit login.`
+  const english = (name: string) =>
+    `You have been invited to join ${name || "a restaurant"} on MTogo as staff. Open the link within 24 hours to create your login.`
+  const safe = escapeHtml(restaurant)
+  return {
+    subject,
+    text: `${danish(restaurant)}\n\n${english(restaurant)}\n\n${url}`,
+    html: `<p>${danish(safe)}</p><p>${english(safe)}</p><p><a href="${escapeHtml(url)}">Acceptér invitation / Accept invitation</a></p>`,
   }
 }
 

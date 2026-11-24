@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto"
+import { createHash, randomUUID } from "node:crypto"
 import { MedusaContainer } from "@medusajs/framework/types"
 import {
   ContainerRegistrationKeys,
@@ -157,6 +157,39 @@ export const createStaffInvitationStep = createStep(
   async (invitationId, { container }) => {
     if (invitationId)
       await restaurantService(container).deleteStaffInvitations(invitationId)
+  },
+)
+
+/**
+ * Emails the invite link to the invited person, as for delivery agents. The
+ * key follows the link, so a retried workflow sends once but a resend, which
+ * issues a new link, sends again. A failed send fails the workflow, so invite
+ * rolls back and resend restores the previous link.
+ */
+export const sendStaffInvitationEmailStep = createStep(
+  "send-staff-invitation-email",
+  async (
+    input: { issued: IssuedStaffInvitation; restaurant_name: string },
+    { container },
+  ) => {
+    const { staff, invitation } = input.issued
+    const linkHash = createHash("sha256")
+      .update(invitation.invite_link)
+      .digest("hex")
+    await container.resolve(Modules.NOTIFICATION).createNotifications({
+      to: staff.email,
+      channel: "email",
+      template: "restaurant-staff-invitation",
+      trigger_type: "restaurant-staff.invited",
+      resource_id: staff.id,
+      data: {
+        invitation_url: invitation.invite_link,
+        restaurant_name: input.restaurant_name,
+        expires_at: new Date(invitation.expires_at).toISOString(),
+      },
+      idempotency_key: `restaurant-staff-invitation:${linkHash}`,
+    })
+    return new StepResponse(undefined)
   },
 )
 

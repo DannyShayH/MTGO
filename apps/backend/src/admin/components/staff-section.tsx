@@ -91,7 +91,7 @@ const InviteStaffModal = ({
       { path: "", method: "POST", body: { name, email } },
       {
         onSuccess: () => {
-          toast.success("Invitation created. Copy the invite link to send it.")
+          toast.success("Invitation sent by email.")
           onClose()
         },
         onError: (failure) =>
@@ -121,8 +121,9 @@ const InviteStaffModal = ({
             className="mx-auto flex w-full max-w-lg flex-col gap-6 p-6"
           >
             <Text className="text-ui-fg-subtle">
-              The person gets a one-time invite link to the partner app, valid
-              for 24 hours. You send the link yourself.
+              The person gets a one-time invite link to the partner app by
+              email, valid for 24 hours. You can also copy the link from the
+              staff list.
             </Text>
             <div className="flex flex-col gap-2">
               <Label htmlFor="staff-name">Staff name</Label>
@@ -230,7 +231,7 @@ const PendingActions = ({
       {
         onSuccess: () =>
           toast.success(
-            "New invite link created. The previous link no longer works.",
+            "New invite link sent by email. The previous link no longer works.",
           ),
         onError: failed,
       },

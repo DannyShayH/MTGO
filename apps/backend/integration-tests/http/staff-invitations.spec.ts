@@ -152,6 +152,90 @@ medusaIntegrationTestRunner({
       }
     })
 
+    const invitationEmails = async (to: string) =>
+      (
+        await getContainer()
+          .resolve(Modules.NOTIFICATION)
+          .listNotifications(
+            { to, template: "restaurant-staff-invitation" },
+            { order: { created_at: "ASC" } },
+          )
+      ).map(({ channel, resource_id, data }) => ({
+        channel,
+        resource_id,
+        data,
+      }))
+
+    it("emails the invite link with the Restaurant's name, and the new link on resend", async () => {
+      const first = (await invite(mette)).data.invitation
+      const emailOf = (invitation: typeof first) => ({
+        channel: "email",
+        resource_id: invitation.staff_id,
+        data: {
+          invitation_url: invitation.invite_link,
+          restaurant_name: "Pizzeria Nørrebro",
+          expires_at: new Date(invitation.expires_at).toISOString(),
+        },
+      })
+      expect(await invitationEmails(mette.email)).toEqual([emailOf(first)])
+
+      await new Promise((resolve) => setTimeout(resolve, 1100))
+      const second = (
+        await api.post(
+          `${path}/staff-invitations/${first.staff_id}/resend`,
+          {},
+          { headers },
+        )
+      ).data.invitation
+      expect(await invitationEmails(mette.email)).toEqual([
+        emailOf(first),
+        emailOf(second),
+      ])
+    })
+
+    it("rolls back an invite whose email cannot be sent and allows the same email to be retried", async () => {
+      const notifications = getContainer().resolve(Modules.NOTIFICATION)
+      const send = jest
+        .spyOn(notifications, "createNotifications")
+        .mockRejectedValueOnce(new Error("email_delivery_failed"))
+      try {
+        const failed = await invite(mette)
+        expect(failed.status).toBe(500)
+        expect((await staffOf()).pending).toEqual([])
+
+        const retried = await invite(mette)
+        expect(retried.status).toBe(200)
+        expect(await invitationEmails(mette.email)).toHaveLength(1)
+      } finally {
+        send.mockRestore()
+      }
+    })
+
+    it("keeps the previous link when the resent email cannot be sent", async () => {
+      const first = (await invite(mette)).data.invitation
+      const send = jest
+        .spyOn(
+          getContainer().resolve(Modules.NOTIFICATION),
+          "createNotifications",
+        )
+        .mockRejectedValueOnce(new Error("email_delivery_failed"))
+      try {
+        const failed = await api.post(
+          `${path}/staff-invitations/${first.staff_id}/resend`,
+          {},
+          { headers, validateStatus: () => true },
+        )
+        expect(failed.status).toBe(500)
+        const [pending] = (await staffOf()).pending
+        expect(pending.invitation).toEqual({
+          expires_at: first.expires_at,
+          invite_link: first.invite_link,
+        })
+      } finally {
+        send.mockRestore()
+      }
+    })
+
     it("resends with a new link, moving the expiry and replacing the old token", async () => {
       const first = (await invite(mette)).data.invitation
       await new Promise((resolve) => setTimeout(resolve, 1100))

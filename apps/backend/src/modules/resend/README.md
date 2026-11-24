@@ -18,12 +18,14 @@ development and automated tests never send real mail or log message contents.
 
 ## Templates
 
-| Template                          | Data                                         |
-| --------------------------------- | -------------------------------------------- |
-| `customer-verification`           | `verification_url`, `expires_at`, `language` |
-| `customer-password-reset`         | `reset_url`, `language`                      |
-| `customer-email-change`           | `confirmation_url`, `expires_at`, `language` |
-| `customer-email-change-completed` | `new_email`                                  |
+| Template                          | Data                                              |
+| --------------------------------- | ------------------------------------------------- |
+| `delivery-agent-invitation`       | `invitation_url`, `expires_at`                    |
+| `restaurant-staff-invitation`     | `invitation_url`, `restaurant_name`, `expires_at` |
+| `customer-verification`           | `verification_url`, `expires_at`, `language`      |
+| `customer-password-reset`         | `reset_url`, `language`                           |
+| `customer-email-change`           | `confirmation_url`, `expires_at`, `language`      |
+| `customer-email-change-completed` | `new_email`                                       |
 
 The email is Danish unless `data.language` is `en`. It contains the verification
 link and the expiry time in Danish time. Any other template fails with an error.

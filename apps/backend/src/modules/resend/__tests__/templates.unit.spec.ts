@@ -4,6 +4,7 @@ import {
   renderCustomerPasswordReset,
   renderCustomerVerification,
   renderDeliveryAgentInvitation,
+  renderRestaurantStaffInvitation,
 } from "../templates"
 
 const link = 'https://mtogo.corral.dk/dk/x?token=a&b="c"<d>'
@@ -13,6 +14,7 @@ const escapedLink =
 describe("email templates", () => {
   const templates = [
     [renderDeliveryAgentInvitation, "invitation_url"],
+    [renderRestaurantStaffInvitation, "invitation_url"],
     [renderCustomerEmailChange, "confirmation_url"],
     [renderCustomerEmailChangeCompleted, "new_email"],
     [renderCustomerPasswordReset, "reset_url"],
@@ -40,6 +42,7 @@ describe("email templates", () => {
   it("escapes the link in HTML but keeps it verbatim in the text", () => {
     const rendered = [
       renderDeliveryAgentInvitation({ invitation_url: link }),
+      renderRestaurantStaffInvitation({ invitation_url: link }),
       renderCustomerEmailChange({ confirmation_url: link }),
       renderCustomerPasswordReset({ reset_url: link }),
       renderCustomerVerification({ verification_url: link }),
@@ -58,6 +61,31 @@ describe("email templates", () => {
     expect(subject).toBe("Invitation til MTogo / MTogo invitation")
     expect(text).toContain("leveringspartner")
     expect(text).toContain("delivery agent")
+  })
+
+  it("writes a Restaurant staff invitation in both languages, naming the Restaurant", () => {
+    const { subject, text, html } = renderRestaurantStaffInvitation({
+      invitation_url: link,
+      restaurant_name: "  Pizza <Bella> & Co  ",
+    })
+    expect(subject).toBe("Invitation til MTogo / MTogo invitation")
+    expect(text).toContain("medarbejder hos Pizza <Bella> & Co på MTogo")
+    expect(text).toContain("join Pizza <Bella> & Co on MTogo as staff")
+    expect(html).toContain("Pizza &lt;Bella&gt; &amp; Co")
+    expect(html).not.toContain("<Bella>")
+  })
+
+  it.each([
+    { restaurant_name: undefined, reason: "EP: no Restaurant name" },
+    { restaurant_name: "   ", reason: "BVA: a name of only spaces" },
+    { restaurant_name: 7, reason: "EP: a name that is not text" },
+  ])("still invites to a Restaurant for $reason", ({ restaurant_name }) => {
+    const { text } = renderRestaurantStaffInvitation({
+      invitation_url: link,
+      restaurant_name,
+    })
+    expect(text).toContain("medarbejder hos en restaurant på MTogo")
+    expect(text).toContain("join a restaurant on MTogo")
   })
 
   it("asks to confirm a new email in Danish unless English is chosen", () => {

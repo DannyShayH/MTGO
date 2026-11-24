@@ -10,6 +10,7 @@ import {
   renderCustomerEmailChangeCompleted,
   renderCustomerPasswordReset,
   renderCustomerVerification,
+  renderRestaurantStaffInvitation,
 } from "./templates"
 
 export type ResendOptions = {
@@ -53,6 +54,7 @@ export default class ResendNotificationProviderService extends AbstractNotificat
 
     if (
       notification.template !== "delivery-agent-invitation" &&
+      notification.template !== "restaurant-staff-invitation" &&
       notification.template !== "customer-verification" &&
       notification.template !== "customer-password-reset" &&
       notification.template !== "customer-email-change" &&
@@ -69,6 +71,8 @@ export default class ResendNotificationProviderService extends AbstractNotificat
     let content
     if (notification.template === "delivery-agent-invitation") {
       content = renderDeliveryAgentInvitation(notification.data)
+    } else if (notification.template === "restaurant-staff-invitation") {
+      content = renderRestaurantStaffInvitation(notification.data)
     } else if (notification.template === "customer-password-reset") {
       content = renderCustomerPasswordReset(notification.data)
     } else if (notification.template === "customer-email-change") {

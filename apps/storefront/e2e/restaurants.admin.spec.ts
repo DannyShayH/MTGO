@@ -216,7 +216,9 @@ test("operator invites Restaurant staff, copies the link, resends, cancels and i
   await page
     .getByRole("button", { name: "Resend invitation for Mette Jensen" })
     .click()
-  await expect(page.getByText(/New invite link created/).last()).toBeVisible()
+  await expect(
+    page.getByText(/New invite link sent by email/).last(),
+  ).toBeVisible()
   const secondLink = await copy()
   expect(secondLink).not.toBe(firstLink)
 
