@@ -55,11 +55,9 @@ export default async function seedDemoReportedProblem({
       MedusaError.Types.NOT_FOUND,
       "No DKK region; run the backend migrations first",
     )
-  const restaurant = await demoRestaurant(
-    container,
-    runId,
-    "Problem demo kitchen",
-  )
+  const restaurant = await demoRestaurant(container, runId, {
+    label: "Problem demo kitchen",
+  })
   const {
     result: [customer],
   } = await createCustomersWorkflow(container).run({

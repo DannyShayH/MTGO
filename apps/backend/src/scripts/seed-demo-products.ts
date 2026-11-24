@@ -21,6 +21,7 @@ import {
   ProductStatus,
 } from "@medusajs/framework/utils"
 import type { ExecArgs } from "@medusajs/framework/types"
+import { seededRandom } from "../lib/seeded-random"
 
 const PRODUCT_COUNT = 50
 const HANDLE_PREFIX = "demo"
@@ -30,21 +31,6 @@ const BATCH_SIZE = 10
 const MAX_VARIANTS = 12
 /** Products per awaited search-ingestion call. */
 const INGEST_CHUNK_SIZE = 25
-
-/**
- * Deterministic PRNG (mulberry32). Keeps re-runs identical, so the same handle
- * always describes the same product.
- */
-function makeRandom(seed: number) {
-  let state = seed
-
-  return () => {
-    state = (state + 0x6d2b79f5) | 0
-    let t = Math.imul(state ^ (state >>> 15), 1 | state)
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-}
 
 const ADJECTIVES = [
   "Vintage",
@@ -134,7 +120,8 @@ function variantCombinations(options: SharedOption[]) {
 export default async function seedDemoProducts({ container }: ExecArgs) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
-  const random = makeRandom(20260831)
+  // Keeps re-runs identical, so the same handle always describes the same product.
+  const random = seededRandom(20260831)
 
   const pick = <T>(items: T[]): T => items[Math.floor(random() * items.length)]
   const pickSome = <T>(items: T[], max: number): T[] => {

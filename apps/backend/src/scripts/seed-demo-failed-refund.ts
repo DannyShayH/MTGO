@@ -42,25 +42,45 @@ import seedDemoMenu from "./seed-demo-menu"
 const POSTAL_CODE = "2200"
 
 /**
+ * How a demo Restaurant is named and addressed. The name defaults to
+ * `${label} ${runId}` and the street to the `slug`'s road; `slug` also keys
+ * the contact and staff email addresses. `showcase` publishes the fuller demo
+ * menu, with a drink as well as the pizza.
+ */
+export type DemoRestaurantProfile = {
+  label?: string
+  name?: string
+  street?: string
+  slug?: string
+  showcase?: boolean
+}
+
+/**
  * An active, open Restaurant of its own, with a menu and authorized staff.
- * Also used by `seed-demo-reported-problem.ts` (#199) with its own `label`.
+ * Also used by `seed-demo-reported-problem.ts` (#199) with its own `label`,
+ * and by `seed-demo-feedback.ts` (#220) with its own name, street and menu.
  */
 export async function demoRestaurant(
   container: MedusaContainer,
   runId: string,
-  label = "Refund demo kitchen",
+  profile: DemoRestaurantProfile = {},
 ) {
-  const name = `${label} ${runId}`
+  const {
+    label = "Refund demo kitchen",
+    slug = "refund",
+    name = `${label} ${runId}`,
+    street = `${slug[0].toUpperCase()}${slug.slice(1)}vej ${runId}`,
+  } = profile
   const {
     result: { restaurant },
   } = await createRestaurantWorkflow(container).run({
     input: {
       name,
-      address_street: `Refundvej ${runId}`,
+      address_street: street,
       address_postal_code: POSTAL_CODE,
       address_city: "København N",
       contact_phone: "+45 12 34 56 78",
-      contact_email: "refund-demo@restaurant.example",
+      contact_email: `${slug}-demo@restaurant.example`,
     },
   })
   const restaurant_id = restaurant.id
@@ -74,8 +94,11 @@ export async function demoRestaurant(
       recorded_by: SYSTEM_ACTOR,
     },
   })
-  await seedDemoMenu({ container, args: [restaurant_id] } as ExecArgs)
-  const email = `refund-demo-staff-${runId}@example.test`
+  await seedDemoMenu({
+    container,
+    args: profile.showcase ? [restaurant_id, "showcase"] : [restaurant_id],
+  } as ExecArgs)
+  const email = `${slug}-demo-staff-${runId}@example.test`
   const [identity] = await container
     .resolve(Modules.AUTH)
     .createAuthIdentities([

@@ -53,3 +53,30 @@ Order to its Feedback on `order_id`, like the Order's operation record.
 
 The routes are `GET` and `POST /store/orders/:id/feedback`; see the
 [API README](../../api/README.md).
+
+## Demo data
+
+`src/scripts/seed-demo-feedback.ts` ([#220](https://github.com/DannyShayH/MTGO/issues/220))
+seeds 500 delivered, rated Orders for one existing Customer account, plus one
+Order still open for rating and one whose window has closed. Run it from
+`apps/backend` against a local, disposable or staging database:
+
+```bash
+DEMO_FEEDBACK_CUSTOMER_EMAIL=<email> npx medusa exec ./src/scripts/seed-demo-feedback.ts
+```
+
+The pure plan (`src/lib/demo-feedback-plan.ts`) spreads the handovers over the
+previous and the current calendar month in Copenhagen time, counted from the day
+of the run, and varies the ratings per Restaurant and agent. The four demo
+Restaurants in Nørrebro publish the fuller demo menu, and each Order buys one to
+three pizzas, often with a drink. The script runs the real Order, delivery and
+`submitFeedbackWorkflow` steps, so the flag can be off, then moves each Order's
+recorded times back together. The Order's `created_at` is written on the Order
+module directly, an exception to coding standard 5.1 that no core-flow covers.
+Application code never rewrites recorded milestones or Feedback (ADR-0021,
+ADR-0010); this synthetic seed does, and only on the databases
+`syntheticSeedAllowed` accepts. Each Order's slot is kept in its metadata, so a
+second run adds only the missing Orders, plus a new open Order once the
+previous one was rated or its window closed (`isSeededSlotKept`), and moves the
+kept Orders to the current plan's times, so rerun it shortly before a demo. A
+full run places 502 Orders and takes about 15 minutes in the devcontainer.
