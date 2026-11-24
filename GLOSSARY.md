@@ -133,16 +133,20 @@ A fixed monthly fee per active Restaurant, separate from Commission.
 _Avoid_: Commission, per-order fee, customer delivery charge
 
 **Bonus pool**:
-The monthly budget available for Delivery agent bonuses, capped by positive commission remaining after refunds, reversals, MTOGO-funded food compensation and carried losses.
+The monthly budget available for Delivery agent bonuses, capped by positive commission remaining after refunds, reversals, MTOGO-funded food compensation and carried losses. A refund reduces it only through the commission it reverses, never by the refunded amount itself.
 _Avoid_: Payroll, salary, total revenue
 
+**Carried loss**:
+A negative Bonus pool funding balance moved into the next month's funding, so that month must earn it back before any Bonus pool exists. It never reduces an award already finalized or an agent's wages.
+_Avoid_: Wage deduction, clawback, debt
+
 **Bonus points**:
-A Delivery agent's weighted share of successfully delivered Order value, reflecting pickup hours and agent ratings when calculating a share of the Bonus pool.
+A Delivery agent's weighted share of the food value excluding VAT of the Orders they delivered in a Copenhagen calendar month, reflecting pickup hours and agent ratings when calculating a share of the Bonus pool.
 _Avoid_: Feedback points, salary, money
 
 **Bonus award**:
-A finalized monetary bonus for a Delivery agent for a calendar month.
-_Avoid_: Bonus points, salary
+A finalized monetary bonus for a Delivery agent for a calendar month, on top of the agent's salary and never a replacement for it.
+_Avoid_: Bonus points, salary, pay per delivery
 
 **Open Order**:
 A paid Order that has not been delivered, cancelled or marked failed.
