@@ -1166,10 +1166,18 @@ medusaIntegrationTestRunner({
         )
         const stream = await open(staff.headers)
         await stream.next("ready")
+        const service = operations()
+        const original = service.listOrderOperations.bind(service)
         const reads = jest
-          .spyOn(operations(), "listOrderOperations")
-          .mockRejectedValueOnce(new Error("database unavailable"))
+          .spyOn(service, "listOrderOperations")
+          .mockImplementation((filters, options, context) => {
+            if (filters?.restaurant_id === pizzeriaId && filters?.updated_at)
+              return Promise.reject(new Error("database unavailable"))
+            return original(filters, options, context)
+          })
         try {
+          // A background job must not consume the feed's simulated failure.
+          await expect(service.listOrderOperations({})).resolves.toBeDefined()
           expect(await stream.ended()).toBe(true)
         } finally {
           reads.mockRestore()

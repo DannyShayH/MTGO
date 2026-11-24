@@ -21,6 +21,7 @@ import OrderCancellation from "@modules/order/components/order-cancellation"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { usePathname } from "next/navigation"
 import { isSettled, serializeRefresh, startPolling } from "./polling"
+import { locationAge, locationIsStale } from "./location-age"
 
 /** A successful read: the progress and the server's time of reading it. */
 type ConfirmedProgress = { progress: OrderProgress; server_time: string }
@@ -297,6 +298,14 @@ function Timeline({
         </ol>
       )}
 
+      {confirmed && freshness !== "refused" && (
+        <LocationStatus
+          key={confirmed.server_time}
+          confirmed={confirmed}
+          locale={locale}
+        />
+      )}
+
       <div role="status">
         {!confirmed && freshness !== "refused" && (
           <p className={ERROR}>{text.progress_unavailable}</p>
@@ -341,6 +350,72 @@ function Timeline({
           {text.progress_refresh}
         </button>
       </div>
+    </section>
+  )
+}
+
+function LocationStatus({
+  confirmed,
+  locale,
+}: {
+  confirmed: ConfirmedProgress
+  locale: Locale
+}) {
+  const text = CUSTOMER_ORDER_DETAIL_TEXT[locale]
+  const location = confirmed.progress.delivery?.location
+  const ended =
+    confirmed.progress.state === "cancelled" ||
+    Boolean(confirmed.progress.delivery?.outcome)
+  const [elapsed, setElapsed] = useState(0)
+  useEffect(() => {
+    const started = performance.now()
+    const update = () => setElapsed(Math.max(0, performance.now() - started))
+    const timer = window.setInterval(update, 1000)
+    const remaining = location?.observed_at
+      ? 60_000 - locationAge(confirmed.server_time, location.observed_at, 0)
+      : 0
+    const staleTimer =
+      remaining > 0 ? window.setTimeout(update, remaining) : undefined
+    document.addEventListener("visibilitychange", update)
+    return () => {
+      window.clearInterval(timer)
+      window.clearTimeout(staleTimer)
+      document.removeEventListener("visibilitychange", update)
+    }
+  }, [confirmed.server_time, location?.observed_at])
+  const age = location?.observed_at
+    ? locationAge(confirmed.server_time, location.observed_at, elapsed)
+    : null
+  const state = ended
+    ? "ended"
+    : !location
+      ? "not_started"
+      : location.state === "fresh" && age !== null && locationIsStale(age)
+        ? "stale"
+        : location.state
+  return (
+    <section
+      className="mt-5 rounded-lg bg-mtogo-surface-page p-4 text-sm leading-6 [overflow-wrap:anywhere]"
+      aria-label={text.location_heading}
+    >
+      <h3 className="font-semibold">{text.location_heading}</h3>
+      <p>{text[`location_${state}`]}</p>
+      {age !== null && !ended && (state === "fresh" || state === "stale") && (
+        <>
+          <p>
+            {formatText(text.location_age, {
+              seconds: Math.floor(age / 1000).toString(),
+            })}
+          </p>
+          <p>
+            {location?.accuracy_m == null
+              ? text.location_accuracy_unknown
+              : formatText(text.location_accuracy, {
+                  meters: location.accuracy_m.toString(),
+                })}
+          </p>
+        </>
+      )}
     </section>
   )
 }

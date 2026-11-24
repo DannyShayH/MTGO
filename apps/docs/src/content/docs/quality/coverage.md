@@ -57,6 +57,10 @@ single run. The merge tests in `scripts/merge-coverage.test.mjs` pin this. A sha
 count change touches the matrix in `.github/workflows/on_ready.yml` and the
 `coverage-shard-*` checks together.
 
+Each shard limits its displayed log to the final 64 KiB so a failure cannot
+overflow GitHub's job summary. Download the failed shard's
+`backend-coverage-log-*` artifact for the complete output.
+
 A failure stops the ready flow before merging to `main`. The gate then prints
 the branch coverage of each backend file changed since `origin/main`, lowest
 first, and names the files below 80%, so the fix starts in the right place. The

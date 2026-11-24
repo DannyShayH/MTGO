@@ -188,7 +188,14 @@ for (const [type, args] of suites) {
   // Jest's import-based picks plus the specs requesting the changed routes.
   const specs = [
     ...new Set([
-      ...JSON.parse(listed.stdout),
+      // With --passWithNoTests Jest exits successfully without writing JSON
+      // when no HTTP specs are selected by its import graph.
+      ...JSON.parse(listed.stdout.trim() || "[]"),
+      ...changedFiles
+        .filter((file) =>
+          /^integration-tests\/http\/.*\.spec\.[jt]s$/.test(file),
+        )
+        .map((file) => join(backend, file)),
       ...httpSelection.specs.map(({ spec }) => join(backend, spec)),
     ]),
   ].sort((a, b) => a.localeCompare(b))
@@ -198,8 +205,12 @@ for (const [type, args] of suites) {
   }
   const failed = specs.filter(
     (spec) =>
-      jest(type, [...args, "--runTestsByPath", spec, ...coverageArgs(type)])
-        .status !== 0,
+      jest(type, [
+        ...args.filter((arg) => !since.includes(arg)),
+        "--runTestsByPath",
+        spec,
+        ...coverageArgs(type),
+      ]).status !== 0,
   )
   await reportCoverage()
   if (failed.length > 0) {

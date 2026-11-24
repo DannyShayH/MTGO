@@ -156,6 +156,15 @@ jobs:
           NEXT_TELEMETRY_DISABLED: "1"
         run: gh insitu run ready-backend-coverage-${{ matrix.shard }}
 
+      - name: Upload the failed shard's full test log
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: backend-coverage-log-${{ matrix.shard }}-${{ github.sha }}
+          path: tmp/coverage-shard-${{ matrix.shard }}.log
+          if-no-files-found: ignore
+          retention-days: 3
+
       - name: Upload the shard's coverage
         uses: actions/upload-artifact@v7
         with:

@@ -7,6 +7,7 @@ import {
 import { DELIVERY_MODULE } from "../../modules/delivery"
 import type DeliveryModuleService from "../../modules/delivery/service"
 import type { MeasuredPosition } from "../../modules/delivery/service"
+import { customerLocation, customerLocationSample } from "./customer-location"
 import { iso } from "../order-operations/outcomes"
 import {
   DELIVERY_PROGRESS_FIELDS,
@@ -20,7 +21,6 @@ import {
 } from "./delivery-guard"
 import {
   decideLocationSample,
-  deliveryLocationView,
   LOCATION_CONFLICTS,
   type DeliveryLocationView,
 } from "./location-rules"
@@ -142,20 +142,6 @@ export type OrderDeliveryView = {
   server_time: string
 }
 
-/** The location view with the kept sample's revision, when it shows one. */
-function customerLocation(
-  record: Parameters<typeof deliveryLocationView>[0],
-  sample:
-    (Parameters<typeof deliveryLocationView>[1] & { revision: number }) | null,
-  now: Date,
-) {
-  const view = deliveryLocationView(record, sample, now)
-  return {
-    ...view,
-    revision: view.latitude === null || !sample ? null : sample.revision,
-  }
-}
-
 /** Read fresh on every request: the route marks it uncacheable. */
 export const readOrderDeliveryStep = createStep(
   "read-order-delivery",
@@ -165,22 +151,9 @@ export const readOrderDeliveryStep = createStep(
       { order_id: input.order_id },
       { select: DELIVERY_PROGRESS_FIELDS, take: 1 },
     )
-    const [sample] = record
-      ? await delivery.listDeliveryLocations(
-          { order_id: input.order_id },
-          {
-            select: [
-              "latitude",
-              "longitude",
-              "accuracy_m",
-              "observed_at",
-              "received_at",
-              "revision",
-            ],
-            take: 1,
-          },
-        )
-      : []
+    const sample = record
+      ? await customerLocationSample(delivery, input.order_id)
+      : null
     const now = new Date()
     const view: OrderDeliveryView = {
       delivery: record

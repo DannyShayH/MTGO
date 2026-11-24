@@ -115,6 +115,16 @@ export type OrderProgress = {
     delivered_at: string | null
     ended_at: string | null
     outcome: "delivered" | "cancelled" | "failed" | null
+    location: {
+      state: "not_started" | "unavailable" | "fresh" | "stale" | "ended"
+      latitude: number | null
+      longitude: number | null
+      accuracy_m: number | null
+      observed_at: string | null
+      received_at: string | null
+      stale_at: string | null
+      revision: number | null
+    }
   } | null
   /** Unknown includes follow-up whose producer is not connected yet. */
   follow_up: { status: "unknown" | "pending" | "settled" }

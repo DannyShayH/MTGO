@@ -81,7 +81,8 @@ inventory:
       cd apps/backend && npm run test:unit -- --passWithNoTests &&
         node --test ../../scripts/coverage-report.test.mjs \
           ../../scripts/merge-coverage.test.mjs \
-          ../../scripts/http-spec-selection.test.mjs
+          ../../scripts/http-spec-selection.test.mjs \
+          ../../scripts/run-coverage-shard.test.mjs
 
   - id: package-tests
     name: Run the shared package tests (fast, no database)
@@ -119,17 +120,17 @@ inventory:
   - id: coverage-shard-1
     name: Run the first third of the backend unit and HTTP tests with coverage
     timeout: 15m
-    command: cd apps/backend && npm run test:coverage:shard -- --shard=1/3
+    command: bash scripts/run-coverage-shard.sh 1
 
   - id: coverage-shard-2
     name: Run the second third of the backend unit and HTTP tests with coverage
     timeout: 15m
-    command: cd apps/backend && npm run test:coverage:shard -- --shard=2/3
+    command: bash scripts/run-coverage-shard.sh 2
 
   - id: coverage-shard-3
     name: Run the last third of the backend unit and HTTP tests with coverage
     timeout: 15m
-    command: cd apps/backend && npm run test:coverage:shard -- --shard=3/3
+    command: bash scripts/run-coverage-shard.sh 3
 
   - id: coverage-gate
     name: Merge the coverage shards and apply the global thresholds (lcov in apps/backend/coverage)

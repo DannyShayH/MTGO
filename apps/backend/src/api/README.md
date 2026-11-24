@@ -559,7 +559,13 @@ endpoint. The refund projection contains only status, amount, currency and
 success time. `progress.follow_up.status` is `pending` for an unresolved refund
 and otherwise `unknown` until Feedback follow-up is connected. Unknown,
 unpublished and other Customers' Orders return the same not-found response.
-Authentication is required. Location and Feedback are not yet available.
+Authentication is required. When a delivery exists, `progress.delivery.location`
+contains the latest permitted measured position, accuracy, observation and receipt
+times, `stale_at` and sample `revision`. Its state is `not_started`, `unavailable`,
+`fresh`, `stale` or `ended`; coordinates and sample details are null before a
+sample and after the delivery ends. A sample is stale from 60 seconds after its
+observation. `server_time` is the reference for calculating age. Feedback is not
+yet available.
 
 | Status | Meaning                                                      |
 | ------ | ------------------------------------------------------------ |

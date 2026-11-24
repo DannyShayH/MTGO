@@ -104,6 +104,11 @@ medusaIntegrationTestRunner({
         headers,
         validateStatus: () => true,
       })
+    const trackingView = (orderId: string, headers = customer) =>
+      api.get(`/store/orders/${orderId}/tracking`, {
+        headers,
+        validateStatus: () => true,
+      })
     const locationOf = async (order_id: string) =>
       delivery().listDeliveryLocations({ order_id })
     /** Pretend the retained sample arrived long ago, so the next is not coalesced. */
@@ -136,6 +141,13 @@ medusaIntegrationTestRunner({
       it("keeps the responsible agent's latest sample after pickup and shows it to the ordering Customer with its observation time", async () => {
         const { order, agent } = await collectedOrder()
         const before = await customerView(order.id)
+        expect(
+          (await trackingView(order.id)).data.progress.delivery.location,
+        ).toMatchObject({
+          state: "unavailable",
+          latitude: null,
+          revision: null,
+        })
         expect(before.status).toBe(200)
         expect(before.headers["cache-control"]).toBe("no-store")
         expect(before.data.delivery.location).toEqual({
@@ -165,6 +177,17 @@ medusaIntegrationTestRunner({
         expect(JSON.stringify(shared.data)).not.toMatch(TRACE)
 
         const view = await customerView(order.id)
+        const tracked = (await trackingView(order.id)).data.progress.delivery
+          .location
+        expect(tracked).toMatchObject({
+          state: "fresh",
+          accuracy_m: 14,
+          observed_at,
+          received_at: shared.data.location.received_at,
+          revision: 1,
+        })
+        expect(tracked.latitude).toBeCloseTo(POSITION.latitude, 4)
+        expect(tracked.longitude).toBeCloseTo(POSITION.longitude, 4)
         expect(view.data.delivery).toMatchObject({
           picked_up_at: expect.any(String),
           outcome: null,
@@ -216,6 +239,15 @@ medusaIntegrationTestRunner({
             .status,
         ).toBe(200)
         const view = await customerView(order.id)
+        const tracked = (await trackingView(order.id)).data.progress.delivery
+          .location
+        expect(tracked).toMatchObject({
+          state: "stale",
+          observed_at,
+          revision: 1,
+        })
+        expect(tracked.latitude).toBeCloseTo(POSITION.latitude, 4)
+        expect(tracked.longitude).toBeCloseTo(POSITION.longitude, 4)
         expect(view.data.delivery.location).toMatchObject({
           state: "stale",
           observed_at,
@@ -351,6 +383,12 @@ medusaIntegrationTestRunner({
           outcome: "delivered",
           location: { state: "ended", latitude: null, observed_at: null },
         })
+        expect(
+          (await trackingView(order.id)).data.progress.delivery,
+        ).toMatchObject({
+          outcome: "delivered",
+          location: { state: "ended", latitude: null, revision: null },
+        })
         const late = await share(agent.headers, order.id, {
           ...POSITION,
           observed_at: ago(100),
@@ -371,6 +409,12 @@ medusaIntegrationTestRunner({
           })
           expect(await locationOf(order.id)).toHaveLength(0)
           expect((await customerView(order.id)).data.delivery).toMatchObject({
+            outcome,
+            location: { state: "ended", latitude: null, revision: null },
+          })
+          expect(
+            (await trackingView(order.id)).data.progress.delivery,
+          ).toMatchObject({
             outcome,
             location: { state: "ended", latitude: null, revision: null },
           })
@@ -540,6 +584,9 @@ medusaIntegrationTestRunner({
           delivery: null,
           server_time: expect.any(String),
         })
+        expect(
+          (await trackingView(unaccepted.id)).data.progress.delivery,
+        ).toBeNull()
       })
 
       it("answers twenty simultaneous Customer reads with 95% within two seconds", async () => {

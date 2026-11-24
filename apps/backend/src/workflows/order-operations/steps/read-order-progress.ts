@@ -19,6 +19,11 @@ import {
 } from "../outcomes"
 import { customerActions, type CustomerOrderAction } from "../rules"
 import { orderNotFound } from "./read-restaurant-orders"
+import {
+  customerLocation,
+  customerLocationSample,
+} from "../../delivery/customer-location"
+import { orderOperationLock } from "../locks"
 
 type Row = {
   order_id: string
@@ -159,29 +164,59 @@ export const readOrderProgressStep = createStep(
 export const readOrderTrackingStep = createStep(
   "read-order-tracking",
   async (input: { order_id: string }, { container }) => {
-    const order = await container
-      .resolve(Modules.ORDER)
-      .retrieveOrder(input.order_id, {
-        select: ["id", "metadata"],
-      })
-    const review = order.metadata?.mtogo_checkout_review as
-      { order_language?: unknown } | undefined
-    const language = review?.order_language === "en" ? "en" : "da"
-    const progress = await readOrderProgress(container, input.order_id)
-    const { refund } = progress.progress
-    const customerRefund = refund && {
-      status: refund.status,
-      amount_including_vat: refund.amount_including_vat,
-      currency_code: refund.currency_code,
-      succeeded_at: refund.succeeded_at,
-    }
-    const follow_up = {
-      status: refund && refund.status !== "succeeded" ? "pending" : "unknown",
-    }
-    return new StepResponse({
-      order: { id: order.id, language },
-      ...progress,
-      progress: { ...progress.progress, refund: customerRefund, follow_up },
-    })
+    const lock = orderOperationLock(input.order_id)
+    const result = await container.resolve(Modules.LOCKING).execute(
+      lock.key,
+      async () => {
+        const order = await container
+          .resolve(Modules.ORDER)
+          .retrieveOrder(input.order_id, {
+            select: ["id", "metadata"],
+          })
+        const review = order.metadata?.mtogo_checkout_review as
+          { order_language?: unknown } | undefined
+        const language = review?.order_language === "en" ? "en" : "da"
+        const progress = await readOrderProgress(container, input.order_id)
+        const deliveryService =
+          container.resolve<DeliveryModuleService>(DELIVERY_MODULE)
+        const [record] = await deliveryService.listIntendedDeliveries(
+          { order_id: input.order_id },
+          { select: DELIVERY_PROGRESS_FIELDS, take: 1 },
+        )
+        const sample = record
+          ? await customerLocationSample(deliveryService, input.order_id)
+          : null
+        const now = new Date()
+        const location = customerLocation(record ?? null, sample ?? null, now)
+        const delivery = progress.progress.delivery && {
+          ...progress.progress.delivery,
+          location,
+        }
+        const { refund } = progress.progress
+        const customerRefund = refund && {
+          status: refund.status,
+          amount_including_vat: refund.amount_including_vat,
+          currency_code: refund.currency_code,
+          succeeded_at: refund.succeeded_at,
+        }
+        const follow_up = {
+          status:
+            refund && refund.status !== "succeeded" ? "pending" : "unknown",
+        }
+        return {
+          order: { id: order.id, language },
+          ...progress,
+          server_time: now.toISOString(),
+          progress: {
+            ...progress.progress,
+            delivery,
+            refund: customerRefund,
+            follow_up,
+          },
+        }
+      },
+      { timeout: lock.timeout, expire: lock.ttl },
+    )
+    return new StepResponse(result)
   },
 )

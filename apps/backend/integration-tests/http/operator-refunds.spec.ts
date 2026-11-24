@@ -186,12 +186,24 @@ medusaIntegrationTestRunner({
       })
 
       it("lists failed before pending refunds, longest owed first, leaves resolved ones out and pages", async () => {
+        // The minute-by-minute recovery job must not settle this test's
+        // deliberately pending refund while its list pages are being read.
+        const service = operations()
+        const listObligations = service.listRefundObligations.bind(service)
+        jest
+          .spyOn(service, "listRefundObligations")
+          .mockImplementation((filters, options, context) =>
+            filters?.status === "pending" && !filters.order_id
+              ? Promise.resolve([])
+              : listObligations(filters, options, context),
+          )
         const first = await failedRefund()
         const pending = await pendingRefund()
         const second = await failedRefund()
         await placePaidOrder(pizzeriaId).then((order) =>
           reject(staff.headers, order.id),
         )
+        await recover()
         const ids = (response: { data: { refunds: { order_id: string }[] } }) =>
           response.data.refunds.map(({ order_id }) => order_id)
 
