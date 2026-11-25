@@ -14,6 +14,10 @@ import {
 import { transitionRestaurantOrderStep } from "./steps/transition-restaurant-order"
 import { establishIntendedDeliveryStep } from "../delivery/available"
 import { measureTripStep } from "../delivery/trip"
+import {
+  logMilestoneStep,
+  type MilestoneEvent,
+} from "../../observability/milestone-log"
 import { recordLegacyPlacementsStep } from "./steps/record-legacy-placements"
 import { findUnmarkedPlacementsStep } from "./steps/find-unmarked-placements"
 import { markPaidPlacementsStep } from "./steps/mark-paid-placements"
@@ -112,6 +116,7 @@ export const retrievePartnerOrderWorkflow = createWorkflow(
 const createPartnerOrderTransitionWorkflow = (
   name: string,
   action: Exclude<MilestoneAction, "accept">,
+  event: MilestoneEvent,
 ) =>
   createWorkflow(
     name,
@@ -127,17 +132,18 @@ const createPartnerOrderTransitionWorkflow = (
         staff_id: current.staff.id,
         action,
       }))
-      transitionRestaurantOrderStep(command)
+      const transitioned = transitionRestaurantOrderStep(command)
       releaseLockStep(lock)
       const scope = transform({ command }, ({ command }) => ({
         restaurant_id: command.restaurant_id,
         order_id: command.order_id,
       }))
-      return new WorkflowResponse(
-        retrieveRestaurantOrderStep(scope).config({
-          name: "read-transitioned-order",
-        }),
-      )
+      const order = retrieveRestaurantOrderStep(scope).config({
+        name: "read-transitioned-order",
+      })
+      // Last: a failure of any step above undoes the transition.
+      logMilestoneStep({ event, milestone: transitioned.milestone })
+      return new WorkflowResponse(order)
     },
   )
 
@@ -160,7 +166,7 @@ export const acceptPartnerOrderWorkflow = createWorkflow(
       staff_id: current.staff.id,
       action: "accept" as const,
     }))
-    transitionRestaurantOrderStep(command)
+    const accepted = transitionRestaurantOrderStep(command)
     const delivery = transform({ input }, ({ input }) => ({
       order_id: input.order_id,
     }))
@@ -172,11 +178,15 @@ export const acceptPartnerOrderWorkflow = createWorkflow(
       restaurant_id: command.restaurant_id,
       order_id: command.order_id,
     }))
-    return new WorkflowResponse(
-      retrieveRestaurantOrderStep(scope).config({
-        name: "read-accepted-order",
-      }),
-    )
+    const order = retrieveRestaurantOrderStep(scope).config({
+      name: "read-accepted-order",
+    })
+    // Last: a failure of any step above undoes the acceptance.
+    logMilestoneStep({
+      event: "order.accepted",
+      milestone: accepted.milestone,
+    })
+    return new WorkflowResponse(order)
   },
 )
 
@@ -188,6 +198,7 @@ export const startPartnerOrderPreparationWorkflow =
   createPartnerOrderTransitionWorkflow(
     "start-partner-order-preparation",
     "start_preparation",
+    "order.preparation_started",
   )
 
 /**
@@ -195,7 +206,11 @@ export const startPartnerOrderPreparationWorkflow =
  * #47 stories 17, 18). Readiness is not pickup, delivery or native completion.
  */
 export const markPartnerOrderReadyWorkflow =
-  createPartnerOrderTransitionWorkflow("mark-partner-order-ready", "ready")
+  createPartnerOrderTransitionWorkflow(
+    "mark-partner-order-ready",
+    "ready",
+    "order.ready",
+  )
 
 /**
  * One tick of the kitchen feed (#148): staff authorization is checked against

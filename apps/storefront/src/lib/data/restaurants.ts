@@ -2,7 +2,7 @@
 
 import { FetchError } from "@medusajs/js-sdk"
 import { sdk } from "@lib/config"
-import { log } from "@lib/logger"
+import { logUpstreamFailure } from "@lib/logger"
 import {
   locationChoices,
   type LocationChoice,
@@ -70,7 +70,7 @@ export async function listRestaurants(
         state: "location_refused",
         refused: query.postal_code ? "postal_code" : "town",
       }
-    log("upstream.request.failed", { status })
+    logUpstreamFailure({ status })
     return { state: "failed" }
   }
 }
@@ -94,7 +94,7 @@ export async function searchLocations(
     })
     return { state: "found", choices: locationChoices(text, postal_codes) }
   } catch (error) {
-    log("upstream.request.failed", {
+    logUpstreamFailure({
       status: error instanceof FetchError ? error.status : undefined,
     })
     return { state: "failed" }

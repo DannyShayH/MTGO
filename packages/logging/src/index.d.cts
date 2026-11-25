@@ -13,6 +13,14 @@ export type LogEvent =
   | "menu.read.slow"
   | "monitoring.exporter.unavailable"
   | "monitoring.demo_read.succeeded"
+  | "order.placed"
+  | "order.accepted"
+  | "order.preparation_started"
+  | "order.ready"
+  | "order.cancelled"
+  | "delivery.assigned"
+  | "delivery.picked_up"
+  | "delivery.handed_over"
 export type LogFields = {
   request_id?: string
   route?: string
@@ -24,6 +32,13 @@ export type LogFields = {
   order_id?: string
   /** `refund.attempted` only: its outcome class; anything else is discarded. */
   outcome?: "succeeded" | "failed" | "in_progress"
+  /** `order.cancelled` only: why; anything else is discarded. */
+  category?:
+    | "restaurant_rejected"
+    | "acceptance_timeout"
+    | "customer_cancelled"
+    | "unassigned_timeout"
+    | "operator_cancelled"
   err?: unknown
   /** `menu.read.slow` only: whole milliseconds and counts, 0 up to a day. */
   whole_read_ms?: number
@@ -46,7 +61,7 @@ export type LogRecord = LogFields & {
 }
 /** Every application event name, in vocabulary order. */
 export const logEvents: readonly LogEvent[]
-export function requestId(value?: unknown): string
+export { requestId } from "./request-id.cjs"
 export function httpStatus(error: unknown): number | undefined
 export function safeError(error: unknown): { type: string }
 export function createLogRecord(
@@ -59,3 +74,15 @@ export function createApplicationLogger(
   service: Service,
   options?: { env?: string; stream?: Writable },
 ): ((event: LogEvent, fields?: LogFields) => void) & { close(): void }
+/** A Next.js `onRequestError` logger: one safe `request.failed` per request. */
+export function createRequestErrorLogger(
+  service: Service,
+  options?: { env?: string; stream?: Writable },
+): (
+  error: unknown,
+  request: {
+    method?: string
+    headers?: Record<string, string | string[] | undefined>
+  },
+  context: { routePath?: string },
+) => void

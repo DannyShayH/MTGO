@@ -5,7 +5,7 @@ import { sdk } from "@lib/config"
 import medusaError from "@lib/util/medusa-error"
 import { getAuthHeaders } from "./cookies"
 import { HttpTypes } from "@medusajs/types"
-import { log } from "@lib/logger"
+import { logUpstreamFailure } from "@lib/logger"
 import {
   customerCancelErrorCode,
   type CustomerCancelErrorCode,
@@ -181,7 +181,7 @@ export async function readOrderProgress(
     const status = (error as { status?: number }).status
     if (status === 401 || status === 403 || status === 404)
       return { state: "not_found" }
-    log("upstream.request.failed", {
+    logUpstreamFailure({
       route: "/store/orders/:id/tracking",
       method: "GET",
       status,
@@ -211,7 +211,7 @@ export async function cancelOrder(id: string): Promise<CancelOrderResult> {
     return { ok: true }
   } catch (error) {
     const status = (error as { status?: number }).status
-    log("upstream.request.failed", {
+    logUpstreamFailure({
       route: "/store/orders/:id/cancel",
       method: "POST",
       status,
@@ -253,7 +253,7 @@ function feedbackFailureStatus(
 ): number | undefined {
   const status = (error as { status?: number }).status
   if (status === undefined || !expected.includes(status))
-    log("upstream.request.failed", {
+    logUpstreamFailure({
       route: "/store/orders/:id/feedback",
       method,
       status,

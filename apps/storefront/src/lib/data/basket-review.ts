@@ -3,7 +3,7 @@
 import { CUSTOMER_MENU_TEXT, isLocale } from "@dtc/i18n"
 import { httpStatus } from "@dtc/logging"
 import { sdk } from "@lib/config"
-import { log } from "@lib/logger"
+import { logUpstreamFailure } from "@lib/logger"
 import { revalidateTag } from "next/cache"
 import { getAuthHeaders, getCacheTag } from "./cookies"
 import { getLocale } from "./locale-actions"
@@ -84,7 +84,7 @@ export async function explainBasketReview(cartId: string): Promise<string> {
       parts.push(text.review_amount)
     return parts.length > 1 ? parts.join(" ") : text.review_required
   } catch (error) {
-    log("upstream.request.failed", { status: httpStatus(error) })
+    logUpstreamFailure({ status: httpStatus(error) })
     return text.review_required
   } finally {
     revalidateTag(await getCacheTag("carts"), { expire: 0 })

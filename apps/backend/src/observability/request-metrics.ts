@@ -14,6 +14,13 @@ import {
 import { MedusaError } from "@medusajs/framework/utils"
 import { DURATION_BUCKETS_SECONDS } from "./duration-buckets"
 import { registerMenuReadMetrics } from "./menu-read-timing"
+import {
+  isExcludedPath,
+  matchedRoute,
+  pathOf,
+  REQUEST_START,
+  type RoutedRequest,
+} from "./request-paths"
 
 type RequestStart = {
   request: IncomingMessage
@@ -29,17 +36,6 @@ const ALLOWED_HTTP_METHODS = new Set([
   "DELETE",
   "OPTIONS",
 ])
-
-/**
- * Monitoring, probe and static traffic never enters the ordinary API totals.
- * Matched on the raw path before any label is chosen.
- */
-const EXCLUDED_PATHS = [
-  /^\/health\/?$/i,
-  /^\/metrics\/?$/i,
-  /^\/app(\/|$)/i,
-  /^\/static\//i,
-]
 
 /**
  * Server-sent event endpoints and the bounded route category their established
@@ -61,13 +57,6 @@ const STREAM_ROUTES = [
     route: "/store/orders/:id/tracking/stream",
   },
 ]
-
-const pathOf = (url: string) => url.split("?")[0]
-
-/** Health, scrape, Admin and static paths, ignoring any query string. */
-function isExcludedPath(url: string): boolean {
-  return EXCLUDED_PATHS.some((pattern) => pattern.test(pathOf(url)))
-}
 
 /** The stream route category of a raw URL, or undefined for ordinary paths. */
 function streamRouteOf(url: string): string | undefined {
@@ -95,16 +84,6 @@ const STREAM_OUTCOMES: StreamOutcome[] = ["server_ended", "disconnected"]
 const UNMATCHED = "unmatched"
 const EARLY_REJECTION = "early_rejection"
 const UNROUTED = "unrouted"
-
-/** The request object Node emits, once Express has decorated it. */
-type RoutedRequest = IncomingMessage & { route?: { path?: unknown } }
-
-/** Express's documented `req.route` pattern, when a route has matched. */
-function matchedRoute(request: RoutedRequest): string | undefined {
-  const path = request.route?.path
-  if (typeof path === "string" || path instanceof RegExp) return String(path)
-  return undefined
-}
 
 /**
  * Express's documented `req.route` holds the last registered route pattern that
@@ -283,7 +262,7 @@ export function startRequestMetrics({
   const stop = () => {
     if (isStopped) return
     isStopped = true
-    unsubscribe("http.server.request.start", observe)
+    unsubscribe(REQUEST_START, observe)
     for (const cleanup of pending) cleanup()
     exporter.close()
     exporter.closeAllConnections()
@@ -295,7 +274,7 @@ export function startRequestMetrics({
     stop()
     warn()
   })
-  subscribe("http.server.request.start", observe)
+  subscribe(REQUEST_START, observe)
   process.once("SIGTERM", stop)
   process.once("SIGINT", stop)
   try {

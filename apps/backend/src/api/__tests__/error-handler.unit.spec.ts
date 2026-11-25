@@ -9,6 +9,8 @@ async function respond(error: Error, originalUrl: string, method = "POST") {
   const sent: { status?: number; body?: Record<string, unknown> } = {}
   const res = {
     locals: {},
+    setHeader: jest.fn(),
+    once: jest.fn(),
     status(code: number) {
       sent.status = code
       return res
@@ -18,7 +20,12 @@ async function respond(error: Error, originalUrl: string, method = "POST") {
       return res
     },
   }
-  const req = { originalUrl, method, scope: { resolve: () => logger } }
+  const req = {
+    originalUrl,
+    method,
+    headers: {},
+    scope: { resolve: () => logger },
+  }
   await mtogoErrorHandler()(
     error as MedusaError,
     req as never,

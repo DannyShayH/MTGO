@@ -1,3 +1,5 @@
+import type { Instrumentation } from "next"
+
 /**
  * Next.js calls this once when the server starts. With
  * `MTOGO_METRICS_ENABLED=1` it opens the private page render exporter
@@ -26,4 +28,29 @@ export async function register() {
       warn()
     }
   }
+}
+
+let logRequestError: Instrumentation.onRequestError | undefined
+
+/**
+ * Next.js calls this for every server error it captures: a page, route
+ * handler, Server Action or the middleware (#247). Only the error's safe class,
+ * the route pattern, the method and a validated request ID are logged, once
+ * per request.
+ */
+export const onRequestError: Instrumentation.onRequestError = async (
+  error,
+  request,
+  context,
+) => {
+  // src/lib/logger.ts is server-only, which this hook cannot import. Each
+  // import stays inside its check, so the Edge bundle never includes Winston.
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    const { createRequestErrorLogger } = await import("@dtc/logging")
+    logRequestError ??= createRequestErrorLogger("storefront")
+  } else {
+    const { createEdgeRequestErrorLogger } = await import("@dtc/logging/edge")
+    logRequestError ??= createEdgeRequestErrorLogger("storefront")
+  }
+  await logRequestError(error, request, context)
 }

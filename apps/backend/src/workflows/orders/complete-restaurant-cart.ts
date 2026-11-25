@@ -12,6 +12,7 @@ import {
   useQueryGraphStep,
 } from "@medusajs/medusa/core-flows"
 import { MOCK_PAYMENT_PROVIDER_ID } from "../carts/basket-rules"
+import { logMilestoneStep } from "../../observability/milestone-log"
 import { placePaidRestaurantOrderWorkflow } from "./place-paid-restaurant-order"
 
 const PLACED_ORDER_FIELDS = [
@@ -97,7 +98,9 @@ export const completeRestaurantCartWorkflow = createWorkflow(
       cart_id: input.cart_id,
       order_id: order.id,
     }))
-    placePaidRestaurantOrderWorkflow.runAsStep({ input: placementInput })
+    const placement = placePaidRestaurantOrderWorkflow.runAsStep({
+      input: placementInput,
+    })
 
     const orderId = transform({ order }, ({ order }) => order.id)
     const { data: placed } = useQueryGraphStep({
@@ -105,6 +108,11 @@ export const completeRestaurantCartWorkflow = createWorkflow(
       fields: PLACED_ORDER_FIELDS,
       filters: { id: orderId },
     }).config({ name: "load-placed-order" })
+    // Last: a failure of any step above undoes the placement.
+    logMilestoneStep({
+      event: "order.placed",
+      milestone: placement.milestone,
+    })
     return new WorkflowResponse(
       transform({ placed }, ({ placed }) => placed[0]),
     )

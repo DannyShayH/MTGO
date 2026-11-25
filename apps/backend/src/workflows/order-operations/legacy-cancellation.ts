@@ -4,6 +4,7 @@ import { ORDER_OPERATION_MODULE } from "../../modules/order-operation"
 import type OrderOperationModuleService from "../../modules/order-operation/service"
 import type { OrderOperationState } from "../../modules/order-operation/models/order-operation"
 import { owedRefund, settleCancellation } from "./cancellation"
+import { logOrderCancelled } from "./cancellation-log"
 import { orderOperationLock } from "./locks"
 import { SYSTEM_ACTOR } from "./rules"
 
@@ -12,6 +13,7 @@ export const LEGACY_BATCH_SIZE = 50
 
 type LegacyRecord = {
   id: string
+  restaurant_id: string
   state: OrderOperationState
   acceptance_deadline: Date | null
   revision: number
@@ -73,12 +75,18 @@ export async function cancelLegacyAwaitingOrder(
       const [record] = (await service.listOrderOperations(
         { order_id },
         {
-          select: ["id", "state", "acceptance_deadline", "revision"],
+          select: [
+            "id",
+            "restaurant_id",
+            "state",
+            "acceptance_deadline",
+            "revision",
+          ],
           take: 1,
         },
       )) as unknown as LegacyRecord[]
       if (!isLegacyAwaiting(record)) return false
-      return service.cancelWithRefundObligation({
+      const cancelled = await service.cancelWithRefundObligation({
         id: record.id,
         order_id,
         revision: record.revision,
@@ -89,6 +97,14 @@ export async function cancelLegacyAwaitingOrder(
         note: null,
         refund: await owedRefund(container, order_id),
       })
+      if (cancelled)
+        logOrderCancelled(container, {
+          order_id,
+          restaurant_id: record.restaurant_id,
+          cancelled_by: SYSTEM_ACTOR,
+          category: "acceptance_timeout",
+        })
+      return cancelled
     },
     { timeout: lock.timeout, expire: lock.ttl },
   )

@@ -1,3 +1,4 @@
+import { requestId } from "@dtc/logging/request-id"
 import { HttpTypes } from "@medusajs/types"
 import { NextRequest, NextResponse } from "next/server"
 
@@ -84,12 +85,23 @@ async function getCountryCode(
   return countryCode
 }
 
+/** Server routes without a region: they only get a request ID. */
+const REGIONLESS_PATH = /^\/(?:api|ucp|buy)/
+
 /**
  * Middleware to handle region selection and onboarding status.
  */
 export async function middleware(request: NextRequest) {
-  if (request.nextUrl.pathname.includes(".")) {
-    return NextResponse.next()
+  // One ID for everything this request does: its backend calls, its log
+  // records and a server error (#247). An invalid one is replaced.
+  const headers = new Headers(request.headers)
+  headers.set("x-request-id", requestId(headers.get("x-request-id")))
+
+  if (
+    request.nextUrl.pathname.includes(".") ||
+    REGIONLESS_PATH.test(request.nextUrl.pathname)
+  ) {
+    return NextResponse.next({ request: { headers } })
   }
 
   const cacheIdCookie = request.cookies.get("_medusa_cache_id")
@@ -107,8 +119,10 @@ export async function middleware(request: NextRequest) {
   // crawlers get the storefront content directly from the root URL.
   if (urlHasCountry || request.nextUrl.pathname === "/") {
     const response = urlHasCountry
-      ? NextResponse.next()
-      : NextResponse.rewrite(new URL(`/${country}`, request.url))
+      ? NextResponse.next({ request: { headers } })
+      : NextResponse.rewrite(new URL(`/${country}`, request.url), {
+          request: { headers },
+        })
     if (!cacheIdCookie) {
       response.cookies.set("_medusa_cache_id", cacheId, {
         maxAge: 60 * 60 * 24,
@@ -128,6 +142,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!api|ucp|buy|_next/static|_next/image|favicon.ico|images|assets|png|svg|jpg|jpeg|gif|webp).*)",
+    "/((?!_next/static|_next/image|favicon.ico|images|assets|png|svg|jpg|jpeg|gif|webp).*)",
   ],
 }

@@ -55,6 +55,7 @@ declare "application_events" {
         restaurant_id       = "",
         order_id            = "",
         outcome             = "",
+        category            = "",
         err_type            = "err.type",
         whole_read_ms       = "",
         restaurant_ms       = "",
@@ -75,7 +76,7 @@ declare "application_events" {
 
     stage.regex {
       source     = "combination"
-      expression = `^(?P<recognized>auth\.sign_in\.succeeded\|info\|Partner sign-in succeeded|auth\.sign_in\.failed\|warn\|Partner sign-in failed|auth\.session\.ended\|info\|Partner session ended|access\.denied\|warn\|Access denied|input\.rejected\|info\|Input rejected|upstream\.request\.failed\|info\|Upstream request failed|upstream\.request\.failed\|warn\|Upstream request failed|request\.failed\|error\|Request failed|pickup_location_missing\|error\|Restaurant pickup location is missing|refund\.attempted\|info\|Refund attempted|menu\.read\.slow\|warn\|Slow Customer menu read|monitoring\.exporter\.unavailable\|warn\|Metrics exporter unavailable; the app continues|monitoring\.demo_read\.succeeded\|info\|Disposable backend product read completed)$`
+      expression = `^(?P<recognized>auth\.sign_in\.succeeded\|info\|Partner sign-in succeeded|auth\.sign_in\.failed\|warn\|Partner sign-in failed|auth\.session\.ended\|info\|Partner session ended|access\.denied\|warn\|Access denied|input\.rejected\|info\|Input rejected|upstream\.request\.failed\|info\|Upstream request failed|upstream\.request\.failed\|warn\|Upstream request failed|request\.failed\|error\|Request failed|pickup_location_missing\|error\|Restaurant pickup location is missing|refund\.attempted\|info\|Refund attempted|menu\.read\.slow\|warn\|Slow Customer menu read|monitoring\.exporter\.unavailable\|warn\|Metrics exporter unavailable; the app continues|monitoring\.demo_read\.succeeded\|info\|Disposable backend product read completed|order\.placed\|info\|Order placed|order\.accepted\|info\|Order accepted|order\.preparation_started\|info\|Order preparation started|order\.ready\|info\|Order ready|order\.cancelled\|info\|Order cancelled|delivery\.assigned\|info\|Delivery assigned|delivery\.picked_up\|info\|Delivery picked up|delivery\.handed_over\|info\|Delivery handed over)$`
     }
 
     stage.regex {
@@ -176,10 +177,26 @@ declare "application_events" {
       expression = `^(?P<ok_order_id>[A-Za-z0-9_-]{1,128})$`
     }
 
+    // A milestone never names a Customer, whatever the producer wrote (#247).
+    stage.template {
+      source   = "milestone_actor"
+      template = `{{ .ok_event }}|{{ .ok_actor_type }}`
+    }
+
+    stage.regex {
+      source     = "milestone_actor"
+      expression = `^(?P<customer_milestone>(?:order|delivery)\.[a-z_]+\|customer)$`
+    }
+
     // Event-specific fields; the rebuild below keeps each only on its event.
     stage.regex {
       source     = "outcome"
       expression = `^(?P<ok_outcome>succeeded|failed|in_progress)$`
+    }
+
+    stage.regex {
+      source     = "category"
+      expression = `^(?P<ok_category>restaurant_rejected|acceptance_timeout|customer_cancelled|unassigned_timeout|operator_cancelled)$`
     }
 
     stage.regex {
@@ -236,12 +253,13 @@ declare "application_events" {
         {{- if .ok_request_id }},"request_id":"{{ .ok_request_id }}"{{ end }}
         {{- if .ok_status }},"status":{{ .ok_status }}{{ end }}
         {{- if .ok_actor_type }},"actor_type":"{{ .ok_actor_type }}"{{ end }}
-        {{- if .ok_actor_id }},"actor_id":"{{ .ok_actor_id }}"{{ end }}
+        {{- if .customer_milestone }}{{ else if .ok_actor_id }},"actor_id":"{{ .ok_actor_id }}"{{ end }}
         {{- if .ok_restaurant_id }},"restaurant_id":"{{ .ok_restaurant_id }}"{{ end }}
         {{- if .ok_order_id }},"order_id":"{{ .ok_order_id }}"{{ end }}
         {{- if .ok_route }},"route":"{{ .ok_route }}"{{ end }}
         {{- if .ok_method }},"method":"{{ .ok_method }}"{{ end }}
         {{- if and (eq .ok_event "refund.attempted") .ok_outcome }},"outcome":"{{ .ok_outcome }}"{{ end }}
+        {{- if and (eq .ok_event "order.cancelled") .ok_category }},"category":"{{ .ok_category }}"{{ end }}
         {{- if eq .ok_event "menu.read.slow" }}
           {{- if .ok_whole_read_ms }},"whole_read_ms":{{ .ok_whole_read_ms }}{{ end }}
           {{- if .ok_restaurant_ms }},"restaurant_ms":{{ .ok_restaurant_ms }}{{ end }}

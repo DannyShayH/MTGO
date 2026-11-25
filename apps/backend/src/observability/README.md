@@ -136,3 +136,16 @@ controlled 5xx: the test makes the region module's read reject once inside
 the process, so the real `/store/regions` route and Medusa's error handler
 answer 500. No public crash endpoint exists. Existing business
 and request-logging behavior is unchanged.
+
+## Milestone records and shared path rules
+
+`milestone-log.ts` writes the business milestone records of
+[ADR-0019](../../../../docs/adr/0019-safe-application-logging-and-request-correlation.md):
+`logMilestone` at a commit that is never undone, `logMilestoneStep` as the last
+step of a workflow that can still undo its write. They are best effort; the
+database is the authority.
+
+`request-paths.ts` holds the excluded paths and the matched route pattern that
+the metrics and `src/api/request-logging.ts` share. The root
+`instrumentation.ts` always starts that request logging, except in worker mode;
+it uses the same diagnostics channel, but does not depend on the metrics.

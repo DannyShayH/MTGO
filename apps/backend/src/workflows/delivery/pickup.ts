@@ -10,6 +10,7 @@ import { DELIVERY_MODULE } from "../../modules/delivery"
 import type DeliveryModuleService from "../../modules/delivery/service"
 import { ORDER_OPERATION_MODULE } from "../../modules/order-operation"
 import type OrderOperationModuleService from "../../modules/order-operation/service"
+import { logMilestone, milestoneActor } from "../../observability/milestone-log"
 import { orderOperationLock } from "../order-operations/locks"
 import { deliveryAgentAccessRevoked } from "./agent-access"
 import { readCurrentDeliveryStep } from "./assignment"
@@ -80,6 +81,12 @@ export const recordPickupStep = createStep(
     )
     if (result.outcome.outcome === "refused")
       throw refusal(result.outcome.code as PickupRefusal)
+    if (result.outcome.outcome === "pick_up")
+      logMilestone(container, "delivery.picked_up", {
+        order_id: input.order_id,
+        restaurant_id: result.delivery.restaurant_id,
+        ...milestoneActor(input.agent_id),
+      })
     return new StepResponse({ order_id: input.order_id })
   },
 )

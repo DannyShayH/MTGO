@@ -1,7 +1,7 @@
 import "server-only"
 import { FetchError } from "@medusajs/js-sdk"
 import { sdk } from "@lib/config"
-import { log } from "@lib/logger"
+import { logUpstreamFailure } from "@lib/logger"
 
 type Bilingual = { da: string; en: string }
 
@@ -76,7 +76,7 @@ export async function retrieveRestaurantMenu(
     )
   } catch (error) {
     if (error instanceof FetchError && error.status === 404) return null
-    log("upstream.request.failed", {
+    logUpstreamFailure({
       status: error instanceof FetchError ? error.status : undefined,
     })
     throw error

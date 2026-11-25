@@ -38,7 +38,8 @@ It then **rebuilds** the line from validated allowlisted fields. The original
 line is never forwarded. Medusa's own `message` and `timestamp` are dropped, and
 so are unknown fields, nested objects and error messages or stacks. An optional
 field with an invalid value is left out, just as the record builder leaves it
-out. `outcome` survives only on `refund.attempted`. The menu timings survive
+out. `outcome` survives only on `refund.attempted`
+and `category` only on `order.cancelled`. The menu timings survive
 only on `menu.read.slow`. `err` is reduced to `{"type": ...}` on
 `request.failed`. Valid JSON alone never qualifies a line.
 
@@ -68,16 +69,23 @@ never read.
 
 ### What correlates, and what does not
 
-Correlation is what the apps already do
-([ADR-0019](/MTGO/architecture/decisions/0019-safe-application-logging-and-request-correlation/)).
-Nothing was added for this viewer.
+Correlation is what the apps do themselves
+([ADR-0019](/MTGO/architecture/decisions/0019-safe-application-logging-and-request-correlation/),
+widened in [#247](https://github.com/DannyShayH/MTGO/issues/247)). The viewer
+adds nothing to it.
 
-| Journey                                                             | Shared `request_id` in Loki?                                                                                               |
-| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Partner sign-in (`/auth/restaurant_staff/emailpass`, `/partner/me`) | Yes. The partner forwards its ID as `x-request-id`. The backend logs a refusal on these two routes under the same ID.      |
-| Other partner calls (Order, delivery, menu actions)                 | Partner events only. The partner forwards the ID, but the backend's correlated logging covers only the two sign-in routes. |
-| Partner sign-out                                                    | Partner event only. Sign-out does not call the backend.                                                                    |
-| Storefront                                                          | No. Storefront records carry no request ID.                                                                                |
+| Journey                                                    | How to follow it                                                                                                           |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Partner sign-in and other partner calls that forward an ID | By `request_id`: the partner's record and the backend's refusal or failure.                                                |
+| Storefront page                                            | By `request_id`: the storefront's failed call or server error and the backend's record. Shared cached fetches carry no ID. |
+| Partner sign-out                                           | Partner event only. Sign-out does not call the backend.                                                                    |
+| One Order, from placement to handover or cancellation      | By `order_id`: `{service="backend"} \| json \| order_id="order_..."`. Milestones carry no `request_id`.                    |
+| Work in jobs (recovery sweeps, refunds)                    | By `order_id` or `restaurant_id`; there is no request.                                                                     |
+
+**If the staging `worker` profile is enabled**, jobs run in the `worker`
+container, which Alloy does not read. Automatic cancellations
+(`acceptance_timeout`, `unassigned_timeout`) and job failures then stay in
+Docker's logs only. By default staging runs jobs in `backend`, which is read.
 
 Not every request produces an event. A search that finds nothing under an ID
 does not prove that a step did not happen. There is no tracing.
@@ -159,6 +167,7 @@ Useful LogQL, for an administrator in Explore (including **Live**) or the API:
 {service=~".+"}                                             every approved event
 {service="partner", level="warn"} | json | event="auth.sign_in.failed"
 {service=~".+"} | json | request_id="<id>"                  one interaction, every app
+{service="backend"} | json | order_id="<order id>"          one Order's milestones
 ```
 
 ### The boundary, as a Viewer
@@ -308,6 +317,14 @@ Use synthetic input only, and send no deliberate failures or load to staging.
 | Permission denied on the Docker socket        | Compose runs Alloy as root (`user: "0"`) to read the socket. Check the socket path is `/var/run/docker.sock` on the host.                                                                 |
 
 ## Verification record
+
+Agent verification for #247 on 25 November 2026: the pipeline recognizes the
+eight milestones and the `category` field. The unit spec passes, and a throwaway
+simulation of the module's expressions **and rebuild template** reproduced the
+stored line of all 45 fixtures. It is not Alloy; re-run the
+[fixture test](#fixture-test-of-the-pipeline). Both Next.js apps were built and
+run in production mode against a stub backend: one `request.failed` per failed
+request, and the same ID in the storefront's record and the backend call.
 
 Agent verification on 25 November 2026, on the uncommitted #177 working tree:
 

@@ -7,10 +7,7 @@ import {
   ContainerRegistrationKeys,
   MedusaError,
 } from "@medusajs/framework/utils"
-import {
-  correlatedRoute,
-  initializeRequestCorrelation,
-} from "./request-logging"
+import { correlateError, isSignInRequest } from "./request-logging"
 import {
   ErrorResponseFields,
   responseFieldsOf,
@@ -258,8 +255,9 @@ function feedbackRatingsRefusalBody(
 }
 
 /**
- * Preserve Medusa responses and additional refusal fields. The correlated
- * sign-in path handles failures safely and logs once when the response ends.
+ * Preserve Medusa responses and additional refusal fields. Every failure is
+ * recorded once, safely, when its response ends (`request-logging.ts`); the
+ * sign-in path also keeps error text out of its responses and Medusa's log.
  */
 export function mtogoErrorHandler(): MedusaErrorHandlerFunction {
   const medusaErrorHandler = errorHandler()
@@ -330,6 +328,7 @@ export function mtogoErrorHandler(): MedusaErrorHandlerFunction {
       ? error.message
       : undefined
     if (stableErrorCode) body.code = stableErrorCode
+    correlateError(error, statusCode, req, res)
     const categoryBody =
       feedbackRatingsRefusalBody(
         req.originalUrl,
@@ -359,13 +358,10 @@ export function mtogoErrorHandler(): MedusaErrorHandlerFunction {
       res.status(statusCode).json(categoryBody)
       return
     }
-    // The demonstrated login path logs once on response finish. Delegating to
-    // Medusa here would also log raw error messages/objects without correlation.
-    if (correlatedRoute(req)) {
-      // Medusa's body parser runs before application correlation middleware.
-      initializeRequestCorrelation(req, res)
+    // Delegating the sign-in path to Medusa would return and log raw error
+    // text. Other routes keep Medusa's response and its own Docker log line.
+    if (isSignInRequest(req)) {
       if (statusCode >= 500) {
-        res.locals.loggingError = error
         res.status(statusCode).json({
           type: "unknown_error",
           message: "An unknown error occurred.",

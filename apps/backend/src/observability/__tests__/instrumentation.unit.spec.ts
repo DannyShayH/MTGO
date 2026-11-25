@@ -3,6 +3,9 @@ jest.mock("@medusajs/framework/config", () => ({
 }))
 jest.mock("@medusajs/framework/logger", () => ({ logger: { warn: jest.fn() } }))
 jest.mock("../request-metrics", () => ({ startRequestMetrics: jest.fn() }))
+jest.mock("../../api/request-logging", () => ({
+  startRequestLogging: jest.fn(() => () => {}),
+}))
 jest.mock("node:cluster", () => ({ isWorker: false }))
 
 describe("supported Medusa instrumentation startup", () => {
@@ -61,6 +64,27 @@ describe("supported Medusa instrumentation startup", () => {
     register()
     expect(startRequestMetrics).toHaveBeenCalledTimes(expectedCalls)
   })
+
+  it.each([
+    { mode: "shared", enabled: "", calls: 1, reason: "DT: metrics disabled" },
+    { mode: "server", enabled: "1", calls: 1, reason: "DT: metrics enabled" },
+    { mode: "worker", enabled: "1", calls: 0, reason: "DT: no API requests" },
+  ])(
+    "$reason: request logging starts $calls time(s)",
+    ({ mode, enabled, calls }) => {
+      process.env.MTOGO_METRICS_ENABLED = enabled
+      const { configManager } = require("@medusajs/framework/config")
+      configManager.config.projectConfig.workerMode = mode
+      require("node:cluster").isWorker = false
+      const { startRequestLogging } = require("../../api/request-logging")
+      const { startRequestMetrics } = require("../request-metrics")
+      startRequestMetrics.mockReturnValue(() => {})
+      const { register } = require("../../../instrumentation")
+      register()
+      register()
+      expect(startRequestLogging).toHaveBeenCalledTimes(calls)
+    },
+  )
 
   it("does not fail application startup on invalid exporter configuration", () => {
     process.env.MTOGO_METRICS_ENABLED = "1"

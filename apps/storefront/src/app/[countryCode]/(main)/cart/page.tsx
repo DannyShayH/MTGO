@@ -1,6 +1,6 @@
 import { CUSTOMER_CART } from "@dtc/i18n"
 import { httpStatus } from "@dtc/logging"
-import { log } from "@lib/logger"
+import { logUpstreamFailure } from "@lib/logger"
 import { retrieveBasketDishes } from "@lib/data/basket-dishes"
 import { retrieveCart } from "@lib/data/cart"
 import { retrieveCustomer } from "@lib/data/current-customer"
@@ -17,7 +17,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function Cart() {
   const cart = await retrieveCart().catch((error) => {
-    log("upstream.request.failed", {
+    logUpstreamFailure({
       route: "/:countryCode/cart",
       method: "GET",
       status: httpStatus(error),

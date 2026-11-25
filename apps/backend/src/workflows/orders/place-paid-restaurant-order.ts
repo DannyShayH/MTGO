@@ -36,6 +36,7 @@ import {
 } from "../order-operations/financial-basis"
 import { consumePurchaseReviewStep } from "../order-operations/steps/consume-purchase-review"
 import { markPaidPlacementsStep } from "../order-operations/steps/mark-paid-placements"
+import type { Milestone } from "../../observability/milestone-log"
 import { hasPaidPlacement } from "./placed-order-visibility"
 
 type Input = { order_id: string; cart_id: string }
@@ -210,6 +211,19 @@ export const placePaidRestaurantOrderWorkflow = createWorkflow(
     })
 
     releaseLockStep({ key: input.cart_id })
-    return new WorkflowResponse(undefined)
+    // Null when the Order was already placed (#247).
+    return new WorkflowResponse(
+      transform({ facts, input }, ({ facts, input }) => {
+        const { placed, restaurant_id } = facts as PlacementFacts
+        const milestone: Milestone | null = placed
+          ? null
+          : {
+              order_id: input.order_id,
+              restaurant_id,
+              actor_type: "customer",
+            }
+        return { milestone }
+      }),
+    )
   },
 )

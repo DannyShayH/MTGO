@@ -1,4 +1,6 @@
+import { getRequestId } from "@lib/data/request-id"
 import { getLocaleHeader } from "@lib/util/get-locale-header"
+import { isSharedFetch } from "@lib/util/shared-fetch"
 import Medusa, { FetchArgs, FetchInput } from "@medusajs/js-sdk"
 
 // Defaults to standard port for Medusa server
@@ -27,8 +29,16 @@ sdk.client.fetch = async <T>(
     headers["x-medusa-locale"] ??= localeHeader["x-medusa-locale"]
   } catch {}
 
+  // The backend logs its failures under the same ID (#247). Only on the
+  // server: in the browser this would be a request of its own.
+  const requestId =
+    typeof window === "undefined" && !isSharedFetch(init)
+      ? await getRequestId()
+      : undefined
+
   const newHeaders = {
     ...localeHeader,
+    ...(requestId && { "x-request-id": requestId }),
     ...headers,
   }
   init = {

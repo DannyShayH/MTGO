@@ -1,15 +1,20 @@
 import cluster from "node:cluster"
 import { configManager } from "@medusajs/framework/config"
 import { logger } from "@medusajs/framework/logger"
+import { startRequestLogging } from "./src/api/request-logging"
 import { startRequestMetrics } from "./src/observability/request-metrics"
 
 let stop: (() => void) | undefined
+let stopRequestLogging: (() => void) | undefined
 
 const warnExporterUnavailable = () =>
   logger.warn("Request metrics unavailable; API startup continues")
 
 /** Medusa invokes this hook for start/develop, before loading the HTTP app. */
 export function register() {
+  // Always on, unlike the optional metrics; a worker serves no API requests.
+  if (configManager.config.projectConfig.workerMode !== "worker")
+    stopRequestLogging ??= startRequestLogging()
   if (
     stop ||
     process.env.MTOGO_METRICS_ENABLED !== "1" ||

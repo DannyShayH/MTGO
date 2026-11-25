@@ -7,6 +7,7 @@ import type {
 } from "../../modules/order-operation/models/order-operation"
 import { endDeliveryForOrder } from "../delivery/terminal"
 import { owedRefund, purchasedFood } from "./cancellation"
+import { logOrderCancelled } from "./cancellation-log"
 import { preparedFoodCredit } from "./unassigned-cancellation-rules"
 
 /** The guarded record as both cancellations after acceptance re-read it. */
@@ -71,6 +72,12 @@ export async function commitAcceptedCancellation(
       food_credit: credit && { ...credit, reason: cancellation.category },
     })
   if (!committed) return { committed: false }
+  logOrderCancelled(container, {
+    order_id,
+    restaurant_id: record.restaurant_id,
+    cancelled_by: cancellation.cancelled_by,
+    category: cancellation.category,
+  })
   await endDeliveryForOrder(container, {
     order_id,
     outcome: "cancelled",

@@ -3,6 +3,10 @@ import { MedusaError } from "@medusajs/framework/utils"
 import { MedusaContainer } from "@medusajs/framework/types"
 import { ORDER_OPERATION_MODULE } from "../../../modules/order-operation"
 import type OrderOperationModuleService from "../../../modules/order-operation/service"
+import {
+  milestoneActor,
+  type Milestone,
+} from "../../../observability/milestone-log"
 import { withResponseFields } from "../../common/response-fields"
 import {
   decideTransition,
@@ -21,6 +25,9 @@ export type TransitionRestaurantOrderInput = {
   staff_id: string
   action: MilestoneAction
 }
+
+/** The milestone this request recorded, or null for a repeat (#247). */
+type TransitionResult = { milestone: Milestone | null }
 
 type Compensation = {
   id: string
@@ -103,7 +110,12 @@ export const transitionRestaurantOrderStep = createStep(
     if (decision.outcome === "refused")
       throw await refuseWithCurrent(container, input, decision.code)
     if (decision.outcome === "already_recorded")
-      return new StepResponse<void, Compensation>(undefined)
+      return new StepResponse<
+        TransitionResult,
+        Compensation | TransitionResult
+      >({
+        milestone: null,
+      })
     const { from, to, at, by } = ORDER_TRANSITIONS[input.action]
     const updated = await service.updateOrderOperations({
       selector: { id: record.id, revision: record.revision, state: from },
@@ -116,15 +128,25 @@ export const transitionRestaurantOrderStep = createStep(
     })
     if (!updated.length)
       throw await refuseWithCurrent(container, input, ORDER_CHANGED)
-    return new StepResponse<void, Compensation>(undefined, {
-      id: record.id,
-      action: input.action,
-      revision: record.revision,
-      staff_id: input.staff_id,
-    })
+    return new StepResponse<TransitionResult, Compensation | TransitionResult>(
+      {
+        milestone: {
+          order_id: input.order_id,
+          restaurant_id: input.restaurant_id,
+          ...milestoneActor(input.staff_id),
+        },
+      },
+      {
+        id: record.id,
+        action: input.action,
+        revision: record.revision,
+        staff_id: input.staff_id,
+      },
+    )
   },
-  async (written: Compensation, { container }) => {
-    if (!written) return
+  // Without a write of its own, the SDK passes the step's output here instead.
+  async (written: Compensation | TransitionResult, { container }) => {
+    if (!written || !("id" in written)) return
     const { from, to, at, by } = ORDER_TRANSITIONS[written.action]
     await container
       .resolve<OrderOperationModuleService>(ORDER_OPERATION_MODULE)

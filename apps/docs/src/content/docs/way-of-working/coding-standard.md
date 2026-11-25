@@ -5,7 +5,7 @@ sidebar:
   order: 3
 ---
 
-Version 1.2, 14 November 2026. Introduced in [issue #9](https://github.com/DannyShayH/MTGO/issues/9), with the SonarQube review requirement added in [issue #80](https://github.com/DannyShayH/MTGO/issues/80). The logging baseline in section 7 was agreed in [issue #28](https://github.com/DannyShayH/MTGO/issues/28).
+Version 1.3, 25 November 2026. Introduced in [issue #9](https://github.com/DannyShayH/MTGO/issues/9), with the SonarQube review requirement added in [issue #80](https://github.com/DannyShayH/MTGO/issues/80). The logging baseline in section 7 was agreed in [issue #28](https://github.com/DannyShayH/MTGO/issues/28) and widened in [issue #247](https://github.com/DannyShayH/MTGO/issues/247).
 
 ## 1. Overview
 
@@ -209,7 +209,8 @@ Medusa retains its formatter. No file transport or `LOG_FILE`.
 
 Records contain `time`, `level`, `service`, `env`, `event`, `msg`, optionally
 `request_id`, `route`, `method`, `status`, opaque `actor_type`/`actor_id`,
-`restaurant_id`, `order_id` and `err`. Messages are constant sentences selected by
+`restaurant_id`, `order_id` and `err`, plus fields one event alone allows
+(`outcome`, `category` and the menu timings; see the logging guide). Messages are constant sentences selected by
 the event vocabulary; variable data belongs in allowed fields. Routes are
 constant patterns without query strings. Unexpected `request.failed` errors
 carry only a safe built-in type classification in `err`, never raw error text,
@@ -218,7 +219,11 @@ stack, cause or provider data.
 Vocabulary: `auth.sign_in.succeeded` (info), `auth.sign_in.failed` (warn),
 `auth.session.ended` (info), `access.denied` (warn), `input.rejected` (info),
 `upstream.request.failed` (warn for 5xx/no response, info for expected 4xx),
-`request.failed` (error). Extend it centrally when needed. Use debug in
+`request.failed` (error), and the info milestones `order.placed`,
+`order.accepted`, `order.preparation_started`, `order.ready`, `order.cancelled`,
+`delivery.assigned`, `delivery.picked_up` and `delivery.handed_over`. The logging
+guide lists every event. Log a milestone only once it cannot be undone (ADR-0021),
+and never with a Customer's ID. Extend the vocabulary centrally when needed. Use debug in
 development and info elsewhere; security events must stay visible.
 
 Accept `x-request-id` only as 1–64 ASCII letters, digits or hyphens; generate a

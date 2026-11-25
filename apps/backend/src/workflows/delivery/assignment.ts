@@ -16,6 +16,7 @@ import type DeliveryModuleService from "../../modules/delivery/service"
 import type { AssignmentSource } from "../../modules/delivery/models/intended-delivery"
 import { ORDER_OPERATION_MODULE } from "../../modules/order-operation"
 import type OrderOperationModuleService from "../../modules/order-operation/service"
+import { logMilestone, milestoneActor } from "../../observability/milestone-log"
 import { orderOperationLock } from "../order-operations/locks"
 import { commitUnassignedCancellation } from "../order-operations/unassigned-cancellation"
 import { settleCancellation } from "../order-operations/cancellation"
@@ -125,6 +126,12 @@ export const assignDeliveryStep = createStep(
     if (result.outcome.outcome === "refused")
       throw refusal(result.outcome.code as AssignmentRefusal, input.source)
     const record = result.delivery
+    if (result.outcome.outcome === "assign")
+      logMilestone(container, "delivery.assigned", {
+        order_id: record.order_id,
+        restaurant_id: record.restaurant_id,
+        ...milestoneActor(input.actor_id),
+      })
     return new StepResponse({
       order_id: record.order_id,
       agent_id: record.assigned_agent_id as string,

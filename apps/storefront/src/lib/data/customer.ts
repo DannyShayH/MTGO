@@ -5,7 +5,7 @@ import medusaError from "@lib/util/medusa-error"
 import { HttpTypes } from "@medusajs/types"
 import { FetchError } from "@medusajs/js-sdk"
 import { httpStatus } from "@dtc/logging"
-import { log } from "@lib/logger"
+import { logUpstreamFailure } from "@lib/logger"
 import { getLocale, setLocaleCookie } from "./locale-actions"
 import { resolveLocale, resolveCustomerLocale, isLocale } from "@dtc/i18n"
 import {
@@ -62,7 +62,7 @@ const addressMutationFailure = <T extends CustomerAddressMutationError>(
   fallback: T,
 ): { success: false; error: T } => {
   const status = httpStatus(error)
-  log("upstream.request.failed", { status })
+  logUpstreamFailure({ status })
   if (status !== undefined && status >= 400 && status < 500) {
     return { success: false as const, error: fallback }
   }

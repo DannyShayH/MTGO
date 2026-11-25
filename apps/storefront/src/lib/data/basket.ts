@@ -2,7 +2,7 @@
 
 import { httpStatus } from "@dtc/logging"
 import { sdk } from "@lib/config"
-import { log } from "@lib/logger"
+import { logUpstreamFailure } from "@lib/logger"
 import { getAuthHeaders, getCacheTag } from "./cookies"
 import { getOrSetCart, retrieveCart } from "./cart"
 import { revalidateTag } from "next/cache"
@@ -74,7 +74,7 @@ export async function addDishToBasket({
       : { status: "error", isBasketCleared: isCleared }
   } catch (error) {
     const code = codeOf(error)
-    log("upstream.request.failed", { status: httpStatus(error) })
+    logUpstreamFailure({ status: httpStatus(error) })
     if (code === "basket_other_restaurant")
       return { status: "other_restaurant" }
     if (code === "basket_not_a_dish") return { status: "unavailable" }

@@ -10,6 +10,14 @@ without a package build step; declarations describe the TypeScript interface.
   Medusa's existing container logger. It never replaces the Medusa logger.
 - `requestId(value)` accepts 1–64 ASCII letters/digits/hyphens or generates a
   random UUID. Pass the returned value explicitly between calls.
+- `knownRequestId(value)` returns an acceptable ID or nothing; it never invents
+  one. It and `requestId` come from `@dtc/logging/request-id`, which has no
+  dependencies, so Edge code can import it.
+- `createRequestErrorLogger(service)` is a Next.js `onRequestError` logger: one
+  safe `request.failed` per request, for the app's `src/instrumentation.ts`.
+- `createEdgeRequestErrorLogger(service)` from `@dtc/logging/edge` is the same
+  for the Edge runtime (Next.js middleware), where Winston cannot run. It writes
+  the record as one JSON line.
 - `httpStatus(error)` extracts only a valid HTTP error status, including the
   legacy response shape. It does not expose error text.
 

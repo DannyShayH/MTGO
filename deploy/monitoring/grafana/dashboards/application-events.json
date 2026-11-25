@@ -73,14 +73,14 @@
       "type": "text",
       "title": "What this shows",
       "gridPos": {
-        "h": 6,
+        "h": 7,
         "w": 24,
         "x": 0,
         "y": 0
       },
       "options": {
         "mode": "markdown",
-        "content": "Only **recognized events from the backend, partner and storefront** reach this view, rebuilt from the logging allowlist. Raw framework, startup, Next.js server and provider lines stay in `docker compose logs`. Database, Redis, Caddy, the worker and browser output are never collected.\n\n**No events** with a healthy pipeline means no matching approved event happened in the time range; it does not mean nothing happened. Not every request logs an event, and the storefront logs only failed backend calls.\n\n**Request IDs correlate only where the apps already share one:** partner server calls that forward their `request_id` to the backend, such as sign-in. Storefront records share no ID with the backend, and there is no tracing. A missing event under an ID is not proof the step did not happen.\n\n**Live tail:** set refresh to 5s (top right) or add `&refresh=5s` to the URL."
+        "content": "Only **recognized events from the backend, partner and storefront** reach this view, rebuilt from the logging allowlist. Raw framework, startup, Next.js server and provider lines stay in `docker compose logs`. Database, Redis, Caddy, the worker and browser output are never collected.\n\n**No events** with a healthy pipeline means no matching approved event happened in the time range; it does not mean nothing happened. Successful requests log nothing; refusals, failures and Order milestones do.\n\n**Follow one request** by `request_id` across the apps that share it (partner calls, storefront pages). **Follow one Order** by its `order_id` in the event's details; milestones carry no request ID. There is no tracing, and a missing event is not proof the step did not happen. Never count Orders from these events.\n\n**Live tail:** set refresh to 5s (top right) or add `&refresh=5s` to the URL."
       }
     },
     {
@@ -95,7 +95,7 @@
         "h": 20,
         "w": 24,
         "x": 0,
-        "y": 6
+        "y": 7
       },
       "options": {
         "showTime": true,
@@ -129,7 +129,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 26
+        "y": 27
       },
       "fieldConfig": {
         "defaults": {

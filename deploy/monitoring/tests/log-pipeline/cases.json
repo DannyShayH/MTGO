@@ -257,5 +257,61 @@
     "reason": "EP: framework output that must never reach Loki",
     "line": "Error: SECRET-MARKER-next-error at async signIn (.next/server/app/page.js:1:1) { digest: '1234' }",
     "stored": null
+  },
+  {
+    "name": "order cancelled with its category",
+    "source": "backend",
+    "reason": "EP: genuine producer record; the event-specific category field",
+    "line": "{\"actor_type\":\"customer\",\"category\":\"customer_cancelled\",\"env\":\"production\",\"event\":\"order.cancelled\",\"level\":\"info\",\"message\":\"Order cancelled\",\"msg\":\"Order cancelled\",\"order_id\":\"order_01FIXTURE\",\"restaurant_id\":\"rest_01FIXTURE\",\"service\":\"backend\",\"time\":\"{{TIME}}\",\"timestamp\":\"{{TIMESTAMP}}\"}",
+    "stored": "{\"time\":\"{{TIME}}\",\"level\":\"info\",\"service\":\"backend\",\"env\":\"production\",\"event\":\"order.cancelled\",\"msg\":\"Order cancelled\",\"actor_type\":\"customer\",\"restaurant_id\":\"rest_01FIXTURE\",\"order_id\":\"order_01FIXTURE\",\"category\":\"customer_cancelled\"}"
+  },
+  {
+    "name": "free-text category is left out",
+    "source": "backend",
+    "reason": "EP: recognized record with an unsafe or invalid part to strip",
+    "line": "{\"actor_id\":\"system\",\"actor_type\":\"system\",\"category\":\"SECRET-MARKER rude customer\",\"env\":\"production\",\"event\":\"order.cancelled\",\"level\":\"info\",\"message\":\"Order cancelled\",\"msg\":\"Order cancelled\",\"order_id\":\"order_01FIXTURE\",\"restaurant_id\":\"rest_01FIXTURE\",\"service\":\"backend\",\"time\":\"{{TIME}}\",\"timestamp\":\"{{TIMESTAMP}}\"}",
+    "stored": "{\"time\":\"{{TIME}}\",\"level\":\"info\",\"service\":\"backend\",\"env\":\"production\",\"event\":\"order.cancelled\",\"msg\":\"Order cancelled\",\"actor_type\":\"system\",\"actor_id\":\"system\",\"restaurant_id\":\"rest_01FIXTURE\",\"order_id\":\"order_01FIXTURE\"}"
+  },
+  {
+    "name": "category on another milestone is left out",
+    "source": "backend",
+    "reason": "EP: category on an event that does not allow it",
+    "line": "{\"actor_id\":\"rstf_01FIXTURE\",\"actor_type\":\"restaurant_staff\",\"category\":\"operator_cancelled\",\"env\":\"production\",\"event\":\"order.accepted\",\"level\":\"info\",\"message\":\"Order accepted\",\"msg\":\"Order accepted\",\"order_id\":\"order_01FIXTURE\",\"restaurant_id\":\"rest_01FIXTURE\",\"service\":\"backend\",\"time\":\"{{TIME}}\",\"timestamp\":\"{{TIMESTAMP}}\"}",
+    "stored": "{\"time\":\"{{TIME}}\",\"level\":\"info\",\"service\":\"backend\",\"env\":\"production\",\"event\":\"order.accepted\",\"msg\":\"Order accepted\",\"actor_type\":\"restaurant_staff\",\"actor_id\":\"rstf_01FIXTURE\",\"restaurant_id\":\"rest_01FIXTURE\",\"order_id\":\"order_01FIXTURE\"}"
+  },
+  {
+    "name": "delivery handed over",
+    "source": "backend",
+    "reason": "EP: genuine producer record (Medusa production logger)",
+    "line": "{\"actor_id\":\"dagt_01FIXTURE\",\"actor_type\":\"delivery_agent\",\"env\":\"production\",\"event\":\"delivery.handed_over\",\"level\":\"info\",\"message\":\"Delivery handed over\",\"msg\":\"Delivery handed over\",\"order_id\":\"order_01FIXTURE\",\"restaurant_id\":\"rest_01FIXTURE\",\"service\":\"backend\",\"time\":\"{{TIME}}\",\"timestamp\":\"{{TIMESTAMP}}\"}",
+    "stored": "{\"time\":\"{{TIME}}\",\"level\":\"info\",\"service\":\"backend\",\"env\":\"production\",\"event\":\"delivery.handed_over\",\"msg\":\"Delivery handed over\",\"actor_type\":\"delivery_agent\",\"actor_id\":\"dagt_01FIXTURE\",\"restaurant_id\":\"rest_01FIXTURE\",\"order_id\":\"order_01FIXTURE\"}"
+  },
+  {
+    "name": "storefront server error",
+    "source": "storefront",
+    "reason": "EP: genuine producer record (Next.js onRequestError)",
+    "line": "{\"env\":\"production\",\"err\":{\"type\":\"TypeError\"},\"event\":\"request.failed\",\"level\":\"error\",\"method\":\"GET\",\"msg\":\"Request failed\",\"request_id\":\"demo-247-page\",\"route\":\"/:countryCode/orders/:id\",\"service\":\"storefront\",\"time\":\"{{TIME}}\"}",
+    "stored": "{\"time\":\"{{TIME}}\",\"level\":\"error\",\"service\":\"storefront\",\"env\":\"production\",\"event\":\"request.failed\",\"msg\":\"Request failed\",\"request_id\":\"demo-247-page\",\"route\":\"/:countryCode/orders/:id\",\"method\":\"GET\",\"err\":{\"type\":\"TypeError\"}}"
+  },
+  {
+    "name": "partner server error",
+    "source": "partner",
+    "reason": "EP: genuine producer record (Next.js onRequestError)",
+    "line": "{\"env\":\"production\",\"err\":{\"type\":\"Error\"},\"event\":\"request.failed\",\"level\":\"error\",\"method\":\"POST\",\"msg\":\"Request failed\",\"route\":\"/orders\",\"service\":\"partner\",\"time\":\"{{TIME}}\"}",
+    "stored": "{\"time\":\"{{TIME}}\",\"level\":\"error\",\"service\":\"partner\",\"env\":\"production\",\"event\":\"request.failed\",\"msg\":\"Request failed\",\"route\":\"/orders\",\"method\":\"POST\",\"err\":{\"type\":\"Error\"}}"
+  },
+  {
+    "name": "backend failure sharing the storefront request id",
+    "source": "backend",
+    "reason": "EP: the storefront-to-backend correlation (x-request-id)",
+    "line": "{\"env\":\"production\",\"err\":{\"type\":\"Error\"},\"event\":\"request.failed\",\"level\":\"error\",\"message\":\"Request failed\",\"method\":\"GET\",\"msg\":\"Request failed\",\"request_id\":\"demo-247-page\",\"route\":\"/store/orders/:id\",\"service\":\"backend\",\"status\":500,\"time\":\"{{TIME}}\",\"timestamp\":\"{{TIMESTAMP}}\"}",
+    "stored": "{\"time\":\"{{TIME}}\",\"level\":\"error\",\"service\":\"backend\",\"env\":\"production\",\"event\":\"request.failed\",\"msg\":\"Request failed\",\"request_id\":\"demo-247-page\",\"status\":500,\"route\":\"/store/orders/:id\",\"method\":\"GET\",\"err\":{\"type\":\"Error\"}}"
+  },
+  {
+    "name": "a Customer's ID on a milestone is left out",
+    "source": "backend",
+    "reason": "EP: recognized record with an unsafe or invalid part to strip",
+    "line": "{\"actor_type\":\"customer\",\"category\":\"customer_cancelled\",\"env\":\"production\",\"event\":\"order.cancelled\",\"level\":\"info\",\"message\":\"Order cancelled\",\"msg\":\"Order cancelled\",\"order_id\":\"order_01FIXTURE\",\"restaurant_id\":\"rest_01FIXTURE\",\"service\":\"backend\",\"time\":\"{{TIME}}\",\"timestamp\":\"{{TIMESTAMP}}\",\"actor_id\":\"SECRET-MARKER-cus\"}",
+    "stored": "{\"time\":\"{{TIME}}\",\"level\":\"info\",\"service\":\"backend\",\"env\":\"production\",\"event\":\"order.cancelled\",\"msg\":\"Order cancelled\",\"actor_type\":\"customer\",\"restaurant_id\":\"rest_01FIXTURE\",\"order_id\":\"order_01FIXTURE\",\"category\":\"customer_cancelled\"}"
   }
 ]

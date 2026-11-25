@@ -23,6 +23,7 @@ import {
 } from "./full-refund"
 import { syncNativeOrderCancellationWorkflow } from "./native-cancellation"
 import { orderSettlementLock } from "./locks"
+import { logOrderCancelled } from "./cancellation-log"
 import { logRecoveryFailure } from "./recovery-log"
 
 /**
@@ -37,6 +38,7 @@ import { logRecoveryFailure } from "./recovery-log"
 
 type GuardedRecord = {
   id: string
+  restaurant_id: string
   state: OrderOperationState
   acceptance_deadline: Date | null
   accepted_at: Date | null
@@ -137,7 +139,14 @@ export async function commitPreAcceptanceCancellation(
       ...(request.restaurant_id && { restaurant_id: request.restaurant_id }),
     },
     {
-      select: ["id", "state", "acceptance_deadline", "accepted_at", "revision"],
+      select: [
+        "id",
+        "restaurant_id",
+        "state",
+        "acceptance_deadline",
+        "accepted_at",
+        "revision",
+      ],
       take: 1,
     },
   )) as unknown as GuardedRecord[]
@@ -161,6 +170,12 @@ export async function commitPreAcceptanceCancellation(
     refund: await owedRefund(container, request.order_id),
   })
   if (!committed) return { outcome: "changed" }
+  logOrderCancelled(container, {
+    order_id: request.order_id,
+    restaurant_id: record.restaurant_id,
+    cancelled_by: actor.cancelled_by,
+    category: decision.category,
+  })
   return {
     outcome: "cancelled",
     category: decision.category,
