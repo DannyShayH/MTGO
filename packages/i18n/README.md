@@ -95,3 +95,6 @@ by Feature #46. `isReviewedCheckout` validates untrusted cart metadata, while
 facts still match the cart before completion. The contract includes the
 Customer-owned destination, Order contact details, Order language and review
 timestamp; it is intentionally separate from the later paid-Order model.
+
+`DELIVERY_AGENT_TEXT` includes the bilingual provisional Bonus points page,
+its calculation reasons and the empty, failed and unavailable states (#236).

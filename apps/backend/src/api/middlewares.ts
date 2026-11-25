@@ -80,6 +80,7 @@ import {
 } from "./store/orders/validators"
 import { requireFeatureFlag, requireFeatureFlagFor } from "./feature-flag"
 import FeedbackFeatureFlag from "../feature-flags/feedback"
+import AgentBonusFeatureFlag from "../feature-flags/agent-bonus"
 import { GetFeedbackStatisticsSchema } from "./admin/feedback/statistics/validators"
 import RestaurantStatementsFeatureFlag from "../feature-flags/restaurant-statements"
 import { PostCustomerVerificationRequestSchema } from "./auth/customer-verification/validators"
@@ -662,6 +663,14 @@ export default defineMiddlewares({
       middlewares: [
         authenticate(DELIVERY_AGENT_ACTOR, "bearer"),
         validateAndTransformBody(PostConfirmHandoverSchema),
+      ],
+    },
+    {
+      matcher: "/partner/delivery-agent/bonus",
+      method: "GET",
+      middlewares: [
+        requireFeatureFlag(AgentBonusFeatureFlag.key),
+        authenticate(DELIVERY_AGENT_ACTOR, "bearer"),
       ],
     },
     {

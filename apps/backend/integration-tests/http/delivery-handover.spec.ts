@@ -4,6 +4,10 @@ import {
   generateJwtToken,
 } from "@medusajs/framework/utils"
 import { DELIVERY_MODULE } from "../../src/modules/delivery"
+import { ORDER_OPERATION_MODULE } from "../../src/modules/order-operation"
+import type OrderOperationModuleService from "../../src/modules/order-operation/service"
+import { FEEDBACK_MODULE } from "../../src/modules/feedback"
+import type FeedbackModuleService from "../../src/modules/feedback/service"
 import type DeliveryModuleService from "../../src/modules/delivery/service"
 import { endDeliveryWorkflow } from "../../src/workflows/delivery/terminal"
 import { recoverDeliveryFulfillmentsWorkflow } from "../../src/workflows/delivery/native-fulfillment"
@@ -387,6 +391,126 @@ medusaIntegrationTestRunner({
         ).toBeTruthy()
         // A second sweep owes nothing more.
         expect((await recover()).result.synced).not.toContain(order.id)
+      })
+    })
+
+    describe("GET /partner/delivery-agent/bonus", () => {
+      it("limits provisional points to authorized agents' own delivered Orders and hides the route when disabled", async () => {
+        const flags = getContainer().resolve(
+          ContainerRegistrationKeys.FEATURE_FLAG_ROUTER,
+        )
+        const agent = await agentFor()
+        const other = await agentFor()
+        const request = (headers: Record<string, string>) =>
+          get("/partner/delivery-agent/bonus", headers)
+        flags.setFlag("agent_bonus", false)
+        expect((await request(agent.headers)).status).toBe(404)
+        flags.setFlag("agent_bonus", true)
+        try {
+          expect((await request(agent.headers)).data.deliveries).toEqual([])
+          const first = await collectedOrder(agent)
+          expect((await deliver(agent.headers, first.order.id)).status).toBe(
+            200,
+          )
+          const operationService =
+            getContainer().resolve<OrderOperationModuleService>(
+              ORDER_OPERATION_MODULE,
+            )
+          const [operation] = await operationService.listOrderOperations({
+            order_id: first.order.id,
+          })
+          await operationService.updateOrderOperations({
+            id: operation.id,
+            financial_basis: {
+              basis_version: 1,
+              currency_code: "dkk",
+              order_version: 1,
+              terms: {
+                terms_version: "common_mvp_v1",
+                agreement_id: "agreement_1",
+                agreed_at: new Date().toISOString(),
+                prices_include_vat: true,
+                vat_rate: "0.25",
+                commission_tiers: [],
+                monthly_service_fee: { amount: "100", currency_code: "dkk" },
+              },
+              lines: [
+                {
+                  line_item_id: "line_1",
+                  variant_id: null,
+                  quantity: "1",
+                  unit_price_including_vat: "250",
+                },
+              ],
+            },
+          })
+          await getContainer()
+            .resolve<FeedbackModuleService>(FEEDBACK_MODULE)
+            .createFeedbacks({
+              order_id: first.order.id,
+              customer_id: harness.seeded().customerId,
+              restaurant_id: pizzeriaId,
+              agent_id: agent.id,
+              delivered_at: new Date(),
+              food_rating: 1,
+              experience_rating: 2,
+              agent_rating: 5,
+            })
+          const second = await collectedOrder(other)
+          expect((await deliver(other.headers, second.order.id)).status).toBe(
+            200,
+          )
+          const [firstBasis] = await operationService.listOrderOperations({
+            order_id: first.order.id,
+          })
+          const [secondBasis] = await operationService.listOrderOperations({
+            order_id: second.order.id,
+          })
+          await operationService.updateOrderOperations({
+            id: secondBasis.id,
+            financial_basis: firstBasis.financial_basis,
+          })
+          const otherResponse = await request(other.headers)
+          expect(
+            otherResponse.data.deliveries[0].calculation.rating_bonus,
+          ).toBe(false)
+          const cancelled = await collectedOrder(agent)
+          await endDeliveryWorkflow(getContainer()).run({
+            input: {
+              order_id: cancelled.order.id,
+              outcome: "cancelled",
+              actor_id: "system",
+            },
+          })
+          const response = await request(agent.headers)
+          expect(response.status).toBe(200)
+          expect(response.data.status).toBe("provisional")
+          expect(response.data.deliveries).toHaveLength(1)
+          expect(response.data.deliveries[0].calculation).toMatchObject({
+            food_value: "200",
+            rating_bonus: true,
+            points: expect.stringMatching(/^(220|275)$/),
+          })
+          expect(JSON.stringify(response.data)).not.toMatch(
+            /customer|agent_rating|food_rating|experience_rating/,
+          )
+          await operationService.updateOrderOperations({
+            id: operation.id,
+            financial_basis: null,
+          })
+          expect(
+            (await request(agent.headers)).data.deliveries[0].calculation,
+          ).toBeNull()
+          expect((await request({})).status).toBe(401)
+          expect((await request(staff)).status).toBe(401)
+          await delivery().updateDeliveryAgents({
+            id: agent.id,
+            status: "revoked",
+          })
+          expect((await request(agent.headers)).status).toBe(403)
+        } finally {
+          flags.setFlag("agent_bonus", false)
+        }
       })
     })
 

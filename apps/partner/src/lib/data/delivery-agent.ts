@@ -945,3 +945,48 @@ export async function getDeliveryFilter(agentId: string, approved: string[]) {
     return approved
   }
 }
+
+/** Current provisional Bonus points, or null when the backend flag is off. */
+export async function getAgentBonus() {
+  const bearer = (await cookies()).get(PARTNER_TOKEN_COOKIE)?.value
+  if (!bearer) redirect("/delivery-sign-in")
+  const correlationId = requestId((await headers()).get("x-request-id"))
+  try {
+    return await createPartnerSdk().client.fetch<{
+      month: string
+      calculated_at: string
+      status: "provisional"
+      deliveries: {
+        id: string
+        order_reference: number
+        handover_at: string
+        picked_up_at: string | null
+        calculation: {
+          food_value: string
+          points: string
+          time_bonus: boolean
+          rating_bonus: boolean
+        } | null
+      }[]
+    }>("/partner/delivery-agent/bonus", {
+      headers: {
+        authorization: `Bearer ${bearer}`,
+        "x-request-id": correlationId,
+      },
+      cache: "no-store",
+    })
+  } catch (error) {
+    if (error instanceof FetchError && error.status === 404) return null
+    if (error instanceof FetchError && error.status === 403)
+      redirect(AGENT_ACCESS_ENDED_PATH)
+    if (error instanceof FetchError && error.status === 401)
+      redirect("/delivery-sign-in")
+    log("upstream.request.failed", {
+      request_id: correlationId,
+      route: "/partner/delivery-agent/bonus",
+      method: "GET",
+      ...(error instanceof FetchError ? { status: error.status } : {}),
+    })
+    throw error
+  }
+}

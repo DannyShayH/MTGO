@@ -824,3 +824,13 @@ or broken photo shows a rounded tile with an X and translated “No image” tex
 The menu route uses Medusa UI Skeleton shapes matching these rows while data
 loads; the Customer Restaurant route reserves its cover and dish layout with
 its existing storefront skeleton style. Both stop pulsing with reduced motion.
+
+### Bonus points (#236)
+
+When `MTOGO_FF_AGENT_BONUS=true`, authorized Delivery agents can open Bonus
+points from the delivery workspace and history. The current Copenhagen month
+shows delivered Orders only, with their recorded handover and pickup, the
+unrounded VAT-exclusive food value, points and the applicable time and rating
+bonuses. Missing purchase or pickup evidence is shown as unavailable. Low and
+missing agent ratings use the same wording, and the page never exposes ratings
+or Customer details. The figures are provisional and include a calculation time.

@@ -14,6 +14,7 @@ import {
   getDeliveryFilter,
   getAvailableDeliveries,
   getCompletedDeliveries,
+  getAgentBonus,
   getCompletedDelivery,
   getCurrentDelivery,
   signOutDeliveryAgent,
@@ -57,6 +58,10 @@ export default async function DeliveryPage({
   const agent = await requireDeliveryAgent()
   const { locale } = await getMessages()
   const copy = DELIVERY_AGENT_TEXT[locale]
+  const bonus = await getAgentBonus().catch((error) => {
+    unstable_rethrow(error)
+    return undefined
+  })
   const selected = await getDeliveryFilter(agent.agent.id, agent.postal_codes)
   const params = await searchParams
   const rawPage = Number(params.page ?? "1")
@@ -140,6 +145,14 @@ export default async function DeliveryPage({
         transitOrderId={current?.picked_up_at ? current.order_id : null}
         remembered={(await cookies()).get(SHARE_CHOICE_COOKIE)?.value === "on"}
       >
+        {bonus !== null && (
+          <Link
+            href="/delivery/bonus"
+            className="text-mtogo-text-link focus-visible:ring-mtogo-focus-ring inline-flex min-h-11 items-center rounded-md px-1 text-sm font-medium focus-visible:outline-none focus-visible:ring-2"
+          >
+            {copy.bonus}
+          </Link>
+        )}
         <DeliveryFeed copy={copy} />
         <LocationSwitch copy={copy} locale={locale} />
         <section

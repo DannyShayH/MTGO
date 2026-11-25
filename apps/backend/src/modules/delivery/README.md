@@ -459,3 +459,53 @@ The Feedback statistics read groups delivered Orders by Restaurant and assigned
 Delivery agent over the same half-open handover-time range as Feedback, where a `null` bound is
 open (`all_time`). It counts recorded handovers, including Orders without Feedback, and excludes other
 terminal outcomes.
+
+### Agent Bonus points (#236)
+
+`GET /partner/delivery-agent/bonus` is available when the backend-owned
+`agent_bonus` flag is on (`MTOGO_FF_AGENT_BONUS=true`). It authenticates the
+Delivery agent and rechecks authorization on every request. The workflow reads
+only that agent's successfully delivered work in the current Copenhagen month,
+using the recorded handover and pickup, the purchased financial basis and the
+agent Feedback rating. It returns the month, calculation time, provisional
+status and each delivery's reference, milestone times, exact food value and
+points, and time/rating multiplier flags. If the purchase basis or pickup is
+unavailable, the calculation is null. No Customer data, ratings or other agents'
+figures are returned. Flag off returns 404; signed-out and other roles are
+refused, and revoked agents receive 403. No points or provisional results are
+persisted, and cancellation after pickup never earns points.
+
+**Actor:** authorized Delivery agent. No request parameters are required.
+
+**Success:** `200` with, for example:
+
+```json
+{
+  "month": "2026-11",
+  "calculated_at": "2026-11-25T12:00:00.000Z",
+  "status": "provisional",
+  "deliveries": [
+    {
+      "id": "del_123",
+      "order_reference": 42,
+      "handover_at": "2026-11-24T22:30:00.000Z",
+      "picked_up_at": "2026-11-24T22:00:00.000Z",
+      "calculation": {
+        "food_value": "200",
+        "time_bonus": true,
+        "rating_bonus": true,
+        "points": "275"
+      }
+    }
+  ]
+}
+```
+
+Food value and points are exact decimal strings. `picked_up_at` and
+`calculation` may be null when the underlying facts are unavailable.
+
+| Status | When                                                 |
+| ------ | ---------------------------------------------------- |
+| `401`  | Signed out or an actor that cannot access the route. |
+| `403`  | Delivery agent access has been revoked.              |
+| `404`  | The feature flag is off.                             |
