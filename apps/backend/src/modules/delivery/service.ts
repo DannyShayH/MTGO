@@ -277,17 +277,25 @@ class DeliveryModuleService extends MedusaService({
   /** Delivered Order counts grouped within the Delivery module. */
   @InjectManager()
   async statistics(
-    range: { from: Date; to: Date },
+    range: { from: Date | null; to: Date | null },
     @MedusaContext() context: Context = {},
   ) {
     const manager = context.manager as EntityManager
+    // A null bound leaves that side of the range open.
+    const within =
+      range.from || range.to
+        ? {
+            ...(range.from && { $gte: range.from }),
+            ...(range.to && { $lt: range.to }),
+          }
+        : null
     const grouped = async (field: string) => {
       const query = manager
         .createQueryBuilder("IntendedDelivery", "d")
         .select([field])
         .where({
           terminal_outcome: "delivered",
-          terminal_at: { $gte: range.from, $lt: range.to },
+          ...(within && { terminal_at: within }),
           deleted_at: null,
         })
         .groupBy([field])

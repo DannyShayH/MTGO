@@ -88,5 +88,8 @@ and overall-experience ratings platform-wide in the database over a half-open
 handover-time range. The operator workflow combines those distributions with
 Delivery's counts. Unrated delivered Orders increase the delivery count, never
 rating counts or averages. `GET /admin/feedback/statistics` and the Feedback
-Admin page are behind the `feedback` flag; the only supported period is the
-last 30 × 24 hours.
+Admin page are behind the `feedback` flag. A `null` bound leaves the range
+open, so `all_time` reads every Feedback. The workflow resolves the period
+(`src/workflows/feedback/statistics-period.ts`): the last 30 × 24 hours, the
+previous Copenhagen calendar month (reusing the Restaurant-finance month
+bounds) or all time.

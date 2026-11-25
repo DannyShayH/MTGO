@@ -4,11 +4,14 @@ import {
   Alert,
   Container,
   Heading,
+  Label,
+  Select,
   StatusBadge,
   Table,
   Text,
 } from "@medusajs/ui"
 import { useQuery } from "@tanstack/react-query"
+import { useId, useState } from "react"
 import { sdk } from "../../lib/restaurant-api"
 
 type Summary = {
@@ -18,10 +21,39 @@ type Summary = {
   delivered_orders: number
 }
 type Subject = Summary & { id: string; name: string; is_active: boolean }
+type PeriodKey = "last_30_days" | "previous_month" | "all_time"
+type Period = { key: PeriodKey; from: string | null; to: string | null }
 type Statistics = {
+  period: Period
   experience: Summary
   restaurants: Subject[]
   agents: Subject[]
+}
+
+const PERIODS: { key: PeriodKey; label: string }[] = [
+  { key: "last_30_days", label: "Last 30 days" },
+  { key: "previous_month", label: "Previous calendar month" },
+  { key: "all_time", label: "All time" },
+]
+
+const copenhagenDate = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Europe/Copenhagen",
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+})
+const copenhagenMonth = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Europe/Copenhagen",
+  month: "long",
+  year: "numeric",
+})
+
+/** The resolved period in Copenhagen time; `to` is exclusive. */
+function describePeriod({ key, from, to }: Period) {
+  if (!from || !to) return "All delivered Orders"
+  const lastIncluded = new Date(new Date(to).getTime() - 1)
+  if (key === "previous_month") return copenhagenMonth.format(lastIncluded)
+  return `${copenhagenDate.format(new Date(from))} – ${copenhagenDate.format(lastIncluded)}`
 }
 
 function Rating({ summary }: Readonly<{ summary: Summary }>) {
@@ -87,39 +119,10 @@ function SubjectTable({
   )
 }
 
-const FeedbackPage = () => {
-  const flags = useQuery({
-    queryKey: ["feature-flags"],
-    queryFn: () =>
-      sdk.client.fetch<{ feature_flags: Record<string, boolean> }>(
-        "/admin/feature-flags",
-      ),
-  })
-  const statistics = useQuery({
-    queryKey: ["feedback-statistics"],
-    queryFn: () => sdk.client.fetch<Statistics>("/admin/feedback/statistics"),
-    enabled: flags.data?.feature_flags.feedback === true,
-  })
-  if (flags.isLoading) return <Text role="status">Loading Feedback…</Text>
-  if (flags.error)
-    return <Alert variant="error">Could not load Feature flags.</Alert>
-  if (!flags.data?.feature_flags.feedback)
-    return (
-      <Container>
-        <Heading>Feedback</Heading>
-        <Text>Feedback is not released yet</Text>
-      </Container>
-    )
-  if (statistics.isLoading) return <Text role="status">Loading Feedback…</Text>
-  if (statistics.error || !statistics.data)
-    return <Alert variant="error">Could not load Feedback statistics.</Alert>
-  const { experience, restaurants, agents } = statistics.data
+function StatisticsBody({ statistics }: Readonly<{ statistics: Statistics }>) {
+  const { experience, restaurants, agents } = statistics
   return (
-    <Container className="space-y-6">
-      <div>
-        <Heading>Feedback</Heading>
-        <Text>Last 30 days of delivered Orders</Text>
-      </div>
+    <>
       <section className="space-y-2">
         <Heading level="h2">Overall experience</Heading>
         <Text>
@@ -142,6 +145,76 @@ const FeedbackPage = () => {
         label="agent rating"
         rows={agents}
       />
+    </>
+  )
+}
+
+const FeedbackPage = () => {
+  const periodLabelId = useId()
+  const [period, setPeriod] = useState<PeriodKey>("last_30_days")
+  const flags = useQuery({
+    queryKey: ["feature-flags"],
+    queryFn: () =>
+      sdk.client.fetch<{ feature_flags: Record<string, boolean> }>(
+        "/admin/feature-flags",
+      ),
+  })
+  const statistics = useQuery({
+    queryKey: ["feedback-statistics", period],
+    queryFn: () =>
+      sdk.client.fetch<Statistics>("/admin/feedback/statistics", {
+        query: { period },
+      }),
+    enabled: flags.data?.feature_flags.feedback === true,
+  })
+  if (flags.isLoading) return <Text role="status">Loading Feedback…</Text>
+  if (flags.error)
+    return <Alert variant="error">Could not load Feature flags.</Alert>
+  if (!flags.data?.feature_flags.feedback)
+    return (
+      <Container>
+        <Heading>Feedback</Heading>
+        <Text>Feedback is not released yet</Text>
+      </Container>
+    )
+  let body = <Text role="status">Loading Feedback…</Text>
+  if (statistics.data) body = <StatisticsBody statistics={statistics.data} />
+  else if (!statistics.isLoading)
+    body = <Alert variant="error">Could not load Feedback statistics.</Alert>
+  return (
+    <Container className="space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <Heading>Feedback</Heading>
+          <Text className="text-ui-fg-subtle" aria-live="polite">
+            {statistics.data
+              ? `Delivered Orders by handover time, Copenhagen: ${describePeriod(statistics.data.period)}`
+              : "Delivered Orders by handover time"}
+          </Text>
+        </div>
+        <div className="w-full space-y-1 sm:w-64">
+          <Label id={periodLabelId} size="small" weight="plus">
+            Period
+          </Label>
+          <Select
+            size="small"
+            value={period}
+            onValueChange={(value) => setPeriod(value as PeriodKey)}
+          >
+            <Select.Trigger aria-labelledby={periodLabelId}>
+              <Select.Value />
+            </Select.Trigger>
+            <Select.Content>
+              {PERIODS.map(({ key, label }) => (
+                <Select.Item key={key} value={key}>
+                  {label}
+                </Select.Item>
+              ))}
+            </Select.Content>
+          </Select>
+        </div>
+      </div>
+      {body}
     </Container>
   )
 }

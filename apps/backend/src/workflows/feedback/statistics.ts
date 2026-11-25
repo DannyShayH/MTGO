@@ -4,7 +4,10 @@ import {
   StepResponse,
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk"
-import { lastThirtyDays } from "./statistics-period"
+import {
+  resolveStatisticsPeriod,
+  type StatisticsPeriodKey,
+} from "./statistics-period"
 import { DELIVERY_MODULE } from "../../modules/delivery"
 import type DeliveryModuleService from "../../modules/delivery/service"
 import { FEEDBACK_MODULE } from "../../modules/feedback"
@@ -35,8 +38,8 @@ function summary(groups: Group[], rating: string) {
 
 const feedbackStatisticsStep = createStep(
   "feedback-statistics",
-  async (_, { container }) => {
-    const period = lastThirtyDays(new Date())
+  async (input: { period: StatisticsPeriodKey }, { container }) => {
+    const period = resolveStatisticsPeriod(input.period, new Date())
     const { from, to } = period
     const delivery = container.resolve<DeliveryModuleService>(DELIVERY_MODULE)
     const feedback = container.resolve<FeedbackModuleService>(FEEDBACK_MODULE)
@@ -127,7 +130,7 @@ const feedbackStatisticsStep = createStep(
 
 export const feedbackStatisticsWorkflow = createWorkflow(
   "feedback-statistics",
-  function () {
-    return new WorkflowResponse(feedbackStatisticsStep())
+  function (input: { period: StatisticsPeriodKey }) {
+    return new WorkflowResponse(feedbackStatisticsStep(input))
   },
 )

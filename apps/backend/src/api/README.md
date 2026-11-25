@@ -2968,7 +2968,11 @@ row keeps rendering. It is the `thumbnail` value stored on dish Products; see
 ### `GET /admin/feedback/statistics`
 
 Operator-only, behind the `feedback` Feature flag (404 while off). It accepts
-`period=last_30_days` (the default and currently the only supported value).
+`period=last_30_days` (the default, the last 30 × 24 hours up to now),
+`previous_month` (the calendar month before the current one in Copenhagen time,
+from midnight to midnight, so it matches #53's bonus month across daylight-saving
+changes) or `all_time` (every Feedback and delivered Order; `from` and `to` are
+`null`). Orders are grouped by handover time, not by when they were rated.
 It returns `200` with `period` containing the inclusive `from` and exclusive `to` instants,
 `experience`, `restaurants`, and `agents`. Each summary contains `average`
 (null when unrated), `count`, a 1–5 `distribution`, and `delivered_orders`.

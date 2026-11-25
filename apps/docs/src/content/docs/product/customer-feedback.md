@@ -109,8 +109,25 @@ and overall experience is platform-wide. Each summary shows the average,
 number and distribution of ratings and delivered Orders, including unrated
 Orders. Inactive Restaurants and revoked agents remain visible. With the
 `feedback` flag off the page says “Feedback is not released yet” and does not
-request statistics; the endpoint answers 404. Additional periods are a
-separate issue.
+request statistics; the endpoint answers 404. Additional periods followed in
+#222.
+
+### Feedback periods (#222)
+
+A Period selector on the Feedback page offers last 30 days (the default),
+previous calendar month and all time, and the page shows the resolved period
+in Copenhagen time, for example “October 2026”. The previous month runs from
+Copenhagen midnight on its first day to Copenhagen midnight on the next
+month's first day, so it is 745 hours in October and 743 in March, and it
+matches #53's bonus month. Orders are grouped by handover time: an Order
+handed over on 31 October at 23:30 and rated in November counts in October.
+All time includes every Feedback and delivered Order. The endpoint takes
+`period=last_30_days|previous_month|all_time` and refuses any other value
+with `400`. `statistics-period.unit.spec.ts` covers the month bounds across
+both daylight-saving changes, the Copenhagen rather than UTC month at
+midnight and the January wrap; `operator-feedback-statistics.spec.ts` covers
+the previous-month boundaries, the late-October handover, all time and the
+resolved bounds in the response.
 
 The HTTP performance test loads the seed generator's 500 planned handovers and
 ratings into a disposable database across four Restaurants and five agents,

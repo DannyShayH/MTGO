@@ -11,16 +11,24 @@ import Feedback from "./models/feedback"
 class FeedbackModuleService extends MedusaService({ Feedback }) {
   @InjectManager()
   async statistics(
-    range: { from: Date; to: Date },
+    range: { from: Date | null; to: Date | null },
     @MedusaContext() context?: Context,
   ) {
     const manager = context!.manager as EntityManager
+    // A null bound leaves that side of the range open.
+    const within =
+      range.from || range.to
+        ? {
+            ...(range.from && { $gte: range.from }),
+            ...(range.to && { $lt: range.to }),
+          }
+        : null
     const grouped = async (fields: string[]) => {
       const query = manager
         .createQueryBuilder("Feedback", "f")
         .select(fields)
         .where({
-          delivered_at: { $gte: range.from, $lt: range.to },
+          ...(within && { delivered_at: within }),
           deleted_at: null,
         })
         .groupBy(fields)

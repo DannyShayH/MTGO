@@ -134,7 +134,7 @@ medusaIntegrationTestRunner({
         expect([401, 403]).toContain((await read(headers)).status)
       }
       const invalid = await api.get(
-        "/admin/feedback/statistics?period=previous_month",
+        "/admin/feedback/statistics?period=last_week",
         { headers: admin, validateStatus: () => true },
       )
       expect(invalid.status).toBe(400)
@@ -235,6 +235,127 @@ medusaIntegrationTestRunner({
           delivered_orders: 3,
         }),
       ])
+    })
+    it("groups the previous Copenhagen month and all time by handover time", async () => {
+      const { admin, pizzeriaId } = harness.seeded()
+      flags().setFlag("feedback", true)
+      const delivery =
+        getContainer().resolve<DeliveryModuleService>(DELIVERY_MODULE)
+      const feedback =
+        getContainer().resolve<FeedbackModuleService>(FEEDBACK_MODULE)
+      const agent = await delivery.createDeliveryAgents({
+        name: "Month agent",
+        email: "month-statistics@example.test",
+        status: "authorized",
+        invited_by: "operator",
+      })
+      // October 2026 in Copenhagen runs from 2026-09-30T22:00Z (summer time)
+      // to 2026-10-31T23:00Z (winter time).
+      for (const [orderId, time, rated] of [
+        ["long-ago", "2020-01-01T12:00:00.000Z", true],
+        ["before-october", "2026-09-30T21:59:59.999Z", true],
+        ["at-october-start", "2026-09-30T22:00:00.000Z", true],
+        // 31 October 23:30 Copenhagen time, rated in November.
+        ["late-october", "2026-10-31T22:30:00.000Z", true],
+        ["late-october-unrated", "2026-10-31T22:45:00.000Z", false],
+        ["at-november-start", "2026-10-31T23:00:00.000Z", true],
+        ["in-november", "2026-11-10T12:00:00.000Z", true],
+      ] as const) {
+        const at = new Date(time)
+        await delivery.createIntendedDeliveries({
+          order_id: orderId,
+          restaurant_id: pizzeriaId,
+          restaurant_name: "Pizzeria",
+          pickup_address: "Street",
+          pickup_postal_code: "2200",
+          destination_postal_code: "2200",
+          order_reference: 1,
+          accepted_at: at,
+          claim_deadline: at,
+          assigned_agent_id: agent.id,
+          terminal_outcome: "delivered",
+          terminal_at: at,
+        })
+        if (rated)
+          await feedback.createFeedbacks({
+            order_id: orderId,
+            customer_id: "customer",
+            restaurant_id: pizzeriaId,
+            agent_id: agent.id,
+            delivered_at: at,
+            food_rating: 2,
+            experience_rating: 4,
+            agent_rating: 5,
+          })
+      }
+      jest.useFakeTimers({
+        now: new Date("2026-11-15T12:00:00.000Z"),
+        doNotFake: [
+          "nextTick",
+          "setImmediate",
+          "clearImmediate",
+          "setTimeout",
+          "clearTimeout",
+          "setInterval",
+          "clearInterval",
+          "performance",
+          "queueMicrotask",
+        ],
+      })
+      const readPeriod = (period: string) =>
+        api.get(`/admin/feedback/statistics?period=${period}`, {
+          headers: admin,
+          validateStatus: () => true,
+        })
+      let month: Awaited<ReturnType<typeof readPeriod>>
+      let allTime: Awaited<ReturnType<typeof readPeriod>>
+      let rolling: Awaited<ReturnType<typeof readPeriod>>
+      try {
+        month = await readPeriod("previous_month")
+        allTime = await readPeriod("all_time")
+        rolling = await read(admin)
+      } finally {
+        jest.useRealTimers()
+      }
+      expect(month.status).toBe(200)
+      expect(month.data.period).toEqual({
+        key: "previous_month",
+        from: "2026-09-30T22:00:00.000Z",
+        to: "2026-10-31T23:00:00.000Z",
+      })
+      expect(month.data.experience).toMatchObject({
+        count: 2,
+        delivered_orders: 3,
+      })
+      expect(month.data.restaurants).toEqual([
+        expect.objectContaining({ count: 2, delivered_orders: 3 }),
+      ])
+      expect(month.data.agents).toEqual([
+        expect.objectContaining({ count: 2, delivered_orders: 3 }),
+      ])
+      expect(allTime.status).toBe(200)
+      expect(allTime.data.period).toEqual({
+        key: "all_time",
+        from: null,
+        to: null,
+      })
+      expect(allTime.data.experience).toMatchObject({
+        average: 4,
+        count: 6,
+        delivered_orders: 7,
+      })
+      expect(allTime.data.agents).toEqual([
+        expect.objectContaining({ count: 6, delivered_orders: 7 }),
+      ])
+      expect(rolling.data.period).toEqual({
+        key: "last_30_days",
+        from: "2026-10-16T12:00:00.000Z",
+        to: "2026-11-15T12:00:00.000Z",
+      })
+      expect(rolling.data.experience).toMatchObject({
+        count: 3,
+        delivered_orders: 4,
+      })
     })
     it("rounds rating averages and sorts multiple agents by name", async () => {
       const { admin, pizzeriaId } = harness.seeded()
