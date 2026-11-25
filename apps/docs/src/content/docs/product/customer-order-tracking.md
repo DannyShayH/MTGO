@@ -202,6 +202,85 @@ visual inspiration, not GPS, arrival estimates or required decorative animation.
 Older SMS/GPS exclusions in the #136 handoff and recipe gap audit are superseded
 by discovery #152 and revised ADR-0013.
 
+## Delivery map (#214)
+
+The Customer's location section on the Order page shows a small map of the
+agent's latest measured position, inside the existing textual status. It reads
+the same Customer-safe delivery projection as the text and draws nothing else:
+no Restaurant or destination marker, route, track, geocoding or estimate.
+
+**Provider.** OpenStreetMap's standard raster tiles through Leaflet 1.9.4
+(`apps/storefront/src/modules/order/components/delivery-map/`). On
+24 November 2026 the
+[OpenStreetMap Foundation tile usage policy](https://operations.osmfoundation.org/policies/tiles/)
+and [attribution guidelines](https://osmfoundation.org/wiki/Licence/Attribution_Guidelines)
+were checked. They need no key or account. They require the HTTPS URL
+`https://tile.openstreetmap.org/{z}/{x}/{y}.png`, a visible
+"© OpenStreetMap contributors" credit linking to the copyright page, a Referer
+header and the browser's own caching. They forbid prefetching or offline use.
+They promise no availability, and access can be withdrawn without notice. The
+map honours all of this. Leaflet requests only the visible tiles and shows the
+credit bottom right. A failed or withdrawn service falls back to the text.
+
+**What leaves the site.** Only tile requests, which reveal the area around the
+agent's measured position. The tile images use the referrer policy
+`strict-origin-when-cross-origin`, so the Referer is the site
+origin and never the Order page URL with its Order ID. No Customer details,
+destination or secret are sent; the provider has no key to protect. Near the
+end of a delivery the tiles around the agent necessarily cover the area of the
+destination, but nothing marks it.
+
+**Configuration.** None: no key, account or environment variable, locally or
+on staging. The tile URL, credit and referrer policy live in `provider.ts`, so
+switching provider changes only that file. A future provider that needs a key
+must restrict that public key to the site's origins, as its terms require.
+
+**States.** `deliveryMapView` (`map-view.ts`) decides what is drawn, tested in
+`__tests__/map-view.unit.spec.ts`:
+
+- Before pickup, without a coordinate or measurement time, or once the
+  delivery ended: no map, only the existing text. A terminal outcome removes
+  the map, and the newer-read rule keeps a delayed read from bringing it back.
+- Reported accuracy of 50 metres or less: a dot inside its accuracy circle.
+  Coarser accuracy: only its circle, never a dot, with a caption saying so.
+  Unreported accuracy: a dashed 500-metre ring on the ground, which grows with
+  zoom, so it cannot read as an exact spot at any zoom level.
+- Fresh positions use the primary colour. The text and the map take their
+  state from one rule, `shownLocationState` in
+  `order-progress/location-age.ts`. At sixty seconds after measurement, on the
+  same local timer as the text, the position turns grey and dashed in place,
+  and the caption, a polite live region, tells screen readers it is no longer
+  current. The map recentres only when a new measurement leaves the view,
+  without animation.
+- While the library and tiles load, the map says so. A failed import, four
+  failed tiles before any loads, or fifteen seconds without a tile show a
+  warning that the map could not load. A failure is final for that page view,
+  so a late tile cannot bring back an empty frame. The timeline, addresses, age
+  and accuracy stay readable.
+
+**Manual evidence (24 November 2026, local dev servers).** Picked-up test
+Orders received samples through `shareDeliveryLocationWorkflow`, and a signed-in
+test Customer opened them in Chromium:
+
+- Danish at 1280 px, 375 px and 320 px, and English at 1440 px and 375 px: the
+  map, credit and captions fit inside the location section.
+- Long text: long unbroken Danish words in the heading, status, caption and
+  age lines wrap inside the section at 320 px, and the map keeps its width.
+- Keyboard: Tab reaches the map region with a visible focus ring, announced as
+  "Kort over buddets senest målte position" in Danish and "Map of the delivery
+  agent's last measured location" in English. The caption is a polite live
+  region.
+- An 8 m sample showed a dot that turned grey with the stale caption after
+  sixty seconds while the page stayed open. A sample without accuracy showed
+  only the dashed 500-metre area, with no dot.
+- Every tile request carried `Referer: http://localhost:8000/`.
+- With tile requests blocked, the map switched to the failure notice and the
+  textual status, age and accuracy remained.
+- Terminal outcome: with the page open, `confirmHandoverWorkflow` recorded the
+  handover. At the next ten-second check the map disappeared and the status
+  read "Positionsdeling er afsluttet." A later sample was refused with
+  `delivery_not_active`, and the map stayed gone.
+
 ## Specification handoff and deferred scope
 
 The [Customer Order tracking specification](/MTGO/product/customer-order-tracking-spec/)

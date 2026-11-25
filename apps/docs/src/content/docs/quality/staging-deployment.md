@@ -386,6 +386,11 @@ issue.
 | Droplet `.env`               | `STAGING_METRICS_ENABLED`, `STAGING_GRAFANA_URL`, `STAGING_GRAFANA_PORT`, `GRAFANA_ADMIN_PASSWORD` (optional)                | Private request monitoring (`mtogo-deploy.sh monitoring`)    |
 | Storefront image, build time | `NEXT_PUBLIC_MEDUSA_BACKEND_URL`, `NEXT_PUBLIC_BASE_URL`, `NEXT_PUBLIC_DEFAULT_REGION`, `NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY` | Returned by `prepare`, inlined by Next.js                    |
 
+The Customer delivery map (#214) needs no variable or key: the storefront
+loads OpenStreetMap's standard tiles in the browser. See
+[the delivery map](/MTGO/product/customer-order-tracking/#delivery-map-214)
+for the provider's terms.
+
 Missing or malformed values fail visibly: Compose refuses to start with a
 message naming the variable, the deploy script names the missing `.env` key or
 Docker network, and the workflow names the missing secret. None of them prints

@@ -21,7 +21,9 @@ import OrderCancellation from "@modules/order/components/order-cancellation"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { usePathname } from "next/navigation"
 import { isSettled, serializeRefresh, startPolling } from "./polling"
-import { locationAge, locationIsStale } from "./location-age"
+import { locationAge, shownLocationState } from "./location-age"
+import DeliveryMap from "@modules/order/components/delivery-map"
+import { deliveryMapView } from "@modules/order/components/delivery-map/map-view"
 
 /** A successful read: the progress and the server's time of reading it. */
 type ConfirmedProgress = { progress: OrderProgress; server_time: string }
@@ -299,11 +301,7 @@ function Timeline({
       )}
 
       {confirmed && freshness !== "refused" && (
-        <LocationStatus
-          key={confirmed.server_time}
-          confirmed={confirmed}
-          locale={locale}
-        />
+        <LocationStatus confirmed={confirmed} locale={locale} />
       )}
 
       <div role="status">
@@ -367,6 +365,13 @@ function LocationStatus({
     confirmed.progress.state === "cancelled" ||
     Boolean(confirmed.progress.delivery?.outcome)
   const [elapsed, setElapsed] = useState(0)
+  // Each read restarts the age from its own server time; the section itself
+  // stays mounted so the map is not reloaded on every read.
+  const [readAt, setReadAt] = useState(confirmed.server_time)
+  if (readAt !== confirmed.server_time) {
+    setReadAt(confirmed.server_time)
+    setElapsed(0)
+  }
   useEffect(() => {
     const started = performance.now()
     const update = () => setElapsed(Math.max(0, performance.now() - started))
@@ -386,13 +391,8 @@ function LocationStatus({
   const age = location?.observed_at
     ? locationAge(confirmed.server_time, location.observed_at, elapsed)
     : null
-  const state = ended
-    ? "ended"
-    : !location
-      ? "not_started"
-      : location.state === "fresh" && age !== null && locationIsStale(age)
-        ? "stale"
-        : location.state
+  const state = shownLocationState(location ?? null, ended, age)
+  const map = deliveryMapView(location ?? null, ended, age)
   return (
     <section
       className="mt-5 rounded-lg bg-mtogo-surface-page p-4 text-sm leading-6 [overflow-wrap:anywhere]"
@@ -400,7 +400,8 @@ function LocationStatus({
     >
       <h3 className="font-semibold">{text.location_heading}</h3>
       <p>{text[`location_${state}`]}</p>
-      {age !== null && !ended && (state === "fresh" || state === "stale") && (
+      {map.kind === "position" && <DeliveryMap view={map} locale={locale} />}
+      {age !== null && (state === "fresh" || state === "stale") && (
         <>
           <p>
             {formatText(text.location_age, {

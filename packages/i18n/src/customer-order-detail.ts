@@ -50,6 +50,15 @@ export const CUSTOMER_ORDER_DETAIL_TEXT = {
     location_age: "Målt for {seconds} sekunder siden.",
     location_accuracy: "Rapporteret nøjagtighed: {meters} meter.",
     location_accuracy_unknown: "Nøjagtighed er ikke oplyst.",
+    map_label: "Kort over buddets senest målte position",
+    map_loading: "Indlæser kort…",
+    map_failed:
+      "Kortet kunne ikke indlæses. Positionens alder og nøjagtighed står nedenfor.",
+    map_precise: "Prikken viser den målte position.",
+    map_approximate:
+      "Nøjagtigheden er for lav til en præcis prik, så kortet viser kun et område.",
+    map_stale:
+      "Positionen er ikke længere aktuel. Kortet flytter den ikke, før en ny er målt.",
     step_placed: "Ordre afgivet",
     step_accepted: "Restauranten har accepteret",
     step_preparing: "Tilberedes",
@@ -144,6 +153,15 @@ export const CUSTOMER_ORDER_DETAIL_TEXT = {
     location_age: "Measured {seconds} seconds ago.",
     location_accuracy: "Reported accuracy: {meters} metres.",
     location_accuracy_unknown: "Accuracy was not reported.",
+    map_label: "Map of the delivery agent's last measured location",
+    map_loading: "Loading map…",
+    map_failed:
+      "The map could not load. The location's age and accuracy are shown below.",
+    map_precise: "The dot shows the measured location.",
+    map_approximate:
+      "Accuracy is too low for an exact dot, so the map shows only an area.",
+    map_stale:
+      "This location is no longer current. The map does not move it until a new one is measured.",
     step_placed: "Order placed",
     step_accepted: "Restaurant accepted",
     step_preparing: "Preparing",
