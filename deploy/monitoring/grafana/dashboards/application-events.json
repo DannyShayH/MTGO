@@ -1,9 +1,9 @@
 {
-  "uid": "mtogo-backend-events",
-  "title": "MTOGO — approved backend events",
-  "description": "Approved backend application events, rebuilt from allowlisted fields by Alloy before Loki (#176). Framework and startup output is not here; it stays in Docker logs.",
+  "uid": "mtogo-application-events",
+  "title": "MTOGO — approved application events",
+  "description": "Approved backend, partner and storefront events, rebuilt from allowlisted fields by Alloy before Loki (#176, #177). Framework, startup and Next.js server output is not here; it stays in Docker logs.",
   "schemaVersion": 41,
-  "version": 1,
+  "version": 2,
   "editable": false,
   "refresh": "30s",
   "timezone": "utc",
@@ -17,6 +17,20 @@
   },
   "templating": {
     "list": [
+      {
+        "name": "service",
+        "label": "Application",
+        "type": "custom",
+        "query": "backend,partner,storefront",
+        "multi": true,
+        "includeAll": true,
+        "allValue": "backend|partner|storefront",
+        "current": {
+          "text": ["All"],
+          "value": ["$__all"]
+        },
+        "options": []
+      },
       {
         "name": "level",
         "label": "Severity",
@@ -59,20 +73,20 @@
       "type": "text",
       "title": "What this shows",
       "gridPos": {
-        "h": 4,
+        "h": 6,
         "w": 24,
         "x": 0,
         "y": 0
       },
       "options": {
         "mode": "markdown",
-        "content": "Only **recognized backend events** reach this view, rebuilt from the logging allowlist. Raw framework, startup and provider lines stay in `docker compose logs`. **No events** with a healthy pipeline means no matching approved event happened in the time range; it does not mean the application is idle. IDs are fields, so filter them here, not as labels."
+        "content": "Only **recognized events from the backend, partner and storefront** reach this view, rebuilt from the logging allowlist. Raw framework, startup, Next.js server and provider lines stay in `docker compose logs`. Database, Redis, Caddy, the worker and browser output are never collected.\n\n**No events** with a healthy pipeline means no matching approved event happened in the time range; it does not mean nothing happened. Not every request logs an event, and the storefront logs only failed backend calls.\n\n**Request IDs correlate only where the apps already share one:** partner server calls that forward their `request_id` to the backend, such as sign-in. Storefront records share no ID with the backend, and there is no tracing. A missing event under an ID is not proof the step did not happen.\n\n**Live tail:** set refresh to 5s (top right) or add `&refresh=5s` to the URL."
       }
     },
     {
       "id": 2,
       "type": "logs",
-      "title": "Approved backend events",
+      "title": "Approved application events",
       "datasource": {
         "type": "loki",
         "uid": "mtogo-loki"
@@ -81,7 +95,7 @@
         "h": 20,
         "w": 24,
         "x": 0,
-        "y": 4
+        "y": 6
       },
       "options": {
         "showTime": true,
@@ -99,14 +113,14 @@
             "uid": "mtogo-loki"
           },
           "queryType": "range",
-          "expr": "{service=\"backend\", level=~\"${level:regex}\"} | json | event=~\"${event:regex}.*\" | request_id=~\"${request_id:regex}.*\""
+          "expr": "{service=~\"${service:regex}\", level=~\"${level:regex}\"} | json | event=~\"${event:regex}.*\" | request_id=~\"${request_id:regex}.*\""
         }
       ]
     },
     {
       "id": 3,
       "type": "timeseries",
-      "title": "Approved events per minute by severity",
+      "title": "Approved events by application and severity — per bar",
       "datasource": {
         "type": "loki",
         "uid": "mtogo-loki"
@@ -115,7 +129,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 24
+        "y": 26
       },
       "fieldConfig": {
         "defaults": {
@@ -147,10 +161,14 @@
             "uid": "mtogo-loki"
           },
           "queryType": "range",
-          "legendFormat": "{{level}}",
-          "expr": "sum by (level) (count_over_time({service=\"backend\", level=~\"${level:regex}\"} [1m]))"
+          "legendFormat": "{{service}} {{level}}",
+          "expr": "sum by (service, level) (count_over_time({service=~\"${service:regex}\", level=~\"${level:regex}\"} [$__auto]))"
         }
-      ]
+      ],
+      "description": "Each bar counts every approved event in its own time bucket ($__auto: the bar width Grafana picks for the displayed range), so long ranges are not sampled."
     }
-  ]
+  ],
+  "timepicker": {
+    "refresh_intervals": ["5s", "10s", "30s", "1m", "5m"]
+  }
 }

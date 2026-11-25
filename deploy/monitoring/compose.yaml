@@ -45,7 +45,7 @@ services:
       - logs
     logging: *logging
 
-  # Approved backend application events (#176). Neither publishes a port.
+  # Approved application events (#176, #177). Neither publishes a port.
   loki:
     image: grafana/loki:3.7.10
     command: ["-config.file=/etc/loki/config.yaml"]

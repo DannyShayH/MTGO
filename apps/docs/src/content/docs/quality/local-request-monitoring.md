@@ -53,9 +53,9 @@ Monitoring is disabled unless `MTOGO_METRICS_ENABLED=1`. The supported
 For a native development server, use `PORT` rather than a CLI `--port`
 override and keep the default exporter bind at `127.0.0.1`.
 
-Approved backend events are collected separately by Loki and Alloy in the
-same monitoring project; see
-[approved backend events in Grafana](/MTGO/quality/approved-backend-events/).
+Approved backend and partner events (and, on staging, storefront events) are
+collected separately by Loki and Alloy in the same monitoring project; see
+[approved application events in Grafana](/MTGO/quality/approved-application-events/).
 There is no host/container/database/Redis or
 Next.js process metrics or separate-worker runtime metrics yet.
 The [confirmed discovery](/MTGO/quality/prometheus-monitoring-discovery/)

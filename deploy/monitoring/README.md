@@ -7,21 +7,25 @@ and, for the Droplet,
 
 ## Local
 
-`compose.application.yaml` owns the disposable PostgreSQL/Medusa application.
+`compose.application.yaml` owns the disposable PostgreSQL/Medusa application
+and the partner app.
 `compose.yaml` independently owns Prometheus/Grafana and their volumes. Both
 join the explicitly created internal `mtogo-local-metrics` network. Only the
-API and Grafana have loopback host ports.
+API, the partner app and Grafana have loopback host ports.
 
-## Approved backend events (#176)
+## Approved application events (#176, #177)
 
 `alloy/approved-events.alloy` is the Loki dataset boundary: it keeps only
-recognized `@dtc/logging` backend records and rebuilds them from allowlisted
-fields. `alloy/config.alloy` feeds it from the `backend` container of the
-project in `MTOGO_LOG_PROJECT`; `loki/config.yaml` stores the result with the
-labels `service`, `env` and `level`. `tests/log-pipeline/` runs the module against the
-pinned Loki with fixtures (`cases.json`) and checks the stored records. The
-runbook is
-[Approved backend events in Grafana](../../apps/docs/src/content/docs/quality/approved-backend-events.md).
+recognized `@dtc/logging` records from the backend, partner and storefront,
+each only from its own container, and rebuilds them from allowlisted fields.
+`alloy/config.alloy` feeds it from the `backend`, `partner` and `storefront`
+containers of the project in `MTOGO_LOG_PROJECT`, labelled with their Compose
+service; `loki/config.yaml` stores the result with the labels `service`, `env`
+and `level`. `tests/log-pipeline/` runs the module against the pinned Loki with
+fixtures (`cases.json`, one file per source container) and checks the stored
+records. The local demo runs the partner (`compose.application.yaml`) but not
+the storefront. The runbook is
+[Approved application events in Grafana](../../apps/docs/src/content/docs/quality/approved-application-events.md).
 On staging, Loki and Alloy run only with `STAGING_LOGS_ENABLED=1`.
 
 ## Query tests

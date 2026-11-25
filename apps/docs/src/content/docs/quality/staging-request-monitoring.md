@@ -8,9 +8,9 @@ This is issue [#194](https://github.com/DannyShayH/MTGO/issues/194), part of
 metrics from [local monitoring](/MTGO/quality/local-request-monitoring/)
 (#169 and #170) on the staging Droplet, so the team can look at real staging
 traffic before deciding on the log pipeline. It adds Prometheus and Grafana.
-Loki and Alloy for approved backend events are an opt-in on top of this
+Loki and Alloy for approved application events are an opt-in on top of this
 (`STAGING_LOGS_ENABLED=1`, see
-[approved backend events](/MTGO/quality/approved-backend-events/#staging-opt-in)). The full four-component capacity gate and
+[approved application events](/MTGO/quality/approved-application-events/#staging-opt-in)). The full four-component capacity gate and
 acceptance remain [#183](https://github.com/DannyShayH/MTGO/issues/183) and
 [#184](https://github.com/DannyShayH/MTGO/issues/184).
 

@@ -1,4 +1,4 @@
-# Disposable fixture run of the approved-events pipeline (#176). From
+# Disposable fixture run of the approved-events pipeline (#176, #177). From
 # deploy/monitoring:
 #   docker compose -f tests/log-pipeline/compose.yaml up --abort-on-container-exit --exit-code-from check
 #   docker compose -f tests/log-pipeline/compose.yaml down --volumes
@@ -9,7 +9,7 @@ name: mtogo-log-pipeline-test
 services:
   fixtures:
     image: node:24.22.3-bookworm-slim
-    command: ["node", "/tests/check.cjs", "write", "/fixtures/backend.log"]
+    command: ["node", "/tests/check.cjs", "write", "/fixtures"]
     volumes:
       - ./:/tests:ro
       - fixtures:/fixtures
@@ -41,7 +41,7 @@ services:
 
   check:
     image: node:24.22.3-bookworm-slim
-    command: ["node", "/tests/check.cjs", "check", "/fixtures/backend.log"]
+    command: ["node", "/tests/check.cjs", "check", "/fixtures"]
     volumes:
       - ./:/tests:ro
       - fixtures:/fixtures:ro

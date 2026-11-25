@@ -1,12 +1,15 @@
-// Approved backend application events (#176): the dataset boundary for Loki.
+// Approved application events (#176, #177): the dataset boundary for Loki.
 //
 // A line reaches Loki only when it is a recognized @dtc/logging record from
-// the backend: a known event with its own level and constant message, a
-// service, an environment and a UTC time. The forwarded line is rebuilt from
-// validated allowlisted fields only; the original line, Medusa's `message`
-// and `timestamp`, unknown fields and nested data never leave this pipeline.
-// Everything else (framework/startup output, stacks, unknown events, plain
-// text) is dropped here and stays only in Docker's own log files.
+// the backend, partner or storefront: a known event with its own level and
+// constant message, a service, an environment and a UTC time. The record's
+// service must be the Compose service whose container wrote it (the
+// `source_service` label the collector sets), so one app cannot appear as
+// another. The forwarded line is rebuilt from validated allowlisted fields
+// only; the original line, Medusa's `message` and `timestamp`, unknown fields
+// and nested data never leave this pipeline. Everything else
+// (framework/startup output, Next.js server errors, stacks, unknown events,
+// plain text) is dropped here and stays only in Docker's own log files.
 //
 // Stream labels are service, env and level. Request, actor, Restaurant and
 // Order IDs stay searchable fields inside the line, never labels.
@@ -15,7 +18,7 @@
 // src/observability/__tests__/approved-log-events.unit.spec.ts fails when
 // they drift. deploy/monitoring/tests/log-pipeline runs this module against Loki.
 
-declare "backend_events" {
+declare "application_events" {
   argument "forward_to" {
     comment = "Receivers of the rebuilt approved records."
   }
@@ -80,9 +83,33 @@ declare "backend_events" {
       expression = `^(?P<ok_event>[^|]+)\|(?P<ok_level>[^|]+)\|(?P<ok_msg>[^|]+)$`
     }
 
-    stage.regex {
-      source     = "service"
-      expression = `^(?P<ok_service>backend)$`
+    // The record's service, accepted only from its own container. Entries
+    // without a source_service label (no container) match no selector.
+    stage.match {
+      selector = "{source_service=\"backend\"}"
+
+      stage.regex {
+        source     = "service"
+        expression = `^(?P<ok_service>backend)$`
+      }
+    }
+
+    stage.match {
+      selector = "{source_service=\"partner\"}"
+
+      stage.regex {
+        source     = "service"
+        expression = `^(?P<ok_service>partner)$`
+      }
+    }
+
+    stage.match {
+      selector = "{source_service=\"storefront\"}"
+
+      stage.regex {
+        source     = "service"
+        expression = `^(?P<ok_service>storefront)$`
+      }
     }
 
     stage.regex {

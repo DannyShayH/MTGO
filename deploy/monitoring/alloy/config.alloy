@@ -1,12 +1,15 @@
-// Collects approved backend application events into Loki (#176).
+// Collects approved application events into Loki (#176, #177).
 //
-// Source selection is bounded to one Compose service: the backend of the
-// application project named by MTOGO_LOG_PROJECT (local demo:
-// mtogo-monitoring-demo, staging: mtogo-staging). Database, Redis, Caddy,
-// other services, one-off `run` containers and unrelated projects are never
-// read. The Docker socket gives read access to every container's logs and
-// metadata; see the runbook before mounting it on a shared host.
+// Source selection is bounded to three Compose services of the application
+// project named by MTOGO_LOG_PROJECT (local demo: mtogo-monitoring-demo,
+// staging: mtogo-staging): backend, partner and storefront. Database, Redis,
+// Caddy, the worker, other services, one-off `run` containers and unrelated
+// projects are never read. The Docker socket gives read access to every
+// container's logs and metadata; see the runbook before mounting it on a
+// shared host.
 
+// Docker ANDs the values of one label filter, so the services are selected
+// by the relabel rule below.
 discovery.docker "application" {
   host             = "unix:///var/run/docker.sock"
   refresh_interval = "15s"
@@ -15,35 +18,41 @@ discovery.docker "application" {
     name   = "label"
     values = [
       "com.docker.compose.project=" + sys.env("MTOGO_LOG_PROJECT"),
-      "com.docker.compose.service=backend",
       "com.docker.compose.oneoff=False",
     ]
   }
 }
 
-// No container metadata becomes a stream label; the pipeline sets them.
-discovery.relabel "backend" {
+// The only label set here is the container's Compose service. The pipeline
+// accepts a record only when its own service equals it, then drops the label.
+discovery.relabel "application" {
   targets = discovery.docker.application.targets
 
   rule {
     action        = "keep"
     source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
-    regex         = "backend"
+    regex         = "backend|partner|storefront"
+  }
+
+  rule {
+    action        = "replace"
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "source_service"
   }
 }
 
-loki.source.docker "backend" {
+loki.source.docker "application" {
   host             = "unix:///var/run/docker.sock"
-  targets          = discovery.relabel.backend.output
+  targets          = discovery.relabel.application.output
   refresh_interval = "15s"
-  forward_to       = [approved.backend_events.backend.receiver]
+  forward_to       = [approved.application_events.application.receiver]
 }
 
 import.file "approved" {
   filename = "/etc/alloy/approved-events.alloy"
 }
 
-approved.backend_events "backend" {
+approved.application_events "application" {
   forward_to = [loki.write.local.receiver]
 }
 

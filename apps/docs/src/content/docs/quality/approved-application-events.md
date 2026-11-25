@@ -1,0 +1,341 @@
+---
+title: Approved application events in Grafana
+description: Existing backend, partner and storefront events collected by Alloy, rebuilt from the logging allowlist and searchable or live-tailed in Loki through the private Grafana, locally and as an opt-in on staging.
+---
+
+These are issues [#176](https://github.com/DannyShayH/MTGO/issues/176)
+(backend) and [#177](https://github.com/DannyShayH/MTGO/issues/177) (partner
+and storefront), slices 8 and 9 of
+[#167](https://github.com/DannyShayH/MTGO/issues/167). Existing events of the
+three apps from the [logging contract](/MTGO/quality/logging/) flow through
+Alloy into Loki. You can search and live-tail them in the same private Grafana
+as the [request metrics](/MTGO/quality/local-request-monitoring/). Winston, the
+event vocabulary, what each app logs and how request IDs travel are unchanged.
+Retention and resume are [#178](https://github.com/DannyShayH/MTGO/issues/178).
+Pipeline failure views are [#179](https://github.com/DannyShayH/MTGO/issues/179).
+Budgets are [#182](https://github.com/DannyShayH/MTGO/issues/182).
+
+## The data boundary
+
+Alloy, not the dashboard, decides what enters Loki. The module
+`deploy/monitoring/alloy/approved-events.alloy` keeps a line only when all of
+these hold:
+
+- It is a JSON object of at most 4 KiB.
+- Its `event`, `level` and `msg` are one of the combinations in
+  `@dtc/logging` (for example `request.failed`, `error`, `Request failed`).
+- `service` is `backend`, `partner` or `storefront`, **and it is the Compose
+  service of the container that wrote the line**. This is meant to stop a
+  partner container from putting a `backend` record into Loki, and the
+  reverse. The fixture test is what proves it.
+- `env` is `development`, `test`, `production` or `staging`, and `time` is a
+  UTC ISO time with milliseconds.
+
+Events are not tied to an app: `@dtc/logging` lets any app use any event, so
+the pipeline accepts any recognized event from any of the three.
+
+It then **rebuilds** the line from validated allowlisted fields. The original
+line is never forwarded. Medusa's own `message` and `timestamp` are dropped, and
+so are unknown fields, nested objects and error messages or stacks. An optional
+field with an invalid value is left out, just as the record builder leaves it
+out. `outcome` survives only on `refund.attempted`. The menu timings survive
+only on `menu.read.slow`. `err` is reduced to `{"type": ...}` on
+`request.failed`. Valid JSON alone never qualifies a line.
+
+Everything else is dropped from the Loki pipeline: Medusa and Next.js startup
+and framework lines, Next.js server errors, raw errors with stacks, unknown
+events, plain text and other services.
+Those lines **stay in Docker's logs**
+(`docker compose logs`, `mtogo-deploy.sh logs`). The viewer removes nothing
+there.
+
+| Stream labels (indexed)   | Searchable fields in the record (not labels)                                      |
+| ------------------------- | --------------------------------------------------------------------------------- |
+| `service`, `env`, `level` | `event`, `request_id`, `route`, `method`, `status`, actor/Restaurant/Order IDs, … |
+
+Loki stores the producer's own `time` as the entry time. The Loki
+configuration turns off automatic `service_name` and level detection, so the
+labels are exactly those three. `service` comes from the validated record and
+always equals its container's Compose service.
+
+Alloy reads only the `backend`, `partner` and `storefront` services of one
+Compose project (`mtogo-monitoring-demo` locally, `mtogo-staging` on the
+Droplet). The collector sets a temporary `source_service` label from the
+container's Compose service. The pipeline compares it with the record and then
+drops it. One-off `run` containers (migrations, seeds), the database, Redis,
+Caddy, the staging `worker`, browser console output and other projects are
+never read.
+
+### What correlates, and what does not
+
+Correlation is what the apps already do
+([ADR-0019](/MTGO/architecture/decisions/0019-safe-application-logging-and-request-correlation/)).
+Nothing was added for this viewer.
+
+| Journey                                                             | Shared `request_id` in Loki?                                                                                               |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Partner sign-in (`/auth/restaurant_staff/emailpass`, `/partner/me`) | Yes. The partner forwards its ID as `x-request-id`. The backend logs a refusal on these two routes under the same ID.      |
+| Other partner calls (Order, delivery, menu actions)                 | Partner events only. The partner forwards the ID, but the backend's correlated logging covers only the two sign-in routes. |
+| Partner sign-out                                                    | Partner event only. Sign-out does not call the backend.                                                                    |
+| Storefront                                                          | No. Storefront records carry no request ID.                                                                                |
+
+Not every request produces an event. A search that finds nothing under an ID
+does not prove that a step did not happen. There is no tracing.
+
+| Component | Pinned version | Listens on                                                        |
+| --------- | -------------- | ----------------------------------------------------------------- |
+| Loki      | 3.7.10         | `loki:3100` on the internal `logs` network; no published port     |
+| Alloy     | 1.22.0         | Its UI on `127.0.0.1:12345` inside its container; no network port |
+
+Alloy reads the Docker socket. A read-only mount does **not** restrict which
+Docker API calls a process can make: anyone who controls the Alloy container
+controls Docker. This is acceptable for the disposable local demo. On staging
+the repository admin accepts it by enabling the profile (below), or puts a
+restricted socket proxy in front of it later.
+
+## Local journey
+
+Start from the [local request monitoring](/MTGO/quality/local-request-monitoring/#fresh-local-startup)
+runbook. `docker compose up -d` in `deploy/monitoring` now also starts Loki and
+Alloy. Grafana gets a second data source, **Application events**, and the
+dashboard **MTOGO — approved application events**. To check the configuration
+before starting:
+
+```bash
+cd deploy/monitoring
+docker compose config --quiet
+docker compose run --rm --no-deps loki -config.file=/etc/loki/config.yaml -verify-config
+docker compose run --rm --no-deps --entrypoint /bin/alloy alloy fmt /etc/alloy/config.alloy > /dev/null
+docker compose up -d
+```
+
+The demo also has the **partner** app (`127.0.0.1:8100`), built from the same
+Dockerfile target as staging. It talks to the demo backend over the private
+network. Build and start it after the backend is healthy:
+
+```bash
+docker compose -f compose.application.yaml build partner
+docker compose -f compose.application.yaml up -d partner
+curl --fail --retry 60 --retry-all-errors --retry-delay 2 -o /dev/null http://127.0.0.1:8100/sign-in
+```
+
+The storefront is **not** in the local demo. Its image inlines the publishable
+key and backend URL at build time, and it prerenders from a running backend.
+Storefront records are proven by the fixture test (below) with genuine
+storefront production lines, and live on staging.
+
+Log in as `local-viewer`. Open
+`http://127.0.0.1:3000/d/mtogo-application-events?refresh=5s`. This is the
+Viewer's live tail: the dashboard re-runs its query every 5 seconds (or pick
+**5s** in the refresh picker). It is polling, not Loki's streaming tail.
+Grafana's streaming **Live** mode is in Explore, which Viewers cannot open
+here. Then:
+
+1. **Backend event.** Run the existing demo read. It logs
+   `monitoring.demo_read.succeeded`:
+
+   ```bash
+   docker compose -f compose.application.yaml exec backend npm exec --no -- medusa exec ./src/scripts/observe-local-request.js
+   ```
+
+2. **Partner and backend under one request ID.** Open
+   `http://127.0.0.1:8100/sign-in` and sign in with a made-up email and
+   password. Within about 15 seconds the view shows the partner's
+   `auth.sign_in.failed` and the backend's `access.denied`, both with status 401. Open the partner event's details and copy its `request_id`. Paste it
+   into **Request ID starts with**: exactly those two events remain, one per
+   application. The ID is the one the partner generated and forwarded.
+
+3. **Filters.** Set **Application** to `partner` (or `backend`), **Severity**
+   to `warn` and **Event starts with** to `auth.`. Each narrows the list.
+
+The Medusa and Next.js startup lines (`Server is ready…`, `▲ Next.js …`,
+`✓ Ready`) are in `docker compose -f compose.application.yaml logs backend partner`
+but not in Grafana. The same holds for anything else that is not an approved
+event.
+
+Useful LogQL, for an administrator in Explore (including **Live**) or the API:
+
+```text
+{service=~".+"}                                             every approved event
+{service="partner", level="warn"} | json | event="auth.sign_in.failed"
+{service=~".+"} | json | request_id="<id>"                  one interaction, every app
+```
+
+### The boundary, as a Viewer
+
+The dashboard's filters are not the boundary. A Viewer can send **any** LogQL
+to the data source through Grafana's query API, not only the dashboard's own
+queries. Prove that the raw lines are not in the dataset itself, with the
+Viewer's own credentials. The password stays in `.env`:
+
+```bash
+node --env-file=.env --input-type=module <<'NODE'
+const auth = `Basic ${Buffer.from(`local-viewer:${process.env.GRAFANA_VIEWER_PASSWORD}`).toString("base64")}`
+for (const expr of ['{service=~".+"} |= "Server is ready"', '{service=~".+"} |= "Next.js"', '{service=~".+"} |~ "(?i)password|authorization|stack"', '{env=~".+"} |~ "(?i)postgres|redis|caddy"']) {
+  const response = await fetch("http://127.0.0.1:3000/api/ds/query", {
+    method: "POST",
+    headers: { authorization: auth, "content-type": "application/json" },
+    body: JSON.stringify({ from: "now-24h", to: "now", queries: [{ refId: "A", datasource: { uid: "mtogo-loki" }, expr, queryType: "range", maxLines: 10 }] }),
+  })
+  const frames = (await response.json()).results?.A?.frames ?? []
+  const lines = frames.reduce((sum, frame) => sum + (frame.data?.values?.[0]?.length ?? 0), 0)
+  console.log(response.status, lines, "lines for", expr)
+}
+NODE
+```
+
+Every query returns HTTP 200 and **0 lines**. A 200 shows the Viewer really
+queried Loki beyond the dashboard. The `docker compose logs` above still have
+the startup lines.
+
+## Fixture test of the pipeline
+
+`deploy/monitoring/tests/log-pipeline/` runs the **real** module in the pinned Alloy
+against the pinned Loki and inspects what Loki stores, not what Alloy
+extracted. Each case in `cases.json` names its `source` container. The check
+writes one file per container (`backend.log`, `partner.log`, `storefront.log`),
+and `fixture.alloy` labels each one as the collector labels that container.
+
+The kept cases are producer lines: the backend's from `createLogRecord` through
+Medusa's production logger, and the partner's and storefront's from
+`createApplicationLogger` with `NODE_ENV=production`. That is Winston JSON with
+sorted keys, as `next start` prints it. One backend record shares the partner
+sign-in's request ID. The other cases are synthetic negatives: extra and nested
+fields, Medusa `message` text, invalid IDs, error details, misplaced event
+fields, out-of-range timings, Medusa and Next.js startup and error lines,
+unknown events, wrong level, message or environment, a record naming another
+app than its container, an unknown service, plain text, arrays and oversized
+lines. Every dropped value carries a `SECRET-MARKER`.
+
+```bash
+cd deploy/monitoring
+docker compose -f tests/log-pipeline/compose.yaml up --abort-on-container-exit --exit-code-from check
+docker compose -f tests/log-pipeline/compose.yaml down --volumes
+```
+
+It passes when the stored lines equal the expected reconstructions exactly,
+every stream has only the three labels, each record's `service` equals its
+stream's label, all three apps have records, no stored line contains `SECRET`,
+the entry time is the record's own `time`, a `| json | request_id=` query
+finds one backend record, and a query for the sign-in ID finds the partner and
+the backend record. It needs no application, no Docker socket and no published
+port.
+
+`src/observability/__tests__/approved-log-events.unit.spec.ts` in the backend
+runs in the normal unit suite. It fails when the recognized combinations drift
+from `@dtc/logging`'s vocabulary, or when an expected stored record is not the
+record builder's own reconstruction. It also fails when a service is accepted
+from another container or the collector reads other services. It checks the
+label set and the pinned images too.
+
+## Staging (opt-in)
+
+Loki and Alloy are in `deploy/monitoring/compose.staging.yaml` under the
+Compose profile `logs`. They start only when `/srv/mtogo-staging/.env` has
+`STAGING_LOGS_ENABLED=1`. Without it, `monitoring up` behaves exactly as for
+[#194](/MTGO/quality/staging-request-monitoring/).
+
+| Container | Hard cap | Go memory limit | Persistent state                    |
+| --------- | -------- | --------------- | ----------------------------------- |
+| loki      | 256 MB   | 200 MiB         | Volume `loki-data`: 7-day policy    |
+| alloy     | 160 MB   | 120 MiB         | Volume `alloy-data`: read positions |
+
+The caps add at most 416 MB to the 640 MB of Prometheus and Grafana. The idle
+reading on 20 November 2026, before monitoring, had 883 MB available. Whether
+the whole stack fits is not yet measured. That is
+[#183](https://github.com/DannyShayH/MTGO/issues/183). Use the same 200 MB
+`available` floor and readings as
+[staging request monitoring](/MTGO/quality/staging-request-monitoring/#memory-budget).
+If they fail, switch logs off again. Seven-day retention is a time policy, not
+a disk quota.
+
+Activation, by the repository admin on the Droplet, after this change is live:
+
+1. Re-install `mtogo-deploy.sh` from the live commit
+   ([staging deployment, step 4](/MTGO/quality/staging-deployment/#4-scripts)).
+   `monitoring up` and `down` now know the `logs` profile.
+2. Take a memory reading (`free -m`, `docker stats --no-stream`).
+3. Add `STAGING_LOGS_ENABLED=1` to `/srv/mtogo-staging/.env`
+   (`STAGING_METRICS_ENABLED=1` stays).
+4. Run `sudo mtogo-deploy.sh monitoring up`. It copies the new
+   `deploy/monitoring/` from the live release and validates the Loki
+   configuration. Then it recreates the stack with Loki and Alloy.
+5. Open Grafana's **MTOGO — approved application events** as a Viewer. Trigger
+   `curl -s -o /dev/null -w '%{http_code}\n' https://<api host>/partner/me -H 'x-request-id: staging-176'`
+   and search `staging-176`. For the partner and the storefront, see
+   [staging journey](#staging-journey-for-the-partner-and-storefront).
+6. Take memory readings again after activation and during one deploy.
+
+Switch off: set `STAGING_LOGS_ENABLED=0`, then run
+`sudo mtogo-deploy.sh monitoring down` and `sudo mtogo-deploy.sh monitoring up`.
+The `loki-data` and `alloy-data` volumes stay. Remove them with
+`sudo docker volume rm mtogo-staging-monitoring_loki-data mtogo-staging-monitoring_alloy-data`
+only to discard log history.
+
+With #177 live, Alloy also reads the staging `partner` and `storefront`
+containers. No setting changes, and the `worker` is still not read. Alloy now
+follows three containers instead of one, so include it in the memory readings
+of step 6. Its cap is unchanged.
+
+### Staging journey for the partner and storefront
+
+Use synthetic input only, and send no deliberate failures or load to staging.
+
+1. **Partner and backend.** Open the staging partner sign-in page and sign in
+   with a made-up email and password. As a Viewer, find `auth.sign_in.failed`
+   (`partner`) and copy its `request_id`. Search that ID: the backend's
+   `access.denied` for `/auth/restaurant_staff/emailpass` is listed beside it.
+2. **Storefront.** Storefront events appear only when a backend call from the
+   storefront server fails (`upstream.request.failed`), or when its exporter
+   cannot start (`monitoring.exporter.unavailable`). Do not provoke them on
+   staging. Set **Application** to `storefront` and read what already happened
+   in the time range. An empty list with a healthy data source means none
+   happened. The fixture test is the proof of the storefront path.
+3. Run the [Viewer boundary queries](#the-boundary-as-a-viewer) through the
+   tunnel with a staging Viewer account.
+
+## Troubleshooting
+
+| Symptom                                       | Check/action                                                                                                                                                                              |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dashboard says the data source failed         | Loki is not running or not on the `logs` network (on staging: `STAGING_LOGS_ENABLED` is not `1`). `docker compose ps loki` and its logs.                                                  |
+| No events, Loki healthy                       | No approved event in the time range. Produce one (above). Check Alloy found the container: `docker compose logs alloy` names the target. The project name must match `MTOGO_LOG_PROJECT`. |
+| An event is in Docker logs but not in Grafana | It is not recognized: an unknown event, wrong level/message pair, another service or non-production JSON. Development output (CLI format) is not JSON and never qualifies.                |
+| Partner or storefront events never appear     | `docker compose logs alloy` must name the container. Its Compose service must be exactly `partner` or `storefront`, and the record's `service` must match it.                             |
+| A field is missing from a stored event        | Its value failed the allowlist check and was left out. Compare with `packages/logging/src/index.cjs`.                                                                                     |
+| Events appear twice after recreation          | Alloy resumes from saved positions in `alloy-data`; after losing that volume it reads the container's log again. Delivery is best effort, not exactly once.                               |
+| Unit test fails after a new event             | Add its `event\|level\|msg` combination to the `recognized` expression in `approved-events.alloy` and re-run the fixture test.                                                            |
+| Permission denied on the Docker socket        | Compose runs Alloy as root (`user: "0"`) to read the socket. Check the socket path is `/var/run/docker.sock` on the host.                                                                 |
+
+## Verification record
+
+Agent verification on 25 November 2026, on the uncommitted #177 working tree:
+
+| Boundary                         | Result                                                                                                                                                                                                                                 |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Backend unit spec                | Passed: three services, each accepted only from its own container; the collector reads exactly those three; every kept fixture, partner and storefront included, equals the builder's reconstruction.                                  |
+| Producer lines                   | Partner and storefront inputs were generated with `createApplicationLogger` and `NODE_ENV=production`; the correlated backend record with Medusa's production logger format.                                                           |
+| Fixture writer                   | `check.cjs write` produced one file per container (26 backend, 6 partner, 5 storefront lines).                                                                                                                                         |
+| Pipeline expressions             | A throwaway simulation using the module's own expressions, with the container identity check, reproduced all 37 expected keep/drop outcomes. This is not Alloy.                                                                        |
+| Loki/Alloy containers, Viewer UI | **Not run**: the devcontainer has no Docker engine. The fixture test, the local partner journey, the Viewer boundary queries and the staging journey are the developer's run. The `stage.match` identity check is unproven until then. |
+
+Earlier, for #176:
+
+| Boundary                         | Result                                                                                                                                                          |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Backend unit spec                | Passed: vocabulary ↔ pipeline, label set, pinned images, every kept fixture equals the builder's reconstruction, no stored secret marker.                       |
+| `@dtc/logging` tests             | Passed, including the new `logEvents` export.                                                                                                                   |
+| Producer lines                   | The kept fixture inputs were generated with Medusa's production logger and `createLogRecord`.                                                                   |
+| Pipeline expressions             | A throwaway simulation using the module's own regular expressions reproduced all 25 expected outcomes. This is not Alloy and does not replace the fixture test. |
+| Loki/Alloy containers, Viewer UI | **Not run**: the devcontainer had no Docker engine and could not run the pinned binaries. The fixture test and the local journey above are the developer's run. |
+
+Manual acceptance checklist for the developer:
+
+- The fixture test passes.
+- A Viewer sees `monitoring.demo_read.succeeded` and the `demo-176` `access.denied`, but no startup lines.
+- With `?refresh=5s`, a failed local partner sign-in appears as `auth.sign_in.failed` (`partner`) and `access.denied` (`backend`). Searching the partner's `request_id` lists exactly those two.
+- **Application**, **Severity** and **Event starts with** each narrow the list.
+- The Viewer boundary queries return HTTP 200 and 0 lines, while `docker compose logs partner` still has the Next.js startup lines.
+- `{service=~".+"} |= "Server is ready"` returns nothing in Loki, while Docker logs still have the line.
+- Streams carry only `service`, `env` and `level`.
+- Loki and Alloy have no host ports. Stopping either leaves the API working.

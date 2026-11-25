@@ -110,9 +110,10 @@ services:
         limits:
           memory: 256m
 
-  # Reads only the backend container of the mtogo-staging project through the
-  # Docker socket. A read-only mount does not limit the Docker API calls Alloy
-  # could make; the admin accepts that when enabling the profile.
+  # Reads only the backend, partner and storefront containers of the
+  # mtogo-staging project through the Docker socket. A read-only mount does
+  # not limit the Docker API calls Alloy could make; the admin accepts that
+  # when enabling the profile.
   alloy:
     image: grafana/alloy:v1.22.0
     # Root inside the container, only to read the Docker socket.

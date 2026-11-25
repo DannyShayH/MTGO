@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { createLogRecord, logEvents } from "@dtc/logging"
 
-// The Alloy pipeline is the dataset boundary for Loki (#176). These checks keep
+// The Alloy pipeline is the dataset boundary for Loki (#176, #177). These checks keep
 // it and its fixture expectations tied to the logging contract in
 // @dtc/logging; the real pipeline itself is exercised against Loki by
 // deploy/monitoring/tests/log-pipeline (see local-request-monitoring.md).
@@ -10,9 +10,15 @@ const monitoring = join(__dirname, "../../../../../deploy/monitoring")
 const read = (path: string) => readFileSync(join(monitoring, path), "utf8")
 
 const pipeline = read("alloy/approved-events.alloy")
+const collector = read("alloy/config.alloy")
+
+type Service = "backend" | "partner" | "storefront"
+const services: Service[] = ["backend", "partner", "storefront"]
 
 type Case = {
   name: string
+  // The Compose service whose container wrote the line.
+  source: Service
   // The test design technique (EP, BVA) behind the case.
   reason: string
   line: string
@@ -57,13 +63,37 @@ function vocabularyCombinations() {
     .sort()
 }
 
-describe("approved backend events pipeline", () => {
+describe("approved application events pipeline", () => {
   it("recognizes exactly the event, level and message combinations of the shared vocabulary", () => {
     expect(recognizedCombinations()).toEqual(vocabularyCombinations())
   })
 
-  it("recognizes only backend records in this slice", () => {
-    expect(pipeline).toContain("^(?P<ok_service>backend)$")
+  // A record's own service must name the container that wrote it, so one app
+  // cannot appear in Loki as another.
+  it.each(services)(
+    "recognizes %s records only from its own container",
+    (service) => {
+      const blocks = pipeline.split("stage.match {").slice(1)
+      const block = blocks.find((text) =>
+        text.includes(`selector = "{source_service=\\"${service}\\"}"`),
+      )
+      expect(block).toContain(`expression = \`^(?P<ok_service>${service})$\``)
+    },
+  )
+
+  it("recognizes no other service", () => {
+    expect(
+      [...pipeline.matchAll(/\(\?P<ok_service>([^)]*)\)/g)].map(
+        ([, service]) => service,
+      ),
+    ).toEqual(services)
+  })
+
+  it("collects exactly the three application containers", () => {
+    expect(collector).toMatch(
+      new RegExp(`regex\\s*=\\s*"${services.join("\\|")}"`),
+    )
+    expect(collector).toMatch(/target_label\s*=\s*"source_service"/)
   })
 
   it("indexes only service, environment and severity as stream labels", () => {
@@ -83,6 +113,26 @@ describe("approved backend events pipeline", () => {
 })
 
 describe("approved-event fixtures", () => {
+  it.each(services)("keep genuine %s records", (service) => {
+    expect(
+      cases.filter(
+        ({ source, stored }) =>
+          source === service &&
+          stored &&
+          JSON.parse(stored).service === service,
+      ).length,
+    ).toBeGreaterThan(1)
+  })
+
+  it("drop a record whose service is not the container that wrote it", () => {
+    const spoofed = cases.filter(
+      ({ source, line }) =>
+        line.startsWith("{") && JSON.parse(fill(line)).service !== source,
+    )
+    expect(spoofed.length).toBeGreaterThan(1)
+    for (const { stored } of spoofed) expect(stored).toBeNull()
+  })
+
   it("cover kept and dropped lines", () => {
     expect(cases.filter(({ stored }) => stored).length).toBeGreaterThan(3)
     expect(cases.filter(({ stored }) => !stored).length).toBeGreaterThan(3)
@@ -93,8 +143,9 @@ describe("approved-event fixtures", () => {
   // produce from that record's fields: nothing outside the allowlist survives.
   it.each(cases.filter((fixture) => fixture.stored))(
     "$name ($reason) is stored as the shared builder's reconstruction",
-    ({ stored }) => {
+    ({ source, stored }) => {
       const record = JSON.parse(fill(stored!))
+      expect(record.service).toBe(source)
       const { time, service, event, env, level, msg, err, ...fields } = record
       const rebuilt = createLogRecord(service, event, fields, env)
       // The builder classifies a live error; a stored one keeps its class.

@@ -1,19 +1,25 @@
-// Fixture run of the approved-events pipeline (#176): the same module as the
-// collector, fed with the generated fixture file instead of Docker.
+// Fixture run of the approved-events pipeline (#176, #177): the same module as
+// the collector, fed with one generated file per source container instead of
+// Docker. Each file carries the `source_service` label the collector sets
+// from the container's Compose service.
 local.file_match "fixtures" {
-  path_targets = [{"__path__" = "/fixtures/backend.log"}]
+  path_targets = [
+    {"__path__" = "/fixtures/backend.log", "source_service" = "backend"},
+    {"__path__" = "/fixtures/partner.log", "source_service" = "partner"},
+    {"__path__" = "/fixtures/storefront.log", "source_service" = "storefront"},
+  ]
 }
 
 loki.source.file "fixtures" {
   targets    = local.file_match.fixtures.targets
-  forward_to = [approved.backend_events.fixtures.receiver]
+  forward_to = [approved.application_events.fixtures.receiver]
 }
 
 import.file "approved" {
   filename = "/etc/alloy/approved-events.alloy"
 }
 
-approved.backend_events "fixtures" {
+approved.application_events "fixtures" {
   forward_to = [loki.write.test.receiver]
 }
 
