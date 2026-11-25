@@ -141,7 +141,7 @@ medusaIntegrationTestRunner({
       flags().setFlag("feedback", false)
       expect((await read(admin)).status).toBe(404)
     })
-    it("keeps inactive and unrated subjects while excluding old and future handovers", async () => {
+    it("keeps inactive subjects and includes only handovers within the period boundaries", async () => {
       const { admin, pizzeriaId } = harness.seeded()
       flags().setFlag("feedback", true)
       const delivery =
@@ -155,11 +155,15 @@ medusaIntegrationTestRunner({
         status: "revoked",
         invited_by: "operator",
       })
-      const now = Date.now()
+      const feedback =
+        getContainer().resolve<FeedbackModuleService>(FEEDBACK_MODULE)
       for (const [orderId, time] of [
-        ["inside", now - 1000],
-        ["old", now - 31 * 86400000],
-        ["future", now + 86400000],
+        ["before-start", "2026-03-02T11:59:59.999Z"],
+        ["at-start", "2026-03-02T12:00:00.000Z"],
+        ["after-start", "2026-03-02T12:00:00.001Z"],
+        ["before-end", "2026-04-01T11:59:59.999Z"],
+        ["at-end", "2026-04-01T12:00:00.000Z"],
+        ["after-end", "2026-04-01T12:00:00.001Z"],
       ] as const) {
         const at = new Date(time)
         await delivery.createIntendedDeliveries({
@@ -176,30 +180,59 @@ medusaIntegrationTestRunner({
           terminal_outcome: "delivered",
           terminal_at: at,
         })
+        await feedback.createFeedbacks({
+          order_id: orderId,
+          customer_id: "customer",
+          restaurant_id: pizzeriaId,
+          agent_id: agent.id,
+          delivered_at: at,
+          food_rating: 1,
+          experience_rating: 3,
+          agent_rating: 5,
+        })
       }
-      const response = await read(admin)
+      jest.useFakeTimers({
+        now: new Date("2026-04-01T12:00:00.000Z"),
+        doNotFake: [
+          "nextTick",
+          "setImmediate",
+          "clearImmediate",
+          "setTimeout",
+          "clearTimeout",
+          "setInterval",
+          "clearInterval",
+          "performance",
+          "queueMicrotask",
+        ],
+      })
+      let response
+      try {
+        response = await read(admin)
+      } finally {
+        jest.useRealTimers()
+      }
       expect(response.status).toBe(200)
       expect(response.data.experience).toMatchObject({
-        average: null,
-        count: 0,
-        delivered_orders: 1,
+        average: 3,
+        count: 3,
+        delivered_orders: 3,
       })
       expect(response.data.restaurants).toEqual([
         expect.objectContaining({
           id: pizzeriaId,
           is_active: false,
-          average: null,
-          count: 0,
-          delivered_orders: 1,
+          average: 1,
+          count: 3,
+          delivered_orders: 3,
         }),
       ])
       expect(response.data.agents).toEqual([
         expect.objectContaining({
           id: agent.id,
           is_active: false,
-          average: null,
-          count: 0,
-          delivered_orders: 1,
+          average: 5,
+          count: 3,
+          delivered_orders: 3,
         }),
       ])
     })

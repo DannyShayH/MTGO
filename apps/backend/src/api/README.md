@@ -2969,9 +2969,11 @@ row keeps rendering. It is the `thumbnail` value stored on dish Products; see
 
 Operator-only, behind the `feedback` Feature flag (404 while off). It accepts
 `period=last_30_days` (the default and currently the only supported value).
-It returns `period` with the inclusive `from` and exclusive `to` instants,
+It returns `200` with `period` containing the inclusive `from` and exclusive `to` instants,
 `experience`, `restaurants`, and `agents`. Each summary contains `average`
 (null when unrated), `count`, a 1–5 `distribution`, and `delivered_orders`.
 Rows also contain `id`, `name`, and `is_active`; they are sorted by name.
 Restaurant ratings are food ratings, agent ratings describe only agents, and
 experience is platform-wide.
+An unsupported period or unknown query parameter returns `400`. A caller without
+valid operator authentication is refused with `401` or `403`.
