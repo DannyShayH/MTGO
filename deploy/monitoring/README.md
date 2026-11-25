@@ -37,10 +37,23 @@ separate. `tests/log-history/check.mjs` demonstrates first import, resume,
 replacement, rotation and retention on disposable containers; the limits are in
 the runbook's history section.
 
+### Pipeline health (#179)
+
+Prometheus scrapes Alloy and Loki on the internal `logs` network and keeps only
+the series that the events dashboard shows: lines read, read errors, events
+delivered, drops, retries, Docker listing failures and what Loki refused. Alloy's
+retries are bounded in `alloy/config.alloy`, and its queue by Alloy's default,
+which cannot be changed at the default stability level.
+`tests/log-outage/check.mjs` stops Loki, Alloy, Prometheus and Grafana on
+disposable containers while stand-in applications keep answering; the meaning of
+each state and the loss limits are in the runbook's health section.
+
+`tests/disposable-project.mjs` and `tests/record-line.cjs` are shared by the two checks.
+
 ## Query tests
 
 `tests/dashboard-queries.test.yaml` is a `promtool test rules` file holding
-every dashboard expression verbatim (the two traffic-indication queries with
+every Prometheus expression of both dashboards verbatim (the two traffic-indication queries with
 each representative Viewer setting substituted as Grafana encodes it), evaluated against synthetic series:
 healthy zero traffic, only 4xx, 5xx, DOWN and absent targets, insufficient
 history, a missing duration histogram and a counter reset, and the
@@ -52,9 +65,11 @@ for each class of each Viewer control and the cross-field bounds, encoded as
 Grafana encodes them, against exact, boundary, zero, DOWN, absent and
 one-scrape counts, and the Customer menu read and restaurant menu page panels
 of #202 (a slow tail with idle parts and kinds, and no menu reads with the
-storefront DOWN). The backend unit
-test `src/observability/__tests__/dashboard-queries.unit.spec.ts` fails when a
-dashboard query is not in that file. Change both together.
+storefront DOWN), and the log pipeline panels of #179 (collecting, quiet, Alloy
+or Loki DOWN, dropping, retrying, Docker unreachable, read errors, one scrape, missing
+scrapes, recovered and absent). The backend unit
+tests `dashboard-queries.unit.spec.ts` and `log-pipeline-health.unit.spec.ts` in
+`src/observability/__tests__/` fail when a dashboard query is not in that file. Change both together.
 
 ## Staging
 
@@ -63,6 +78,7 @@ dashboard on the Droplet, with memory caps and restart policies; its values
 live in the staging `.env` (`deploy/staging/.env.template`). It joins the internal `mtogo-staging-metrics` network
 that `deploy/staging/compose.yaml` creates for the backend and storefront
 exporters. The local demo has no storefront, so the `mtogo-storefront` target
-is DOWN there. Only
+is DOWN there. Without `STAGING_LOGS_ENABLED=1` the `mtogo-alloy` and
+`mtogo-loki` targets are DOWN on staging. Only
 Grafana publishes a port, for Caddy, behind a login. The admin starts it with
 `sudo mtogo-deploy.sh monitoring up`; deploys never touch it.

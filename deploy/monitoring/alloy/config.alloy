@@ -66,10 +66,24 @@ approved.application_events "application" {
   forward_to = [loki.write.local.receiver]
 }
 
-// Best effort: a bounded retry, never a wait inside the application.
+// Best effort, and bounded (#179). The applications write to Docker's local log
+// files and never wait for any of this.
+//
+// Memory: Alloy's default queue of 10 MiB, in batches of 256 KiB. The batches
+// taken out for sending can be as many again. There is no write-ahead log. Both
+// are fixed here: changing the queue, or a write-ahead log, needs Alloy to run
+// with --stability.level=experimental, and Alloy refuses to start without it.
+// Backlog: a full queue pauses reading. What is unread stays in Docker's own
+// rotated files (50 MB per container), and what rotates away there is lost.
+// Retries: 30 attempts per batch, about 7 to 15 minutes, then it is dropped and
+// counted. Waits between them are at most 30 seconds, so that a five-minute
+// window always shows that delivery is failing and recovery is noticed soon.
 loki.write "local" {
   endpoint {
     url                 = "http://loki:3100/loki/api/v1/push"
-    max_backoff_retries = 10
+    batch_size          = "256KiB"
+    remote_timeout      = "5s"
+    max_backoff_period  = "30s"
+    max_backoff_retries = 30
   }
 }

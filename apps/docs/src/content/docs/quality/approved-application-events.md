@@ -13,8 +13,9 @@ as the [request metrics](/MTGO/quality/local-request-monitoring/). Winston, the
 event vocabulary, what each app logs and how request IDs travel are unchanged.
 Seven-day history and resume
 ([#178](https://github.com/DannyShayH/MTGO/issues/178)) are
-[below](#history-import-resume-and-retention).
-Pipeline failure views are [#179](https://github.com/DannyShayH/MTGO/issues/179).
+[below](#history-import-resume-and-retention), and so are the
+[health views](#pipeline-health-and-failures) of
+[#179](https://github.com/DannyShayH/MTGO/issues/179).
 Budgets are [#182](https://github.com/DannyShayH/MTGO/issues/182).
 
 ## The data boundary
@@ -92,10 +93,10 @@ Docker's logs only. By default staging runs jobs in `backend`, which is read.
 Not every request produces an event. A search that finds nothing under an ID
 does not prove that a step did not happen. There is no tracing.
 
-| Component | Pinned version | Listens on                                                        |
-| --------- | -------------- | ----------------------------------------------------------------- |
-| Loki      | 3.7.10         | `loki:3100` on the internal `logs` network; no published port     |
-| Alloy     | 1.22.0         | Its UI on `127.0.0.1:12345` inside its container; no network port |
+| Component | Pinned version | Listens on                                                      |
+| --------- | -------------- | --------------------------------------------------------------- |
+| Loki      | 3.7.10         | `loki:3100` on the internal `logs` network; no published port   |
+| Alloy     | 1.22.0         | `alloy:12345` on the internal `logs` network; no published port |
 
 Alloy reads the Docker socket. A read-only mount does **not** restrict which
 Docker API calls a process can make: anyone who controls the Alloy container
@@ -287,6 +288,138 @@ shows old records, and the Compactor runs every 10 seconds without the two-hour
 delay. `src/observability/__tests__/log-history.unit.spec.ts` in the backend
 checks the configuration that makes it work, in the normal unit suite.
 
+## Pipeline health and failures
+
+An empty event list does not say why it is empty. The dashboard **MTOGO —
+approved application events** therefore shows the collection itself, above the
+list. Prometheus scrapes Alloy and Loki every 15 seconds over the internal `logs`
+network. It keeps seven metrics of the two, plus `up`: only what the panels show.
+General process, host, container and database metrics stay out of scope.
+
+| What you see                                                          | Meaning                                                                                                                                 | Do                                                                                               |
+| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| **Collecting — lines read**, Loki **UP**, empty list                  | **No matching events** in the range, if the [past rule](#reading-a-past-range) below holds for all of it.                               | Widen the filters or the range.                                                                  |
+| **No line read in 5 minutes — quiet, or containers not read**         | Undecided: the applications wrote nothing, or Alloy found or could read no container. Quiet is normal in the demo.                      | Make one request. If the state stays, check `MTOGO_LOG_PROJECT` and `docker compose logs alloy`. |
+| **Collection DOWN — Alloy not reachable**                             | **Failed collection.** Nothing new arrives. Stored events are still searchable.                                                         | `docker compose ps alloy` and its logs. What Docker still has is read after the start.           |
+| **Cannot list containers — Docker not reachable**                     | **Failed collection.** New containers are not found.                                                                                    | Check the socket mount and Docker.                                                               |
+| **Retrying — delivery to Loki is failing or delayed**                 | Events are late, not lost yet.                                                                                                          | Check Loki's logs. It clears five minutes after the last retry.                                  |
+| **DROPPING — Alloy gave up on entries in the last 5 minutes**         | **Failed collection**, unless a replay caused it (below). See the drops panel for how many and why.                                     | Fix Loki. Dropped entries are not sent again; the raw lines may still be in Docker's logs.       |
+| **History DOWN — Loki not reachable**, and an error in the list       | **Unavailable history.** Nothing can be searched. Alloy retries, and drops after about 7 to 15 minutes: the drops panel keeps counting. | `docker compose ps loki` and its logs.                                                           |
+| **Insufficient history — fewer than two scrapes**                     | Alloy just started, or just came back after five minutes or more.                                                                       | Wait half a minute.                                                                              |
+| **Unknown** or **Unavailable** on every panel, or a data source error | Prometheus is down or new. The pipeline's state is unknown. The event list still works while Loki does.                                 | `docker compose ps prometheus`.                                                                  |
+
+Only the most serious condition is shown, in this order: Alloy down, Loki down,
+insufficient history, dropping, listing failure, retrying, quiet, collecting. A
+drop, listing failure or retry stays visible for five minutes after it ended.
+
+### Reading a past range
+
+The state at the top is about now. For an empty list from an earlier range, read
+the three panels below the list, over the same range:
+
+| Panel                                        | Must show, for the whole range                                                                                    |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| **Collection state — over time**             | **Collecting**. This is where a past listing failure, retry or drop is seen.                                      |
+| **Collector and history up — over time**     | **UP**, without blanks. A blank is a period without at least 19 of the 20 scrapes of five minutes.                |
+| **Drops, refusals, retries and read errors** | No drop and no read error. A read error is a line Alloy could not read from Docker. It does not change the state. |
+
+Then no approved event matched. If any of it differs, the empty list proves
+nothing about that period: its events may have arrived later, or never. **No line
+read** stays undecided in the past too.
+
+The panels cover the three applications together. For an empty list filtered to
+**one** application, they are not enough: make one request that logs an event
+there, or see that `docker compose logs alloy` names its container.
+
+### Bounds and loss
+
+The applications write to stdout, and Docker appends that to a local file
+(`json-file`). No application has an address for Loki or Alloy, shares a network
+with them or waits for them, so delivery is never part of handling a request. They do share
+the host, which is why everything below is bounded.
+
+| What                    | Bound                                                                                               | When it is reached                                                          |
+| ----------------------- | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Alloy's buffer (memory) | Alloy's default queue of 10 MiB, in batches of 256 KiB, and at most about as much taken for sending | Alloy stops reading. It never grows, and nothing is written to disk.        |
+| Retries                 | 30 attempts per batch, 5-second timeouts, waits of at most 30 seconds: about 7 to 15 minutes        | The batch is dropped and counted (`ingester_error`, or `rate_limited`).     |
+| Backlog                 | Docker's rotation: 5 files of 10 MB per container                                                   | The oldest unread lines rotate away. **This loss is not counted anywhere.** |
+| Alloy's shutdown        | 15 seconds to send what is queued (`stop_grace_period` is 30, so Docker waits)                      | The rest is lost: its position was already saved. Not counted.              |
+| Loki's intake           | 1 MB/s, bursts of 2 MB                                                                              | HTTP 429. Alloy retries, as above.                                          |
+| One line                | 1 MiB                                                                                               | Alloy skips it and logs `line too big`. Normally **not counted**.           |
+
+The queue's size and its 15 seconds are Alloy's defaults on purpose. Alloy 1.22
+refuses to start with another `queue_config`, or with a write-ahead log, unless it
+runs with `--stability.level=experimental`. The memory a full queue takes under
+staging's 160 MB cap is not measured ([#183](https://github.com/DannyShayH/MTGO/issues/183)).
+
+So in a Loki outage: shorter than about 7 minutes normally loses nothing. Longer,
+Alloy gives up on one group of records at a time, the oldest first, and the rest
+waits in the queue and in Docker's files. With few events, a long outage loses all
+of them but those of about the last 15 minutes.
+
+Delivery is **best effort**: neither lossless nor exactly once. Three
+things make the numbers imprecise:
+
+- **The state covers the three applications together.** One whose log cannot be
+  read is hidden while another is read: Alloy has no counter for it, only its log.
+- **Zero drops is not proof.** Rotated lines, a killed Alloy and a removed
+  container are not counted. Counters are read every 15 seconds, so what happens
+  just before Alloy stops can be missed.
+- **A drop is not always a loss.** When Loki refuses part of a batch, Alloy counts
+  the whole batch. A [replay](#history-import-resume-and-retention) makes Loki
+  refuse records it already has. Then the drops panel shows **refused by Loki**
+  with `too_far_behind` or `greater_than_max_sample_age` beside the drops.
+
+Grafana, Prometheus, Loki and Alloy run on the same host as the applications. A
+whole-host failure takes all of it, and nothing here sends an alert.
+
+### Outage check
+
+`deploy/monitoring/tests/log-outage/` exercises this on real, disposable
+containers with the real collector, pipeline, Loki and Prometheus configuration.
+Three stand-in applications answer HTTP and log genuine records through Docker's
+`json-file` driver, as on staging. The check asks Prometheus the dashboard's own
+state query. It needs Docker and Node on the host and takes up to an hour. It creates and removes
+only the `mtogo-log-outage-test` project.
+
+```bash
+cd deploy/monitoring
+node tests/log-outage/check.mjs
+```
+
+| Step                          | Proves                                                                                                                                                                                                                                                         |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Collecting                    | Records of all three applications arrive. A quiet pipeline reads as quiet, not as failed.                                                                                                                                                                      |
+| Loki stopped                  | The state says so, every request is answered within 2 seconds, and the records arrive afterwards. The retries stay visible.                                                                                                                                    |
+| Alloy stopped                 | The state says so, the applications continue, and Alloy reads the missed lines when it returns.                                                                                                                                                                |
+| Prometheus or Grafana stopped | Applications and collection continue.                                                                                                                                                                                                                          |
+| Long Loki outage              | 120,000 lines meet a queue of about 60,000: Alloy stops reading, the applications continue, retries run out, the drop is shown, and the unread backlog arrives later. How many records are neither stored nor counted as dropped is reported, never a failure. |
+
+### The real applications, by hand
+
+In the [local journey](#local-journey), with the demo backend and partner
+running. For the storefront, run `npm run storefront:dev` against the demo
+backend, or use your usual local storefront. Then, one component at a time:
+
+```bash
+docker compose stop loki        # then alloy, then prometheus, then grafana
+curl --silent --output /dev/null --write-out '%{http_code} %{time_total}\n' http://127.0.0.1:9000/health
+curl --silent --output /dev/null --write-out '%{http_code} %{time_total}\n' http://127.0.0.1:8100/sign-in
+curl --silent --output /dev/null --write-out '%{http_code} %{time_total}\n' --location http://127.0.0.1:8000/
+docker compose start loki
+```
+
+Each application answers as before, and the dashboard names the stopped component
+(except Grafana itself). Do this only locally, never on staging. Record the status
+and time of each here; the stand-ins of the outage check do not replace it.
+
+| Stopped    | Backend | Partner | Storefront |
+| ---------- | ------- | ------- | ---------- |
+| Loki       | Not run | Not run | Not run    |
+| Alloy      | Not run | Not run | Not run    |
+| Prometheus | Not run | Not run | Not run    |
+| Grafana    | Not run | Not run | Not run    |
+
 ## Fixture test of the pipeline
 
 `deploy/monitoring/tests/log-pipeline/` runs the **real** module in the pinned Alloy
@@ -332,8 +465,9 @@ label set and the pinned images too.
 
 Loki and Alloy are in `deploy/monitoring/compose.staging.yaml` under the
 Compose profile `logs`. They start only when `/srv/mtogo-staging/.env` has
-`STAGING_LOGS_ENABLED=1`. Without it, `monitoring up` behaves exactly as for
-[#194](/MTGO/quality/staging-request-monitoring/).
+`STAGING_LOGS_ENABLED=1`. Without it, `monitoring up` starts only what
+[#194](/MTGO/quality/staging-request-monitoring/) does, and the two log pipeline
+targets are DOWN.
 
 | Container | Hard cap | Go memory limit | Persistent state                     |
 | --------- | -------- | --------------- | ------------------------------------ |
@@ -377,6 +511,15 @@ containers. No setting changes, and the `worker` is still not read. Alloy now
 follows three containers instead of one, so include it in the memory readings
 of step 6. Its cap is unchanged.
 
+With #179 live, `monitoring up` also makes Prometheus scrape Alloy and Loki. No
+setting changes. When `STAGING_LOGS_ENABLED` is not `1`, the two targets, the state
+and Loki are DOWN and the counters Unavailable, as expected. Include Prometheus in the memory
+readings of step 6; the added series are few. To check it, read only: the
+dashboard shows Loki **UP** within a minute, the request of step 5 appears, and the
+state is **Collecting** (or **No line read**) after at most about six minutes. Until
+then it can be **Retrying**, because Alloy may start before Loki is ready, or
+**DROPPING** after a replay. Stop no component on staging to provoke a state.
+
 With #178 live, the first `monitoring up` changes how positions are stored.
 Alloy therefore reads each container's retained log **once more**: a replay, as
 in the table above. Expect rejected-entry warnings from Alloy for a moment.
@@ -401,21 +544,44 @@ Use synthetic input only, and send no deliberate failures or load to staging.
 
 ## Troubleshooting
 
-| Symptom                                       | Check/action                                                                                                                                                                              |
-| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Dashboard says the data source failed         | Loki is not running or not on the `logs` network (on staging: `STAGING_LOGS_ENABLED` is not `1`). `docker compose ps loki` and its logs.                                                  |
-| No events, Loki healthy                       | No approved event in the time range. Produce one (above). Check Alloy found the container: `docker compose logs alloy` names the target. The project name must match `MTOGO_LOG_PROJECT`. |
-| An event is in Docker logs but not in Grafana | It is not recognized: an unknown event, wrong level/message pair, another service or non-production JSON. Development output (CLI format) is not JSON and never qualifies.                |
-| Partner or storefront events never appear     | `docker compose logs alloy` must name the container. Its Compose service must be exactly `partner` or `storefront`, and the record's `service` must match it.                             |
-| A field is missing from a stored event        | Its value failed the allowlist check and was left out. Compare with `packages/logging/src/record.cjs`.                                                                                    |
-| Events appear twice after recreation          | A replay: see [resume](#history-import-resume-and-retention). Delivery is best effort, not exactly once.                                                                                  |
-| Alloy warns `entry too far behind`            | A replay after a lost or changed position, or records that arrived over an hour late. Replayed records are normally stored already; late ones are lost.                                   |
-| History is missing after `loki-data` was lost | Alloy's positions are past it. Stop the stack, remove `alloy-data` too and start again: what Docker still has within seven days is imported.                                              |
-| Disk use does not fall after seven days       | Deletion follows the newest record in a chunk, then the 10-minute run and the two-hour delay. Check `docker compose logs loki` for Compactor errors.                                      |
-| Unit test fails after a new event             | Add its `event\|level\|msg` combination to the `recognized` expression in `approved-events.alloy` and re-run the fixture test.                                                            |
-| Permission denied on the Docker socket        | Compose runs Alloy as root (`user: "0"`) to read the socket. Check the socket path is `/var/run/docker.sock` on the host.                                                                 |
+| Symptom                                                                    | Check/action                                                                                                                                                                                |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Alloy restarts again and again, `requires stability.level flag` in its log | `alloy/config.alloy` has a `queue_config` or `wal` block. Remove it ([bounds](#bounds-and-loss)).                                                                                           |
+| The collection panels show a failure                                       | See [pipeline health](#pipeline-health-and-failures): each state has its meaning and its check.                                                                                             |
+| Collection panels are Unknown or Unavailable                               | Prometheus has no `mtogo-alloy` or `mtogo-loki` target: it still runs an older configuration. Recreate it (`docker compose up -d --force-recreate prometheus`, on staging `monitoring up`). |
+| Dashboard says the data source failed                                      | Loki is not running or not on the `logs` network (on staging: `STAGING_LOGS_ENABLED` is not `1`). `docker compose ps loki` and its logs.                                                    |
+| No events, Loki healthy                                                    | No approved event in the time range. Produce one (above). Check Alloy found the container: `docker compose logs alloy` names the target. The project name must match `MTOGO_LOG_PROJECT`.   |
+| An event is in Docker logs but not in Grafana                              | It is not recognized: an unknown event, wrong level/message pair, another service or non-production JSON. Development output (CLI format) is not JSON and never qualifies.                  |
+| Partner or storefront events never appear                                  | `docker compose logs alloy` must name the container. Its Compose service must be exactly `partner` or `storefront`, and the record's `service` must match it.                               |
+| A field is missing from a stored event                                     | Its value failed the allowlist check and was left out. Compare with `packages/logging/src/record.cjs`.                                                                                      |
+| Events appear twice after recreation                                       | A replay: see [resume](#history-import-resume-and-retention). Delivery is best effort, not exactly once.                                                                                    |
+| Alloy warns `entry too far behind`                                         | A replay after a lost or changed position, or records that arrived over an hour late. Replayed records are normally stored already; late ones are lost.                                     |
+| History is missing after `loki-data` was lost                              | Alloy's positions are past it. Stop the stack, remove `alloy-data` too and start again: what Docker still has within seven days is imported.                                                |
+| Disk use does not fall after seven days                                    | Deletion follows the newest record in a chunk, then the 10-minute run and the two-hour delay. Check `docker compose logs loki` for Compactor errors.                                        |
+| Unit test fails after a new event                                          | Add its `event\|level\|msg` combination to the `recognized` expression in `approved-events.alloy` and re-run the fixture test.                                                              |
+| Permission denied on the Docker socket                                     | Compose runs Alloy as root (`user: "0"`) to read the socket. Check the socket path is `/var/run/docker.sock` on the host.                                                                   |
 
 ## Verification record
+
+Agent verification for #179 on 25 November 2026:
+
+| Boundary                          | Result                                                                                                                                                                                                                                                                                                                    |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Backend unit specs                | Passed: the bounds, no setting that Alloy's default stability level refuses, applications without a path to the pipeline in both Compose files, the scrape allowlist equal to what the panels use, every query verbatim in the promtool file, and words for every state, the same now and over time.                      |
+| Pinned source                     | Read at the same tags: Alloy's queue, its stability check, retries, backoff, drop reasons and counters, the Docker reader, discovery failure counter, and Loki's refusal reasons. These are the claims in the tables above. The first reading missed the stability check; review found that Alloy would not have started. |
+| Outage check                      | Its stand-in application was run alone and prints genuine records, and its shared helpers and state lookup were run without containers. `check.mjs` itself was only syntax-checked.                                                                                                                                       |
+| promtool, Alloy, Loki, containers | **Not run**: no Docker engine in the devcontainer, and running the downloaded official binaries was declined by the sandbox. The eighteen promtool cases have expected values worked out by hand, and no tool has validated the Alloy, Prometheus or Compose syntax.                                                      |
+
+Manual acceptance for #179:
+
+- `promtool check config` and `promtool test rules` pass ([commands](/MTGO/quality/local-request-monitoring/#fresh-local-startup)).
+- `node tests/log-outage/check.mjs` prints fourteen `ok` lines and exits 0.
+- As a local Viewer: the dashboard shows **Collecting** and Loki **UP**. The panels fit at narrow and wide widths.
+- Filter to an event that did not happen: an empty list with **Collecting**. Stop Alloy: **Collection DOWN**. Stop Loki: **History DOWN** and an error in the list. Stop Prometheus: the panels show no state, and the list still works.
+- [The real applications](#the-real-applications-by-hand) answer with each component stopped.
+- `docker compose logs alloy` has no `stability.level` error, and Alloy stays up.
+- After a minute without Alloy, **Collection state — over time** and **Collector and history up — over time** show it, also when the range is in the past.
+- Alloy and Loki have no host ports, and the Viewer boundary queries still return 0 lines.
 
 Agent verification for #178 on 25 November 2026:
 

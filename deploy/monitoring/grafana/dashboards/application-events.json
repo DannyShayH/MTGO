@@ -1,9 +1,9 @@
 {
   "uid": "mtogo-application-events",
   "title": "MTOGO — approved application events",
-  "description": "Approved backend, partner and storefront events, rebuilt from allowlisted fields by Alloy before Loki (#176, #177). Framework, startup and Next.js server output is not here; it stays in Docker logs.",
+  "description": "Approved backend, partner and storefront events, rebuilt from allowlisted fields by Alloy before Loki (#176, #177), with the health of that collection (#179). Framework, startup and Next.js server output is not here; it stays in Docker logs.",
   "schemaVersion": 41,
-  "version": 2,
+  "version": 3,
   "editable": false,
   "refresh": "30s",
   "timezone": "utc",
@@ -73,14 +73,366 @@
       "type": "text",
       "title": "What this shows",
       "gridPos": {
-        "h": 7,
+        "h": 12,
         "w": 24,
         "x": 0,
         "y": 0
       },
       "options": {
         "mode": "markdown",
-        "content": "Only **recognized events from the backend, partner and storefront** reach this view, rebuilt from the logging allowlist. Raw framework, startup, Next.js server and provider lines stay in `docker compose logs`. Database, Redis, Caddy, the worker and browser output are never collected.\n\n**No events** with a healthy pipeline means no matching approved event happened in the time range; it does not mean nothing happened. Successful requests log nothing; refusals, failures and Order milestones do.\n\n**Follow one request** by `request_id` across the apps that share it (partner calls, storefront pages). **Follow one Order** by its `order_id` in the event's details; milestones carry no request ID. There is no tracing, and a missing event is not proof the step did not happen. Never count Orders from these events.\n\n**Live tail:** set refresh to 5s (top right) or add `&refresh=5s` to the URL."
+        "content": "Only **recognized events from the backend, partner and storefront** reach this view, rebuilt from the logging allowlist. Raw framework, startup, Next.js server and provider lines stay in `docker compose logs`. Database, Redis, Caddy, the worker and browser output are never collected.\n\n**An empty list has three readings. Read the collection panels first:**\n\n- **No matching events** — Loki is *UP* now, and throughout the range *Collection state — over time* is *Collecting*, *Collector and history up* is UP without blanks, and no drop or read error is shown: no approved event matched. The state covers the three applications together, so for one application alone this is not proof. It does not mean nothing happened. Successful requests log nothing; refusals, failures and Order milestones do.\n- **Failed collection** — *Collection DOWN*, *DROPPING* or *Cannot list containers*: events may exist that are not here. *Retrying*: they may be late. *No line read*: the applications were quiet, or their containers are not read; make one request to find out. A past stretch of any of these proves nothing about the events in it.\n- **Unavailable history** — *History DOWN*, or the list itself shows an error: stored events cannot be read now. Nothing older than seven days is ever shown.\n\n*Unknown* or *Unavailable* on every collection panel means Prometheus has no evidence; that is neither healthy nor failed. Delivery is best effort: a zero in *Entries dropped* is not proof that nothing was lost (lines that rotate away in Docker, or a killed collector, are never counted).\n\n**Follow one request** by `request_id` across the apps that share it (partner calls, storefront pages). **Follow one Order** by its `order_id` in the event's details; milestones carry no request ID. There is no tracing, and a missing event is not proof the step did not happen. Never count Orders from these events.\n\n**Live tail:** set refresh to 5s (top right) or add `&refresh=5s` to the URL."
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Collection state — rolling 5 minutes",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "description": "Whether approved events reach Loki now. The most serious condition is shown, and a drop, listing failure or retry stays visible for five minutes after it ended. It covers the three applications together: one that is not read is hidden while another is, so Collecting says nothing about one application alone. Lines that rotated away in Docker before they were read are never counted.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B8BEC9"
+          },
+          "noValue": "Unknown — no evidence from Prometheus",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Collection DOWN — Alloy not reachable",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "History DOWN — Loki not reachable",
+                  "color": "red"
+                },
+                "2": {
+                  "text": "Insufficient history — fewer than two scrapes",
+                  "color": "orange"
+                },
+                "3": {
+                  "text": "DROPPING — Alloy gave up on entries in the last 5 minutes",
+                  "color": "red"
+                },
+                "4": {
+                  "text": "Cannot list containers — Docker not reachable",
+                  "color": "red"
+                },
+                "5": {
+                  "text": "Retrying — delivery to Loki is failing or delayed",
+                  "color": "orange"
+                },
+                "6": {
+                  "text": "No line read in 5 minutes — quiet, or containers not read",
+                  "color": "#B8BEC9"
+                },
+                "7": {
+                  "text": "Collecting — lines read",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mtogo-prometheus"
+          },
+          "expr": "((max(up{job=\"mtogo-alloy\"}) == 0) + 0) or ((max(up{job=\"mtogo-loki\"}) == 0) + 1) or (((max(up{job=\"mtogo-alloy\"}) == 1) + 1) unless (sum(sum_over_time(up{job=\"mtogo-alloy\"}[5m])) >= 2)) or ((sum(increase(loki_write_dropped_entries_total{job=\"mtogo-alloy\"}[5m])) > 0) * 0 + 3) or ((sum(increase(prometheus_sd_refresh_failures_total{job=\"mtogo-alloy\"}[5m])) > 0) * 0 + 4) or ((sum(increase(loki_write_batch_retries_total{job=\"mtogo-alloy\"}[5m])) > 0) * 0 + 5) or (((max(up{job=\"mtogo-alloy\"}) == 1) + 5) and (max(up{job=\"mtogo-loki\"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job=\"mtogo-alloy\"}[5m])) == 0)) or (((max(up{job=\"mtogo-alloy\"}) == 1) + 6) and (max(up{job=\"mtogo-loki\"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job=\"mtogo-alloy\"}[5m])) > 0))",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Event history (Loki)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "description": "Whether Loki answers Prometheus now. DOWN: stored events cannot be searched, and the event list shows an error. UP does not prove that a past period was collected; see Collector and history up — over time.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B8BEC9"
+          },
+          "noValue": "Unknown — no evidence from Prometheus",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "DOWN — history unavailable",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "UP — reachable",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mtogo-prometheus"
+          },
+          "expr": "max(up{job=\"mtogo-loki\"})",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Entries dropped — rolling 5 minutes",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 16
+      },
+      "description": "Estimated entries Alloy gave up on: retries ran out, or Loki refused the batch. A refused batch counts whole, even if Loki stored a part of it, and a replay after a lost position causes refusals without a loss. Needs two scrapes.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B8BEC9"
+          },
+          "noValue": "Unavailable — no current evidence",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mtogo-prometheus"
+          },
+          "expr": "sum(increase(loki_write_dropped_entries_total{job=\"mtogo-alloy\"}[5m]) and on(job, instance) (up{job=\"mtogo-alloy\"} == 1))",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Delivery retries — rolling 5 minutes",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 16
+      },
+      "description": "Estimated batches sent again because Loki was unreachable, overloaded or rate limiting. Retries stop after about 7 to 15 minutes per batch, which is then dropped. Needs two scrapes.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B8BEC9"
+          },
+          "noValue": "Unavailable — no current evidence",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mtogo-prometheus"
+          },
+          "expr": "sum(increase(loki_write_batch_retries_total{job=\"mtogo-alloy\"}[5m]) and on(job, instance) (up{job=\"mtogo-alloy\"} == 1))",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "Lines read from the applications — rolling 5 minutes",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 16
+      },
+      "description": "Estimated lines Alloy read from the backend, partner and storefront containers, before the filter: most are framework output and are excluded by design. Zero: the applications wrote nothing, their containers were not found, or reading is paused by a full queue. Needs two scrapes.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B8BEC9"
+          },
+          "noValue": "Unavailable — no current evidence",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mtogo-prometheus"
+          },
+          "expr": "sum(increase(loki_source_docker_target_entries_total{job=\"mtogo-alloy\"}[5m]) and on(job, instance) (up{job=\"mtogo-alloy\"} == 1))",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "Events delivered to Loki — rolling 5 minutes",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 16
+      },
+      "description": "Estimated approved events Loki accepted. Zero with lines read and no drop or retry: no approved event happened. Needs two scrapes.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B8BEC9"
+          },
+          "noValue": "Unavailable — no current evidence",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mtogo-prometheus"
+          },
+          "expr": "sum(increase(loki_write_sent_entries_total{job=\"mtogo-alloy\"}[5m]) and on(job, instance) (up{job=\"mtogo-alloy\"} == 1))",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
       }
     },
     {
@@ -95,7 +447,7 @@
         "h": 20,
         "w": 24,
         "x": 0,
-        "y": 7
+        "y": 20
       },
       "options": {
         "showTime": true,
@@ -129,7 +481,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 27
+        "y": 40
       },
       "fieldConfig": {
         "defaults": {
@@ -166,6 +518,261 @@
         }
       ],
       "description": "Each bar counts every approved event in its own time bucket ($__auto: the bar width Grafana picks for the displayed range), so long ranges are not sampled."
+    },
+    {
+      "id": 12,
+      "type": "state-timeline",
+      "title": "Collection state — over time",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 48
+      },
+      "description": "The collection state at each point, with the same words as above. Only a stretch of Collecting lets an empty list mean no matching events; a No line read stretch is undecided, and a blank is missing evidence. It covers the three applications together. A drop, listing failure or retry is shown for five minutes after it ended. An outage shorter than the distance between two points can be missed here; see Collector and history up — over time.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B8BEC9"
+          },
+          "noValue": "Unknown — no evidence from Prometheus",
+          "custom": {
+            "fillOpacity": 70,
+            "lineWidth": 0,
+            "spanNulls": false
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Collection DOWN — Alloy not reachable",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "History DOWN — Loki not reachable",
+                  "color": "red"
+                },
+                "2": {
+                  "text": "Insufficient history — fewer than two scrapes",
+                  "color": "orange"
+                },
+                "3": {
+                  "text": "DROPPING — Alloy gave up on entries in the last 5 minutes",
+                  "color": "red"
+                },
+                "4": {
+                  "text": "Cannot list containers — Docker not reachable",
+                  "color": "red"
+                },
+                "5": {
+                  "text": "Retrying — delivery to Loki is failing or delayed",
+                  "color": "orange"
+                },
+                "6": {
+                  "text": "No line read in 5 minutes — quiet, or containers not read",
+                  "color": "#B8BEC9"
+                },
+                "7": {
+                  "text": "Collecting — lines read",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "mergeValues": true,
+        "showValue": "auto",
+        "alignValue": "left",
+        "rowHeight": 0.8,
+        "legend": {
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mtogo-prometheus"
+          },
+          "expr": "((max(up{job=\"mtogo-alloy\"}) == 0) + 0) or ((max(up{job=\"mtogo-loki\"}) == 0) + 1) or (((max(up{job=\"mtogo-alloy\"}) == 1) + 1) unless (sum(sum_over_time(up{job=\"mtogo-alloy\"}[5m])) >= 2)) or ((sum(increase(loki_write_dropped_entries_total{job=\"mtogo-alloy\"}[5m])) > 0) * 0 + 3) or ((sum(increase(prometheus_sd_refresh_failures_total{job=\"mtogo-alloy\"}[5m])) > 0) * 0 + 4) or ((sum(increase(loki_write_batch_retries_total{job=\"mtogo-alloy\"}[5m])) > 0) * 0 + 5) or (((max(up{job=\"mtogo-alloy\"}) == 1) + 5) and (max(up{job=\"mtogo-loki\"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job=\"mtogo-alloy\"}[5m])) == 0)) or (((max(up{job=\"mtogo-alloy\"}) == 1) + 6) and (max(up{job=\"mtogo-loki\"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job=\"mtogo-alloy\"}[5m])) > 0))",
+          "legendFormat": "collection",
+          "range": true,
+          "instant": false
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "state-timeline",
+      "title": "Collector and history up — over time",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 53
+      },
+      "description": "Each point is UP only when every scrape of the previous five minutes succeeded, and DOWN when one failed, so a short outage is shown as up to five minutes longer. A blank is missing evidence: Prometheus was away or had just started, and fewer than 19 of the 20 scrapes exist. With a range over a day, zoom in: short outages can fall between two points. Events from a DOWN period may arrive later, or never.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B8BEC9"
+          },
+          "noValue": "Unknown — no evidence from Prometheus",
+          "custom": {
+            "fillOpacity": 70,
+            "lineWidth": 0,
+            "spanNulls": false
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "DOWN",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "UP",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "mergeValues": true,
+        "showValue": "auto",
+        "alignValue": "left",
+        "rowHeight": 0.8,
+        "legend": {
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mtogo-prometheus"
+          },
+          "expr": "(min_over_time(up{job=~\"mtogo-alloy|mtogo-loki\"}[5m]) == 0) or ((min_over_time(up{job=~\"mtogo-alloy|mtogo-loki\"}[5m]) == 1) and (count_over_time(up{job=~\"mtogo-alloy|mtogo-loki\"}[5m]) >= 19))",
+          "legendFormat": "{{job}}",
+          "range": true,
+          "instant": false
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Drops, refusals, retries and read errors — over time, rolling 5 minutes",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 60
+      },
+      "description": "Dropped: entries Alloy gave up on (ingester_error: no retries left, or refused). Refused: samples Loki rejected, by its own reason; too_far_behind and greater_than_max_sample_age are typical of a replay. The first refusal of a kind after a Loki start has no earlier sample and is not shown as refused. Read errors: lines Alloy could not read from Docker, so they are lost; an over-long line is normally skipped without being counted. Gaps are missing evidence.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false
+          },
+          "noValue": "Unavailable — no current evidence",
+          "decimals": 0,
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mtogo-prometheus"
+          },
+          "expr": "sum by (reason) (increase(loki_write_dropped_entries_total{job=\"mtogo-alloy\"}[5m]) and on(job, instance) (up{job=\"mtogo-alloy\"} == 1))",
+          "legendFormat": "dropped: {{reason}}",
+          "range": true,
+          "instant": false
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mtogo-prometheus"
+          },
+          "expr": "sum by (reason) (increase(loki_discarded_samples_total{job=\"mtogo-loki\"}[5m]) and on(job, instance) (up{job=\"mtogo-loki\"} == 1))",
+          "legendFormat": "refused by Loki: {{reason}}",
+          "range": true,
+          "instant": false
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mtogo-prometheus"
+          },
+          "expr": "sum(increase(loki_write_batch_retries_total{job=\"mtogo-alloy\"}[5m]) and on(job, instance) (up{job=\"mtogo-alloy\"} == 1))",
+          "legendFormat": "retries",
+          "range": true,
+          "instant": false
+        },
+        {
+          "refId": "D",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mtogo-prometheus"
+          },
+          "expr": "sum(increase(loki_source_docker_target_parsing_errors_total{job=\"mtogo-alloy\"}[5m]) and on(job, instance) (up{job=\"mtogo-alloy\"} == 1))",
+          "legendFormat": "read errors",
+          "range": true,
+          "instant": false
+        }
+      ]
     }
   ],
   "timepicker": {

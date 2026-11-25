@@ -5,10 +5,16 @@
 //   node tests/log-history/check.mjs
 // It creates and removes only the mtogo-log-history-test project.
 import assert from "node:assert/strict"
-import { execFileSync } from "node:child_process"
 import { createRequire } from "node:module"
 import { join } from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
+import {
+  createProject,
+  report,
+  sumCounter,
+  waitFor,
+} from "../disposable-project.mjs"
+import { createRecordLine } from "../record-line.cjs"
 
 // The file itself: the package's own entry needs an installed Winston.
 const { createLogRecord } = createRequire(import.meta.url)(
@@ -24,23 +30,13 @@ const ALLOY = "http://alloy:12345"
 const LOKI = "http://loki:3100"
 const RETENTION_LOKI = "http://loki-retention:3100"
 
-const compose = (args, input) =>
-  execFileSync(
-    "docker",
-    ["compose", "-f", join(import.meta.dirname, "compose.yaml"), ...args],
-    {
-      encoding: "utf8",
-      env: { ...process.env, COMPOSE_PROFILES: "retention" },
-      input,
-      maxBuffer: 64 * 1024 * 1024,
-      stdio: ["pipe", "pipe", "inherit"],
-    },
-  )
-const start = (...services) => compose(["up", "-d", "--no-deps", ...services])
+const { compose, start, removeProject } = createProject(
+  join(import.meta.dirname, "compose.yaml"),
+  { COMPOSE_PROFILES: "retention" },
+)
 const recreate = (service) => start("--force-recreate", service)
 const removeContainer = (service) =>
   compose(["rm", "--stop", "--force", service])
-const removeProject = () => compose(["down", "--volumes", "--remove-orphans"])
 const getContainerId = (service) => compose(["ps", "-q", service]).trim()
 
 /** A new container empties its queue when it starts; wait until it has. */
@@ -50,16 +46,8 @@ async function replaceBackend() {
 }
 
 /** A genuine record line; `age` is how long ago the application wrote it. */
-const createLine = (requestId, age = 0) =>
-  JSON.stringify({
-    ...createLogRecord(
-      "backend",
-      "access.denied",
-      { request_id: requestId, status: 401 },
-      "production",
-    ),
-    time: new Date(Date.now() - age).toISOString(),
-  })
+const createLine = (requestId, age) =>
+  createRecordLine(createLogRecord, "backend", requestId, age)
 const createIds = (name, count) =>
   Array.from({ length: count }, (_, i) => `${name}-${i}`)
 const emit = (...lines) =>
@@ -98,22 +86,6 @@ function countCopies(loki = LOKI) {
   return copies
 }
 
-/** Polls until `read` returns something truthy, and returns that. */
-async function waitFor(what, read, minutes = 3) {
-  const deadline = Date.now() + minutes * 60_000
-  let cause
-  while (Date.now() < deadline) {
-    try {
-      const value = read()
-      if (value) return value
-    } catch (error) {
-      // Not up yet, perhaps; the deadline decides.
-      cause = error
-    }
-    await sleep(SETTLE)
-  }
-  throw new Error(`Timed out waiting for ${what}`, { cause })
-}
 const waitForRecords = (...ids) =>
   waitFor(`${ids.at(-1)} and the records before it in Loki`, () => {
     const copies = countCopies()
@@ -130,19 +102,11 @@ function readPosition() {
   return entry && { entry, at: Number(entry.match(/: "?(\d+)"?\s*$/)?.[1]) }
 }
 
-/** The sum of a counter's series whose labels contain `label`. */
-function readCounter(url, name, label = "") {
-  const { body } = request(`${url}/metrics`)
-  return body
-    .split("\n")
-    .filter((sample) => sample.startsWith(name) && sample.includes(label))
-    .reduce((sum, sample) => sum + Number(sample.split(" ").at(-1)), 0)
-}
+const readCounter = (url, name, label) =>
+  sumCounter(request(`${url}/metrics`).body, name, label)
 /** Lines the running Alloy has read from Docker since it started. */
 const countLinesRead = () =>
   readCounter(ALLOY, "loki_source_docker_target_entries_total")
-
-const report = (text) => console.log(`ok - ${text}`)
 
 async function checkFirstStartup() {
   // The application ran before monitoring existed, in the order it wrote.

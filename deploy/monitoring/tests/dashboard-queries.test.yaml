@@ -1,6 +1,8 @@
-# promtool unit tests for every query in grafana/dashboards/backend-requests.json.
-# Generated expressions must match the dashboard exactly; a backend unit test
-# (src/observability/__tests__/dashboard-queries.unit.spec.ts) checks that.
+# promtool unit tests for every query in grafana/dashboards/backend-requests.json
+# and every Prometheus query in application-events.json (#179).
+# Every expression must match its dashboard exactly; two backend unit tests in
+# src/observability/__tests__/ check that: dashboard-queries.unit.spec.ts for
+# backend-requests.json and log-pipeline-health.unit.spec.ts for the other.
 # Run: see apps/docs/src/content/docs/quality/local-request-monitoring.md
 # Synthetic series are scraped every 15s. Evaluation at 10m uses the five-minute
 # window (5m, 10m], which holds 20 scrapes.
@@ -1951,3 +1953,993 @@ tests:
       - expr: 'sum by (kind) (increase(mtogo_storefront_page_render_duration_seconds_count{job="mtogo-storefront",route="/[countryCode]/restaurants/[id]"}[5m]) and on(job, instance) (up{job="mtogo-storefront"} == 1))'
         eval_time: 10m
         exp_samples: []
+  # log pipeline (#179), collecting: lines are read and events delivered; zero drops is a value
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-alloy",instance="alloy:12345"}'
+        values: "1x40"
+      - series: 'up{job="mtogo-loki",instance="loki:3100"}'
+        values: "1x40"
+      - series: 'loki_source_docker_target_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.source.docker.application"}'
+        values: "0+2x40"
+      - series: 'loki_write_sent_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100"}'
+        values: "0+1x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="ingester_error"}'
+        values: "0x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="rate_limited"}'
+        values: "0x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="stream_limited"}'
+        values: "0x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="queue_is_full"}'
+        values: "0x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="batch_too_large"}'
+        values: "0x40"
+      - series: 'loki_write_batch_retries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100"}'
+        values: "0x40"
+      - series: 'loki_source_docker_target_parsing_errors_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.source.docker.application"}'
+        values: "0x40"
+      - series: 'prometheus_sd_refresh_failures_total{job="mtogo-alloy",instance="alloy:12345",component_id="discovery.docker.application",mechanism="docker",config="docker"}'
+        values: "0x40"
+    promql_expr_test:
+      - expr: '((max(up{job="mtogo-alloy"}) == 0) + 0) or ((max(up{job="mtogo-loki"}) == 0) + 1) or (((max(up{job="mtogo-alloy"}) == 1) + 1) unless (sum(sum_over_time(up{job="mtogo-alloy"}[5m])) >= 2)) or ((sum(increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 3) or ((sum(increase(prometheus_sd_refresh_failures_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 4) or ((sum(increase(loki_write_batch_retries_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 5) or (((max(up{job="mtogo-alloy"}) == 1) + 5) and (max(up{job="mtogo-loki"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m])) == 0)) or (((max(up{job="mtogo-alloy"}) == 1) + 6) and (max(up{job="mtogo-loki"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m])) > 0))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 7
+      - expr: 'max(up{job="mtogo-loki"})'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 1
+      - expr: 'sum(increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+      - expr: 'sum(increase(loki_write_batch_retries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+      - expr: 'sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 40
+      - expr: 'sum(increase(loki_write_sent_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 20
+      - expr: '(min_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) == 0) or ((min_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) == 1) and (count_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) >= 19))'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="alloy:12345", job="mtogo-alloy"}'
+            value: 1
+          - labels: '{instance="loki:3100", job="mtogo-loki"}'
+            value: 1
+      - expr: 'sum by (reason) (increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{reason="batch_too_large"}'
+            value: 0
+          - labels: '{reason="ingester_error"}'
+            value: 0
+          - labels: '{reason="queue_is_full"}'
+            value: 0
+          - labels: '{reason="rate_limited"}'
+            value: 0
+          - labels: '{reason="stream_limited"}'
+            value: 0
+      - expr: 'sum by (reason) (increase(loki_discarded_samples_total{job="mtogo-loki"}[5m]) and on(job, instance) (up{job="mtogo-loki"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(increase(loki_source_docker_target_parsing_errors_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+  # log pipeline, no line read: the quiet state, not a failure
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-alloy",instance="alloy:12345"}'
+        values: "1x40"
+      - series: 'up{job="mtogo-loki",instance="loki:3100"}'
+        values: "1x40"
+      - series: 'loki_source_docker_target_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.source.docker.application"}'
+        values: "0x40"
+      - series: 'loki_write_sent_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100"}'
+        values: "0x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="ingester_error"}'
+        values: "0x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="rate_limited"}'
+        values: "0x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="stream_limited"}'
+        values: "0x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="queue_is_full"}'
+        values: "0x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="batch_too_large"}'
+        values: "0x40"
+      - series: 'loki_write_batch_retries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100"}'
+        values: "0x40"
+      - series: 'loki_source_docker_target_parsing_errors_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.source.docker.application"}'
+        values: "0x40"
+      - series: 'prometheus_sd_refresh_failures_total{job="mtogo-alloy",instance="alloy:12345",component_id="discovery.docker.application",mechanism="docker",config="docker"}'
+        values: "0x40"
+    promql_expr_test:
+      - expr: '((max(up{job="mtogo-alloy"}) == 0) + 0) or ((max(up{job="mtogo-loki"}) == 0) + 1) or (((max(up{job="mtogo-alloy"}) == 1) + 1) unless (sum(sum_over_time(up{job="mtogo-alloy"}[5m])) >= 2)) or ((sum(increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 3) or ((sum(increase(prometheus_sd_refresh_failures_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 4) or ((sum(increase(loki_write_batch_retries_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 5) or (((max(up{job="mtogo-alloy"}) == 1) + 5) and (max(up{job="mtogo-loki"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m])) == 0)) or (((max(up{job="mtogo-alloy"}) == 1) + 6) and (max(up{job="mtogo-loki"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m])) > 0))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 6
+      - expr: 'max(up{job="mtogo-loki"})'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 1
+      - expr: 'sum(increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+      - expr: 'sum(increase(loki_write_batch_retries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+      - expr: 'sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+      - expr: 'sum(increase(loki_write_sent_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+      - expr: '(min_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) == 0) or ((min_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) == 1) and (count_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) >= 19))'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="alloy:12345", job="mtogo-alloy"}'
+            value: 1
+          - labels: '{instance="loki:3100", job="mtogo-loki"}'
+            value: 1
+      - expr: 'sum by (reason) (increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{reason="batch_too_large"}'
+            value: 0
+          - labels: '{reason="ingester_error"}'
+            value: 0
+          - labels: '{reason="queue_is_full"}'
+            value: 0
+          - labels: '{reason="rate_limited"}'
+            value: 0
+          - labels: '{reason="stream_limited"}'
+            value: 0
+      - expr: 'sum by (reason) (increase(loki_discarded_samples_total{job="mtogo-loki"}[5m]) and on(job, instance) (up{job="mtogo-loki"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(increase(loki_source_docker_target_parsing_errors_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+  # log pipeline, lines read and no approved event: still collecting
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-alloy",instance="alloy:12345"}'
+        values: "1x40"
+      - series: 'up{job="mtogo-loki",instance="loki:3100"}'
+        values: "1x40"
+      - series: 'loki_source_docker_target_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.source.docker.application"}'
+        values: "0+2x40"
+      - series: 'loki_write_sent_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100"}'
+        values: "0x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="ingester_error"}'
+        values: "0x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="rate_limited"}'
+        values: "0x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="stream_limited"}'
+        values: "0x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="queue_is_full"}'
+        values: "0x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="batch_too_large"}'
+        values: "0x40"
+      - series: 'loki_write_batch_retries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100"}'
+        values: "0x40"
+      - series: 'loki_source_docker_target_parsing_errors_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.source.docker.application"}'
+        values: "0x40"
+      - series: 'prometheus_sd_refresh_failures_total{job="mtogo-alloy",instance="alloy:12345",component_id="discovery.docker.application",mechanism="docker",config="docker"}'
+        values: "0x40"
+    promql_expr_test:
+      - expr: '((max(up{job="mtogo-alloy"}) == 0) + 0) or ((max(up{job="mtogo-loki"}) == 0) + 1) or (((max(up{job="mtogo-alloy"}) == 1) + 1) unless (sum(sum_over_time(up{job="mtogo-alloy"}[5m])) >= 2)) or ((sum(increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 3) or ((sum(increase(prometheus_sd_refresh_failures_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 4) or ((sum(increase(loki_write_batch_retries_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 5) or (((max(up{job="mtogo-alloy"}) == 1) + 5) and (max(up{job="mtogo-loki"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m])) == 0)) or (((max(up{job="mtogo-alloy"}) == 1) + 6) and (max(up{job="mtogo-loki"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m])) > 0))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 7
+      - expr: 'max(up{job="mtogo-loki"})'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 1
+      - expr: 'sum(increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+      - expr: 'sum(increase(loki_write_batch_retries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+      - expr: 'sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 40
+      - expr: 'sum(increase(loki_write_sent_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+      - expr: '(min_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) == 0) or ((min_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) == 1) and (count_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) >= 19))'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="alloy:12345", job="mtogo-alloy"}'
+            value: 1
+          - labels: '{instance="loki:3100", job="mtogo-loki"}'
+            value: 1
+      - expr: 'sum by (reason) (increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{reason="batch_too_large"}'
+            value: 0
+          - labels: '{reason="ingester_error"}'
+            value: 0
+          - labels: '{reason="queue_is_full"}'
+            value: 0
+          - labels: '{reason="rate_limited"}'
+            value: 0
+          - labels: '{reason="stream_limited"}'
+            value: 0
+      - expr: 'sum by (reason) (increase(loki_discarded_samples_total{job="mtogo-loki"}[5m]) and on(job, instance) (up{job="mtogo-loki"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(increase(loki_source_docker_target_parsing_errors_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+  # log pipeline, Alloy DOWN: collection down and no counter is shown as current
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-alloy",instance="alloy:12345"}'
+        values: "1x20 0x20"
+      - series: 'up{job="mtogo-loki",instance="loki:3100"}'
+        values: "1x40"
+      - series: 'loki_source_docker_target_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.source.docker.application"}'
+        values: "0+2x20 stale"
+      - series: 'loki_write_sent_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100"}'
+        values: "0+1x20 stale"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="ingester_error"}'
+        values: "0+1x20 stale"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="rate_limited"}'
+        values: "0x20 stale"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="stream_limited"}'
+        values: "0x20 stale"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="queue_is_full"}'
+        values: "0x20 stale"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="batch_too_large"}'
+        values: "0x20 stale"
+      - series: 'loki_write_batch_retries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100"}'
+        values: "0+1x20 stale"
+      - series: 'loki_source_docker_target_parsing_errors_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.source.docker.application"}'
+        values: "0x20 stale"
+      - series: 'prometheus_sd_refresh_failures_total{job="mtogo-alloy",instance="alloy:12345",component_id="discovery.docker.application",mechanism="docker",config="docker"}'
+        values: "0x20 stale"
+    promql_expr_test:
+      - expr: '((max(up{job="mtogo-alloy"}) == 0) + 0) or ((max(up{job="mtogo-loki"}) == 0) + 1) or (((max(up{job="mtogo-alloy"}) == 1) + 1) unless (sum(sum_over_time(up{job="mtogo-alloy"}[5m])) >= 2)) or ((sum(increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 3) or ((sum(increase(prometheus_sd_refresh_failures_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 4) or ((sum(increase(loki_write_batch_retries_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 5) or (((max(up{job="mtogo-alloy"}) == 1) + 5) and (max(up{job="mtogo-loki"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m])) == 0)) or (((max(up{job="mtogo-alloy"}) == 1) + 6) and (max(up{job="mtogo-loki"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m])) > 0))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+      - expr: 'max(up{job="mtogo-loki"})'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 1
+      - expr: 'sum(increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(increase(loki_write_batch_retries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(increase(loki_write_sent_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: '(min_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) == 0) or ((min_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) == 1) and (count_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) >= 19))'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="alloy:12345", job="mtogo-alloy"}'
+            value: 0
+          - labels: '{instance="loki:3100", job="mtogo-loki"}'
+            value: 1
+      - expr: 'sum by (reason) (increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum by (reason) (increase(loki_discarded_samples_total{job="mtogo-loki"}[5m]) and on(job, instance) (up{job="mtogo-loki"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(increase(loki_source_docker_target_parsing_errors_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+  # log pipeline, Loki DOWN: history down comes before its retries and drops
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-alloy",instance="alloy:12345"}'
+        values: "1x40"
+      - series: 'up{job="mtogo-loki",instance="loki:3100"}'
+        values: "1x20 0x20"
+      - series: 'loki_source_docker_target_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.source.docker.application"}'
+        values: "0+2x40"
+      - series: 'loki_write_sent_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100"}'
+        values: "0x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="ingester_error"}'
+        values: "0+1x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="rate_limited"}'
+        values: "0x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="stream_limited"}'
+        values: "0x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="queue_is_full"}'
+        values: "0x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="batch_too_large"}'
+        values: "0x40"
+      - series: 'loki_write_batch_retries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100"}'
+        values: "0+1x40"
+      - series: 'loki_source_docker_target_parsing_errors_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.source.docker.application"}'
+        values: "0x40"
+      - series: 'prometheus_sd_refresh_failures_total{job="mtogo-alloy",instance="alloy:12345",component_id="discovery.docker.application",mechanism="docker",config="docker"}'
+        values: "0x40"
+    promql_expr_test:
+      - expr: '((max(up{job="mtogo-alloy"}) == 0) + 0) or ((max(up{job="mtogo-loki"}) == 0) + 1) or (((max(up{job="mtogo-alloy"}) == 1) + 1) unless (sum(sum_over_time(up{job="mtogo-alloy"}[5m])) >= 2)) or ((sum(increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 3) or ((sum(increase(prometheus_sd_refresh_failures_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 4) or ((sum(increase(loki_write_batch_retries_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 5) or (((max(up{job="mtogo-alloy"}) == 1) + 5) and (max(up{job="mtogo-loki"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m])) == 0)) or (((max(up{job="mtogo-alloy"}) == 1) + 6) and (max(up{job="mtogo-loki"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m])) > 0))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 1
+      - expr: 'max(up{job="mtogo-loki"})'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+      - expr: 'sum(increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 20
+      - expr: 'sum(increase(loki_write_batch_retries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 20
+      - expr: 'sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 40
+      - expr: 'sum(increase(loki_write_sent_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+      - expr: '(min_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) == 0) or ((min_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) == 1) and (count_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) >= 19))'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="alloy:12345", job="mtogo-alloy"}'
+            value: 1
+          - labels: '{instance="loki:3100", job="mtogo-loki"}'
+            value: 0
+      - expr: 'sum by (reason) (increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{reason="batch_too_large"}'
+            value: 0
+          - labels: '{reason="ingester_error"}'
+            value: 20
+          - labels: '{reason="queue_is_full"}'
+            value: 0
+          - labels: '{reason="rate_limited"}'
+            value: 0
+          - labels: '{reason="stream_limited"}'
+            value: 0
+      - expr: 'sum by (reason) (increase(loki_discarded_samples_total{job="mtogo-loki"}[5m]) and on(job, instance) (up{job="mtogo-loki"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(increase(loki_source_docker_target_parsing_errors_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+  # log pipeline, Alloy and Loki DOWN: collection down first
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-alloy",instance="alloy:12345"}'
+        values: "1x20 0x20"
+      - series: 'up{job="mtogo-loki",instance="loki:3100"}'
+        values: "1x20 0x20"
+      - series: 'loki_source_docker_target_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.source.docker.application"}'
+        values: "0+2x20 stale"
+      - series: 'loki_write_sent_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100"}'
+        values: "0+1x20 stale"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="ingester_error"}'
+        values: "0x20 stale"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="rate_limited"}'
+        values: "0x20 stale"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="stream_limited"}'
+        values: "0x20 stale"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="queue_is_full"}'
+        values: "0x20 stale"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="batch_too_large"}'
+        values: "0x20 stale"
+      - series: 'loki_write_batch_retries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100"}'
+        values: "0x20 stale"
+      - series: 'loki_source_docker_target_parsing_errors_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.source.docker.application"}'
+        values: "0x20 stale"
+      - series: 'prometheus_sd_refresh_failures_total{job="mtogo-alloy",instance="alloy:12345",component_id="discovery.docker.application",mechanism="docker",config="docker"}'
+        values: "0x20 stale"
+    promql_expr_test:
+      - expr: '((max(up{job="mtogo-alloy"}) == 0) + 0) or ((max(up{job="mtogo-loki"}) == 0) + 1) or (((max(up{job="mtogo-alloy"}) == 1) + 1) unless (sum(sum_over_time(up{job="mtogo-alloy"}[5m])) >= 2)) or ((sum(increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 3) or ((sum(increase(prometheus_sd_refresh_failures_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 4) or ((sum(increase(loki_write_batch_retries_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 5) or (((max(up{job="mtogo-alloy"}) == 1) + 5) and (max(up{job="mtogo-loki"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m])) == 0)) or (((max(up{job="mtogo-alloy"}) == 1) + 6) and (max(up{job="mtogo-loki"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m])) > 0))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+      - expr: 'max(up{job="mtogo-loki"})'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+      - expr: 'sum(increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(increase(loki_write_batch_retries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(increase(loki_write_sent_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: '(min_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) == 0) or ((min_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) == 1) and (count_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) >= 19))'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="alloy:12345", job="mtogo-alloy"}'
+            value: 0
+          - labels: '{instance="loki:3100", job="mtogo-loki"}'
+            value: 0
+      - expr: 'sum by (reason) (increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum by (reason) (increase(loki_discarded_samples_total{job="mtogo-loki"}[5m]) and on(job, instance) (up{job="mtogo-loki"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(increase(loki_source_docker_target_parsing_errors_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+  # log pipeline, dropping: shown before its own retries; Loki says why it refused
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-alloy",instance="alloy:12345"}'
+        values: "1x40"
+      - series: 'up{job="mtogo-loki",instance="loki:3100"}'
+        values: "1x40"
+      - series: 'loki_source_docker_target_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.source.docker.application"}'
+        values: "0+2x40"
+      - series: 'loki_write_sent_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100"}'
+        values: "0+1x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="ingester_error"}'
+        values: "0+1x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="rate_limited"}'
+        values: "0x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="stream_limited"}'
+        values: "0x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="queue_is_full"}'
+        values: "0x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="batch_too_large"}'
+        values: "0x40"
+      - series: 'loki_write_batch_retries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100"}'
+        values: "0+1x40"
+      - series: 'loki_source_docker_target_parsing_errors_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.source.docker.application"}'
+        values: "0x40"
+      - series: 'prometheus_sd_refresh_failures_total{job="mtogo-alloy",instance="alloy:12345",component_id="discovery.docker.application",mechanism="docker",config="docker"}'
+        values: "0x40"
+      - series: 'loki_discarded_samples_total{job="mtogo-loki",instance="loki:3100",reason="too_far_behind",tenant="fake",retention_hours="168",policy="",format="protobuf"}'
+        values: "0+2x40"
+    promql_expr_test:
+      - expr: '((max(up{job="mtogo-alloy"}) == 0) + 0) or ((max(up{job="mtogo-loki"}) == 0) + 1) or (((max(up{job="mtogo-alloy"}) == 1) + 1) unless (sum(sum_over_time(up{job="mtogo-alloy"}[5m])) >= 2)) or ((sum(increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 3) or ((sum(increase(prometheus_sd_refresh_failures_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 4) or ((sum(increase(loki_write_batch_retries_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 5) or (((max(up{job="mtogo-alloy"}) == 1) + 5) and (max(up{job="mtogo-loki"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m])) == 0)) or (((max(up{job="mtogo-alloy"}) == 1) + 6) and (max(up{job="mtogo-loki"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m])) > 0))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 3
+      - expr: 'max(up{job="mtogo-loki"})'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 1
+      - expr: 'sum(increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 20
+      - expr: 'sum(increase(loki_write_batch_retries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 20
+      - expr: 'sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 40
+      - expr: 'sum(increase(loki_write_sent_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 20
+      - expr: '(min_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) == 0) or ((min_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) == 1) and (count_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) >= 19))'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="alloy:12345", job="mtogo-alloy"}'
+            value: 1
+          - labels: '{instance="loki:3100", job="mtogo-loki"}'
+            value: 1
+      - expr: 'sum by (reason) (increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{reason="batch_too_large"}'
+            value: 0
+          - labels: '{reason="ingester_error"}'
+            value: 20
+          - labels: '{reason="queue_is_full"}'
+            value: 0
+          - labels: '{reason="rate_limited"}'
+            value: 0
+          - labels: '{reason="stream_limited"}'
+            value: 0
+      - expr: 'sum by (reason) (increase(loki_discarded_samples_total{job="mtogo-loki"}[5m]) and on(job, instance) (up{job="mtogo-loki"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{reason="too_far_behind"}'
+            value: 40
+      - expr: 'sum(increase(loki_source_docker_target_parsing_errors_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+  # log pipeline, Docker not reachable: containers cannot be listed
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-alloy",instance="alloy:12345"}'
+        values: "1x40"
+      - series: 'up{job="mtogo-loki",instance="loki:3100"}'
+        values: "1x40"
+      - series: 'loki_source_docker_target_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.source.docker.application"}'
+        values: "0x40"
+      - series: 'loki_write_sent_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100"}'
+        values: "0x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="ingester_error"}'
+        values: "0x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="rate_limited"}'
+        values: "0x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="stream_limited"}'
+        values: "0x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="queue_is_full"}'
+        values: "0x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="batch_too_large"}'
+        values: "0x40"
+      - series: 'loki_write_batch_retries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100"}'
+        values: "0x40"
+      - series: 'loki_source_docker_target_parsing_errors_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.source.docker.application"}'
+        values: "0x40"
+      - series: 'prometheus_sd_refresh_failures_total{job="mtogo-alloy",instance="alloy:12345",component_id="discovery.docker.application",mechanism="docker",config="docker"}'
+        values: "0+1x40"
+    promql_expr_test:
+      - expr: '((max(up{job="mtogo-alloy"}) == 0) + 0) or ((max(up{job="mtogo-loki"}) == 0) + 1) or (((max(up{job="mtogo-alloy"}) == 1) + 1) unless (sum(sum_over_time(up{job="mtogo-alloy"}[5m])) >= 2)) or ((sum(increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 3) or ((sum(increase(prometheus_sd_refresh_failures_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 4) or ((sum(increase(loki_write_batch_retries_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 5) or (((max(up{job="mtogo-alloy"}) == 1) + 5) and (max(up{job="mtogo-loki"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m])) == 0)) or (((max(up{job="mtogo-alloy"}) == 1) + 6) and (max(up{job="mtogo-loki"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m])) > 0))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 4
+      - expr: 'max(up{job="mtogo-loki"})'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 1
+      - expr: 'sum(increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+      - expr: 'sum(increase(loki_write_batch_retries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+      - expr: 'sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+      - expr: 'sum(increase(loki_write_sent_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+      - expr: '(min_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) == 0) or ((min_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) == 1) and (count_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) >= 19))'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="alloy:12345", job="mtogo-alloy"}'
+            value: 1
+          - labels: '{instance="loki:3100", job="mtogo-loki"}'
+            value: 1
+      - expr: 'sum by (reason) (increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{reason="batch_too_large"}'
+            value: 0
+          - labels: '{reason="ingester_error"}'
+            value: 0
+          - labels: '{reason="queue_is_full"}'
+            value: 0
+          - labels: '{reason="rate_limited"}'
+            value: 0
+          - labels: '{reason="stream_limited"}'
+            value: 0
+      - expr: 'sum by (reason) (increase(loki_discarded_samples_total{job="mtogo-loki"}[5m]) and on(job, instance) (up{job="mtogo-loki"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(increase(loki_source_docker_target_parsing_errors_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+  # log pipeline, retrying: delivery fails, nothing dropped yet
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-alloy",instance="alloy:12345"}'
+        values: "1x40"
+      - series: 'up{job="mtogo-loki",instance="loki:3100"}'
+        values: "1x40"
+      - series: 'loki_source_docker_target_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.source.docker.application"}'
+        values: "0+2x40"
+      - series: 'loki_write_sent_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100"}'
+        values: "0x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="ingester_error"}'
+        values: "0x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="rate_limited"}'
+        values: "0x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="stream_limited"}'
+        values: "0x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="queue_is_full"}'
+        values: "0x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="batch_too_large"}'
+        values: "0x40"
+      - series: 'loki_write_batch_retries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100"}'
+        values: "0+1x40"
+      - series: 'loki_source_docker_target_parsing_errors_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.source.docker.application"}'
+        values: "0x40"
+      - series: 'prometheus_sd_refresh_failures_total{job="mtogo-alloy",instance="alloy:12345",component_id="discovery.docker.application",mechanism="docker",config="docker"}'
+        values: "0x40"
+    promql_expr_test:
+      - expr: '((max(up{job="mtogo-alloy"}) == 0) + 0) or ((max(up{job="mtogo-loki"}) == 0) + 1) or (((max(up{job="mtogo-alloy"}) == 1) + 1) unless (sum(sum_over_time(up{job="mtogo-alloy"}[5m])) >= 2)) or ((sum(increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 3) or ((sum(increase(prometheus_sd_refresh_failures_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 4) or ((sum(increase(loki_write_batch_retries_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 5) or (((max(up{job="mtogo-alloy"}) == 1) + 5) and (max(up{job="mtogo-loki"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m])) == 0)) or (((max(up{job="mtogo-alloy"}) == 1) + 6) and (max(up{job="mtogo-loki"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m])) > 0))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 5
+      - expr: 'max(up{job="mtogo-loki"})'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 1
+      - expr: 'sum(increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+      - expr: 'sum(increase(loki_write_batch_retries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 20
+      - expr: 'sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 40
+      - expr: 'sum(increase(loki_write_sent_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+      - expr: '(min_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) == 0) or ((min_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) == 1) and (count_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) >= 19))'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="alloy:12345", job="mtogo-alloy"}'
+            value: 1
+          - labels: '{instance="loki:3100", job="mtogo-loki"}'
+            value: 1
+      - expr: 'sum by (reason) (increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{reason="batch_too_large"}'
+            value: 0
+          - labels: '{reason="ingester_error"}'
+            value: 0
+          - labels: '{reason="queue_is_full"}'
+            value: 0
+          - labels: '{reason="rate_limited"}'
+            value: 0
+          - labels: '{reason="stream_limited"}'
+            value: 0
+      - expr: 'sum by (reason) (increase(loki_discarded_samples_total{job="mtogo-loki"}[5m]) and on(job, instance) (up{job="mtogo-loki"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(increase(loki_source_docker_target_parsing_errors_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 0
+  # log pipeline, one scrape: counters need two
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-alloy",instance="alloy:12345"}'
+        values: "_x39 1"
+      - series: 'up{job="mtogo-loki",instance="loki:3100"}'
+        values: "_x39 1"
+      - series: 'loki_source_docker_target_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.source.docker.application"}'
+        values: "_x39 5"
+      - series: 'loki_write_sent_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100"}'
+        values: "_x39 1"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="ingester_error"}'
+        values: "_x39 0"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="rate_limited"}'
+        values: "_x39 0"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="stream_limited"}'
+        values: "_x39 0"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="queue_is_full"}'
+        values: "_x39 0"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="batch_too_large"}'
+        values: "_x39 0"
+      - series: 'loki_write_batch_retries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100"}'
+        values: "_x39 0"
+      - series: 'loki_source_docker_target_parsing_errors_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.source.docker.application"}'
+        values: "_x39 0"
+      - series: 'prometheus_sd_refresh_failures_total{job="mtogo-alloy",instance="alloy:12345",component_id="discovery.docker.application",mechanism="docker",config="docker"}'
+        values: "_x39 0"
+    promql_expr_test:
+      - expr: '((max(up{job="mtogo-alloy"}) == 0) + 0) or ((max(up{job="mtogo-loki"}) == 0) + 1) or (((max(up{job="mtogo-alloy"}) == 1) + 1) unless (sum(sum_over_time(up{job="mtogo-alloy"}[5m])) >= 2)) or ((sum(increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 3) or ((sum(increase(prometheus_sd_refresh_failures_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 4) or ((sum(increase(loki_write_batch_retries_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 5) or (((max(up{job="mtogo-alloy"}) == 1) + 5) and (max(up{job="mtogo-loki"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m])) == 0)) or (((max(up{job="mtogo-alloy"}) == 1) + 6) and (max(up{job="mtogo-loki"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m])) > 0))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 2
+      - expr: 'max(up{job="mtogo-loki"})'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 1
+      - expr: 'sum(increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(increase(loki_write_batch_retries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(increase(loki_write_sent_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: '(min_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) == 0) or ((min_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) == 1) and (count_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) >= 19))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum by (reason) (increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum by (reason) (increase(loki_discarded_samples_total{job="mtogo-loki"}[5m]) and on(job, instance) (up{job="mtogo-loki"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(increase(loki_source_docker_target_parsing_errors_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+  # log pipeline, recovered inside the window: collecting now, the outage stays in the history
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-alloy",instance="alloy:12345"}'
+        values: "1x10 0x14 1x14"
+      - series: 'up{job="mtogo-loki",instance="loki:3100"}'
+        values: "1x40"
+      - series: 'loki_source_docker_target_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.source.docker.application"}'
+        values: "0+2x10 stale _x14 22+2x14"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="ingester_error"}'
+        values: "0x10 stale _x14 0x14"
+      - series: 'loki_write_batch_retries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100"}'
+        values: "0x10 stale _x14 0x14"
+      - series: 'prometheus_sd_refresh_failures_total{job="mtogo-alloy",instance="alloy:12345",component_id="discovery.docker.application",mechanism="docker",config="docker"}'
+        values: "0x10 stale _x14 0x14"
+    promql_expr_test:
+      - expr: '((max(up{job="mtogo-alloy"}) == 0) + 0) or ((max(up{job="mtogo-loki"}) == 0) + 1) or (((max(up{job="mtogo-alloy"}) == 1) + 1) unless (sum(sum_over_time(up{job="mtogo-alloy"}[5m])) >= 2)) or ((sum(increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 3) or ((sum(increase(prometheus_sd_refresh_failures_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 4) or ((sum(increase(loki_write_batch_retries_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 5) or (((max(up{job="mtogo-alloy"}) == 1) + 5) and (max(up{job="mtogo-loki"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m])) == 0)) or (((max(up{job="mtogo-alloy"}) == 1) + 6) and (max(up{job="mtogo-loki"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m])) > 0))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 7
+      - expr: '(min_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) == 0) or ((min_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) == 1) and (count_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) >= 19))'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="alloy:12345", job="mtogo-alloy"}'
+            value: 0
+          - labels: '{instance="loki:3100", job="mtogo-loki"}'
+            value: 1
+  # log pipeline, two scrapes: the fewest that give a state
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-alloy",instance="alloy:12345"}'
+        values: "_x38 1 1"
+      - series: 'up{job="mtogo-loki",instance="loki:3100"}'
+        values: "_x38 1 1"
+      - series: 'loki_source_docker_target_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.source.docker.application"}'
+        values: "_x38 5 7"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="ingester_error"}'
+        values: "_x38 0 0"
+      - series: 'loki_write_batch_retries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100"}'
+        values: "_x38 0 0"
+      - series: 'prometheus_sd_refresh_failures_total{job="mtogo-alloy",instance="alloy:12345",component_id="discovery.docker.application",mechanism="docker",config="docker"}'
+        values: "_x38 0 0"
+    promql_expr_test:
+      - expr: '((max(up{job="mtogo-alloy"}) == 0) + 0) or ((max(up{job="mtogo-loki"}) == 0) + 1) or (((max(up{job="mtogo-alloy"}) == 1) + 1) unless (sum(sum_over_time(up{job="mtogo-alloy"}[5m])) >= 2)) or ((sum(increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 3) or ((sum(increase(prometheus_sd_refresh_failures_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 4) or ((sum(increase(loki_write_batch_retries_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 5) or (((max(up{job="mtogo-alloy"}) == 1) + 5) and (max(up{job="mtogo-loki"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m])) == 0)) or (((max(up{job="mtogo-alloy"}) == 1) + 6) and (max(up{job="mtogo-loki"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m])) > 0))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 7
+      - expr: '(min_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) == 0) or ((min_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) == 1) and (count_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) >= 19))'
+        eval_time: 10m
+        exp_samples: []
+  # log pipeline, dropping comes before a listing failure
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-alloy",instance="alloy:12345"}'
+        values: "1x40"
+      - series: 'up{job="mtogo-loki",instance="loki:3100"}'
+        values: "1x40"
+      - series: 'loki_source_docker_target_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.source.docker.application"}'
+        values: "0+2x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="ingester_error"}'
+        values: "0+1x40"
+      - series: 'loki_write_batch_retries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100"}'
+        values: "0x40"
+      - series: 'prometheus_sd_refresh_failures_total{job="mtogo-alloy",instance="alloy:12345",component_id="discovery.docker.application",mechanism="docker",config="docker"}'
+        values: "0+1x40"
+    promql_expr_test:
+      - expr: '((max(up{job="mtogo-alloy"}) == 0) + 0) or ((max(up{job="mtogo-loki"}) == 0) + 1) or (((max(up{job="mtogo-alloy"}) == 1) + 1) unless (sum(sum_over_time(up{job="mtogo-alloy"}[5m])) >= 2)) or ((sum(increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 3) or ((sum(increase(prometheus_sd_refresh_failures_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 4) or ((sum(increase(loki_write_batch_retries_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 5) or (((max(up{job="mtogo-alloy"}) == 1) + 5) and (max(up{job="mtogo-loki"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m])) == 0)) or (((max(up{job="mtogo-alloy"}) == 1) + 6) and (max(up{job="mtogo-loki"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m])) > 0))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 3
+      - expr: '(min_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) == 0) or ((min_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) == 1) and (count_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) >= 19))'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="alloy:12345", job="mtogo-alloy"}'
+            value: 1
+          - labels: '{instance="loki:3100", job="mtogo-loki"}'
+            value: 1
+  # log pipeline, a listing failure comes before retrying
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-alloy",instance="alloy:12345"}'
+        values: "1x40"
+      - series: 'up{job="mtogo-loki",instance="loki:3100"}'
+        values: "1x40"
+      - series: 'loki_source_docker_target_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.source.docker.application"}'
+        values: "0+2x40"
+      - series: 'loki_write_dropped_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100",reason="ingester_error"}'
+        values: "0x40"
+      - series: 'loki_write_batch_retries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.write.local",host="loki:3100"}'
+        values: "0+1x40"
+      - series: 'prometheus_sd_refresh_failures_total{job="mtogo-alloy",instance="alloy:12345",component_id="discovery.docker.application",mechanism="docker",config="docker"}'
+        values: "0+1x40"
+    promql_expr_test:
+      - expr: '((max(up{job="mtogo-alloy"}) == 0) + 0) or ((max(up{job="mtogo-loki"}) == 0) + 1) or (((max(up{job="mtogo-alloy"}) == 1) + 1) unless (sum(sum_over_time(up{job="mtogo-alloy"}[5m])) >= 2)) or ((sum(increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 3) or ((sum(increase(prometheus_sd_refresh_failures_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 4) or ((sum(increase(loki_write_batch_retries_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 5) or (((max(up{job="mtogo-alloy"}) == 1) + 5) and (max(up{job="mtogo-loki"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m])) == 0)) or (((max(up{job="mtogo-alloy"}) == 1) + 6) and (max(up{job="mtogo-loki"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m])) > 0))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 4
+      - expr: '(min_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) == 0) or ((min_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) == 1) and (count_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) >= 19))'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="alloy:12345", job="mtogo-alloy"}'
+            value: 1
+          - labels: '{instance="loki:3100", job="mtogo-loki"}'
+            value: 1
+  # log pipeline, absent targets: unknown, neither healthy nor failed
+  - interval: 15s
+    input_series:
+      - series: 'up{job="unrelated",instance="other:1"}'
+        values: "1x40"
+    promql_expr_test:
+      - expr: '((max(up{job="mtogo-alloy"}) == 0) + 0) or ((max(up{job="mtogo-loki"}) == 0) + 1) or (((max(up{job="mtogo-alloy"}) == 1) + 1) unless (sum(sum_over_time(up{job="mtogo-alloy"}[5m])) >= 2)) or ((sum(increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 3) or ((sum(increase(prometheus_sd_refresh_failures_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 4) or ((sum(increase(loki_write_batch_retries_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 5) or (((max(up{job="mtogo-alloy"}) == 1) + 5) and (max(up{job="mtogo-loki"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m])) == 0)) or (((max(up{job="mtogo-alloy"}) == 1) + 6) and (max(up{job="mtogo-loki"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m])) > 0))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'max(up{job="mtogo-loki"})'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(increase(loki_write_batch_retries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(increase(loki_write_sent_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: '(min_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) == 0) or ((min_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) == 1) and (count_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) >= 19))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum by (reason) (increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum by (reason) (increase(loki_discarded_samples_total{job="mtogo-loki"}[5m]) and on(job, instance) (up{job="mtogo-loki"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'sum(increase(loki_source_docker_target_parsing_errors_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples: []
+  # log pipeline, read errors: counted, and the state still says what is read
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-alloy",instance="alloy:12345"}'
+        values: "1x40"
+      - series: 'up{job="mtogo-loki",instance="loki:3100"}'
+        values: "1x40"
+      - series: 'loki_source_docker_target_entries_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.source.docker.application"}'
+        values: "0+2x40"
+      - series: 'loki_source_docker_target_parsing_errors_total{job="mtogo-alloy",instance="alloy:12345",component_id="loki.source.docker.application"}'
+        values: "0+1x40"
+    promql_expr_test:
+      - expr: '((max(up{job="mtogo-alloy"}) == 0) + 0) or ((max(up{job="mtogo-loki"}) == 0) + 1) or (((max(up{job="mtogo-alloy"}) == 1) + 1) unless (sum(sum_over_time(up{job="mtogo-alloy"}[5m])) >= 2)) or ((sum(increase(loki_write_dropped_entries_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 3) or ((sum(increase(prometheus_sd_refresh_failures_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 4) or ((sum(increase(loki_write_batch_retries_total{job="mtogo-alloy"}[5m])) > 0) * 0 + 5) or (((max(up{job="mtogo-alloy"}) == 1) + 5) and (max(up{job="mtogo-loki"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m])) == 0)) or (((max(up{job="mtogo-alloy"}) == 1) + 6) and (max(up{job="mtogo-loki"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job="mtogo-alloy"}[5m])) > 0))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 7
+      - expr: 'sum(increase(loki_source_docker_target_parsing_errors_total{job="mtogo-alloy"}[5m]) and on(job, instance) (up{job="mtogo-alloy"} == 1))'
+        eval_time: 10m
+        exp_samples:
+          - labels: "{}"
+            value: 20
+  # log pipeline, Prometheus was away: 18 scrapes are no evidence, 19 are UP
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-alloy",instance="alloy:12345"}'
+        values: "1x28 _x2 1x9"
+      - series: 'up{job="mtogo-loki",instance="loki:3100"}'
+        values: "1x29 _ 1x9"
+    promql_expr_test:
+      - expr: '(min_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) == 0) or ((min_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) == 1) and (count_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) >= 19))'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="loki:3100", job="mtogo-loki"}'
+            value: 1
+  # log pipeline, a failed scrape and a gap: DOWN is shown, whatever is missing
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-alloy",instance="alloy:12345"}'
+        values: "1x25 0 _x8 1x5"
+    promql_expr_test:
+      - expr: '(min_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) == 0) or ((min_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) == 1) and (count_over_time(up{job=~"mtogo-alloy|mtogo-loki"}[5m]) >= 19))'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="alloy:12345", job="mtogo-alloy"}'
+            value: 0

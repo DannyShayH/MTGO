@@ -40,6 +40,8 @@ services:
       - prometheus-data:/prometheus
     networks:
       - metrics
+      # Scrapes the health of Alloy and Loki (#179).
+      - logs
     logging: *logging
     # Same value as the memory limit: no additional swap, so the cap is hard.
     memswap_limit: 192m
@@ -120,10 +122,16 @@ services:
     user: "0"
     profiles: ["logs"]
     restart: unless-stopped
+    # Alloy sends what is queued for up to 15 seconds; Docker's default is 10.
+    stop_grace_period: 30s
     command:
       - run
       - --storage.path=/var/lib/alloy/data
       - --disable-reporting
+      # Health counters for Prometheus (#179), on the internal logs network only.
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --server.http.enable-pprof=false
+      - --server.http.disable-support-bundle=true
       - /etc/alloy/config.alloy
     environment:
       GOMEMLIMIT: 120MiB
@@ -150,7 +158,7 @@ networks:
     name: mtogo-staging-metrics
   # Publishes Grafana's single port for Caddy (same role as in compose.yaml).
   loopback:
-  # Grafana, Loki and Alloy only; no route out.
+  # Prometheus, Grafana, Loki and Alloy only; no route out.
   logs:
     internal: true
 

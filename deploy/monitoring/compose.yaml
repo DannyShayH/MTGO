@@ -14,6 +14,8 @@ services:
       - prometheus-data:/prometheus
     networks:
       - metrics
+      # Scrapes the health of Alloy and Loki (#179).
+      - logs
     logging: &logging
       driver: json-file
       options:
@@ -60,10 +62,16 @@ services:
     image: grafana/alloy:v1.22.0
     # Root inside the container, only to read the Docker socket.
     user: "0"
+    # Alloy sends what is queued for up to 15 seconds; Docker's default is 10.
+    stop_grace_period: 30s
     command:
       - run
       - --storage.path=/var/lib/alloy/data
       - --disable-reporting
+      # Health counters for Prometheus (#179), on the internal logs network only.
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --server.http.enable-pprof=false
+      - --server.http.disable-support-bundle=true
       - /etc/alloy/config.alloy
     environment:
       MTOGO_LOG_PROJECT: mtogo-monitoring-demo

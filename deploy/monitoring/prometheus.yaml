@@ -13,3 +13,22 @@ scrape_configs:
   - job_name: mtogo-storefront
     static_configs:
       - targets: [storefront-metrics:9465]
+
+  # Health of the log pipeline (#179). Only the series the events dashboard
+  # shows are stored; general process metrics of both are left out. On staging
+  # without STAGING_LOGS_ENABLED=1 these two targets are DOWN.
+  - job_name: mtogo-alloy
+    static_configs:
+      - targets: [alloy:12345]
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: loki_source_docker_target_entries_total|loki_source_docker_target_parsing_errors_total|loki_write_sent_entries_total|loki_write_dropped_entries_total|loki_write_batch_retries_total|prometheus_sd_refresh_failures_total
+        action: keep
+
+  - job_name: mtogo-loki
+    static_configs:
+      - targets: [loki:3100]
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: loki_discarded_samples_total
+        action: keep

@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
+import { readComposeService } from "./compose-service"
 
 // Retained and resumed log history (#178), checked at the configuration the
 // stacks run with. The behavior itself is exercised on real containers by
@@ -12,41 +13,33 @@ const collector = read("alloy/config.alloy")
 const pipeline = read("alloy/approved-events.alloy")
 const loki = read("loki/config.yaml")
 
-/** One service's block of a Compose file. */
-function composeService(compose: string, service: string) {
-  const block = compose.match(
-    new RegExp(`^ {2}${service}:\\n((?:(?: {4}.*)?\\n)+)`, "m"),
-  )
-  if (!block) throw new Error(`No service ${service}`)
-  return block[1]
-}
-
-const setting = (key: string) =>
+const readSetting = (key: string) =>
   loki.match(new RegExp(`^ {2}${key}: (\\S+)`, "m"))?.[1]
 
 const stacks = [
   "compose.yaml",
   "compose.staging.yaml",
   "tests/log-history/compose.yaml",
+  "tests/log-outage/compose.yaml",
 ]
 
 describe("the seven-day window", () => {
   it.each(["retention_period", "reject_old_samples_max_age"])(
     "Loki's %s is seven days",
     (key) => {
-      expect(setting(key)).toBe("168h")
+      expect(readSetting(key)).toBe("168h")
     },
   )
 
   // Loki deletes whole chunks, later. Queries must not show older records.
   it("a query never shows a record older than seven days", () => {
-    expect(setting("max_query_lookback")).toBe("168h")
+    expect(readSetting("max_query_lookback")).toBe("168h")
   })
 
   // A long query is split by the hour. With Loki's default, the parts over
   // three hours old skip the records that are not yet written to disk.
   it("a query finds imported history that is not yet written to disk", () => {
-    expect(setting("query_ingesters_within")).toBe("0s")
+    expect(readSetting("query_ingesters_within")).toBe("0s")
   })
 
   it("older source records are dropped by their own time, before Loki", () => {
@@ -59,10 +52,10 @@ describe("the seven-day window", () => {
 
 describe("retention processing", () => {
   it("is enabled, with the Compactor's state beside the chunks", () => {
-    expect(setting("retention_enabled")).toBe("true")
-    expect(setting("delete_request_store")).toBe("filesystem")
-    expect(setting("path_prefix")).toBe("/loki")
-    expect(setting("working_directory")).toBe("/loki/compactor")
+    expect(readSetting("retention_enabled")).toBe("true")
+    expect(readSetting("delete_request_store")).toBe("filesystem")
+    expect(readSetting("path_prefix")).toBe("/loki")
+    expect(readSetting("working_directory")).toBe("/loki/compactor")
   })
 })
 
@@ -85,10 +78,10 @@ describe("resume after recreation", () => {
 
   it.each(stacks)("%s keeps positions and Loki's state in volumes", (file) => {
     const compose = read(file)
-    const alloyService = composeService(compose, "alloy")
+    const alloyService = readComposeService(compose, "alloy")
     expect(alloyService).toContain("--storage.path=/var/lib/alloy/data")
     expect(alloyService).toContain("- alloy-data:/var/lib/alloy/data")
-    expect(composeService(compose, "loki")).toContain("- loki-data:/loki")
+    expect(readComposeService(compose, "loki")).toContain("- loki-data:/loki")
     expect(compose).toMatch(/^volumes:\n(?: {2}.*\n)*? {2}loki-data:/m)
     expect(compose).toMatch(/^volumes:\n(?: {2}.*\n)*? {2}alloy-data:/m)
   })
@@ -104,6 +97,6 @@ describe("Docker's own rotation", () => {
     const demo = read("compose.application.yaml")
     expect(demo).toMatch(rotation)
     for (const service of ["backend", "partner"])
-      expect(composeService(demo, service)).toContain("logging: *logging")
+      expect(readComposeService(demo, service)).toContain("logging: *logging")
   })
 })

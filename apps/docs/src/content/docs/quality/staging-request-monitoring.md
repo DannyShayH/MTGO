@@ -21,14 +21,16 @@ command per Viewer.
 
 ## Access model
 
-| Component        | Where it listens                                          | Reachable from                                                                |
-| ---------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Backend exporter | `backend-metrics:9464` on `mtogo-staging-metrics`         | Prometheus only. No published port, no Caddy route. The API's `/metrics` 404s |
-| Prometheus 3.16  | `prometheus:9090` on `mtogo-staging-metrics`              | Grafana only. No published port, no Caddy route                               |
-| Grafana 13.3     | `STAGING_BIND_ADDRESS:STAGING_GRAFANA_PORT` (port `3300`) | Caddy over HTTPS at the Grafana hostname, with a login                        |
+| Component               | Where it listens                                                            | Reachable from                                                                                                        |
+| ----------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Backend exporter        | `backend-metrics:9464` on `mtogo-staging-metrics`                           | Prometheus only. No published port, no Caddy route. The API's `/metrics` 404s                                         |
+| Prometheus 3.16         | `prometheus:9090` on `mtogo-staging-metrics` and the stack's `logs` network | Grafana uses it. The backend, storefront, Loki and Alloy share one of its networks. No published port, no Caddy route |
+| Loki and Alloy (opt-in) | `loki:3100` and `alloy:12345` on `logs`                                     | Grafana and Prometheus. No published port, no Caddy route                                                             |
+| Grafana 13.3            | `STAGING_BIND_ADDRESS:STAGING_GRAFANA_PORT` (port `3300`)                   | Caddy over HTTPS at the Grafana hostname, with a login                                                                |
 
-`mtogo-staging-metrics` is an internal Docker network: no published ports and
-no internet. Grafana has a login for every person. Anonymous access, sign-up,
+`mtogo-staging-metrics` and `logs` are internal Docker networks: no published
+ports and no internet. No application container is on `logs`, so none has a path
+to Loki or Alloy. Prometheus and Grafana are on both. Grafana has a login for every person. Anonymous access, sign-up,
 organisation creation, public dashboards and external snapshots are off.
 Grafana's brute-force login protection is on, and the session cookie is
 `Secure` and `SameSite=Strict`. Everyone on the team gets an individual
@@ -55,15 +57,15 @@ Update the issue's acceptance criteria to match before acceptance.
 
 ## Files
 
-| Repository file                          | Role                                                                                                                      |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `deploy/monitoring/compose.staging.yaml` | Project `mtogo-staging-monitoring`: Prometheus and Grafana with memory caps and named volumes                             |
-| `deploy/monitoring/prometheus.yaml`      | Scrape targets `backend-metrics:9464` and `storefront-metrics:9465`, the same file the local demo uses                    |
-| `deploy/monitoring/grafana/`             | Provisioned data source and the read-only dashboard `mtogo-backend-requests`, shared with the local demo                  |
-| `deploy/staging/compose.yaml`            | Creates `mtogo-staging-metrics`, attaches the backend and storefront; `STAGING_METRICS_ENABLED=1` turns both exporters on |
-| `deploy/staging/.env.template`           | `STAGING_METRICS_ENABLED`, `STAGING_GRAFANA_URL`, `STAGING_GRAFANA_PORT`, `GRAFANA_ADMIN_PASSWORD`                        |
-| `deploy/staging/mtogo-deploy.sh`         | `monitoring up`, `down`, `status`, `viewer-add` and `viewer-remove`, for administrators only                              |
-| `deploy/staging/Caddyfile.example`       | The Grafana site block                                                                                                    |
+| Repository file                          | Role                                                                                                                                                                                                                                    |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `deploy/monitoring/compose.staging.yaml` | Project `mtogo-staging-monitoring`: Prometheus and Grafana with memory caps and named volumes                                                                                                                                           |
+| `deploy/monitoring/prometheus.yaml`      | Scrape targets `backend-metrics:9464`, `storefront-metrics:9465` and, for the [log pipeline](/MTGO/quality/approved-application-events/#pipeline-health-and-failures), `alloy:12345` and `loki:3100`; the same file the local demo uses |
+| `deploy/monitoring/grafana/`             | Provisioned data source and the read-only dashboard `mtogo-backend-requests`, shared with the local demo                                                                                                                                |
+| `deploy/staging/compose.yaml`            | Creates `mtogo-staging-metrics`, attaches the backend and storefront; `STAGING_METRICS_ENABLED=1` turns both exporters on                                                                                                               |
+| `deploy/staging/.env.template`           | `STAGING_METRICS_ENABLED`, `STAGING_GRAFANA_URL`, `STAGING_GRAFANA_PORT`, `GRAFANA_ADMIN_PASSWORD`                                                                                                                                      |
+| `deploy/staging/mtogo-deploy.sh`         | `monitoring up`, `down`, `status`, `viewer-add` and `viewer-remove`, for administrators only                                                                                                                                            |
+| `deploy/staging/Caddyfile.example`       | The Grafana site block                                                                                                                                                                                                                  |
 
 The monitoring stack is a separate Compose project. Deploys (`prepare`,
 `release`, `rollback`) never start, stop or recreate it, and the CI identity

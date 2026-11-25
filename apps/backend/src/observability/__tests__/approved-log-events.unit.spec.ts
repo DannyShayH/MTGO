@@ -107,6 +107,7 @@ describe("approved application events pipeline", () => {
     "compose.staging.yaml",
     "tests/log-pipeline/compose.yaml",
     "tests/log-history/compose.yaml",
+    "tests/log-outage/compose.yaml",
   ])("%s pins the Loki and Alloy images", (file) => {
     const compose = read(file)
     expect(compose).toContain("image: grafana/loki:3.7.10")

@@ -1,0 +1,105 @@
+# Disposable containers for the log outage check (#179); check.mjs drives them.
+# The collector, pipeline, Loki and Prometheus configuration are the real files.
+# As on staging, the applications share no network with Loki and Alloy. Nothing
+# publishes a port.
+name: mtogo-log-outage-test
+
+# Stands in for an application: answers HTTP and logs genuine records through
+# Docker's local log file, with staging's rotation.
+x-application: &application
+  image: node:24.22.3-bookworm-slim
+  init: true
+  command: ["node", "/tests/log-outage/application.cjs"]
+  volumes:
+    - ../:/tests:ro
+    - ../../../../packages/logging/src:/logging:ro
+  networks: [application]
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "5"
+
+services:
+  backend:
+    <<: *application
+    environment:
+      SERVICE: backend
+
+  partner:
+    <<: *application
+    environment:
+      SERVICE: partner
+
+  storefront:
+    <<: *application
+    environment:
+      SERVICE: storefront
+
+  loki:
+    image: grafana/loki:3.7.10
+    command: ["-config.file=/etc/loki/config.yaml"]
+    volumes:
+      - ../../loki/config.yaml:/etc/loki/config.yaml:ro
+      - loki-data:/loki
+    networks: [logs]
+
+  alloy:
+    image: grafana/alloy:v1.22.0
+    # Root inside the container, only to read the Docker socket.
+    user: "0"
+    # Alloy sends what is queued for up to 15 seconds; Docker's default is 10.
+    stop_grace_period: 30s
+    command:
+      - run
+      - --storage.path=/var/lib/alloy/data
+      - --disable-reporting
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --server.http.enable-pprof=false
+      - --server.http.disable-support-bundle=true
+      - /etc/alloy/config.alloy
+    environment:
+      MTOGO_LOG_PROJECT: mtogo-log-outage-test
+    volumes:
+      - ../../alloy:/etc/alloy:ro
+      - alloy-data:/var/lib/alloy/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [logs]
+
+  # Its backend and storefront targets do not exist here and are DOWN.
+  prometheus:
+    image: prom/prometheus:v3.16.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yaml
+      - --storage.tsdb.path=/prometheus
+      - --query.lookback-delta=30s
+    volumes:
+      - ../../prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+    networks: [logs]
+
+  # Only stopped and started: nothing signs in to it.
+  grafana:
+    image: grafana/grafana:13.3.1
+    environment:
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+    networks: [logs]
+
+  # Sends requests to the applications and queries the pipeline.
+  query:
+    image: node:24.22.3-bookworm-slim
+    init: true
+    command: ["sleep", "infinity"]
+    networks: [application, logs]
+
+networks:
+  application:
+    internal: true
+  logs:
+    internal: true
+
+volumes:
+  loki-data:
+  alloy-data:
