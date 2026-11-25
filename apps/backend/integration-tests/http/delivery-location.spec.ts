@@ -2,12 +2,14 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import winston from "winston"
 import {
   ContainerRegistrationKeys,
+  Modules,
   generateJwtToken,
 } from "@medusajs/framework/utils"
 import { DELIVERY_MODULE } from "../../src/modules/delivery"
 import type DeliveryModuleService from "../../src/modules/delivery/service"
 import { endDeliveryWorkflow } from "../../src/workflows/delivery/terminal"
 import { restaurantOrdersHarness } from "../helpers/restaurant-orders"
+import { openEventStream, type EventStream } from "../helpers/event-stream"
 
 jest.setTimeout(240000)
 
@@ -603,6 +605,180 @@ medusaIntegrationTestRunner({
         const sorted = durations.sort((a, b) => a - b)
         const p95 = sorted[Math.ceil(sorted.length * 0.95) - 1]
         expect(p95).toBeLessThan(2000)
+      })
+    })
+
+    describe("GET /store/orders/:id/tracking/stream", () => {
+      const streams: EventStream[] = []
+      afterEach(() => streams.splice(0).forEach((stream) => stream.close()))
+      const open = async (orderId: string, headers = customer) => {
+        const stream = await openEventStream(
+          `${api.defaults.baseURL}/store/orders/${orderId}/tracking/stream`,
+          headers,
+        )
+        streams.push(stream)
+        return stream
+      }
+      const secret = () =>
+        getContainer().resolve(ContainerRegistrationKeys.CONFIG_MODULE)
+          .projectConfig.http.jwtSecret as string
+      /** The Customer's own signed-in token, re-signed to expire sooner. */
+      const customerExpiringIn = (expiresIn: string) => {
+        const token = customer.authorization.replace(/^Bearer /, "")
+        const {
+          exp: _exp,
+          iat: _iat,
+          ...claims
+        } = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString())
+        return {
+          ...customer,
+          authorization: `Bearer ${generateJwtToken(claims, {
+            secret: secret(),
+            expiresIn,
+          })}`,
+        }
+      }
+      const tokens = (stream: EventStream) =>
+        stream.events
+          .filter((entry) => entry.event === "tracking")
+          .map((entry) => entry.data)
+
+      it("gives the tracking read a change token that ignores the read time", async () => {
+        const { order, agent } = await collectedOrder()
+        expect((await share(agent.headers, order.id)).status).toBe(200)
+        const first = await trackingView(order.id)
+        await new Promise((resolve) => setTimeout(resolve, 1100))
+        const again = await trackingView(order.id)
+        expect(first.headers["cache-control"]).toBe("no-store")
+        expect(again.data.server_time).not.toBe(first.data.server_time)
+        expect(first.data.change_token).toMatch(/^[0-9a-f]{16}$/)
+        expect(again.data.change_token).toBe(first.data.change_token)
+
+        await ageRetained(order.id)
+        expect((await share(agent.headers, order.id)).status).toBe(200)
+        expect((await trackingView(order.id)).data.change_token).not.toBe(
+          first.data.change_token,
+        )
+      })
+
+      it("refuses before opening: signed out, another Customer's and an unknown Order", async () => {
+        const order = await placePaidOrder(pizzeriaId)
+        const { store } = harness.seeded()
+        expect((await open(order.id, store)).response.status).toBe(401)
+        const other = await harness.registerCustomer(
+          "stream-other@example.test",
+        )
+        const foreign = await open(order.id, other.headers)
+        const unknown = await open("order_unknown", customer)
+        expect(foreign.response.status).toBe(404)
+        expect(unknown.response.status).toBe(404)
+        expect(await foreign.response.text()).toBe(
+          await unknown.response.text(),
+        )
+      })
+
+      it("opens as an uncached event stream and proves itself with a heartbeat", async () => {
+        const order = await placePaidOrder(pizzeriaId)
+        const stream = await open(order.id)
+        expect(stream.response.status).toBe(200)
+        expect(stream.response.headers.get("content-type")).toContain(
+          "text/event-stream",
+        )
+        expect(stream.response.headers.get("cache-control")).toContain(
+          "no-transform",
+        )
+        expect(stream.response.headers.get("x-accel-buffering")).toBe("no")
+        await stream.next("ready")
+        await stream.next("heartbeat")
+        expect(tokens(stream)).toEqual([])
+      })
+
+      it("hints recorded progress and location changes with a token only, never the position", async () => {
+        const { order, agent } = await claimedOrder()
+        const stream = await open(order.id)
+        await stream.next("ready")
+        await stream.next("heartbeat")
+
+        expect((await startPreparation(staff, order.id)).status).toBe(200)
+        const preparing = await stream.next("tracking")
+        expect(Object.keys(preparing)).toEqual(["change_token"])
+        expect(preparing.change_token).toBe(
+          (await trackingView(order.id)).data.change_token,
+        )
+
+        expect((await markReady(staff, order.id)).status).toBe(200)
+        await stream.next("tracking")
+        expect((await pickup(agent.headers, order.id)).status).toBe(200)
+        await stream.next("tracking")
+        expect((await share(agent.headers, order.id)).status).toBe(200)
+        await stream.next("tracking")
+        expect(stream.raw()).not.toMatch(TRACE)
+        expect(stream.raw()).not.toContain(agent.id)
+        // A quiet stream repeats nothing.
+        await new Promise((resolve) => setTimeout(resolve, 4500))
+        expect(tokens(stream)).toEqual([])
+      })
+
+      it("ends an open stream when the session token expires", async () => {
+        const order = await placePaidOrder(pizzeriaId)
+        const stream = await open(order.id, customerExpiringIn("3s"))
+        await stream.next("ready")
+        expect(await stream.next("ended")).toEqual({ code: "session_expired" })
+        expect(await stream.ended()).toBe(true)
+      })
+
+      it("ends an open stream when the Customer's sign-in is no longer valid", async () => {
+        const order = await placePaidOrder(pizzeriaId)
+        const stream = await open(order.id)
+        await stream.next("ready")
+        await stream.next("heartbeat")
+        const auth = getContainer().resolve(Modules.AUTH)
+        const [provider] = await auth.listProviderIdentities({
+          provider: "customer-emailpass",
+          entity_id: "orders-customer@example.test",
+        })
+        await auth.updateProviderIdentities({
+          id: provider.id,
+          user_metadata: {
+            ...provider.user_metadata,
+            security_version: "revoked-elsewhere",
+          },
+        })
+        expect(await stream.next("ended")).toEqual({
+          code: "sign_in_required",
+        })
+        expect(await stream.ended()).toBe(true)
+      })
+
+      it("closes without an ended code when a read fails, so the page falls back", async () => {
+        const order = await placePaidOrder(pizzeriaId)
+        const stream = await open(order.id)
+        await stream.next("ready")
+        await stream.next("heartbeat")
+        jest
+          .spyOn(delivery(), "listIntendedDeliveries")
+          .mockRejectedValue(new Error("database unavailable"))
+        expect(await stream.ended()).toBe(true)
+        expect(stream.events.map((entry) => entry.event)).not.toContain("ended")
+      })
+
+      it("stops reading once the browser disconnects", async () => {
+        const order = await placePaidOrder(pizzeriaId)
+        const reads = jest.spyOn(delivery(), "listIntendedDeliveries")
+        const orderReads = () =>
+          reads.mock.calls.filter(
+            ([filters]) =>
+              (filters as { order_id?: string } | undefined)?.order_id ===
+              order.id,
+          ).length
+        const stream = await open(order.id)
+        await stream.next("ready")
+        await stream.next("heartbeat")
+        stream.close()
+        await new Promise((resolve) => setTimeout(resolve, 2500))
+        const settled = orderReads()
+        await new Promise((resolve) => setTimeout(resolve, 5000))
+        expect(orderReads()).toBe(settled)
       })
     })
   },

@@ -332,6 +332,12 @@ describe("private request metrics HTTP boundary", () => {
       reason: "EP: an established stream is excluded",
     },
     {
+      path: "/store/orders/order_01ABC/tracking/stream",
+      method: "GET",
+      route: "/store/orders/:id/tracking/stream",
+      reason: "EP: an established Customer tracking stream is excluded",
+    },
+    {
       path: "/health",
       method: "GET",
       reason: "EP: health traffic is excluded",

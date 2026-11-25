@@ -24,6 +24,18 @@ import {
   customerLocationSample,
 } from "../../delivery/customer-location"
 import { orderOperationLock } from "../locks"
+import { fingerprintOf } from "../../delivery/delivery-feed"
+
+/**
+ * A deterministic digest of what the Customer's tracking read shows (#215),
+ * so the tracking feed can say "changed" without saying what. It covers the
+ * recorded values only: the caller passes the read without its server
+ * time, and the read carries no continuously changing age (the page derives
+ * that itself).
+ */
+function trackingChangeToken(recorded: Record<string, unknown>) {
+  return fingerprintOf([JSON.stringify(recorded)])
+}
 
 type Row = {
   order_id: string
@@ -203,16 +215,19 @@ export const readOrderTrackingStep = createStep(
           status:
             refund && refund.status !== "succeeded" ? "pending" : "unknown",
         }
-        return {
+        const tracking = {
           order: { id: order.id, language },
-          ...progress,
-          server_time: now.toISOString(),
           progress: {
             ...progress.progress,
             delivery,
             refund: customerRefund,
             follow_up,
           },
+        }
+        return {
+          ...tracking,
+          change_token: trackingChangeToken(tracking),
+          server_time: now.toISOString(),
         }
       },
       { timeout: lock.timeout, expire: lock.ttl },

@@ -567,10 +567,64 @@ sample and after the delivery ends. A sample is stale from 60 seconds after its
 observation. `server_time` is the reference for calculating age. Feedback is not
 yet available.
 
+`change_token` (#215) is a 16-character digest of everything in the read except
+`server_time`, so two reads of unchanged records have the same token. It
+changes when a milestone, the cancellation or refund, the available actions or
+the location (a new sample, or `fresh` becoming `stale`) changes. It is an
+invalidation aid only: it does not order reads, and a page still keeps the
+read with the later `server_time`.
+
 | Status | Meaning                                                      |
 | ------ | ------------------------------------------------------------ |
 | `200`  | Customer-owned tracking projection                           |
 | `401`  | Authentication is missing or invalid                         |
+| `404`  | Order is unknown, unpublished or belongs to another Customer |
+
+### GET /store/orders/:id/tracking/stream
+
+**Actor:** the owning Customer (`customer`, bearer or session). The Customer
+tracking feed (#215): a Server-Sent Events stream of invalidation hints for one
+Order. A hint carries only the new `change_token` of
+`GET /store/orders/:id/tracking`, never a milestone, coordinate, Order detail
+or internal note. On a hint, on `ready` and when reconnecting the page rereads
+`GET /store/orders/:id/tracking`; the stream is never the record, and a failed
+stream changes nothing in fulfilment. The storefront reaches it only through its
+same-origin relay `GET /api/orders/:id/tracking/stream`, which adds the bearer
+from the httpOnly session cookie, so no token reaches browser JavaScript or a
+query string.
+
+Authentication, the current Customer sign-in and ownership are checked before
+the stream opens, so a refusal is an ordinary JSON error response with the same
+`404` for unknown, unpublished and other Customers' Orders. Once open, the
+headers are those of `GET /partner/orders/stream`, plus `X-Accel-Buffering: no`.
+
+| Event       | Data                                                                         | When                                                                                                    |
+| ----------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `ready`     | `{ "server_time": "..." }`                                                   | Once, when the feed opens; the page then rereads                                                        |
+| `tracking`  | `{ "change_token": "..." }`                                                  | The tracking read's change token differs from the last one announced                                    |
+| `heartbeat` | `{ "server_time": "..." }`                                                   | After the first read once open, then after 15 seconds without another event                             |
+| `ended`     | `{ "code": "session_expired" \| "sign_in_required" \| "order_unavailable" }` | The token expired, the sign-in was replaced, or the Order is no longer readable; the stream then closes |
+
+Every two seconds the feed rechecks the token's expiry, the Customer's sign-in
+(as `requireIsolatedCustomerIdentity`) and ownership, then runs the same
+tracking read as `GET /store/orders/:id/tracking` and compares its change token.
+The baseline is read before `ready`, so a change after `ready` is never missed,
+and a reconnect takes a fresh baseline (its own reread covers what changed in
+between). A failed read closes the stream without `ended`, so the page falls
+back to checking every ten seconds. Closing the connection stops the reads, and
+on `SIGTERM` or `SIGINT` every open feed closes without `ended`, as the partner
+feeds do. Request metrics count established streams under one route label (see
+`src/observability/README.md`).
+
+```bash
+curl -N http://localhost:9000/store/orders/order_01.../tracking/stream \
+  -H "Authorization: Bearer <customer token>" \
+  -H "x-publishable-api-key: <key>"
+```
+
+| Status | When                                                         |
+| ------ | ------------------------------------------------------------ |
+| `401`  | Authentication is missing, invalid or no longer current      |
 | `404`  | Order is unknown, unpublished or belongs to another Customer |
 
 ### GET /store/orders/:id/progress

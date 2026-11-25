@@ -10,7 +10,8 @@ import { withOrderOperations } from "./order-operations-of"
 
 type Input = { order_id: string; customer_id: string }
 
-const validateOrderOwnership = createStep(
+/** The Order is the Customer's placed Order; anything else is not found. */
+export const validateOrderOwnershipStep = createStep(
   "validate-order-ownership",
   async (input: Input, { container }) => {
     const order = await container
@@ -42,7 +43,7 @@ const validateOrderOwnership = createStep(
 export const validateOrderOwnershipWorkflow = createWorkflow(
   "validate-order-ownership",
   (input: Input) => {
-    validateOrderOwnership(input)
+    validateOrderOwnershipStep(input)
     return new WorkflowResponse(undefined)
   },
 )

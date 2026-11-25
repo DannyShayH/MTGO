@@ -349,6 +349,16 @@ existing Caddy configuration and reload it. With Caddy in a container, set
 the example explains. Allow only 22, 80 and 443 in the firewall; the
 application ports are bound to the loopback or bridge address.
 
+The event streams need no extra Caddy directive: the partner kitchen and
+Delivery agent feeds and the Customer tracking feed (#215, through the
+storefront's same-origin relay `/api/orders/:id/tracking/stream`) are sent with
+`Cache-Control: no-cache, no-transform` and `X-Accel-Buffering: no`, so
+`encode gzip` leaves them uncompressed and `reverse_proxy` flushes
+`text/event-stream` responses at once. To check a deployed feed, open an Order
+page while signed in: the progress panel says "Live updates on" within about
+fifteen seconds. If it says live updates are interrupted, the page still checks
+every ten seconds; look for a proxy that buffers or compresses the stream.
+
 ### 6. Activation
 
 Activation is a separate decision. When approved, confirm the four

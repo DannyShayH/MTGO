@@ -68,7 +68,14 @@ export async function discardLegacyCustomerIdentity(
   next()
 }
 
-async function hasIsolatedCustomerIdentity(req: AuthenticatedMedusaRequest) {
+/**
+ * Whether the request's Customer sign-in is still the current one (not a
+ * legacy session, not replaced by a security change). Long-lived responses
+ * such as the tracking feed (#215) ask again while open.
+ */
+export async function hasIsolatedCustomerIdentity(
+  req: AuthenticatedMedusaRequest,
+) {
   const context = req.auth_context
   if (context?.actor_type !== "customer") return true
   if (context.auth_provider !== "customer-emailpass") return false

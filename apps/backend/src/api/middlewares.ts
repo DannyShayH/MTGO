@@ -240,6 +240,18 @@ export default defineMiddlewares({
       ],
     },
     {
+      // The owning Customer's tracking feed (#215): authorized before it
+      // opens, and the token's expiry is kept for the open stream.
+      matcher: "/store/orders/:id/tracking/stream",
+      method: "GET",
+      middlewares: [
+        authenticate("customer", ["bearer", "session"]),
+        requireIsolatedCustomerIdentity,
+        requireOwnedOrder,
+        recordSessionExpiry,
+      ],
+    },
+    {
       matcher: "/store/orders/:id/progress",
       method: "GET",
       middlewares: [

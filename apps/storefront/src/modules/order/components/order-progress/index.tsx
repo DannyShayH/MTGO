@@ -20,7 +20,14 @@ import CancelOrder from "@modules/order/components/cancel-order"
 import OrderCancellation from "@modules/order/components/order-cancellation"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { usePathname } from "next/navigation"
-import { isSettled, serializeRefresh, startPolling } from "./polling"
+import { POLL_MS, isSettled, serializeRefresh, startPolling } from "./polling"
+import {
+  INITIAL_TRACKING_CONNECTION,
+  RECONCILE_MS,
+  nextTrackingConnection,
+  type TrackingConnectionEvent,
+  type TrackingConnectionStatus,
+} from "./connection"
 import { locationAge, shownLocationState } from "./location-age"
 import DeliveryMap from "@modules/order/components/delivery-map"
 import { deliveryMapView } from "@modules/order/components/delivery-map/map-view"
@@ -39,11 +46,14 @@ const later = (
 
 /**
  * The Customer's Order timeline of food progress (#147) and the outcome
- * panels that share its progress read. It renders only recorded facts,
- * checks them every ten seconds while the page is visible, again on
- * returning to it, and adopts the server's re-read after an action such as
- * cancelling. A failed refresh keeps the last progress and says how old it
- * is; a refused one (signed out, no longer the Customer's) stops refreshing.
+ * panels that share its progress read. It renders only recorded facts and
+ * adopts the server's re-read after an action such as cancelling. The
+ * same-origin tracking feed (#215) only hints that something changed: each
+ * hint, the feed's readiness, a return to the page and Refresh reread the
+ * authorized tracking read. When the feed fails, the page checks every ten
+ * seconds while visible and says so. A failed refresh keeps the last
+ * progress and says how old it is; a refused one (signed out, no longer the
+ * Customer's, or the feed ended the session) clears it and stops refreshing.
  */
 export default function OrderProgressPanel({
   orderId,
@@ -65,6 +75,15 @@ export default function OrderProgressPanel({
   const [isLive, setIsLive] = useState(false)
   const [adoptedRead, setAdoptedRead] = useState(initial)
   const generation = useRef(0)
+  /** Numbers each read, so only a read after the feed's `ready` reconciles it. */
+  const reads = useRef(0)
+  const connectionRef = useRef(INITIAL_TRACKING_CONNECTION)
+  const [connection, setConnection] = useState<TrackingConnectionStatus>(
+    INITIAL_TRACKING_CONNECTION.status,
+  )
+  /** Bumped to open the feed again after it failed. */
+  const [streamAttempt, setStreamAttempt] = useState(0)
+  const dispatchRef = useRef<(event: TrackingConnectionEvent) => void>(() => {})
   const serializedRefresh = useRef<ReturnType<typeof serializeRefresh> | null>(
     null,
   )
@@ -91,6 +110,7 @@ export default function OrderProgressPanel({
   )
   const read = useCallback(async () => {
     const readGeneration = generation.current
+    const readNumber = ++reads.current
     const result = await readOrderProgress(orderId).catch(
       () => ({ state: "failed" }) as const,
     )
@@ -100,11 +120,15 @@ export default function OrderProgressPanel({
       setIsLive(true)
       setFailures(0)
       setIsRefused(false)
+      dispatchRef.current({ type: "read_succeeded", read: readNumber })
     } else if (result.state === "not_found") {
       setConfirmed(null)
       setIsRefused(true)
       return false
-    } else setFailures((count) => count + 1)
+    } else {
+      setFailures((count) => count + 1)
+      dispatchRef.current({ type: "read_failed", read: readNumber })
+    }
     return true
   }, [orderId])
   useEffect(() => {
@@ -122,25 +146,122 @@ export default function OrderProgressPanel({
     }
   }, [])
 
-  const isFinal = confirmed ? isSettled(confirmed.progress) : false
+  // A reread asked for by the feed always starts after the event, so a read
+  // already in flight never stands in for it.
+  const reread = useCallback(() => {
+    void serializedRefresh.current?.(false)
+  }, [])
   useEffect(() => {
-    if (isFinal || isRefused) return
+    dispatchRef.current = (event) => {
+      const next = nextTrackingConnection(connectionRef.current, event)
+      connectionRef.current = next.state
+      setConnection(next.state.status)
+      if (next.shouldReread) reread()
+    }
+  }, [reread])
+
+  const isFinal = confirmed ? isSettled(confirmed.progress) : false
+  const isTracking = !isFinal && !isRefused
+
+  // The feed: open while tracking and the page is visible. A hidden page
+  // closes it; returning opens it again, and its `ready` rereads.
+  useEffect(() => {
+    if (!isTracking) return
+    let source: EventSource | null = null
+    const dispatch = (event: TrackingConnectionEvent) =>
+      dispatchRef.current(event)
+    const close = () => {
+      source?.close()
+      source = null
+    }
+    const open = () => {
+      close()
+      const opened = new EventSource(
+        `/api/orders/${encodeURIComponent(orderId)}/tracking/stream`,
+      )
+      source = opened
+      /** Ignores events of a feed this page has already closed. */
+      const whileCurrent = (listener: () => void) => () => {
+        if (source === opened) listener()
+      }
+      opened.addEventListener(
+        "ready",
+        whileCurrent(() =>
+          dispatch({ type: "stream_ready", nextRead: reads.current + 1 }),
+        ),
+      )
+      opened.addEventListener(
+        "heartbeat",
+        whileCurrent(() => dispatch({ type: "heartbeat" })),
+      )
+      opened.addEventListener(
+        "tracking",
+        whileCurrent(() => dispatch({ type: "tracking_hinted" })),
+      )
+      // Signed out, expired or no longer the Customer's: stop and clear.
+      opened.addEventListener(
+        "ended",
+        whileCurrent(() => {
+          close()
+          generation.current += 1
+          setConfirmed(null)
+          setIsRefused(true)
+        }),
+      )
+      // The browser would retry by itself; the page checks instead.
+      opened.onerror = whileCurrent(() => {
+        close()
+        dispatch({ type: "stream_failed" })
+      })
+    }
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") close()
+      else if (!source && connectionRef.current.status !== "checking") open()
+    }
+    if (document.visibilityState === "visible") open()
+    document.addEventListener("visibilitychange", onVisibility)
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility)
+      close()
+    }
+  }, [orderId, isTracking, streamAttempt])
+
+  // Without the feed, check every ten seconds while the page is visible.
+  useEffect(() => {
+    if (!isTracking || connection !== "checking") return
     return startPolling(
       () => document.visibilityState === "visible",
       () => void refresh(true),
     )
-  }, [isFinal, isRefused, refresh])
+  }, [isTracking, connection, refresh])
+
+  // A live page still rereads now and then, in case a hint was missed.
+  useEffect(() => {
+    if (!isTracking || connection !== "live") return
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible")
+        dispatchRef.current({ type: "reconcile_due" })
+    }, RECONCILE_MS)
+    return () => window.clearInterval(timer)
+  }, [isTracking, connection])
+
+  /** Try the feed again, if it is the part that is down. */
+  const retryStream = useCallback(() => {
+    if (connectionRef.current.status === "checking")
+      setStreamAttempt((attempt) => attempt + 1)
+  }, [])
 
   useEffect(() => {
     const onReturn = () => {
       if (document.visibilityState !== "visible" || isRefused) return
       void refresh(false)
+      retryStream()
     }
     document.addEventListener("visibilitychange", onReturn)
     return () => {
       document.removeEventListener("visibilitychange", onReturn)
     }
-  }, [refresh, isRefused])
+  }, [refresh, retryStream, isRefused])
 
   const freshness: Freshness = isRefused
     ? "refused"
@@ -155,7 +276,11 @@ export default function OrderProgressPanel({
         freshness={freshness}
         isBusy={isBusy}
         isLive={isLive}
-        onRefresh={() => void refresh(false)}
+        connection={isTracking ? connection : null}
+        onRefresh={() => {
+          void refresh(false)
+          retryStream()
+        }}
         locale={locale}
       />
       {confirmed && !isRefused && (
@@ -203,12 +328,15 @@ function Timeline({
   freshness,
   isBusy,
   isLive,
+  connection,
   onRefresh,
   locale,
 }: {
   confirmed: ConfirmedProgress | null
   freshness: Freshness
   isBusy: boolean
+  /** How the page keeps current, while it still tracks the Order. */
+  connection: TrackingConnectionStatus | null
   /** A read has arrived since the first paint; only its changes animate. */
   isLive: boolean
   onRefresh: () => void
@@ -327,13 +455,21 @@ function Timeline({
       </div>
 
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-mtogo-border-subtle pt-4">
-        <p className="text-sm tabular-nums text-mtogo-text-secondary">
-          {isBusy
-            ? text.progress_updating
-            : confirmed &&
-              freshness !== "stale" &&
-              formatText(text.progress_updated, { time: asOf })}
-        </p>
+        <div className="min-w-0 space-y-1">
+          <p className="text-sm tabular-nums text-mtogo-text-secondary">
+            {isBusy
+              ? text.progress_updating
+              : confirmed &&
+                freshness !== "stale" &&
+                formatText(text.progress_updated, { time: asOf })}
+          </p>
+          {/* Always rendered, so a change of connection is announced. */}
+          <div role="status">
+            {connection && freshness !== "refused" && (
+              <ConnectionStatus status={connection} locale={locale} />
+            )}
+          </div>
+        </div>
         <button
           type="button"
           onClick={onRefresh}
@@ -349,6 +485,56 @@ function Timeline({
         </button>
       </div>
     </section>
+  )
+}
+
+const CONNECTION_TONE: Record<
+  TrackingConnectionStatus,
+  { dot: string; text: string }
+> = {
+  connecting: {
+    dot: "bg-mtogo-border-control",
+    text: "text-mtogo-text-secondary",
+  },
+  live: {
+    dot: "bg-mtogo-status-success-text",
+    text: "text-mtogo-status-success-text",
+  },
+  checking: {
+    dot: "bg-mtogo-status-warning-text",
+    text: "text-mtogo-status-warning-text",
+  },
+}
+
+/**
+ * How the page keeps current (#215): live updates, or checking every ten
+ * seconds. It is about the connection only, never the position's freshness.
+ */
+function ConnectionStatus({
+  status,
+  locale,
+}: {
+  status: TrackingConnectionStatus
+  locale: Locale
+}) {
+  const text = CUSTOMER_ORDER_DETAIL_TEXT[locale]
+  const tone = CONNECTION_TONE[status]
+  return (
+    <p
+      className={`flex max-w-prose items-start gap-x-2 text-sm leading-6 ${tone.text}`}
+      data-testid="order-progress-connection"
+      data-status={status}
+    >
+      <span
+        aria-hidden="true"
+        className={`mt-2 size-2 shrink-0 rounded-full ${tone.dot}`}
+      />
+      <span className="min-w-0 [overflow-wrap:anywhere]">
+        {formatText(text[`connection_${status}`], {
+          seconds: (POLL_MS / 1000).toString(),
+        })}
+      </span>
+    </p>
   )
 }
 

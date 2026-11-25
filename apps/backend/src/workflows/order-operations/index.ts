@@ -6,6 +6,7 @@ import {
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk"
 import { retrieveAuthorizedStaffStep } from "../restaurant-staff/steps/retrieve-authorized-staff"
+import { validateOrderOwnershipStep } from "../orders/validate-order-ownership"
 import {
   listRestaurantOrdersStep,
   retrieveRestaurantOrderStep,
@@ -281,6 +282,26 @@ export const retrieveOrderTrackingWorkflow = createWorkflow(
   "retrieve-order-tracking",
   function (input: { order_id: string }) {
     return new WorkflowResponse(readOrderTrackingStep(input))
+  },
+)
+
+/**
+ * One tick of the Customer tracking feed (#215): ownership is proven again,
+ * then the same tracking read the page uses gives the change token. Only the
+ * token and the read time leave the workflow, so the feed holds no Order
+ * details, and a failed read fails the tick.
+ */
+export const readCustomerTrackingFeedWorkflow = createWorkflow(
+  "read-customer-tracking-feed",
+  function (input: { order_id: string; customer_id: string }) {
+    validateOrderOwnershipStep(input)
+    const tracking = readOrderTrackingStep({ order_id: input.order_id })
+    return new WorkflowResponse(
+      transform({ tracking }, ({ tracking }) => ({
+        change_token: tracking.change_token,
+        server_time: tracking.server_time,
+      })),
+    )
   },
 )
 

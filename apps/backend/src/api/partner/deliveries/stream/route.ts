@@ -5,6 +5,7 @@ import {
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { createLogRecord, requestId } from "@dtc/logging"
 import { sessionExpiresAt } from "../../../session-expiry"
+import { EVENT_STREAM_HEADERS, endFeedOnShutdown } from "../../../event-stream"
 import { readDeliveryFeedWorkflow } from "../../../../workflows/delivery/feed"
 import type { DeliveryFeedState } from "../../../../workflows/delivery/delivery-feed"
 
@@ -19,24 +20,6 @@ const HEARTBEAT_MS = 15000
 
 /** Why the server ended the feed; the partner app signs the agent out for both. */
 type EndedCode = "delivery_agent_access_revoked" | "session_expired"
-
-/**
- * Medusa's graceful shutdown waits for open connections and a feed never
- * ends on its own, so open feeds end on the shutdown signal. Phones then
- * reconnect to the new process.
- */
-const openFeeds = new Set<() => void>()
-let isShutdownWatched = false
-function endFeedOnShutdown(end: () => void) {
-  if (!isShutdownWatched) {
-    isShutdownWatched = true
-    const endAll = () => openFeeds.forEach((endFeed) => endFeed())
-    process.once("SIGTERM", endAll)
-    process.once("SIGINT", endAll)
-  }
-  openFeeds.add(end)
-  return () => openFeeds.delete(end)
-}
 
 const isRevoked = (error: unknown) =>
   (error as { code?: unknown } | null)?.code === "delivery_agent_access_revoked"
@@ -67,13 +50,7 @@ export async function GET(
   await readFeed()
   const expiresAt = sessionExpiresAt(res)
 
-  res.writeHead(200, {
-    "Content-Type": "text/event-stream; charset=utf-8",
-    // no-transform keeps Caddy and Next.js from compressing (buffering) it.
-    "Cache-Control": "no-cache, no-transform",
-    Connection: "keep-alive",
-    "X-Accel-Buffering": "no",
-  })
+  res.writeHead(200, EVENT_STREAM_HEADERS)
   let isOpen = true
   let timer: NodeJS.Timeout | undefined
   let lastWrite = Date.now()
@@ -82,7 +59,7 @@ export async function GET(
     res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
     lastWrite = Date.now()
   }
-  let forgetFeed = () => false
+  let forgetFeed = () => {}
   const stop = () => {
     isOpen = false
     clearTimeout(timer)

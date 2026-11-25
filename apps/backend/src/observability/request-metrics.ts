@@ -55,6 +55,11 @@ const STREAM_ROUTES = [
     pattern: /^\/partner\/deliveries\/stream\/?$/i,
     route: "/partner/deliveries/stream",
   },
+  {
+    // The Customer tracking feed (#215); one label for every Order.
+    pattern: /^\/store\/orders\/[^/]+\/tracking\/stream\/?$/i,
+    route: "/store/orders/:id/tracking/stream",
+  },
 ]
 
 const pathOf = (url: string) => url.split("?")[0]

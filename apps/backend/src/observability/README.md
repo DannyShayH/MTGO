@@ -46,7 +46,8 @@ after a finished response (`writableFinished`) is still that completion, so a
 finish/close race never adds a second outcome.
 
 Server-sent event (SSE) endpoints are listed in `STREAM_ROUTES` with a fixed
-route label, currently `/partner/orders/stream` and `/partner/deliveries/stream`. Add new SSE endpoints there.
+route label, currently `/partner/orders/stream`, `/partner/deliveries/stream` and
+`/store/orders/:id/tracking/stream` (one label for every Order). Add new SSE endpoints there.
 A stream is **established** once its 2xx headers have been sent. Established
 streams never enter `mtogo_http_requests_total`, the duration histogram or
 the interruption counter:

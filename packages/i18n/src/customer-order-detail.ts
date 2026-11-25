@@ -101,6 +101,10 @@ export const CUSTOMER_ORDER_DETAIL_TEXT = {
       "Siden opdaterer ikke længere af sig selv. Tryk på Opdater for at se den nyeste status.",
     progress_refused:
       "Vi kan ikke længere vise ordrens forløb her. Log ind igen for at se den nyeste status.",
+    connection_connecting: "Forbinder til løbende opdateringer …",
+    connection_live: "Opdateres løbende",
+    connection_checking:
+      "Løbende opdateringer er afbrudt. Vi tjekker status hvert {seconds}. sekund.",
   },
   en: {
     title: "Order details",
@@ -204,6 +208,10 @@ export const CUSTOMER_ORDER_DETAIL_TEXT = {
       "This page no longer updates by itself. Select Refresh to see the latest status.",
     progress_refused:
       "We can no longer show this Order's progress here. Sign in again to see the latest status.",
+    connection_connecting: "Connecting to live updates …",
+    connection_live: "Live updates on",
+    connection_checking:
+      "Live updates are interrupted. We check the status every {seconds} seconds.",
   },
 } as const
 
