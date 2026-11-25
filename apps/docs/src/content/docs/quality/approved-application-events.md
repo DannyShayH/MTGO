@@ -149,6 +149,11 @@ here. Then:
    docker compose -f compose.application.yaml exec backend npm exec --no -- medusa exec ./src/scripts/observe-local-request.js
    ```
 
+   The record appears in this terminal, **not** in Grafana: `exec` output is
+   not part of the container's Docker log, which is all Alloy reads (checked
+   on 25 November 2026). The request it makes is counted on the request
+   dashboard. Step 2 is the event check.
+
 2. **Partner and backend under one request ID.** Open
    `http://127.0.0.1:8100/sign-in` and sign in with a made-up email and
    password. Within about 15 seconds the view shows the partner's
@@ -314,8 +319,12 @@ drop, listing failure or retry stays visible for five minutes after it ended.
 
 ### Reading a past range
 
-The state at the top is about now. For an empty list from an earlier range, read
-the three panels below the list, over the same range:
+The state at the top is about now. A line above it states the correlation
+limits, and the full explanation of an empty list is in the collapsed **How to
+read an empty list** row at the bottom (#246). Times are in the viewer's
+browser time zone, like the request dashboard. For an empty list from an
+earlier range, read the three panels in the **Collection health over time**
+row below the list, over the same range:
 
 | Panel                                        | Must show, for the whole range                                                                                    |
 | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
@@ -413,12 +422,18 @@ Each application answers as before, and the dashboard names the stopped componen
 (except Grafana itself). Do this only locally, never on staging. Record the status
 and time of each here; the stand-ins of the outage check do not replace it.
 
-| Stopped    | Backend | Partner | Storefront |
-| ---------- | ------- | ------- | ---------- |
-| Loki       | Not run | Not run | Not run    |
-| Alloy      | Not run | Not run | Not run    |
-| Prometheus | Not run | Not run | Not run    |
-| Grafana    | Not run | Not run | Not run    |
+| Stopped    | Backend   | Partner    | Storefront |
+| ---------- | --------- | ---------- | ---------- |
+| Loki       | 200, 4 ms | 200, 24 ms | Not run    |
+| Alloy      | 200, 4 ms | 200, 17 ms | Not run    |
+| Prometheus | 200, 4 ms | 200, 15 ms | Not run    |
+| Grafana    | 200, 3 ms | 200, 15 ms | Not run    |
+
+Run on 25 November 2026 on the local demo (backend `/health`, partner
+`/sign-in`), 40 seconds after each stop. Prometheus reported
+`up{job="mtogo-loki"}` and `up{job="mtogo-alloy"}` as 0 while each was
+stopped. All components were then started again; both applications still
+answered 200. The storefront is not in the local demo.
 
 ## Fixture test of the pipeline
 

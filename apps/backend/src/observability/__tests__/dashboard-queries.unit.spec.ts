@@ -7,16 +7,37 @@ const read = (path: string) => readFileSync(join(monitoring, path), "utf8")
 type Panel = {
   title: string
   type: string
+  collapsed?: boolean
+  panels?: Panel[]
+  gridPos: { h: number; w: number; x: number; y: number }
+  description?: string
+  options?: { content?: string }
   targets?: { expr: string }[]
-  fieldConfig?: { defaults: { unit?: string } }
+  fieldConfig?: {
+    defaults: {
+      unit?: string
+      min?: number
+      max?: number
+      color?: { mode: string }
+      thresholds?: { steps: { color: string; value: number | null }[] }
+    }
+  }
 }
 
 const dashboard = JSON.parse(read("grafana/dashboards/backend-requests.json"))
-const panels: Panel[] = dashboard.panels
+// A collapsed row holds its panels; an expanded row's panels follow it.
+const panels: Panel[] = (dashboard.panels as Panel[]).flatMap((panel) =>
+  panel.type === "row" ? (panel.panels ?? []) : [panel],
+)
 const queries = panels.flatMap((panel) =>
   (panel.targets ?? []).map(({ expr }) => ({ title: panel.title, expr })),
 )
 const promtoolTests = read("tests/dashboard-queries.test.yaml")
+// A Viewer control in a query; label_replace's "${1}" is PromQL, not Grafana.
+const usesControl = (expr: string) =>
+  /\$\{(low_traffic_threshold|high_traffic_warning|high_traffic_threshold)\b/.test(
+    expr,
+  )
 
 describe("provisioned backend dashboard queries", () => {
   it("refreshes every 30 seconds against a 15-second scrape", () => {
@@ -57,7 +78,7 @@ describe("provisioned backend dashboard queries", () => {
   // The promtool file carries the semantic oracle (zero denominators, DOWN,
   // absent targets, insufficient history, resets); it must test these exact
   // expressions, not a drifted copy.
-  it.each(queries.filter(({ expr }) => !expr.includes("${")))(
+  it.each(queries.filter(({ expr }) => !usesControl(expr)))(
     "$title is exercised verbatim by the promtool query tests",
     ({ expr }) => {
       expect(promtoolTests).toContain(promtoolCase(expr))
@@ -235,7 +256,7 @@ describe("provisioned backend dashboard queries", () => {
 
   it.each(
     queries
-      .filter(({ expr }) => expr.includes("${"))
+      .filter(({ expr }) => usesControl(expr))
       .flatMap(({ title, expr }) =>
         settings.map((setting) => ({
           title,
@@ -283,6 +304,7 @@ describe("provisioned backend dashboard queries", () => {
         metric: /process_resident_memory_bytes\{job="mtogo-backend"\}/,
         unit: "bytes",
         reason: "EP: memory pressure as a byte gauge",
+        currentValueType: "bargauge",
       },
       {
         title:
@@ -291,12 +313,18 @@ describe("provisioned backend dashboard queries", () => {
         unit: "s",
         reason: "EP: delayed request processing as a seconds gauge",
       },
-    ])(
-      "$reason: shows $title in its unit, as a stat and over time",
-      ({ title, metric, unit }) => {
+    ] as {
+      title: RegExp
+      metric: RegExp
+      unit: string
+      reason: string
+      currentValueType?: string
+    }[])(
+      "$reason: shows $title in its unit, now and over time",
+      ({ title, metric, unit, currentValueType = "stat" }) => {
         const shown = processPanels.filter((panel) => title.test(panel.title))
         expect(shown.map(({ type }) => type).sort()).toEqual([
-          "stat",
+          currentValueType,
           "timeseries",
         ])
         for (const panel of shown) {
@@ -641,6 +669,196 @@ describe("provisioned backend dashboard queries", () => {
       expect(read("prometheus.yaml")).toContain(
         "targets: [storefront-metrics:9465]",
       )
+    })
+  })
+
+  describe("readable at a glance (#246)", () => {
+    const NEUTRAL = "#B8BEC9"
+    // The staging backend container cap (deploy/staging/compose.yaml).
+    const BACKEND_CAP_BYTES = 768 * 1024 * 1024
+    // Any share above 0 %: thresholds compare with >=, so 0 must stay green.
+    const ABOVE_ZERO = 0.000001
+    const topLevel = dashboard.panels as Panel[]
+    const rows = topLevel.filter(({ type }) => type === "row")
+    const panelOf = (title: string, type: string) =>
+      panels.find((panel) => panel.title === title && panel.type === type)!
+
+    // No value (Unavailable) takes the base step, so the base must be
+    // neutral; every real value is at least 0 and starts green.
+    it.each([
+      {
+        title: "Ordinary API p95 response time — rolling 5 minutes",
+        type: "stat",
+        steps: [
+          ["orange", 2],
+          ["red", 5],
+        ],
+        reason:
+          "BVA at the ADR-0014 boundaries: browsing 2 s, Order submission 5 s",
+      },
+      {
+        title: "5xx proportion — rolling 5 minutes",
+        type: "stat",
+        steps: [["orange", ABOVE_ZERO]],
+        reason: "BVA: 0 % is green, anything above is amber",
+      },
+      {
+        title:
+          "HTTP-serving process event-loop delay — seconds, per scrape window",
+        type: "stat",
+        steps: [
+          ["orange", 0.1],
+          ["red", 1],
+        ],
+        reason: "BVA: amber from a noticeable 0.1 s, red from 1 s",
+      },
+      {
+        title: "HTTP-serving process memory — bytes",
+        type: "bargauge",
+        steps: [
+          ["orange", Math.round(BACKEND_CAP_BYTES * 0.8)],
+          ["red", Math.round(BACKEND_CAP_BYTES * 0.9)],
+        ],
+        reason: "BVA: amber from 80 %, red from 90 % of the container cap",
+      },
+    ])("colours $title by its targets ($reason)", ({ title, type, steps }) => {
+      const { color, thresholds } = panelOf(title, type).fieldConfig!.defaults
+      expect(color).toEqual({ mode: "thresholds" })
+      expect(thresholds!.steps).toEqual([
+        { color: NEUTRAL, value: null },
+        { color: "green", value: 0 },
+        ...steps.map(([color, value]) => ({ color, value })),
+      ])
+    })
+
+    it("draws the memory bar up to the staging backend's memory cap", () => {
+      const { min, max } = panelOf(
+        "HTTP-serving process memory — bytes",
+        "bargauge",
+      ).fieldConfig!.defaults
+      expect({ min, max }).toEqual({ min: 0, max: BACKEND_CAP_BYTES })
+      const staging = readFileSync(
+        join(monitoring, "../staging/compose.yaml"),
+        "utf8",
+      )
+      const backend = staging.slice(
+        staging.indexOf("\n  backend:"),
+        staging.indexOf("\n  worker:"),
+      )
+      expect(backend).toContain("memory: 768m")
+    })
+
+    it("groups the panels in rows, most used first, rarely used collapsed", () => {
+      expect(rows.map(({ title, collapsed }) => [title, collapsed])).toEqual([
+        ["Traffic and thresholds", false],
+        ["Latency and errors", false],
+        ["HTTP-serving process", false],
+        ["Streams and interrupted requests", true],
+        ["Customer menu read and restaurant menu page (#202)", true],
+        ["Latency by route over time", true],
+        ["How to read this dashboard", true],
+      ])
+    })
+
+    // About 22 grid rows fit under Grafana's header and controls at 1080p.
+    it("fits Traffic and Latency on one 1080p screen", () => {
+      const process = rows.find(
+        ({ title }) => title === "HTTP-serving process",
+      )!
+      const above = topLevel.filter(
+        ({ gridPos }) => gridPos.y < process.gridPos.y,
+      )
+      expect(
+        Math.max(...above.map(({ gridPos }) => gridPos.y + gridPos.h)),
+      ).toBeLessThanOrEqual(22)
+    })
+
+    it("keeps the scope and limits visible above the rows", () => {
+      const visible = topLevel.filter(({ type }) => type === "text")
+      expect(visible).toHaveLength(1)
+      expect(visible[0].gridPos.y).toBe(0)
+      for (const claim of [
+        "`backend-metrics:9464`",
+        "not Order processing time",
+        "*Unavailable* means no current evidence",
+        "**How to read this dashboard**",
+      ])
+        expect(visible[0].options!.content).toContain(claim)
+    })
+
+    // Every restart resets the process counters; the marker explains the drop.
+    it("marks backend restarts on every chart, with a promtool-tested query", () => {
+      const restarts = dashboard.annotations.list.find(
+        ({ name }: { name: string }) => name === "Backend restarts",
+      )
+      expect(restarts).toMatchObject({
+        enable: true,
+        datasource: { type: "prometheus", uid: "mtogo-prometheus" },
+        expr: 'process_start_time_seconds{job="mtogo-backend"} * 1000',
+        useValueForTime: true,
+      })
+      expect(promtoolTests).toContain(promtoolCase(restarts.expr))
+    })
+
+    it("stacks completed responses by status class in fixed colours", () => {
+      const chart = panelOf(
+        "Completed responses by status class — rolling 5 minutes",
+        "timeseries",
+      ) as Panel & {
+        fieldConfig: {
+          defaults: { custom: { stacking: { mode: string } } }
+          overrides: {
+            matcher: { options: string }
+            properties: { value: { fixedColor: string } }[]
+          }[]
+        }
+      }
+      expect(chart.targets![0].expr).toContain(
+        'label_replace(increase(mtogo_http_requests_total{job="mtogo-backend"}[5m])',
+      )
+      expect(chart.fieldConfig.defaults.custom.stacking.mode).toBe("normal")
+      expect(
+        chart.fieldConfig.overrides.map(({ matcher, properties }) => [
+          matcher.options,
+          properties[0].value.fixedColor,
+        ]),
+      ).toEqual([
+        ["2xx", "green"],
+        ["3xx", "blue"],
+        ["4xx", "orange"],
+        ["5xx", "red"],
+      ])
+    })
+
+    it("lists the ten slowest route patterns now, from the per-route p95", () => {
+      const top = panelOf(
+        "Slowest route patterns now — p95, rolling 5 minutes",
+        "bargauge",
+      ) as Panel & { targets: { expr: string; instant: boolean }[] }
+      const history = panelOf(
+        "Ordinary API p95 by route pattern — rolling 5 minutes",
+        "timeseries",
+      )
+      expect(top.targets).toHaveLength(1)
+      expect(top.targets[0]).toMatchObject({
+        instant: true,
+        expr: `topk(10, ${history.targets![0].expr})`,
+      })
+      expect(top.fieldConfig!.defaults.thresholds!.steps).toEqual([
+        { color: NEUTRAL, value: null },
+        { color: "green", value: 0 },
+        { color: "orange", value: 2 },
+        { color: "red", value: 5 },
+      ])
+    })
+
+    it("links to the events dashboard over the same time range", () => {
+      expect(dashboard.links).toEqual([
+        expect.objectContaining({
+          url: "/d/mtogo-application-events",
+          keepTime: true,
+        }),
+      ])
     })
   })
 

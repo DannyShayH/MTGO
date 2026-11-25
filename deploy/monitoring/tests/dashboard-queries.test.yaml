@@ -70,15 +70,18 @@ tests:
       - expr: 'histogram_quantile(0.95, sum by (le, method, route) (rate(mtogo_http_request_duration_seconds_bucket{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))) and on(method, route) (sum by (method, route) (increase(mtogo_http_request_duration_seconds_count{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) > 0)'
         eval_time: 10m
         exp_samples: []
+      - expr: 'topk(10, histogram_quantile(0.95, sum by (le, method, route) (rate(mtogo_http_request_duration_seconds_bucket{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))) and on(method, route) (sum by (method, route) (increase(mtogo_http_request_duration_seconds_count{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) > 0))'
+        eval_time: 10m
+        exp_samples: []
       - expr: 'sum by (method, route, status) (mtogo_http_requests_total{job="mtogo-backend"} and on(job, instance) (up{job="mtogo-backend"} == 1))'
         eval_time: 10m
         exp_samples:
           - labels: '{method="GET", route="/store/products", status="200"}'
             value: 0
-      - expr: 'sum by (status) (rate(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+      - expr: 'sum by (class) (label_replace(increase(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1), "class", "${1}xx", "status", "([1-5])[0-9][0-9]"))'
         eval_time: 10m
         exp_samples:
-          - labels: '{status="200"}'
+          - labels: '{class="2xx"}'
             value: 0
   # only expected refusals: no 5xx series means 0 when traffic exists
   - interval: 15s
@@ -134,6 +137,11 @@ tests:
         exp_samples:
           - labels: '{method="GET", route="early_rejection"}'
             value: 1.5
+      - expr: 'topk(10, histogram_quantile(0.95, sum by (le, method, route) (rate(mtogo_http_request_duration_seconds_bucket{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))) and on(method, route) (sum by (method, route) (increase(mtogo_http_request_duration_seconds_count{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) > 0))'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{method="GET", route="early_rejection"}'
+            value: 1.5
   # server failures relative to all completed responses
   - interval: 15s
     input_series:
@@ -159,13 +167,13 @@ tests:
         exp_samples:
           - labels: "{}"
             value: 0.25
-      - expr: 'sum by (status) (rate(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))'
+      - expr: 'sum by (class) (label_replace(increase(mtogo_http_requests_total{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1), "class", "${1}xx", "status", "([1-5])[0-9][0-9]"))'
         eval_time: 10m
         exp_samples:
-          - labels: '{status="200"}'
-            value: 0.19999999999999998
-          - labels: '{status="500"}'
-            value: 0.06666666666666667
+          - labels: '{class="2xx"}'
+            value: 60
+          - labels: '{class="5xx"}'
+            value: 20
       - expr: 'histogram_quantile(0.95, sum by (le) (rate(mtogo_http_request_duration_seconds_bucket{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))) and on() (sum(increase(mtogo_http_request_duration_seconds_count{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) > 0)'
         eval_time: 10m
         exp_samples: []
@@ -1891,12 +1899,14 @@ tests:
         eval_time: 10m
         exp_samples:
           - labels: "{}"
-            value: 1.8
+            # 1.8 in binary floating point
+            value: 1.7999999999999996
       - expr: 'histogram_quantile(0.95, sum by (le, part) (rate(mtogo_menu_read_part_duration_seconds_bucket{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1))) and on(part) (sum by (part) (increase(mtogo_menu_read_part_duration_seconds_count{job="mtogo-backend"}[5m]) and on(job, instance) (up{job="mtogo-backend"} == 1)) > 0)'
         eval_time: 10m
         exp_samples:
           - labels: '{part="dish_prices"}'
-            value: 0.975
+            # 0.975 in binary floating point
+            value: 0.9749999999999999
       - expr: 'histogram_quantile(0.95, sum by (le, kind) (rate(mtogo_storefront_page_render_duration_seconds_bucket{job="mtogo-storefront",route="/[countryCode]/restaurants/[id]"}[5m]) and on(job, instance) (up{job="mtogo-storefront"} == 1))) and on(kind) (sum by (kind) (increase(mtogo_storefront_page_render_duration_seconds_count{job="mtogo-storefront",route="/[countryCode]/restaurants/[id]"}[5m]) and on(job, instance) (up{job="mtogo-storefront"} == 1)) > 0)'
         eval_time: 10m
         exp_samples:
@@ -2943,3 +2953,21 @@ tests:
         exp_samples:
           - labels: '{instance="alloy:12345", job="mtogo-alloy"}'
             value: 0
+  # restart markers (#246): Grafana places one marker at each process start time (milliseconds)
+  - interval: 15s
+    input_series:
+      - series: 'process_start_time_seconds{job="mtogo-backend",instance="backend-metrics:9464"}'
+        values: "1000x20 1300x20"
+      - series: 'process_start_time_seconds{job="mtogo-storefront",instance="storefront-metrics:9465"}'
+        values: "1000x40"
+    promql_expr_test:
+      - expr: 'process_start_time_seconds{job="mtogo-backend"} * 1000'
+        eval_time: 4m
+        exp_samples:
+          - labels: '{instance="backend-metrics:9464", job="mtogo-backend"}'
+            value: 1000000
+      - expr: 'process_start_time_seconds{job="mtogo-backend"} * 1000'
+        eval_time: 9m
+        exp_samples:
+          - labels: '{instance="backend-metrics:9464", job="mtogo-backend"}'
+            value: 1300000

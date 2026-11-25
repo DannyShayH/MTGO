@@ -6,14 +6,41 @@
   "version": 3,
   "editable": false,
   "refresh": "30s",
-  "timezone": "utc",
+  "timezone": "browser",
   "time": {
     "from": "now-1h",
     "to": "now"
   },
   "tags": ["mtogo", "logs"],
   "annotations": {
-    "list": []
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      },
+      {
+        "name": "Backend restarts",
+        "enable": true,
+        "iconColor": "purple",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mtogo-prometheus"
+        },
+        "expr": "process_start_time_seconds{job=\"mtogo-backend\"} * 1000",
+        "step": "15s",
+        "titleFormat": "Backend process restarted",
+        "textFormat": "A new HTTP-serving process started: usually a release or rollback, otherwise a crash. Process counters start again from 0.",
+        "useValueForTime": true
+      }
+    ]
   },
   "templating": {
     "list": [
@@ -69,19 +96,20 @@
   },
   "panels": [
     {
-      "id": 1,
+      "id": 13,
       "type": "text",
-      "title": "What this shows",
+      "title": "",
       "gridPos": {
-        "h": 12,
+        "h": 2,
         "w": 24,
         "x": 0,
         "y": 0
       },
       "options": {
         "mode": "markdown",
-        "content": "Only **recognized events from the backend, partner and storefront** reach this view, rebuilt from the logging allowlist. Raw framework, startup, Next.js server and provider lines stay in `docker compose logs`. Database, Redis, Caddy, the worker and browser output are never collected.\n\n**An empty list has three readings. Read the collection panels first:**\n\n- **No matching events** — Loki is *UP* now, and throughout the range *Collection state — over time* is *Collecting*, *Collector and history up* is UP without blanks, and no drop or read error is shown: no approved event matched. The state covers the three applications together, so for one application alone this is not proof. It does not mean nothing happened. Successful requests log nothing; refusals, failures and Order milestones do.\n- **Failed collection** — *Collection DOWN*, *DROPPING* or *Cannot list containers*: events may exist that are not here. *Retrying*: they may be late. *No line read*: the applications were quiet, or their containers are not read; make one request to find out. A past stretch of any of these proves nothing about the events in it.\n- **Unavailable history** — *History DOWN*, or the list itself shows an error: stored events cannot be read now. Nothing older than seven days is ever shown.\n\n*Unknown* or *Unavailable* on every collection panel means Prometheus has no evidence; that is neither healthy nor failed. Delivery is best effort: a zero in *Entries dropped* is not proof that nothing was lost (lines that rotate away in Docker, or a killed collector, are never counted).\n\n**Follow one request** by `request_id` across the apps that share it (partner calls, storefront pages). **Follow one Order** by its `order_id` in the event's details; milestones carry no request ID. There is no tracing, and a missing event is not proof the step did not happen. Never count Orders from these events.\n\n**Live tail:** set refresh to 5s (top right) or add `&refresh=5s` to the URL."
-      }
+        "content": "Only **approved events** from the backend, partner and storefront; successful requests log nothing. Follow one request by `request_id`: there is no tracing, and **a missing event is not proof** that a step did not happen. Never count Orders here. Before trusting an empty list, read the collection panels and **How to read an empty list** at the bottom."
+      },
+      "transparent": true
     },
     {
       "id": 4,
@@ -92,10 +120,10 @@
         "uid": "mtogo-prometheus"
       },
       "gridPos": {
-        "h": 4,
-        "w": 12,
+        "h": 3,
+        "w": 8,
         "x": 0,
-        "y": 12
+        "y": 2
       },
       "description": "Whether approved events reach Loki now. The most serious condition is shown, and a drop, listing failure or retry stays visible for five minutes after it ended. It covers the three applications together: one that is not read is hidden while another is, so Collecting says nothing about one application alone. Lines that rotated away in Docker before they were read are never counted.",
       "fieldConfig": {
@@ -180,10 +208,10 @@
         "uid": "mtogo-prometheus"
       },
       "gridPos": {
-        "h": 4,
-        "w": 12,
-        "x": 12,
-        "y": 12
+        "h": 3,
+        "w": 4,
+        "x": 8,
+        "y": 2
       },
       "description": "Whether Loki answers Prometheus now. DOWN: stored events cannot be searched, and the event list shows an error. UP does not prove that a past period was collected; see Collector and history up — over time.",
       "fieldConfig": {
@@ -244,10 +272,10 @@
         "uid": "mtogo-prometheus"
       },
       "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 0,
-        "y": 16
+        "h": 3,
+        "w": 3,
+        "x": 12,
+        "y": 2
       },
       "description": "Estimated entries Alloy gave up on: retries ran out, or Loki refused the batch. A refused batch counts whole, even if Loki stored a part of it, and a replay after a lost position causes refusals without a loss. Needs two scrapes.",
       "fieldConfig": {
@@ -294,10 +322,10 @@
         "uid": "mtogo-prometheus"
       },
       "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 6,
-        "y": 16
+        "h": 3,
+        "w": 3,
+        "x": 15,
+        "y": 2
       },
       "description": "Estimated batches sent again because Loki was unreachable, overloaded or rate limiting. Retries stop after about 7 to 15 minutes per batch, which is then dropped. Needs two scrapes.",
       "fieldConfig": {
@@ -344,10 +372,10 @@
         "uid": "mtogo-prometheus"
       },
       "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 12,
-        "y": 16
+        "h": 3,
+        "w": 3,
+        "x": 18,
+        "y": 2
       },
       "description": "Estimated lines Alloy read from the backend, partner and storefront containers, before the filter: most are framework output and are excluded by design. Zero: the applications wrote nothing, their containers were not found, or reading is paused by a full queue. Needs two scrapes.",
       "fieldConfig": {
@@ -394,10 +422,10 @@
         "uid": "mtogo-prometheus"
       },
       "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 18,
-        "y": 16
+        "h": 3,
+        "w": 3,
+        "x": 21,
+        "y": 2
       },
       "description": "Estimated approved events Loki accepted. Zero with lines read and no drop or retry: no approved event happened. Needs two scrapes.",
       "fieldConfig": {
@@ -444,10 +472,10 @@
         "uid": "mtogo-loki"
       },
       "gridPos": {
-        "h": 20,
+        "h": 16,
         "w": 24,
         "x": 0,
-        "y": 20
+        "y": 5
       },
       "options": {
         "showTime": true,
@@ -465,9 +493,10 @@
             "uid": "mtogo-loki"
           },
           "queryType": "range",
-          "expr": "{service=~\"${service:regex}\", level=~\"${level:regex}\"} | json | event=~\"${event:regex}.*\" | request_id=~\"${request_id:regex}.*\""
+          "expr": "{service=~\"${service:regex}\", level=~\"${level:regex}\"} | json | event=~\"${event:regex}.*\" | request_id=~\"${request_id:regex}.*\" | line_format \"{{.service}} · {{.event}} · {{.msg}}{{ if .request_id }} · request {{.request_id}}{{ end }}{{ if .order_id }} · Order {{.order_id}}{{ end }}\""
         }
-      ]
+      ],
+      "description": "Each line reads application · event · message, with the request or Order ID when the event carries one. Expand a line for every approved field. Purple markers are backend restarts (releases or crashes)."
     },
     {
       "id": 3,
@@ -478,10 +507,10 @@
         "uid": "mtogo-loki"
       },
       "gridPos": {
-        "h": 8,
+        "h": 6,
         "w": 24,
         "x": 0,
-        "y": 40
+        "y": 21
       },
       "fieldConfig": {
         "defaults": {
@@ -520,6 +549,19 @@
       "description": "Each bar counts every approved event in its own time bucket ($__auto: the bar width Grafana picks for the displayed range), so long ranges are not sampled."
     },
     {
+      "id": 14,
+      "type": "row",
+      "title": "Collection health over time",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 27
+      },
+      "panels": []
+    },
+    {
       "id": 12,
       "type": "state-timeline",
       "title": "Collection state — over time",
@@ -528,10 +570,10 @@
         "uid": "mtogo-prometheus"
       },
       "gridPos": {
-        "h": 5,
+        "h": 4,
         "w": 24,
         "x": 0,
-        "y": 48
+        "y": 28
       },
       "description": "The collection state at each point, with the same words as above. Only a stretch of Collecting lets an empty list mean no matching events; a No line read stretch is undecided, and a blank is missing evidence. It covers the three applications together. A drop, listing failure or retry is shown for five minutes after it ended. An outage shorter than the distance between two points can be missed here; see Collector and history up — over time.",
       "fieldConfig": {
@@ -625,10 +667,10 @@
         "uid": "mtogo-prometheus"
       },
       "gridPos": {
-        "h": 7,
+        "h": 5,
         "w": 24,
         "x": 0,
-        "y": 53
+        "y": 32
       },
       "description": "Each point is UP only when every scrape of the previous five minutes succeeded, and DOWN when one failed, so a short outage is shown as up to five minutes longer. A blank is missing evidence: Prometheus was away or had just started, and fewer than 19 of the 20 scrapes exist. With a range over a day, zoom in: short outages can fall between two points. Events from a DOWN period may arrive later, or never.",
       "fieldConfig": {
@@ -698,10 +740,10 @@
         "uid": "mtogo-prometheus"
       },
       "gridPos": {
-        "h": 8,
+        "h": 7,
         "w": 24,
         "x": 0,
-        "y": 60
+        "y": 37
       },
       "description": "Dropped: entries Alloy gave up on (ingester_error: no retries left, or refused). Refused: samples Loki rejected, by its own reason; too_far_behind and greater_than_max_sample_age are typical of a replay. The first refusal of a kind after a Loki start has no earlier sample and is not shown as refused. Read errors: lines Alloy could not read from Docker, so they are lost; an over-long line is normally skipped without being counted. Gaps are missing evidence.",
       "fieldConfig": {
@@ -773,9 +815,52 @@
           "instant": false
         }
       ]
+    },
+    {
+      "id": 15,
+      "type": "row",
+      "title": "How to read an empty list",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 44
+      },
+      "panels": [
+        {
+          "id": 1,
+          "type": "text",
+          "title": "What this shows",
+          "gridPos": {
+            "h": 12,
+            "w": 24,
+            "x": 0,
+            "y": 45
+          },
+          "options": {
+            "mode": "markdown",
+            "content": "Only **recognized events from the backend, partner and storefront** reach this view, rebuilt from the logging allowlist. Raw framework, startup, Next.js server and provider lines stay in `docker compose logs`. Database, Redis, Caddy, the worker and browser output are never collected.\n\n**An empty list has three readings. Read the collection panels first:**\n\n- **No matching events** — Loki is *UP* now, and throughout the range *Collection state — over time* is *Collecting*, *Collector and history up* is UP without blanks, and no drop or read error is shown: no approved event matched. The state covers the three applications together, so for one application alone this is not proof. It does not mean nothing happened. Successful requests log nothing; refusals, failures and Order milestones do.\n- **Failed collection** — *Collection DOWN*, *DROPPING* or *Cannot list containers*: events may exist that are not here. *Retrying*: they may be late. *No line read*: the applications were quiet, or their containers are not read; make one request to find out. A past stretch of any of these proves nothing about the events in it.\n- **Unavailable history** — *History DOWN*, or the list itself shows an error: stored events cannot be read now. Nothing older than seven days is ever shown.\n\n*Unknown* or *Unavailable* on every collection panel means Prometheus has no evidence; that is neither healthy nor failed. Delivery is best effort: a zero in *Entries dropped* is not proof that nothing was lost (lines that rotate away in Docker, or a killed collector, are never counted).\n\n**Follow one request** by `request_id` across the apps that share it (partner calls, storefront pages). **Follow one Order** by its `order_id` in the event's details; milestones carry no request ID. There is no tracing, and a missing event is not proof the step did not happen. Never count Orders from these events.\n\n**Live tail:** set refresh to 5s (top right) or add `&refresh=5s` to the URL."
+          }
+        }
+      ]
     }
   ],
   "timepicker": {
     "refresh_intervals": ["5s", "10s", "30s", "1m", "5m"]
-  }
+  },
+  "links": [
+    {
+      "title": "Backend API requests and process",
+      "type": "link",
+      "url": "/d/mtogo-backend-requests",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": false,
+      "targetBlank": false,
+      "asDropdown": false,
+      "tags": [],
+      "tooltip": "Request metrics over the same time range"
+    }
+  ]
 }

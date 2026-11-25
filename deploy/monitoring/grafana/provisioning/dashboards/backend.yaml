@@ -4,7 +4,9 @@ providers:
     orgId: 1
     folder: MTOGO
     type: file
-    disableDeletion: true
+    # A dashboard whose file leaves Git also leaves Grafana (#246). Viewers
+    # still cannot delete or change a provisioned dashboard.
+    disableDeletion: false
     allowUiUpdates: false
     options:
       path: /var/lib/grafana/dashboards

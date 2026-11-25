@@ -278,12 +278,13 @@ docker compose -f compose.application.yaml start postgres
 
 ## HTTP-serving process: CPU, memory and event-loop delay (#172)
 
-The bottom row covers the **one HTTP-serving backend Node process**: the
-same `backend-metrics:9464` target (job `mtogo-backend`) the request panels
-use. The private registry runs `@prometheus-io/client`'s standard
-`collectDefaultMetrics` collectors. On each scrape they read this process's
-own counters. The **HTTP-serving process scope** panel states the target,
-units and limits.
+The **HTTP-serving process** row covers the **one HTTP-serving backend Node
+process**: the same `backend-metrics:9464` target (job `mtogo-backend`) the
+request panels use. The private registry runs `@prometheus-io/client`'s
+standard `collectDefaultMetrics` collectors. On each scrape they read this
+process's own counters. The **HTTP-serving process scope** panel, in the
+collapsed **How to read this dashboard** row, states the target, units and
+limits.
 
 | Panel                      | Query                                                                  | Unit and meaning                                                                                                                                                                                                                  | Useful range                                                                                                                                                                                                                 |
 | -------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -327,8 +328,8 @@ for i in $(seq 1 500); do curl --silent --output /dev/null 'http://127.0.0.1:900
 ## Streams and interrupted requests (#173)
 
 Two kinds of traffic do not fit "one request, one completed response, one
-duration". The row under the p95 charts shows them, and the ordinary panels
-above never include them.
+duration". The collapsed **Streams and interrupted requests** row shows them,
+and the ordinary panels never include them.
 
 | Panel                                  | Query                                                 | Meaning                                                                                                                                                                    |
 | -------------------------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -465,6 +466,73 @@ larger bounds). Further cases cover counts just under 100, exactly 500, just
 over 500, exactly 750 and valid zero, and DOWN, absent and one-scrape targets.
 The unit test fails if any setting it lists is missing for either panel.
 
+## Reading the dashboard at a glance (#246)
+
+Signing in opens **MTOGO — backend API requests and process** as the home
+dashboard. One line at the top states the scope and limits: one HTTP-serving
+backend process, HTTP latency rather than Order processing time, and
+_Unavailable_ meaning no current evidence. The panels sit in rows:
+
+| Row                                         | Open by default | Shows                                                                                                                     |
+| ------------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Traffic and thresholds                      | Yes             | Scrape and data state, counts, rate, the low- and high-traffic indications, responses by status class and by final status |
+| Latency and errors                          | Yes             | 5xx proportion, p95 and its observation count, their charts, and the ten slowest route patterns now                       |
+| HTTP-serving process                        | Yes             | CPU, memory against the container cap, event-loop delay                                                                   |
+| Streams and interrupted requests            | No              | Server-Sent Event connections, their terminations, interrupted requests                                                   |
+| Customer menu read and restaurant menu page | No              | The #202 panels                                                                                                           |
+| Latency by route over time                  | No              | The p95 of every route pattern over the displayed range                                                                   |
+| How to read this dashboard                  | No              | The coverage, interpretation, threshold and process-scope texts                                                           |
+
+The first two rows fit on one 1080p screen. Headline values are coloured by
+the agreed targets; a value with no current evidence reads _Unavailable_ in
+neutral grey, never green:
+
+| Value                  | Green       | Amber        | Red          | Source of the target                         |
+| ---------------------- | ----------- | ------------ | ------------ | -------------------------------------------- |
+| Ordinary API p95       | below 2 s   | 2 s to 5 s   | 5 s and over | ADR-0014: browsing 2 s, Order submission 5 s |
+| 5xx proportion         | 0 %         | above 0 %    |              | Any server failure is worth a look           |
+| Event-loop delay (p99) | below 0.1 s | 0.1 s to 1 s | 1 s and over | Requests wait behind blocking work           |
+| Resident memory        | below 80 %  | 80 % to 90 % | 90 % of cap  | The 768 MiB staging backend memory cap       |
+
+The p95 and event-loop charts draw the same targets as dashed lines. The
+memory bar ends at 768 MiB, the staging cap; the local demo has no cap. CPU has
+no colour: cores used has no meaningful maximum on a shared Droplet. The
+counts, rates and streams stay neutral because they have no target.
+
+Stats show the current instant value only. They have no sparkline: a stat
+drawn from a range query would keep its last value after the target goes
+down, and would no longer read _Unavailable_. The charts next to them show the
+history.
+
+The top-right link **Approved application events** opens the events dashboard
+over the same time range, and that dashboard links back. Both use the
+viewer's browser time zone.
+
+Four views were added on top of the layout, each with promtool cases:
+
+- **Restart markers.** Both dashboards draw a purple dashed line at every
+  backend process start (`process_start_time_seconds`, placed at its value).
+  A start is usually a release or rollback, otherwise a crash. It explains
+  why **Completed responses by final status — since process start** drops to
+  0, and why p95 or event-loop delay can jump during a deploy. Toggle it with
+  **Backend restarts** at the top.
+- **Completed responses by status class.** The estimated responses in the five
+  minutes before each point, stacked as 2xx (green), 3xx (blue), 4xx (amber)
+  and 5xx (red). It replaces the per-status rate chart; exact statuses by
+  route stay in the chart beside it. 4xx includes expected refusals.
+- **Slowest route patterns now.** The ten route patterns with the highest p95
+  in the last five minutes, coloured like the p95 stat. The same per-route
+  query over time is in the collapsed **Latency by route over time** row.
+- **Readable event lines.** Each line reads _application · event · message_,
+  with the request or Order ID when the event carries one. The filters still
+  run on the parsed record; expand a line for every approved field.
+
+A provisioned dashboard whose file leaves `grafana/dashboards/` now also
+leaves Grafana when the provisioning reloads (`disableDeletion: false`). On
+staging, the next `monitoring update` removes the old **MTOGO — approved
+backend events** dashboard, which stayed behind after #177 replaced its file. Viewers still cannot delete
+or save a provisioned dashboard.
+
 ## Operation, failure and cleanup
 
 Stop either monitoring service locally and run the real read again. The API
@@ -531,6 +599,8 @@ before=$(docker compose ps -q | sort)
 docker compose exec alloy cat /var/lib/alloy/data/loki.source.docker.application/positions.yml > /tmp/positions-before.yml
 # A new release: the application is recreated and its orphans removed.
 docker compose -f compose.application.yaml up -d --wait --force-recreate --remove-orphans backend partner
+# "Healthy" can come a few seconds before the read answers; on ECONNREFUSED, run it again.
+sleep 10
 docker compose -f compose.application.yaml exec backend npm exec --no -- medusa exec ./src/scripts/observe-local-request.js
 sleep 35
 # Rollback to an uninstrumented backend, off the scrape network.
@@ -580,7 +650,7 @@ raw count starts again from zero, as after any backend restart.
 | Grafana login fails after `.env` changes           | Stored credentials survive recreation. Restore the original local file or deliberately reset disposable volumes.                                                                                                                                                                                       |
 | p95 or 5xx proportion Unavailable while UP         | Expected with no completed responses or no duration observations in five minutes. Check **Data state** and the observation count; send a real read.                                                                                                                                                    |
 | Data state shows Insufficient history              | Fewer than two successful scrapes in five minutes, for example right after Prometheus or the backend started. Wait 30 seconds.                                                                                                                                                                         |
-| p95 shows exactly 10 s                             | The 95th percentile is in the overflow bucket: at least 10 s. Investigate the slow route in **p95 by route pattern**.                                                                                                                                                                                  |
+| p95 shows exactly 10 s                             | The 95th percentile is in the overflow bucket: at least 10 s. Find the slow route in **Slowest route patterns now**, and its history in the **Latency by route over time** row.                                                                                                                        |
 | Process panels Unavailable while requests show     | The CPU rate needs two scrapes; wait 30 seconds. If memory is also Unavailable, the backend release predates #172 and exports no process collectors.                                                                                                                                                   |
 | CPU above 1 core or much lower than `top`          | It is this one process, in cores, averaged over five minutes. `top` shows instantaneous whole-host or per-thread figures; they are different measurements.                                                                                                                                             |
 | Event-loop delay jumps when you `curl` `/metrics`  | A manual scrape resets the delay window. Read the values in Grafana, or query Prometheus, instead of scraping the exporter by hand.                                                                                                                                                                    |
@@ -972,3 +1042,64 @@ were spread over eight scrapes so the rolling count included them (about 60):
 | Another window       | Plain URL: the defaults, Off and Off. The copied URL (low `100`, warning `on`, high `120`): the same values, **LOW traffic** and **Not high**. Saving the dashboard as the Viewer returned 403.       |
 | Backend stopped      | Low `1000`; warning `on` with high `0`; low `10` with high `500`; the defaults: **Unavailable — no valid count** on both panels. High `abc` with the warning on: the configuration error on both.     |
 | 1440 and 390 pixels  | Labels readable and no horizontal overflow. The help text fits its panel at 1440 pixels and scrolls inside it at 390 pixels, like the other text panels.                                              |
+
+### Readable at a glance (#246)
+
+- Sign in: the request dashboard opens as home. The scope line sits above the
+  rows; **Traffic and thresholds** and **Latency and errors** fit on one 1080p
+  screen without scrolling.
+- With p95 below 2 s it is green; at 2 s or more it is amber, red from 5 s. A
+  5xx share above 0 % is amber.
+- Stop the backend: every headline value reads **Unavailable** in neutral
+  grey, never green.
+- Expand **How to read this dashboard**: the coverage, interpretation,
+  threshold and process-scope texts are there.
+- Follow **Approved application events** at the top right: the same time range
+  opens, in the browser time zone.
+
+Acceptance run on 25 November 2026, on a throwaway stack with Grafana 13.3.1,
+Prometheus 3.16.0 and a synthetic exporter on `backend-metrics:9464` that
+switched between a healthy and a slow profile, viewed anonymously as a Viewer
+at 1920 by 950 pixels:
+
+| Checklist item     | Observed result                                                                                                                                                                                                           |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Home and layout    | `/api/dashboards/home` redirected to the request dashboard. Both open rows and their charts fit within 950 pixels; the **HTTP-serving process** row header followed.                                                      |
+| Healthy profile    | p95 **588 ms** and 5xx **0.0 %**, both green.                                                                                                                                                                             |
+| Slow profile       | p95 **4.791 s** amber with dashed 2 s and 5 s lines; 5xx **4.5 %** amber; event-loop **1.700 s** red; memory bar **700 MiB** red against the 768 MiB end.                                                                 |
+| Exporter stopped   | Scrape **DOWN — scrape failed** and data state **DOWN — no current evidence** in red; counts, rate, 5xx, p95, CPU, memory and event loop **Unavailable** in grey.                                                         |
+| Orphaned dashboard | A temporary dashboard file appeared in the MTOGO folder and was gone from search 25 seconds after its file was deleted.                                                                                                   |
+| Events dashboard   | Scope line, collection state and the five counts above the event list; browser time zone; link back to the request dashboard.                                                                                             |
+| Queries            | The relayout compared every panel's query before and after: identical. The four added views below are the only query changes.                                                                                             |
+| Restart markers    | After an exporter restart, both dashboards showed exactly two purple lines: the first start and the restart. A five-minute `changes()` window had drawn one line per 15 s step, so the marker uses the start time itself. |
+| Status classes     | The panel legend read 2xx, 4xx and 5xx in green, amber and red: Grafana leaves PromQL's `${1}` alone.                                                                                                                     |
+| Slowest routes     | Three route patterns at 4.80 s, amber, slowest first.                                                                                                                                                                     |
+| Event lines        | Synthetic events read `backend · order.placed · Order placed · Order …` and `… · request req_…`; **Request ID starts with** `req_01PREVIEW` left only the matching line.                                                  |
+
+`promtool test rules` passes, and the `dashboard-queries` and
+`log-pipeline-health` unit specs pass. Two #202 menu-read p95 cases had failed
+before #246 on binary floating point (`1.8` computed as `1.7999999999999996`,
+`0.975` as `0.9749999999999999`); they now expect the computed values.
+
+### Re-check of #177 to #180 on the real local stack (#246)
+
+On 25 November 2026, with the #246 dashboards, on a fresh local stack (this
+runbook's startup, real backend and partner images, Docker on the WSL host),
+signed in as `local-viewer` in a browser:
+
+| Check                     | Observed result                                                                                                                                                                           |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Home dashboard            | Signing in opened the request dashboard; memory bar green at about 270 MiB, event-loop delay green at 11 ms.                                                                              |
+| One request ID (#177)     | A made-up partner sign-in showed `partner · auth.sign_in.failed` and `backend · access.denied` with the same `request_id`, within 15 seconds.                                             |
+| Viewer boundary (#177)    | As the Viewer, the four raw-line queries returned HTTP 200 and 0 lines; the `request_id` query returned 2; saving the dashboard returned 403.                                             |
+| Release (#180)            | Monitoring containers unchanged. The demo read answered `ECONNREFUSED` once right after **Healthy** and succeeded 10 seconds later (now in the commands above).                           |
+| Rollback (#180)           | The backend left `mtogo-local-metrics`. Scrape and data state **DOWN** in red, every other value **Unavailable** in grey; earlier samples still drawn, then a gap.                        |
+| Recreate and roll forward | Positions moved forward for the replaced containers, none went back. The Viewer stayed signed in, old events were neither lost nor duplicated, a new sign-in appeared once. **UP** again. |
+| Restart markers (#246)    | Purple lines at the first start, the release and the roll forward; none for the uninstrumented rollback, which exports nothing.                                                           |
+| Monitoring outages (#179) | See the table in [approved application events](/MTGO/quality/approved-application-events/#the-real-applications-by-hand): both applications answered 200 with each component stopped.     |
+
+Two findings: the demo read's `monitoring.demo_read.succeeded` never reaches
+Grafana, because `exec` output is not in the container's Docker log (the
+runbook now says so). A burst of requests on routes never seen before counts
+from the second scrape on, as described under
+[interpret the view](/MTGO/quality/local-request-monitoring/#interpret-the-view).

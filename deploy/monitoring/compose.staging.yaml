@@ -75,6 +75,8 @@ services:
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
       GF_PLUGINS_PREINSTALL_DISABLED: "true"
       GF_NEWS_NEWS_FEED_ENABLED: "false"
+      # Everyone lands on the request dashboard after signing in (#246).
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/backend-requests.json
     ports:
       # Never 0.0.0.0: only Caddy (and an administrator's SSH tunnel) reach it.
       - "${STAGING_BIND_ADDRESS:-127.0.0.1}:${STAGING_GRAFANA_PORT:-3300}:3000"

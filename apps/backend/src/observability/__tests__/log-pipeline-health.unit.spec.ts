@@ -104,6 +104,8 @@ describe("collection diagnostics", () => {
   type Panel = {
     title: string
     type: string
+    panels?: Panel[]
+    gridPos: { y: number }
     datasource?: { type: string }
     description?: string
     options?: { content?: string }
@@ -115,7 +117,10 @@ describe("collection diagnostics", () => {
     }
     targets?: { expr: string }[]
   }
-  const panels: Panel[] = dashboard.panels
+  // A collapsed row holds its panels; an expanded row's panels follow it.
+  const panels: Panel[] = (dashboard.panels as Panel[]).flatMap((panel) =>
+    panel.type === "row" ? (panel.panels ?? []) : [panel],
+  )
   const health = panels.filter(
     ({ datasource }) => datasource?.type === "prometheus",
   )
@@ -191,6 +196,79 @@ describe("collection diagnostics", () => {
       ({ expr }) => expr.match(/\b(?:loki|prometheus)_\w+/g) ?? [],
     )
     expect(kept).toEqual(new Set(used))
+  })
+
+  describe("readable at a glance (#246)", () => {
+    const topLevel = dashboard.panels as Panel[]
+
+    it("shows times in the viewer's time zone, like the request dashboard", () => {
+      const requests = JSON.parse(
+        read("grafana/dashboards/backend-requests.json"),
+      )
+      expect(dashboard.timezone).toBe("browser")
+      expect(requests.timezone).toBe(dashboard.timezone)
+    })
+
+    it("keeps the correlation limits visible above the events", () => {
+      const visible = topLevel.filter(({ type }) => type === "text")
+      expect(visible).toHaveLength(1)
+      expect(visible[0].gridPos.y).toBe(0)
+      for (const claim of [
+        "`request_id`",
+        "no tracing",
+        "**a missing event is not proof**",
+        "**How to read an empty list**",
+      ])
+        expect(visible[0].options!.content).toContain(claim)
+    })
+
+    it("keeps the long explanation in a collapsed row", () => {
+      const rows = topLevel.filter(({ type }) => type === "row")
+      expect(
+        rows.map(({ title, panels: inside }) => [
+          title,
+          (inside ?? []).map(({ title: child }) => child),
+        ]),
+      ).toEqual([
+        ["Collection health over time", []],
+        ["How to read an empty list", ["What this shows"]],
+      ])
+    })
+
+    // The filters still run on the parsed record; only the shown line changes.
+    it("shows each event as application · event · message, keeping the filters", () => {
+      const { targets } = topLevel.find(({ type }) => type === "logs")!
+      const [expr] = targets!.map((target) => target.expr)
+      const [filters, format] = expr.split(" | line_format ")
+      expect(filters).toBe(
+        '{service=~"${service:regex}", level=~"${level:regex}"} | json | event=~"${event:regex}.*" | request_id=~"${request_id:regex}.*"',
+      )
+      expect(format).toMatch(
+        /^"\{\{\.service\}\} · \{\{\.event\}\} · \{\{\.msg\}\}/,
+      )
+      expect(format).toContain("{{ if .request_id }}")
+      expect(format).toContain("{{ if .order_id }}")
+    })
+
+    it("marks backend restarts like the request dashboard", () => {
+      const requests = JSON.parse(
+        read("grafana/dashboards/backend-requests.json"),
+      )
+      const restarts = (list: { name: string }[]) =>
+        list.find(({ name }) => name === "Backend restarts")
+      expect(restarts(dashboard.annotations.list)).toEqual(
+        restarts(requests.annotations.list),
+      )
+    })
+
+    it("links to the request dashboard over the same time range", () => {
+      expect(dashboard.links).toEqual([
+        expect.objectContaining({
+          url: "/d/mtogo-backend-requests",
+          keepTime: true,
+        }),
+      ])
+    })
   })
 
   it("explains failed collection, no matches and unavailable history", () => {

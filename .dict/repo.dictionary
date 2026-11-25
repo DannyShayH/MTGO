@@ -125,3 +125,5 @@ dagt
 ingesters
 labelkeep
 boltdb
+rgba
+topk

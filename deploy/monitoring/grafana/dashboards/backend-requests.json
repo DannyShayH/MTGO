@@ -13,7 +13,34 @@
   },
   "tags": ["mtogo", "ordinary-api"],
   "annotations": {
-    "list": []
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      },
+      {
+        "name": "Backend restarts",
+        "enable": true,
+        "iconColor": "purple",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mtogo-prometheus"
+        },
+        "expr": "process_start_time_seconds{job=\"mtogo-backend\"} * 1000",
+        "step": "15s",
+        "titleFormat": "Backend process restarted",
+        "textFormat": "A new HTTP-serving process started: usually a release or rollback, otherwise a crash. Process counters start again from 0.",
+        "useValueForTime": true
+      }
+    ]
   },
   "templating": {
     "list": [
@@ -86,33 +113,298 @@
   },
   "panels": [
     {
-      "id": 1,
-      "title": "Request coverage",
+      "id": 39,
       "type": "text",
+      "title": "",
       "gridPos": {
+        "h": 2,
+        "w": 24,
         "x": 0,
-        "y": 0,
-        "w": 12,
-        "h": 8
+        "y": 0
       },
       "options": {
         "mode": "markdown",
-        "content": "**One HTTP-serving backend process**, target `backend-metrics:9464`: the local demo, or the staging `backend` container with browser and server-side calls from the storefront and partner app (a split staging worker serves no HTTP). Every completed ordinary API response, by matched route pattern. Method-less middleware finishing before any route matches gives fixed categories: refusals (publishable key, namespace or method-less authentication, malformed body) as `early_rejection`, 404s as `unmatched`, successes such as CORS preflights as `unrouted`; unknown methods as `OTHER`. A wildcard middleware refusal shows its wildcard. IDs/query strings never become labels. Health, `/app` Admin assets, `/static`, scrapes and established SSE streams are excluded, and so are interrupted requests; both have their own panels below."
+        "content": "**One HTTP-serving backend process** (`backend-metrics:9464`), completed ordinary API responses only: server-side HTTP latency, **not Order processing time**, not users or Orders (Feature #54). *Unavailable* means no current evidence, never zero. Coverage and limits: **How to read this dashboard** at the bottom."
+      },
+      "transparent": true
+    },
+    {
+      "id": 40,
+      "type": "row",
+      "title": "Traffic and thresholds",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 2
+      },
+      "panels": []
+    },
+    {
+      "id": 2,
+      "title": "Exporter scrape availability (not API readiness)",
+      "type": "stat",
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 0,
+        "y": 3
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "1 = scrape succeeded; 0 = scrape failed; no data = no target observations. Does not prove database or API readiness.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B8BEC9"
+          },
+          "noValue": "Unavailable",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "DOWN — scrape failed",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "UP — scrape succeeded",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "up{job=\"mtogo-backend\"}",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
       }
     },
     {
-      "id": 7,
-      "title": "Interpret the observations",
-      "type": "text",
+      "id": 8,
+      "title": "Data state — rolling 5 minutes",
+      "type": "stat",
       "gridPos": {
-        "x": 12,
-        "y": 0,
-        "w": 12,
-        "h": 8
+        "h": 3,
+        "w": 4,
+        "x": 3,
+        "y": 3
       },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Separates a quiet healthy service from collection failure. Insufficient history = fewer than two successful scrapes in five minutes.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B8BEC9"
+          },
+          "noValue": "Unavailable — no target observations",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "DOWN — no current evidence",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "Insufficient history",
+                  "color": "orange"
+                },
+                "2": {
+                  "text": "UP — quiet, 0 responses",
+                  "color": "#B8BEC9"
+                },
+                "3": {
+                  "text": "UP — traffic observed",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "((up{job=\"mtogo-backend\"} == 0) + 0) or on(job, instance) (((up{job=\"mtogo-backend\"} == 1) + 0) unless on(job, instance) (sum_over_time(up{job=\"mtogo-backend\"}[5m]) >= 2)) or on(job, instance) (((up{job=\"mtogo-backend\"} == 1) + 1) and on(job, instance) (sum by (job, instance) (increase(mtogo_http_requests_total{job=\"mtogo-backend\"}[5m])) == 0)) or on(job, instance) (((up{job=\"mtogo-backend\"} == 1) + 2) and on(job, instance) (sum by (job, instance) (increase(mtogo_http_requests_total{job=\"mtogo-backend\"}[5m])) > 0))",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
       "options": {
-        "mode": "markdown",
-        "content": "**HTTP responses, not Customers or Orders.** Latency is server-side seconds from request start to response finish for one HTTP request. It is **not Order processing time** (Feature #54) or any business measure. Every query uses a rolling five-minute window; counts are extrapolated estimates. **Unavailable** means no valid evidence: target DOWN or absent, fewer than two scrapes, zero completed responses (no 5xx proportion) or no duration observations (no p95). Check the observation count before trusting a p95; p95 is capped at the 10 s bucket. Rates handle counter resets. Established streams and interrupted requests are separate and never enter these counts, rates or p95."
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Estimated completed responses — rolling 5 minutes",
+      "type": "stat",
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 7,
+        "y": 3
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Extrapolated estimate, not an exact ledger. Per-series increase handles counter resets. Requires sufficient history and a currently successful scrape.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B8BEC9"
+          },
+          "noValue": "Unavailable",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(mtogo_http_requests_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Observed completed responses since process start",
+      "type": "stat",
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 10,
+        "y": 3
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Raw process counter. Useful for the first read: 0 → 1 after the next scrape. Resets on backend restart. Unavailable while target is DOWN.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B8BEC9"
+          },
+          "noValue": "Unavailable"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(mtogo_http_requests_total{job=\"mtogo-backend\"} and on(job, instance) (up{job=\"mtogo-backend\"} == 1))",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 9,
+      "title": "Completed response rate — rolling 5 minutes",
+      "type": "stat",
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 13,
+        "y": 3
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Completed ordinary API responses per second, per-series rate before aggregation.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B8BEC9"
+          },
+          "noValue": "Unavailable",
+          "unit": "reqps",
+          "decimals": 3
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(mtogo_http_requests_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
       }
     },
     {
@@ -120,10 +412,10 @@
       "title": "Low-traffic indication — rolling 5 minutes",
       "type": "stat",
       "gridPos": {
-        "x": 0,
-        "y": 8,
-        "w": 12,
-        "h": 5
+        "h": 3,
+        "w": 4,
+        "x": 16,
+        "y": 3
       },
       "datasource": {
         "type": "prometheus",
@@ -202,10 +494,10 @@
       "title": "High-traffic indication — rolling 5 minutes",
       "type": "stat",
       "gridPos": {
-        "x": 12,
-        "y": 8,
-        "w": 12,
-        "h": 5
+        "h": 3,
+        "w": 4,
+        "x": 20,
+        "y": 3
       },
       "datasource": {
         "type": "prometheus",
@@ -280,423 +572,121 @@
       }
     },
     {
-      "id": 31,
-      "title": "Tune the traffic indications",
-      "type": "text",
+      "id": 6,
+      "title": "Completed responses by status class — rolling 5 minutes",
+      "type": "timeseries",
       "gridPos": {
+        "h": 5,
+        "w": 12,
         "x": 0,
-        "y": 13,
-        "w": 24,
-        "h": 6
-      },
-      "options": {
-        "mode": "markdown",
-        "content": "Both compare the controls at the top with **Estimated completed responses** (rolling five minutes, same estimate and exclusions), whatever range is displayed. **Low traffic below:** a count strictly below it is **LOW**; equal is not; **0 turns it off.** **High-traffic warning:** **Disabled** by default; when **Enabled**, a count strictly above **High traffic above** is **HIGH**; equal is not, and an enabled `0` is a real threshold, unlike Disabled. Thresholds allow digits only, `0` to `999999999999999`, no sign, decimal, exponent, spaces or leading zeros. An invalid value, or Low traffic below above an enabled High traffic above, shows a **configuration error** on both panels, never a fallback; High traffic above is validated even while Disabled, but only compared with Low traffic below when Enabled. Equal bounds are valid. Your values change this view and its URL (share the URL to share the settings), not the Git defaults or anyone else's view. No setting turns DOWN or missing data into a count, and HIGH is not a request limit, capacity claim or notification."
-      }
-    },
-    {
-      "id": 2,
-      "title": "Exporter scrape availability (not API readiness)",
-      "type": "stat",
-      "gridPos": {
-        "x": 0,
-        "y": 19,
-        "w": 6,
-        "h": 5
+        "y": 6
       },
       "datasource": {
         "type": "prometheus",
         "uid": "mtogo-prometheus"
       },
-      "description": "1 = scrape succeeded; 0 = scrape failed; no data = no target observations. Does not prove database or API readiness.",
+      "description": "Estimated completed ordinary API responses in the five minutes before each point, by status class, stacked. Per-series increase before aggregation, so a restart never shows negative traffic. 4xx includes expected refusals (bad key, signed out, not found); 5xx is a server failure. Gaps mean no current evidence. Exact statuses by route: Completed responses by final status.",
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "fixed",
-            "fixedColor": "#B8BEC9"
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false,
+            "drawStyle": "line",
+            "fillOpacity": 35,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
           },
           "noValue": "Unavailable",
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "0": {
-                  "text": "DOWN — scrape failed",
-                  "color": "red"
-                },
-                "1": {
-                  "text": "UP — scrape succeeded",
-                  "color": "green"
+          "unit": "short",
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "2xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
                 }
               }
-            }
-          ]
-        },
-        "overrides": []
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "up{job=\"mtogo-backend\"}",
-          "legendFormat": "",
-          "range": false,
-          "instant": true
-        }
-      ],
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "textMode": "auto",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "id": 8,
-      "title": "Data state — rolling 5 minutes",
-      "type": "stat",
-      "gridPos": {
-        "x": 6,
-        "y": 19,
-        "w": 6,
-        "h": 5
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "mtogo-prometheus"
-      },
-      "description": "Separates a quiet healthy service from collection failure. Insufficient history = fewer than two successful scrapes in five minutes.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "#B8BEC9"
+            ]
           },
-          "noValue": "Unavailable — no target observations",
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "0": {
-                  "text": "DOWN — no current evidence",
-                  "color": "red"
-                },
-                "1": {
-                  "text": "Insufficient history",
-                  "color": "orange"
-                },
-                "2": {
-                  "text": "UP — quiet, 0 responses",
-                  "color": "#B8BEC9"
-                },
-                "3": {
-                  "text": "UP — traffic observed",
-                  "color": "green"
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "3xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
                 }
               }
-            }
-          ]
-        },
-        "overrides": []
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "((up{job=\"mtogo-backend\"} == 0) + 0) or on(job, instance) (((up{job=\"mtogo-backend\"} == 1) + 0) unless on(job, instance) (sum_over_time(up{job=\"mtogo-backend\"}[5m]) >= 2)) or on(job, instance) (((up{job=\"mtogo-backend\"} == 1) + 1) and on(job, instance) (sum by (job, instance) (increase(mtogo_http_requests_total{job=\"mtogo-backend\"}[5m])) == 0)) or on(job, instance) (((up{job=\"mtogo-backend\"} == 1) + 2) and on(job, instance) (sum by (job, instance) (increase(mtogo_http_requests_total{job=\"mtogo-backend\"}[5m])) > 0))",
-          "legendFormat": "",
-          "range": false,
-          "instant": true
-        }
-      ],
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "textMode": "auto",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "id": 3,
-      "title": "Estimated completed responses — rolling 5 minutes",
-      "type": "stat",
-      "gridPos": {
-        "x": 12,
-        "y": 19,
-        "w": 6,
-        "h": 5
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "mtogo-prometheus"
-      },
-      "description": "Extrapolated estimate, not an exact ledger. Per-series increase handles counter resets. Requires sufficient history and a currently successful scrape.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "#B8BEC9"
+            ]
           },
-          "noValue": "Unavailable",
-          "decimals": 1
-        },
-        "overrides": []
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum(increase(mtogo_http_requests_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))",
-          "legendFormat": "",
-          "range": false,
-          "instant": true
-        }
-      ],
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "textMode": "auto",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "id": 4,
-      "title": "Observed completed responses since process start",
-      "type": "stat",
-      "gridPos": {
-        "x": 18,
-        "y": 19,
-        "w": 6,
-        "h": 5
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "mtogo-prometheus"
-      },
-      "description": "Raw process counter. Useful for the first read: 0 → 1 after the next scrape. Resets on backend restart. Unavailable while target is DOWN.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "#B8BEC9"
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "4xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
           },
-          "noValue": "Unavailable"
-        },
-        "overrides": []
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "5xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
       },
       "targets": [
         {
-          "refId": "A",
-          "expr": "sum(mtogo_http_requests_total{job=\"mtogo-backend\"} and on(job, instance) (up{job=\"mtogo-backend\"} == 1))",
-          "legendFormat": "",
-          "range": false,
-          "instant": true
-        }
-      ],
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "textMode": "auto",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "id": 9,
-      "title": "Completed response rate — rolling 5 minutes",
-      "type": "stat",
-      "gridPos": {
-        "x": 0,
-        "y": 24,
-        "w": 6,
-        "h": 5
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "mtogo-prometheus"
-      },
-      "description": "Completed ordinary API responses per second, per-series rate before aggregation.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "#B8BEC9"
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mtogo-prometheus"
           },
-          "noValue": "Unavailable",
-          "unit": "reqps",
-          "decimals": 3
-        },
-        "overrides": []
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum(rate(mtogo_http_requests_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))",
-          "legendFormat": "",
-          "range": false,
-          "instant": true
+          "expr": "sum by (class) (label_replace(increase(mtogo_http_requests_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1), \"class\", \"${1}xx\", \"status\", \"([1-5])[0-9][0-9]\"))",
+          "legendFormat": "{{class}}",
+          "range": true,
+          "instant": false,
+          "refId": "A"
         }
       ],
       "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "textMode": "auto",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "id": 10,
-      "title": "5xx proportion — rolling 5 minutes",
-      "type": "stat",
-      "gridPos": {
-        "x": 6,
-        "y": 24,
-        "w": 6,
-        "h": 5
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "mtogo-prometheus"
-      },
-      "description": "Server-failure responses divided by all completed responses. A missing 5xx series counts as zero only when completed responses exist; zero traffic is unavailable, not 0%. A 5xx series appears on its first failure, so that first failure on a new route/status can still read 0% until the next one.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "#B8BEC9"
-          },
-          "noValue": "Unavailable",
-          "unit": "percentunit",
-          "decimals": 1
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
         },
-        "overrides": []
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "(sum(rate(mtogo_http_requests_total{job=\"mtogo-backend\",status=~\"5..\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) or (0 * sum(rate(mtogo_http_requests_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)))) / (sum(rate(mtogo_http_requests_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) > 0)",
-          "legendFormat": "",
-          "range": false,
-          "instant": true
-        }
-      ],
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "textMode": "auto",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "id": 11,
-      "title": "Ordinary API p95 response time — rolling 5 minutes",
-      "type": "stat",
-      "gridPos": {
-        "x": 12,
-        "y": 24,
-        "w": 6,
-        "h": 5
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "mtogo-prometheus"
-      },
-      "description": "Estimated from aggregated histogram buckets (0.005–10 s). Unavailable without duration observations. A value of 10 s means at or above the top bucket.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "#B8BEC9"
-          },
-          "noValue": "Unavailable",
-          "unit": "s",
-          "decimals": 3
-        },
-        "overrides": []
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(mtogo_http_request_duration_seconds_bucket{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))) and on() (sum(increase(mtogo_http_request_duration_seconds_count{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) > 0)",
-          "legendFormat": "",
-          "range": false,
-          "instant": true
-        }
-      ],
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "textMode": "auto",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "id": 12,
-      "title": "Duration observations behind the p95 — rolling 5 minutes",
-      "type": "stat",
-      "gridPos": {
-        "x": 18,
-        "y": 24,
-        "w": 6,
-        "h": 5
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "mtogo-prometheus"
-      },
-      "description": "Estimated completed responses with a duration in the window. A p95 from a handful of observations is weak evidence.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "#B8BEC9"
-          },
-          "noValue": "Unavailable",
-          "decimals": 1
-        },
-        "overrides": []
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum(increase(mtogo_http_request_duration_seconds_count{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))",
-          "legendFormat": "",
-          "range": false,
-          "instant": true
-        }
-      ],
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "textMode": "auto",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
+        "tooltip": {
+          "mode": "multi"
         }
       }
     },
@@ -705,10 +695,10 @@
       "title": "Completed responses by final status — since process start",
       "type": "timeseries",
       "gridPos": {
-        "x": 0,
-        "y": 29,
-        "w": 24,
-        "h": 8
+        "h": 5,
+        "w": 12,
+        "x": 12,
+        "y": 6
       },
       "datasource": {
         "type": "prometheus",
@@ -747,49 +737,191 @@
       }
     },
     {
-      "id": 6,
-      "title": "Completed response rate by status — rolling 5 minutes (responses/second)",
-      "type": "timeseries",
+      "id": 41,
+      "type": "row",
+      "title": "Latency and errors",
+      "collapsed": false,
       "gridPos": {
+        "h": 1,
+        "w": 24,
         "x": 0,
-        "y": 37,
-        "w": 12,
-        "h": 8
+        "y": 11
+      },
+      "panels": []
+    },
+    {
+      "id": 10,
+      "title": "5xx proportion — rolling 5 minutes",
+      "type": "stat",
+      "gridPos": {
+        "h": 3,
+        "w": 8,
+        "x": 0,
+        "y": 12
       },
       "datasource": {
         "type": "prometheus",
         "uid": "mtogo-prometheus"
       },
-      "description": "Per-series rate before aggregation; counter resets do not produce negative traffic. Status series need two observations. Gaps remain visible.",
+      "description": "Server-failure responses divided by all completed responses. A missing 5xx series counts as zero only when completed responses exist; zero traffic is unavailable, not 0%. A 5xx series appears on its first failure, so that first failure on a new route/status can still read 0% until the next one. Green at 0 %, amber above 0 %.",
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "spanNulls": false
+            "mode": "thresholds"
           },
           "noValue": "Unavailable",
-          "unit": "reqps"
+          "unit": "percentunit",
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#B8BEC9",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "orange",
+                "value": 0.000001
+              }
+            ]
+          }
         },
         "overrides": []
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (status) (rate(mtogo_http_requests_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))",
-          "legendFormat": "HTTP {{status}}",
-          "range": true,
-          "instant": false
+          "expr": "(sum(rate(mtogo_http_requests_total{job=\"mtogo-backend\",status=~\"5..\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) or (0 * sum(rate(mtogo_http_requests_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)))) / (sum(rate(mtogo_http_requests_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) > 0)",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
         }
       ],
       "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom"
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 11,
+      "title": "Ordinary API p95 response time — rolling 5 minutes",
+      "type": "stat",
+      "gridPos": {
+        "h": 3,
+        "w": 8,
+        "x": 8,
+        "y": 12
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Estimated from aggregated histogram buckets (0.005–10 s). Unavailable without duration observations. A value of 10 s means at or above the top bucket. Green below 2 s (ADR-0014 browsing target), amber from 2 s, red from 5 s (Order submission target).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "Unavailable",
+          "unit": "s",
+          "decimals": 3,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#B8BEC9",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "orange",
+                "value": 2
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
+            ]
+          }
         },
-        "tooltip": {
-          "mode": "multi"
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(mtogo_http_request_duration_seconds_bucket{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))) and on() (sum(increase(mtogo_http_request_duration_seconds_count{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) > 0)",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 12,
+      "title": "Duration observations behind the p95 — rolling 5 minutes",
+      "type": "stat",
+      "gridPos": {
+        "h": 3,
+        "w": 8,
+        "x": 16,
+        "y": 12
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Estimated completed responses with a duration in the window. A p95 from a handful of observations is weak evidence.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B8BEC9"
+          },
+          "noValue": "Unavailable",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(mtogo_http_request_duration_seconds_count{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
         }
       }
     },
@@ -798,10 +930,10 @@
       "title": "5xx proportion — rolling 5 minutes",
       "type": "timeseries",
       "gridPos": {
-        "x": 12,
-        "y": 37,
-        "w": 12,
-        "h": 8
+        "h": 5,
+        "w": 8,
+        "x": 0,
+        "y": 15
       },
       "datasource": {
         "type": "prometheus",
@@ -847,10 +979,10 @@
       "title": "Ordinary API p95 — all routes, rolling 5 minutes",
       "type": "timeseries",
       "gridPos": {
-        "x": 0,
-        "y": 45,
-        "w": 12,
-        "h": 8
+        "h": 5,
+        "w": 8,
+        "x": 8,
+        "y": 15
       },
       "datasource": {
         "type": "prometheus",
@@ -863,10 +995,30 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "spanNulls": false
+            "spanNulls": false,
+            "thresholdsStyle": {
+              "mode": "dashed"
+            }
           },
           "noValue": "Unavailable",
-          "unit": "s"
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 2
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
+            ]
+          }
         },
         "overrides": []
       },
@@ -890,373 +1042,117 @@
       }
     },
     {
-      "id": 15,
-      "title": "Ordinary API p95 by route pattern — rolling 5 minutes",
-      "type": "timeseries",
-      "gridPos": {
-        "x": 12,
-        "y": 45,
-        "w": 12,
-        "h": 8
-      },
+      "id": 46,
+      "type": "bargauge",
+      "title": "Slowest route patterns now — p95, rolling 5 minutes",
+      "description": "The ten route patterns with the highest p95 in the last five minutes, slowest first. Only routes with duration observations are listed; a p95 from a handful of requests is weak evidence (see the observation count). Green below 2 s, amber from 2 s, red from 5 s. History per route: the Latency by route over time row.",
       "datasource": {
         "type": "prometheus",
         "uid": "mtogo-prometheus"
       },
-      "description": "Only route patterns with duration observations in the window are drawn. Sparse routes give weak estimates.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "spanNulls": false
-          },
-          "noValue": "Unavailable",
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "histogram_quantile(0.95, sum by (le, method, route) (rate(mtogo_http_request_duration_seconds_bucket{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))) and on(method, route) (sum by (method, route) (increase(mtogo_http_request_duration_seconds_count{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) > 0)",
-          "legendFormat": "{{method}} {{route}}",
-          "range": true,
-          "instant": false
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      }
-    },
-    {
-      "id": 23,
-      "title": "Streams and interrupted requests",
-      "type": "text",
       "gridPos": {
-        "x": 0,
-        "y": 53,
-        "w": 24,
-        "h": 6
-      },
-      "options": {
-        "mode": "markdown",
-        "content": "**Kept apart from ordinary API panels.** An established server-sent event (SSE) stream, currently the partner kitchen feed `/partner/orders/stream`, is open for minutes or hours, so it is **not in the completed response** counts, rates or p95 above. It shows as one active connection while open and one termination when it ends: `server_ended` (the server closed it: session expiry, revoked access or a feed error; a deploy stops collection first, so feeds it ends are not recorded) or `disconnected` (the connection closed first). A disconnect is **not an application error** or a business failure; browsers reconnect. A **refused stream** (for example 401) never opened, so it stays an ordinary completed response. An **interrupted request** is an ordinary request whose connection closed before its response completed. It has **no HTTP status** and no duration, and a late failure after the disconnect adds no 500. A route of `unrouted` means no route had matched yet. Same target and five-minute window as the panels above; Unavailable means no current scrape."
-      }
-    },
-    {
-      "id": 24,
-      "title": "Server-sent event connections — active now",
-      "type": "stat",
-      "gridPos": {
-        "x": 0,
-        "y": 59,
+        "h": 5,
         "w": 8,
-        "h": 5
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "mtogo-prometheus"
-      },
-      "description": "Established streams open at the last scrape. 0 with a current scrape means none are open.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "#B8BEC9"
-          },
-          "noValue": "Unavailable",
-          "decimals": 0
-        },
-        "overrides": []
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum(mtogo_sse_connections_active{job=\"mtogo-backend\"} and on(job, instance) (up{job=\"mtogo-backend\"} == 1))",
-          "legendFormat": "",
-          "range": false,
-          "instant": true
-        }
-      ],
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "textMode": "auto",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "id": 25,
-      "title": "Server-sent event terminations — rolling 5 minutes",
-      "type": "stat",
-      "gridPos": {
-        "x": 8,
-        "y": 59,
-        "w": 8,
-        "h": 5
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "mtogo-prometheus"
-      },
-      "description": "Estimated established streams that ended in the window, by any outcome. Needs two scrapes.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "#B8BEC9"
-          },
-          "noValue": "Unavailable",
-          "decimals": 0
-        },
-        "overrides": []
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum(increase(mtogo_sse_connections_closed_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))",
-          "legendFormat": "",
-          "range": false,
-          "instant": true
-        }
-      ],
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "textMode": "auto",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "id": 26,
-      "title": "Interrupted requests — rolling 5 minutes",
-      "type": "stat",
-      "gridPos": {
         "x": 16,
-        "y": 59,
-        "w": 8,
-        "h": 5
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "mtogo-prometheus"
-      },
-      "description": "Estimated ordinary requests closed before a completed response in the window. Needs two scrapes.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "#B8BEC9"
-          },
-          "noValue": "Unavailable",
-          "decimals": 0
-        },
-        "overrides": []
+        "y": 15
       },
       "targets": [
         {
-          "refId": "A",
-          "expr": "sum(increase(mtogo_http_requests_interrupted_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))",
-          "legendFormat": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mtogo-prometheus"
+          },
+          "expr": "topk(10, histogram_quantile(0.95, sum by (le, method, route) (rate(mtogo_http_request_duration_seconds_bucket{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))) and on(method, route) (sum by (method, route) (increase(mtogo_http_request_duration_seconds_count{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) > 0))",
+          "legendFormat": "{{method}} {{route}}",
           "range": false,
-          "instant": true
+          "instant": true,
+          "format": "time_series",
+          "refId": "A"
         }
       ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "noValue": "Unavailable — no duration observations",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#B8BEC9",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "orange",
+                "value": 2
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
       "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "textMode": "auto",
+        "displayMode": "basic",
+        "orientation": "horizontal",
+        "showUnfilled": false,
+        "valueMode": "color",
+        "namePlacement": "top",
+        "sizing": "manual",
         "reduceOptions": {
           "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
-        }
-      }
-    },
-    {
-      "id": 27,
-      "title": "Server-sent event connections — active now",
-      "type": "timeseries",
-      "gridPos": {
-        "x": 0,
-        "y": 64,
-        "w": 8,
-        "h": 8
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "mtogo-prometheus"
-      },
-      "description": "Open established streams per stream route at each scrape. Gaps remain visible.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "spanNulls": false
-          },
-          "noValue": "Unavailable",
-          "decimals": 0,
-          "min": 0
         },
-        "overrides": []
+        "minVizHeight": 16,
+        "maxVizHeight": 22
       },
-      "targets": [
+      "transformations": [
         {
-          "refId": "A",
-          "expr": "sum by (route) (mtogo_sse_connections_active{job=\"mtogo-backend\"} and on(job, instance) (up{job=\"mtogo-backend\"} == 1))",
-          "legendFormat": "{{route}}",
-          "range": true,
-          "instant": false
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Value",
+                "desc": true
+              }
+            ]
+          }
         }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      }
+      ]
     },
     {
-      "id": 28,
-      "title": "Server-sent event terminations — rolling 5 minutes",
-      "type": "timeseries",
+      "id": 42,
+      "type": "row",
+      "title": "HTTP-serving process",
+      "collapsed": false,
       "gridPos": {
-        "x": 8,
-        "y": 64,
-        "w": 8,
-        "h": 8
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "mtogo-prometheus"
-      },
-      "description": "Per-series increase before aggregation; resets do not produce negative values. Gaps remain visible.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "spanNulls": false
-          },
-          "noValue": "Unavailable",
-          "decimals": 0,
-          "min": 0
-        },
-        "overrides": []
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum by (route, outcome) (increase(mtogo_sse_connections_closed_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))",
-          "legendFormat": "{{route}} {{outcome}}",
-          "range": true,
-          "instant": false
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      }
-    },
-    {
-      "id": 29,
-      "title": "Interrupted requests — rolling 5 minutes",
-      "type": "timeseries",
-      "gridPos": {
-        "x": 16,
-        "y": 64,
-        "w": 8,
-        "h": 8
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "mtogo-prometheus"
-      },
-      "description": "Per-series increase before aggregation, by bounded method and matched route pattern. Gaps remain visible.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "spanNulls": false
-          },
-          "noValue": "Unavailable",
-          "decimals": 0,
-          "min": 0
-        },
-        "overrides": []
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum by (method, route) (increase(mtogo_http_requests_interrupted_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))",
-          "legendFormat": "{{method}} {{route}}",
-          "range": true,
-          "instant": false
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      }
-    },
-    {
-      "id": 16,
-      "title": "HTTP-serving process scope",
-      "type": "text",
-      "gridPos": {
-        "x": 0,
-        "y": 72,
+        "h": 1,
         "w": 24,
-        "h": 5
+        "x": 0,
+        "y": 20
       },
-      "options": {
-        "mode": "markdown",
-        "content": "**One HTTP-serving backend Node process**, the same target `backend-metrics:9464` (job `mtogo-backend`) as the request panels: the local demo backend, or the staging `backend` container. Values come from the Prometheus client's standard process collectors on each scrape. **CPU** is cores used by this process (1 = one full CPU core), **not host utilization**: the Droplet has other processes and cores. **Memory** is bytes: resident set and V8 heap. **Event-loop delay** is seconds between 10 ms sampling ticks, over the window since the previous scrape; about 0.01 s is the healthy floor. Not covered: a separate worker process, the Next.js storefront and partner apps, the host or container, PostgreSQL and Redis. CPU seconds count from exporter start; a restart resets them and rates handle it."
-      }
+      "panels": []
     },
     {
       "id": 17,
       "title": "HTTP-serving process CPU — cores used, rolling 5 minutes",
       "type": "stat",
       "gridPos": {
-        "x": 0,
-        "y": 77,
+        "h": 3,
         "w": 8,
-        "h": 5
+        "x": 0,
+        "y": 21
       },
       "datasource": {
         "type": "prometheus",
@@ -1298,27 +1194,49 @@
     {
       "id": 18,
       "title": "HTTP-serving process memory — bytes",
-      "type": "stat",
+      "type": "bargauge",
       "gridPos": {
-        "x": 8,
-        "y": 77,
+        "h": 3,
         "w": 8,
-        "h": 5
+        "x": 8,
+        "y": 21
       },
       "datasource": {
         "type": "prometheus",
         "uid": "mtogo-prometheus"
       },
-      "description": "Current resident memory (RSS): bytes the OS holds in RAM for this process, including code, V8 heap, buffers and native memory. The time series beside it also shows V8 heap used/total.",
+      "description": "Current resident memory (RSS): bytes the OS holds in RAM for this process, including code, V8 heap, buffers and native memory. The time series beside it also shows V8 heap used/total. The bar ends at 768 MiB, the staging backend container's memory cap; amber from 80 %, red from 90 %. The local demo has no cap.",
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "fixed",
-            "fixedColor": "#B8BEC9"
+            "mode": "thresholds"
           },
           "noValue": "Unavailable",
           "unit": "bytes",
-          "decimals": 1
+          "decimals": 1,
+          "min": 0,
+          "max": 805306368,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#B8BEC9",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "orange",
+                "value": 644245094
+              },
+              {
+                "color": "red",
+                "value": 724775731
+              }
+            ]
+          }
         },
         "overrides": []
       },
@@ -1332,9 +1250,11 @@
         }
       ],
       "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "textMode": "auto",
+        "displayMode": "basic",
+        "orientation": "horizontal",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "hidden",
         "reduceOptions": {
           "calcs": ["lastNotNull"],
           "fields": "",
@@ -1347,25 +1267,45 @@
       "title": "HTTP-serving process event-loop delay — seconds, per scrape window",
       "type": "stat",
       "gridPos": {
-        "x": 16,
-        "y": 77,
+        "h": 3,
         "w": 8,
-        "h": 5
+        "x": 16,
+        "y": 21
       },
       "datasource": {
         "type": "prometheus",
         "uid": "mtogo-prometheus"
       },
-      "description": "p99 over the window since the previous scrape. Collector-defined statistics of the time between ticks of Node's 10 ms event-loop sampling timer, in seconds, over the window since the previous Prometheus scrape (~15 s); every scrape resets them. A healthy process reads about 0.01 s, the sampling resolution itself; only time above that is delay. Sustained p99 above about 0.1 s means requests wait for the event loop.",
+      "description": "p99 over the window since the previous scrape. Collector-defined statistics of the time between ticks of Node's 10 ms event-loop sampling timer, in seconds, over the window since the previous Prometheus scrape (~15 s); every scrape resets them. A healthy process reads about 0.01 s, the sampling resolution itself; only time above that is delay. Sustained p99 above about 0.1 s means requests wait for the event loop. Green below 0.1 s, amber from 0.1 s, red from 1 s.",
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "fixed",
-            "fixedColor": "#B8BEC9"
+            "mode": "thresholds"
           },
           "noValue": "Unavailable",
           "unit": "s",
-          "decimals": 3
+          "decimals": 3,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#B8BEC9",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "orange",
+                "value": 0.1
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
         },
         "overrides": []
       },
@@ -1394,10 +1334,10 @@
       "title": "HTTP-serving process CPU — cores used, rolling 5 minutes",
       "type": "timeseries",
       "gridPos": {
-        "x": 0,
-        "y": 82,
+        "h": 6,
         "w": 8,
-        "h": 8
+        "x": 0,
+        "y": 24
       },
       "datasource": {
         "type": "prometheus",
@@ -1442,10 +1382,10 @@
       "title": "HTTP-serving process memory — bytes",
       "type": "timeseries",
       "gridPos": {
-        "x": 8,
-        "y": 82,
+        "h": 6,
         "w": 8,
-        "h": 8
+        "x": 8,
+        "y": 24
       },
       "datasource": {
         "type": "prometheus",
@@ -1504,10 +1444,10 @@
       "title": "HTTP-serving process event-loop delay — seconds, per scrape window",
       "type": "timeseries",
       "gridPos": {
-        "x": 16,
-        "y": 82,
+        "h": 6,
         "w": 8,
-        "h": 8
+        "x": 16,
+        "y": 24
       },
       "datasource": {
         "type": "prometheus",
@@ -1520,11 +1460,31 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "spanNulls": false
+            "spanNulls": false,
+            "thresholdsStyle": {
+              "mode": "dashed"
+            }
           },
           "noValue": "Unavailable",
           "unit": "s",
-          "min": 0
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.1
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
         },
         "overrides": []
       },
@@ -1562,277 +1522,771 @@
       }
     },
     {
-      "id": 33,
-      "title": "Customer menu read and restaurant menu page",
-      "type": "text",
+      "id": 43,
+      "type": "row",
+      "title": "Streams and interrupted requests",
+      "collapsed": true,
       "gridPos": {
-        "x": 0,
-        "y": 90,
+        "h": 1,
         "w": 24,
-        "h": 6
-      },
-      "options": {
-        "mode": "markdown",
-        "content": "**What a Customer waits for on a Restaurant's menu** (#202). The backend route `GET /store/restaurants/:id/menu` comes from the request histogram above. Its parts come from the same backend target: `restaurant` (Restaurant, categories and dish ids), `dish_prices` (dishes with Medusa's calculated DKK prices), `photos` (dish photo records and the cover URL), `photo_urls` (signing the published dishes' photo URLs) and `food_information` (allergen and food-label catalogue, kept in memory between reads), plus `whole_read`, which counts only reads that answer with a menu. `dish_prices` and `photos` run at the same time, so the parts do not add up to the whole read. A read over 1 s also writes one `menu.read.slow` log line with each part in milliseconds. The page panels come from a **second private exporter, the staging `storefront` container**, target `storefront-metrics:9465` (job `mtogo-storefront`): server-side render time of `/[countryCode]/restaurants/[id]` from request start to the last byte, by kind: `document` (full page load), `navigation` (client-side navigation), `prefetch` (link prefetch) and `action` (a basket change answered with a fresh render of the page). Redirects (3xx) and renders whose connection closed first are not counted. No Restaurant ids, URLs or query strings are labels. In the local demo there is no storefront, so its target is DOWN and the page panels stay empty."
-      }
-    },
-    {
-      "id": 34,
-      "title": "Customer menu reads over 1 s — rolling 5 minutes",
-      "type": "stat",
-      "gridPos": {
         "x": 0,
-        "y": 96,
-        "w": 12,
-        "h": 5
+        "y": 30
       },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "mtogo-prometheus"
-      },
-      "description": "Share of completed menu reads that took over one second on the backend. The issue #202 target is below 5%. Unavailable without menu reads in the window.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "#B8BEC9"
-          },
-          "noValue": "Unavailable",
-          "unit": "percentunit",
-          "min": 0,
-          "max": 1,
-          "decimals": 1
-        },
-        "overrides": []
-      },
-      "targets": [
+      "panels": [
         {
-          "refId": "A",
-          "expr": "1 - (sum(rate(mtogo_http_request_duration_seconds_bucket{job=\"mtogo-backend\",method=\"GET\",route=\"/store/restaurants/:id/menu\",le=\"1\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) / (sum(rate(mtogo_http_request_duration_seconds_count{job=\"mtogo-backend\",method=\"GET\",route=\"/store/restaurants/:id/menu\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) > 0))",
-          "legendFormat": "",
-          "range": false,
-          "instant": true
-        }
-      ],
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "textMode": "auto",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
-        }
-      }
-    },
-    {
-      "id": 35,
-      "title": "Storefront exporter scrape availability (not page readiness)",
-      "type": "stat",
-      "gridPos": {
-        "x": 12,
-        "y": 96,
-        "w": 12,
-        "h": 5
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "mtogo-prometheus"
-      },
-      "description": "1 = scrape succeeded; 0 = scrape failed; no data = no target observations. The local demo has no storefront, so it shows DOWN there.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "#B8BEC9"
+          "id": 23,
+          "title": "Streams and interrupted requests",
+          "type": "text",
+          "gridPos": {
+            "h": 4,
+            "w": 24,
+            "x": 0,
+            "y": 31
           },
-          "noValue": "Unavailable",
-          "mappings": [
+          "options": {
+            "mode": "markdown",
+            "content": "**Kept apart from ordinary API panels.** An established server-sent event (SSE) stream, currently the partner kitchen feed `/partner/orders/stream`, is open for minutes or hours, so it is **not in the completed response** counts, rates or p95 above. It shows as one active connection while open and one termination when it ends: `server_ended` (the server closed it: session expiry, revoked access or a feed error; a deploy stops collection first, so feeds it ends are not recorded) or `disconnected` (the connection closed first). A disconnect is **not an application error** or a business failure; browsers reconnect. A **refused stream** (for example 401) never opened, so it stays an ordinary completed response. An **interrupted request** is an ordinary request whose connection closed before its response completed. It has **no HTTP status** and no duration, and a late failure after the disconnect adds no 500. A route of `unrouted` means no route had matched yet. Same target and five-minute window as the panels above; Unavailable means no current scrape."
+          }
+        },
+        {
+          "id": 24,
+          "title": "Server-sent event connections — active now",
+          "type": "stat",
+          "gridPos": {
+            "h": 3,
+            "w": 8,
+            "x": 0,
+            "y": 35
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mtogo-prometheus"
+          },
+          "description": "Established streams open at the last scrape. 0 with a current scrape means none are open.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "#B8BEC9"
+              },
+              "noValue": "Unavailable",
+              "decimals": 0
+            },
+            "overrides": []
+          },
+          "targets": [
             {
-              "type": "value",
-              "options": {
-                "0": {
-                  "text": "DOWN — scrape failed",
-                  "color": "red"
-                },
-                "1": {
-                  "text": "UP — scrape succeeded",
-                  "color": "green"
-                }
-              }
+              "refId": "A",
+              "expr": "sum(mtogo_sse_connections_active{job=\"mtogo-backend\"} and on(job, instance) (up{job=\"mtogo-backend\"} == 1))",
+              "legendFormat": "",
+              "range": false,
+              "instant": true
             }
-          ]
+          ],
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "textMode": "auto",
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            }
+          }
         },
-        "overrides": []
-      },
-      "targets": [
         {
-          "refId": "A",
-          "expr": "up{job=\"mtogo-storefront\"}",
-          "legendFormat": "",
-          "range": false,
-          "instant": true
+          "id": 25,
+          "title": "Server-sent event terminations — rolling 5 minutes",
+          "type": "stat",
+          "gridPos": {
+            "h": 3,
+            "w": 8,
+            "x": 8,
+            "y": 35
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mtogo-prometheus"
+          },
+          "description": "Estimated established streams that ended in the window, by any outcome. Needs two scrapes.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "#B8BEC9"
+              },
+              "noValue": "Unavailable",
+              "decimals": 0
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum(increase(mtogo_sse_connections_closed_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))",
+              "legendFormat": "",
+              "range": false,
+              "instant": true
+            }
+          ],
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "textMode": "auto",
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            }
+          }
+        },
+        {
+          "id": 26,
+          "title": "Interrupted requests — rolling 5 minutes",
+          "type": "stat",
+          "gridPos": {
+            "h": 3,
+            "w": 8,
+            "x": 16,
+            "y": 35
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mtogo-prometheus"
+          },
+          "description": "Estimated ordinary requests closed before a completed response in the window. Needs two scrapes.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "#B8BEC9"
+              },
+              "noValue": "Unavailable",
+              "decimals": 0
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum(increase(mtogo_http_requests_interrupted_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))",
+              "legendFormat": "",
+              "range": false,
+              "instant": true
+            }
+          ],
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "textMode": "auto",
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            }
+          }
+        },
+        {
+          "id": 27,
+          "title": "Server-sent event connections — active now",
+          "type": "timeseries",
+          "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 0,
+            "y": 38
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mtogo-prometheus"
+          },
+          "description": "Open established streams per stream route at each scrape. Gaps remain visible.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "spanNulls": false
+              },
+              "noValue": "Unavailable",
+              "decimals": 0,
+              "min": 0
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum by (route) (mtogo_sse_connections_active{job=\"mtogo-backend\"} and on(job, instance) (up{job=\"mtogo-backend\"} == 1))",
+              "legendFormat": "{{route}}",
+              "range": true,
+              "instant": false
+            }
+          ],
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          }
+        },
+        {
+          "id": 28,
+          "title": "Server-sent event terminations — rolling 5 minutes",
+          "type": "timeseries",
+          "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 8,
+            "y": 38
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mtogo-prometheus"
+          },
+          "description": "Per-series increase before aggregation; resets do not produce negative values. Gaps remain visible.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "spanNulls": false
+              },
+              "noValue": "Unavailable",
+              "decimals": 0,
+              "min": 0
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum by (route, outcome) (increase(mtogo_sse_connections_closed_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))",
+              "legendFormat": "{{route}} {{outcome}}",
+              "range": true,
+              "instant": false
+            }
+          ],
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          }
+        },
+        {
+          "id": 29,
+          "title": "Interrupted requests — rolling 5 minutes",
+          "type": "timeseries",
+          "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 16,
+            "y": 38
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mtogo-prometheus"
+          },
+          "description": "Per-series increase before aggregation, by bounded method and matched route pattern. Gaps remain visible.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "spanNulls": false
+              },
+              "noValue": "Unavailable",
+              "decimals": 0,
+              "min": 0
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum by (method, route) (increase(mtogo_http_requests_interrupted_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))",
+              "legendFormat": "{{method}} {{route}}",
+              "range": true,
+              "instant": false
+            }
+          ],
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          }
         }
-      ],
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "textMode": "auto",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
-        }
-      }
+      ]
     },
     {
-      "id": 36,
-      "title": "Customer menu read p95 — route and each part, rolling 5 minutes",
-      "type": "timeseries",
+      "id": 44,
+      "type": "row",
+      "title": "Customer menu read and restaurant menu page (#202)",
+      "collapsed": true,
       "gridPos": {
-        "x": 0,
-        "y": 101,
-        "w": 12,
-        "h": 8
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "mtogo-prometheus"
-      },
-      "description": "The menu route's p95 next to the p95 of each part of the read. Parts overlap, so they do not add up. Only series with observations in the window are drawn.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "spanNulls": false
-          },
-          "noValue": "Unavailable",
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(mtogo_http_request_duration_seconds_bucket{job=\"mtogo-backend\",method=\"GET\",route=\"/store/restaurants/:id/menu\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))) and on() (sum(increase(mtogo_http_request_duration_seconds_count{job=\"mtogo-backend\",method=\"GET\",route=\"/store/restaurants/:id/menu\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) > 0)",
-          "legendFormat": "route GET /store/restaurants/:id/menu",
-          "range": true,
-          "instant": false
-        },
-        {
-          "refId": "B",
-          "expr": "histogram_quantile(0.95, sum by (le, part) (rate(mtogo_menu_read_part_duration_seconds_bucket{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))) and on(part) (sum by (part) (increase(mtogo_menu_read_part_duration_seconds_count{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) > 0)",
-          "legendFormat": "part {{part}}",
-          "range": true,
-          "instant": false
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      }
-    },
-    {
-      "id": 37,
-      "title": "Restaurant menu page p95 server-side render — rolling 5 minutes",
-      "type": "timeseries",
-      "gridPos": {
-        "x": 12,
-        "y": 101,
-        "w": 12,
-        "h": 8
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "mtogo-prometheus"
-      },
-      "description": "Storefront render time of the Restaurant menu page by kind, from request start to the last byte. Only kinds with renders in the window are drawn.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "spanNulls": false
-          },
-          "noValue": "Unavailable",
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "histogram_quantile(0.95, sum by (le, kind) (rate(mtogo_storefront_page_render_duration_seconds_bucket{job=\"mtogo-storefront\",route=\"/[countryCode]/restaurants/[id]\"}[5m]) and on(job, instance) (up{job=\"mtogo-storefront\"} == 1))) and on(kind) (sum by (kind) (increase(mtogo_storefront_page_render_duration_seconds_count{job=\"mtogo-storefront\",route=\"/[countryCode]/restaurants/[id]\"}[5m]) and on(job, instance) (up{job=\"mtogo-storefront\"} == 1)) > 0)",
-          "legendFormat": "{{kind}}",
-          "range": true,
-          "instant": false
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      }
-    },
-    {
-      "id": 38,
-      "title": "Restaurant menu page renders by kind — rolling 5 minutes",
-      "type": "timeseries",
-      "gridPos": {
-        "x": 0,
-        "y": 109,
+        "h": 1,
         "w": 24,
-        "h": 8
+        "x": 0,
+        "y": 31
       },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "mtogo-prometheus"
-      },
-      "description": "Estimated renders of the Restaurant menu page by kind. Each render reads the menu from the backend, so many action renders mean basket changes are re-reading the menu.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "spanNulls": false
-          },
-          "noValue": "Unavailable",
-          "unit": "short",
-          "decimals": 1
-        },
-        "overrides": []
-      },
-      "targets": [
+      "panels": [
         {
-          "refId": "A",
-          "expr": "sum by (kind) (increase(mtogo_storefront_page_render_duration_seconds_count{job=\"mtogo-storefront\",route=\"/[countryCode]/restaurants/[id]\"}[5m]) and on(job, instance) (up{job=\"mtogo-storefront\"} == 1))",
-          "legendFormat": "{{kind}}",
-          "range": true,
-          "instant": false
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom"
+          "id": 33,
+          "title": "Customer menu read and restaurant menu page",
+          "type": "text",
+          "gridPos": {
+            "h": 5,
+            "w": 24,
+            "x": 0,
+            "y": 32
+          },
+          "options": {
+            "mode": "markdown",
+            "content": "**What a Customer waits for on a Restaurant's menu** (#202). The backend route `GET /store/restaurants/:id/menu` comes from the request histogram above. Its parts come from the same backend target: `restaurant` (Restaurant, categories and dish ids), `dish_prices` (dishes with Medusa's calculated DKK prices), `photos` (dish photo records and the cover URL), `photo_urls` (signing the published dishes' photo URLs) and `food_information` (allergen and food-label catalogue, kept in memory between reads), plus `whole_read`, which counts only reads that answer with a menu. `dish_prices` and `photos` run at the same time, so the parts do not add up to the whole read. A read over 1 s also writes one `menu.read.slow` log line with each part in milliseconds. The page panels come from a **second private exporter, the staging `storefront` container**, target `storefront-metrics:9465` (job `mtogo-storefront`): server-side render time of `/[countryCode]/restaurants/[id]` from request start to the last byte, by kind: `document` (full page load), `navigation` (client-side navigation), `prefetch` (link prefetch) and `action` (a basket change answered with a fresh render of the page). Redirects (3xx) and renders whose connection closed first are not counted. No Restaurant ids, URLs or query strings are labels. In the local demo there is no storefront, so its target is DOWN and the page panels stay empty."
+          }
         },
-        "tooltip": {
-          "mode": "multi"
+        {
+          "id": 34,
+          "title": "Customer menu reads over 1 s — rolling 5 minutes",
+          "type": "stat",
+          "gridPos": {
+            "h": 3,
+            "w": 12,
+            "x": 0,
+            "y": 37
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mtogo-prometheus"
+          },
+          "description": "Share of completed menu reads that took over one second on the backend. The issue #202 target is below 5%. Unavailable without menu reads in the window.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "#B8BEC9"
+              },
+              "noValue": "Unavailable",
+              "unit": "percentunit",
+              "min": 0,
+              "max": 1,
+              "decimals": 1
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "1 - (sum(rate(mtogo_http_request_duration_seconds_bucket{job=\"mtogo-backend\",method=\"GET\",route=\"/store/restaurants/:id/menu\",le=\"1\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) / (sum(rate(mtogo_http_request_duration_seconds_count{job=\"mtogo-backend\",method=\"GET\",route=\"/store/restaurants/:id/menu\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) > 0))",
+              "legendFormat": "",
+              "range": false,
+              "instant": true
+            }
+          ],
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "textMode": "auto",
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            }
+          }
+        },
+        {
+          "id": 35,
+          "title": "Storefront exporter scrape availability (not page readiness)",
+          "type": "stat",
+          "gridPos": {
+            "h": 3,
+            "w": 12,
+            "x": 12,
+            "y": 37
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mtogo-prometheus"
+          },
+          "description": "1 = scrape succeeded; 0 = scrape failed; no data = no target observations. The local demo has no storefront, so it shows DOWN there.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "fixed",
+                "fixedColor": "#B8BEC9"
+              },
+              "noValue": "Unavailable",
+              "mappings": [
+                {
+                  "type": "value",
+                  "options": {
+                    "0": {
+                      "text": "DOWN — scrape failed",
+                      "color": "red"
+                    },
+                    "1": {
+                      "text": "UP — scrape succeeded",
+                      "color": "green"
+                    }
+                  }
+                }
+              ]
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "up{job=\"mtogo-storefront\"}",
+              "legendFormat": "",
+              "range": false,
+              "instant": true
+            }
+          ],
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "textMode": "auto",
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            }
+          }
+        },
+        {
+          "id": 36,
+          "title": "Customer menu read p95 — route and each part, rolling 5 minutes",
+          "type": "timeseries",
+          "gridPos": {
+            "h": 7,
+            "w": 12,
+            "x": 0,
+            "y": 40
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mtogo-prometheus"
+          },
+          "description": "The menu route's p95 next to the p95 of each part of the read. Parts overlap, so they do not add up. Only series with observations in the window are drawn.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "spanNulls": false
+              },
+              "noValue": "Unavailable",
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "histogram_quantile(0.95, sum by (le) (rate(mtogo_http_request_duration_seconds_bucket{job=\"mtogo-backend\",method=\"GET\",route=\"/store/restaurants/:id/menu\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))) and on() (sum(increase(mtogo_http_request_duration_seconds_count{job=\"mtogo-backend\",method=\"GET\",route=\"/store/restaurants/:id/menu\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) > 0)",
+              "legendFormat": "route GET /store/restaurants/:id/menu",
+              "range": true,
+              "instant": false
+            },
+            {
+              "refId": "B",
+              "expr": "histogram_quantile(0.95, sum by (le, part) (rate(mtogo_menu_read_part_duration_seconds_bucket{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))) and on(part) (sum by (part) (increase(mtogo_menu_read_part_duration_seconds_count{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) > 0)",
+              "legendFormat": "part {{part}}",
+              "range": true,
+              "instant": false
+            }
+          ],
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          }
+        },
+        {
+          "id": 37,
+          "title": "Restaurant menu page p95 server-side render — rolling 5 minutes",
+          "type": "timeseries",
+          "gridPos": {
+            "h": 7,
+            "w": 12,
+            "x": 12,
+            "y": 40
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mtogo-prometheus"
+          },
+          "description": "Storefront render time of the Restaurant menu page by kind, from request start to the last byte. Only kinds with renders in the window are drawn.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "spanNulls": false
+              },
+              "noValue": "Unavailable",
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "histogram_quantile(0.95, sum by (le, kind) (rate(mtogo_storefront_page_render_duration_seconds_bucket{job=\"mtogo-storefront\",route=\"/[countryCode]/restaurants/[id]\"}[5m]) and on(job, instance) (up{job=\"mtogo-storefront\"} == 1))) and on(kind) (sum by (kind) (increase(mtogo_storefront_page_render_duration_seconds_count{job=\"mtogo-storefront\",route=\"/[countryCode]/restaurants/[id]\"}[5m]) and on(job, instance) (up{job=\"mtogo-storefront\"} == 1)) > 0)",
+              "legendFormat": "{{kind}}",
+              "range": true,
+              "instant": false
+            }
+          ],
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          }
+        },
+        {
+          "id": 38,
+          "title": "Restaurant menu page renders by kind — rolling 5 minutes",
+          "type": "timeseries",
+          "gridPos": {
+            "h": 6,
+            "w": 24,
+            "x": 0,
+            "y": 47
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mtogo-prometheus"
+          },
+          "description": "Estimated renders of the Restaurant menu page by kind. Each render reads the menu from the backend, so many action renders mean basket changes are re-reading the menu.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "spanNulls": false
+              },
+              "noValue": "Unavailable",
+              "unit": "short",
+              "decimals": 1
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum by (kind) (increase(mtogo_storefront_page_render_duration_seconds_count{job=\"mtogo-storefront\",route=\"/[countryCode]/restaurants/[id]\"}[5m]) and on(job, instance) (up{job=\"mtogo-storefront\"} == 1))",
+              "legendFormat": "{{kind}}",
+              "range": true,
+              "instant": false
+            }
+          ],
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          }
         }
-      }
+      ]
+    },
+    {
+      "id": 47,
+      "type": "row",
+      "title": "Latency by route over time",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 32
+      },
+      "panels": [
+        {
+          "id": 15,
+          "title": "Ordinary API p95 by route pattern — rolling 5 minutes",
+          "type": "timeseries",
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 33
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mtogo-prometheus"
+          },
+          "description": "Only route patterns with duration observations in the window are drawn. Sparse routes give weak estimates.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "spanNulls": false,
+                "thresholdsStyle": {
+                  "mode": "dashed"
+                }
+              },
+              "noValue": "Unavailable",
+              "unit": "s",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "transparent",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 2
+                  },
+                  {
+                    "color": "red",
+                    "value": 5
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "histogram_quantile(0.95, sum by (le, method, route) (rate(mtogo_http_request_duration_seconds_bucket{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))) and on(method, route) (sum by (method, route) (increase(mtogo_http_request_duration_seconds_count{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) > 0)",
+              "legendFormat": "{{method}} {{route}}",
+              "range": true,
+              "instant": false
+            }
+          ],
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "bottom"
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 45,
+      "type": "row",
+      "title": "How to read this dashboard",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 33
+      },
+      "panels": [
+        {
+          "id": 1,
+          "title": "Request coverage",
+          "type": "text",
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 34
+          },
+          "options": {
+            "mode": "markdown",
+            "content": "**One HTTP-serving backend process**, target `backend-metrics:9464`: the local demo, or the staging `backend` container with browser and server-side calls from the storefront and partner app (a split staging worker serves no HTTP). Every completed ordinary API response, by matched route pattern. Method-less middleware finishing before any route matches gives fixed categories: refusals (publishable key, namespace or method-less authentication, malformed body) as `early_rejection`, 404s as `unmatched`, successes such as CORS preflights as `unrouted`; unknown methods as `OTHER`. A wildcard middleware refusal shows its wildcard. IDs/query strings never become labels. Health, `/app` Admin assets, `/static`, scrapes and established SSE streams are excluded, and so are interrupted requests; both have their own panels below."
+          }
+        },
+        {
+          "id": 7,
+          "title": "Interpret the observations",
+          "type": "text",
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 34
+          },
+          "options": {
+            "mode": "markdown",
+            "content": "**HTTP responses, not Customers or Orders.** Latency is server-side seconds from request start to response finish for one HTTP request. It is **not Order processing time** (Feature #54) or any business measure. Every query uses a rolling five-minute window; counts are extrapolated estimates. **Unavailable** means no valid evidence: target DOWN or absent, fewer than two scrapes, zero completed responses (no 5xx proportion) or no duration observations (no p95). Check the observation count before trusting a p95; p95 is capped at the 10 s bucket. Rates handle counter resets. Established streams and interrupted requests are separate and never enter these counts, rates or p95."
+          }
+        },
+        {
+          "id": 31,
+          "title": "Tune the traffic indications",
+          "type": "text",
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 42
+          },
+          "options": {
+            "mode": "markdown",
+            "content": "Both compare the controls at the top with **Estimated completed responses** (rolling five minutes, same estimate and exclusions), whatever range is displayed. **Low traffic below:** a count strictly below it is **LOW**; equal is not; **0 turns it off.** **High-traffic warning:** **Disabled** by default; when **Enabled**, a count strictly above **High traffic above** is **HIGH**; equal is not, and an enabled `0` is a real threshold, unlike Disabled. Thresholds allow digits only, `0` to `999999999999999`, no sign, decimal, exponent, spaces or leading zeros. An invalid value, or Low traffic below above an enabled High traffic above, shows a **configuration error** on both panels, never a fallback; High traffic above is validated even while Disabled, but only compared with Low traffic below when Enabled. Equal bounds are valid. Your values change this view and its URL (share the URL to share the settings), not the Git defaults or anyone else's view. No setting turns DOWN or missing data into a count, and HIGH is not a request limit, capacity claim or notification."
+          }
+        },
+        {
+          "id": 16,
+          "title": "HTTP-serving process scope",
+          "type": "text",
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 42
+          },
+          "options": {
+            "mode": "markdown",
+            "content": "**One HTTP-serving backend Node process**, the same target `backend-metrics:9464` (job `mtogo-backend`) as the request panels: the local demo backend, or the staging `backend` container. Values come from the Prometheus client's standard process collectors on each scrape. **CPU** is cores used by this process (1 = one full CPU core), **not host utilization**: the Droplet has other processes and cores. **Memory** is bytes: resident set and V8 heap. **Event-loop delay** is seconds between 10 ms sampling ticks, over the window since the previous scrape; about 0.01 s is the healthy floor. Not covered: a separate worker process, the Next.js storefront and partner apps, the host or container, PostgreSQL and Redis. CPU seconds count from exporter start; a restart resets them and rates handle it."
+          }
+        }
+      ]
+    }
+  ],
+  "links": [
+    {
+      "title": "Approved application events",
+      "type": "link",
+      "url": "/d/mtogo-application-events",
+      "icon": "doc",
+      "keepTime": true,
+      "includeVars": false,
+      "targetBlank": false,
+      "asDropdown": false,
+      "tags": [],
+      "tooltip": "Search approved events over the same time range"
     }
   ]
 }

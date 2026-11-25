@@ -245,8 +245,8 @@ curl -s -o /dev/null -w '%{http_code}\n' https://api.staging.example.org/no-such
 Expected after the next scrape and refresh (up to 45 seconds): **UP — scrape
 succeeded**, `GET early_rejection — HTTP 401`, `GET early_rejection — HTTP 400`
 and `GET unmatched — HTTP 404`, next to the real staging traffic by route
-pattern. The **Request coverage** panel describes the staging `backend`
-container. As a Viewer, the dashboard offers no save, and the data source and
+pattern. The **Request coverage** panel, in the collapsed **How to read this
+dashboard** row, describes the staging `backend` container. As a Viewer, the dashboard offers no save, and the data source and
 the Administration pages are not available.
 
 Staging reuses the same provisioned dashboard. Deploys do not update it:
@@ -257,7 +257,7 @@ the data state, response rate, 5xx proportion and p95 panels described in
 [local request monitoring](/MTGO/quality/local-request-monitoring/).
 Deliberate failure tests stay on the local stack, never on staging.
 
-From a release with #172, the bottom row shows the CPU (in cores), resident
+From a release with #172, the **HTTP-serving process** row shows the CPU (in cores), resident
 and heap memory (bytes) and event-loop delay (seconds) of the staging
 `backend` container's Node process. The CPU value is not the Droplet's
 utilization: the host also runs the storefront, partner app, Redis and the
@@ -269,7 +269,7 @@ value are in
 [local request monitoring](/MTGO/quality/local-request-monitoring/#http-serving-process-cpu-memory-and-event-loop-delay-172).
 The process collectors add a few dozen bounded series to Prometheus.
 
-From a release with #173, a row under the p95 charts shows open kitchen feeds
+From a release with #173, the collapsed **Streams and interrupted requests** row shows open kitchen feeds
 (partner app Server-Sent Events), their terminations by outcome and
 interrupted requests. Feeds and interruptions never enter the ordinary counts,
 rate or p95. Expect one active feed per signed-in kitchen screen. Feeds ended by a deploy
@@ -351,7 +351,7 @@ backup or replication of the monitoring volumes.
 
 ## Customer menu read and restaurant menu page
 
-Issue #202 adds a section at the bottom of the dashboard to find where a slow
+Issue #202 adds a collapsed row near the bottom of the dashboard to find where a slow
 Customer menu read spends its time and what the Customer waits for.
 
 - **Customer menu reads over 1 s** is the share of completed
