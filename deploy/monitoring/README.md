@@ -28,6 +28,15 @@ the storefront. The runbook is
 [Approved application events in Grafana](../../apps/docs/src/content/docs/quality/approved-application-events.md).
 On staging, Loki and Alloy run only with `STAGING_LOGS_ENABLED=1`.
 
+### History (#178)
+
+Alloy imports approved records of the last seven days from what Docker still
+has, resumes from positions in `alloy-data`, and Loki's Compactor applies
+seven-day retention in `loki-data`. Docker's rotation of the source logs is
+separate. `tests/log-history/check.mjs` demonstrates first import, resume,
+replacement, rotation and retention on disposable containers; the limits are in
+the runbook's history section.
+
 ## Query tests
 
 `tests/dashboard-queries.test.yaml` is a `promtool test rules` file holding

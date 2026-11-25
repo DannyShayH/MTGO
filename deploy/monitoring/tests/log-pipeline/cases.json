@@ -1,5 +1,19 @@
 [
   {
+    "name": "record over seven days old",
+    "source": "backend",
+    "reason": "BVA: an hour outside the seven-day import window (#178); the run itself takes minutes, so a closer value could cross it",
+    "line": "{\"env\":\"production\",\"event\":\"access.denied\",\"level\":\"warn\",\"message\":\"Access denied\",\"msg\":\"Access denied\",\"request_id\":\"demo-178-169-hours\",\"service\":\"backend\",\"status\":401,\"time\":\"{{TIME-169H}}\",\"timestamp\":\"{{TIMESTAMP}}\"}",
+    "stored": null
+  },
+  {
+    "name": "record just under seven days old",
+    "source": "backend",
+    "reason": "BVA: an hour inside the seven-day import window (#178); the run itself takes minutes, so a closer value could cross it",
+    "line": "{\"env\":\"production\",\"event\":\"access.denied\",\"level\":\"warn\",\"message\":\"Access denied\",\"msg\":\"Access denied\",\"request_id\":\"demo-178-167-hours\",\"service\":\"backend\",\"status\":401,\"time\":\"{{TIME-167H}}\",\"timestamp\":\"{{TIMESTAMP}}\"}",
+    "stored": "{\"time\":\"{{TIME-167H}}\",\"level\":\"warn\",\"service\":\"backend\",\"env\":\"production\",\"event\":\"access.denied\",\"msg\":\"Access denied\",\"request_id\":\"demo-178-167-hours\",\"status\":401}"
+  },
+  {
     "name": "access denied with request id",
     "source": "backend",
     "reason": "EP: genuine producer record (Medusa production logger)",

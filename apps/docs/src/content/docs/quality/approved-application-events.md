@@ -11,7 +11,9 @@ three apps from the [logging contract](/MTGO/quality/logging/) flow through
 Alloy into Loki. You can search and live-tail them in the same private Grafana
 as the [request metrics](/MTGO/quality/local-request-monitoring/). Winston, the
 event vocabulary, what each app logs and how request IDs travel are unchanged.
-Retention and resume are [#178](https://github.com/DannyShayH/MTGO/issues/178).
+Seven-day history and resume
+([#178](https://github.com/DannyShayH/MTGO/issues/178)) are
+[below](#history-import-resume-and-retention).
 Pipeline failure views are [#179](https://github.com/DannyShayH/MTGO/issues/179).
 Budgets are [#182](https://github.com/DannyShayH/MTGO/issues/182).
 
@@ -197,6 +199,94 @@ Every query returns HTTP 200 and **0 lines**. A 200 shows the Viewer really
 queried Loki beyond the dashboard. The `docker compose logs` above still have
 the startup lines.
 
+## History: import, resume and retention
+
+Three mechanisms are separate. None of them is a backup or an audit archive, and
+delivery is best effort.
+
+| Mechanism               | Bound                                       | What it decides                         |
+| ----------------------- | ------------------------------------------- | --------------------------------------- |
+| Docker's log rotation   | 5 files of 10 MB per container              | What Alloy can still read. Not time.    |
+| Alloy's import window   | The record's own `time` within 168 hours    | What enters Loki.                       |
+| Loki's retention (168h) | Queries: 168 hours. Files: later, see below | What a Viewer sees, and what is deleted |
+
+**First startup.** Alloy reads everything Docker still has for the three
+containers and imports the approved records of the last seven days. Records that
+Docker rotated away, or that went with a removed container, are gone. Nothing
+recovers them, and an empty period in Grafana does not prove that nothing
+happened. Imported records are searchable at once: Loki also asks the part of its
+storage that is not yet written to disk (`query_ingesters_within: 0s`).
+
+**Resume.** Alloy saves each container's read position in the `alloy-data`
+volume. A position belongs to the component's name
+(`loki.source.docker.application`) and to the container's labels, which the
+collector reduces to its ID and service. Docker's other labels, such as the
+network address, can change on a restart and would lose the position. Recreating
+Alloy or Loki keeps their volumes, so both continue where they were.
+
+| What happens                                           | Expect                                                                                                                                                                                  |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Alloy or Loki recreated, volumes kept                  | History stays and reading resumes. Positions are whole seconds, so the last second is read again.                                                                                       |
+| Application container replaced (a deploy)              | Earlier history stays in Loki. The new container is a new source. Lines Alloy had not read from the old one are lost.                                                                   |
+| Application container stopped and started again        | A replay: Alloy forgets the position of a container that left the list, and reads its log from the start.                                                                               |
+| Alloy away longer than Docker's rotation keeps         | A gap: the rotated lines are lost.                                                                                                                                                      |
+| Alloy killed, or Loki away longer than Alloy's retries | A gap: positions advance when a line is read, not when Loki has it.                                                                                                                     |
+| `alloy-data` removed, `loki-data` kept                 | A replay of what Docker still has. Loki merges identical records when it answers a query. It refuses those over an hour older than the newest record it holds in memory for the stream. |
+| `loki-data` removed, `alloy-data` kept                 | History is gone and is **not** imported again. Remove both volumes to import what Docker still has.                                                                                     |
+
+A replay is therefore usually invisible, but duplicates are possible. Never
+count business events from Loki.
+
+**Retention.** The Compactor runs every 10 minutes. It marks chunks whose newest
+record is over seven days old, and deletes their files two hours later. A chunk
+holds up to two hours of records in normal operation, but one first-import chunk
+can hold several days and is kept until its newest record expires. So deletion is
+asynchronous, and an imported record's file can stay for up to a week longer
+than the record itself is shown. No query returns anything older than seven days,
+whatever is still on disk (`max_query_lookback`). The Compactor's markers and
+Loki's write-ahead log are in `loki-data`, so deletion continues after a
+recreation.
+
+Retention limits time, **not disk space**. There is no size quota: a burst of
+events takes what it takes for seven days
+([#182](https://github.com/DannyShayH/MTGO/issues/182)). Docker's rotation is a
+separate limit on the source logs, and the raw lines there are never deleted by
+Loki.
+
+To see the saved position and retention at work:
+
+```bash
+docker compose exec alloy cat /var/lib/alloy/data/loki.source.docker.application/positions.yml
+docker compose logs loki | grep -i retention
+```
+
+### History check
+
+`deploy/monitoring/tests/log-history/` demonstrates the steps below on real,
+disposable containers with the real collector, pipeline and Loki configuration.
+It needs Docker and Node on the host and takes up to 30 minutes. It creates and
+removes only the `mtogo-log-history-test` project.
+
+```bash
+cd deploy/monitoring
+node tests/log-history/check.mjs
+```
+
+| Step               | Proves                                                                                                                     |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| First startup      | A record from inside the window is imported; Alloy's own counter shows that the one from outside was dropped.              |
+| Position resume    | A recreated Alloy reads only the new lines, and the position is under ID and service.                                      |
+| Loki recreation    | Earlier records are still there and new ones arrive.                                                                       |
+| Replacement        | Earlier history stays. A container replaced while Alloy was away leaves the expected gap.                                  |
+| Rotation           | All of 100 records arrive across several small (10 kB) rotations. Records rotated away while Alloy was away stay missing.  |
+| Retention          | With the real 168 hours and a fast Compactor, an 8-day-old chunk is deleted, a 6-day-old one is kept, across a recreation. |
+| Duplicates (shown) | How many records a query shows more than once. This is reported, never a failure.                                          |
+
+The retention step changes four settings on the command line only: it accepts and
+shows old records, and the Compactor runs every 10 seconds without the two-hour
+delay. `src/observability/__tests__/log-history.unit.spec.ts` in the backend
+checks the configuration that makes it work, in the normal unit suite.
+
 ## Fixture test of the pipeline
 
 `deploy/monitoring/tests/log-pipeline/` runs the **real** module in the pinned Alloy
@@ -212,7 +302,8 @@ sorted keys, as `next start` prints it. One backend record shares the partner
 sign-in's request ID. The other cases are synthetic negatives: extra and nested
 fields, Medusa `message` text, invalid IDs, error details, misplaced event
 fields, out-of-range timings, Medusa and Next.js startup and error lines,
-unknown events, wrong level, message or environment, a record naming another
+unknown events, wrong level, message or environment, a record over seven days
+old (and one just under, which is kept), a record naming another
 app than its container, an unknown service, plain text, arrays and oversized
 lines. Every dropped value carries a `SECRET-MARKER`.
 
@@ -244,10 +335,10 @@ Compose profile `logs`. They start only when `/srv/mtogo-staging/.env` has
 `STAGING_LOGS_ENABLED=1`. Without it, `monitoring up` behaves exactly as for
 [#194](/MTGO/quality/staging-request-monitoring/).
 
-| Container | Hard cap | Go memory limit | Persistent state                    |
-| --------- | -------- | --------------- | ----------------------------------- |
-| loki      | 256 MB   | 200 MiB         | Volume `loki-data`: 7-day policy    |
-| alloy     | 160 MB   | 120 MiB         | Volume `alloy-data`: read positions |
+| Container | Hard cap | Go memory limit | Persistent state                     |
+| --------- | -------- | --------------- | ------------------------------------ |
+| loki      | 256 MB   | 200 MiB         | `loki-data`: chunks, retention state |
+| alloy     | 160 MB   | 120 MiB         | `alloy-data`: read positions         |
 
 The caps add at most 416 MB to the 640 MB of Prometheus and Grafana. The idle
 reading on 20 November 2026, before monitoring, had 883 MB available. Whether
@@ -256,7 +347,7 @@ the whole stack fits is not yet measured. That is
 `available` floor and readings as
 [staging request monitoring](/MTGO/quality/staging-request-monitoring/#memory-budget).
 If they fail, switch logs off again. Seven-day retention is a time policy, not
-a disk quota.
+a disk quota ([history](#history-import-resume-and-retention)).
 
 Activation, by the repository admin on the Droplet, after this change is live:
 
@@ -286,6 +377,11 @@ containers. No setting changes, and the `worker` is still not read. Alloy now
 follows three containers instead of one, so include it in the memory readings
 of step 6. Its cap is unchanged.
 
+With #178 live, the first `monitoring up` changes how positions are stored.
+Alloy therefore reads each container's retained log **once more**: a replay, as
+in the table above. Expect rejected-entry warnings from Alloy for a moment.
+Nothing has to be removed.
+
 ### Staging journey for the partner and storefront
 
 Use synthetic input only, and send no deliberate failures or load to staging.
@@ -311,12 +407,31 @@ Use synthetic input only, and send no deliberate failures or load to staging.
 | No events, Loki healthy                       | No approved event in the time range. Produce one (above). Check Alloy found the container: `docker compose logs alloy` names the target. The project name must match `MTOGO_LOG_PROJECT`. |
 | An event is in Docker logs but not in Grafana | It is not recognized: an unknown event, wrong level/message pair, another service or non-production JSON. Development output (CLI format) is not JSON and never qualifies.                |
 | Partner or storefront events never appear     | `docker compose logs alloy` must name the container. Its Compose service must be exactly `partner` or `storefront`, and the record's `service` must match it.                             |
-| A field is missing from a stored event        | Its value failed the allowlist check and was left out. Compare with `packages/logging/src/index.cjs`.                                                                                     |
-| Events appear twice after recreation          | Alloy resumes from saved positions in `alloy-data`; after losing that volume it reads the container's log again. Delivery is best effort, not exactly once.                               |
+| A field is missing from a stored event        | Its value failed the allowlist check and was left out. Compare with `packages/logging/src/record.cjs`.                                                                                    |
+| Events appear twice after recreation          | A replay: see [resume](#history-import-resume-and-retention). Delivery is best effort, not exactly once.                                                                                  |
+| Alloy warns `entry too far behind`            | A replay after a lost or changed position, or records that arrived over an hour late. Replayed records are normally stored already; late ones are lost.                                   |
+| History is missing after `loki-data` was lost | Alloy's positions are past it. Stop the stack, remove `alloy-data` too and start again: what Docker still has within seven days is imported.                                              |
+| Disk use does not fall after seven days       | Deletion follows the newest record in a chunk, then the 10-minute run and the two-hour delay. Check `docker compose logs loki` for Compactor errors.                                      |
 | Unit test fails after a new event             | Add its `event\|level\|msg` combination to the `recognized` expression in `approved-events.alloy` and re-run the fixture test.                                                            |
 | Permission denied on the Docker socket        | Compose runs Alloy as root (`user: "0"`) to read the socket. Check the socket path is `/var/run/docker.sock` on the host.                                                                 |
 
 ## Verification record
+
+Agent verification for #178 on 25 November 2026:
+
+| Boundary                     | Result                                                                                                                                                                                                                            |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Backend unit specs           | Passed: the seven-day window, retention state, container identity, volumes in both stacks and rotation; both sides of the import window.                                                                                          |
+| Pinned binaries, static only | The official Loki 3.7.10 and Alloy 1.22.0 binaries (published checksums matched) accepted the configurations: `loki -verify-config`, also with the retention step's four settings, and `alloy validate`.                          |
+| Pinned source                | Read at the same tags: positions keyed on the whole label set, removal on container stop, whole-chunk expiry, hourly query splits, the one-hour ordering window and duplicate handling. These are the claims in the tables above. |
+| Running Loki and Alloy       | **Not run**: no Docker engine in the devcontainer, and running the binaries as servers was not permitted. The history check (never executed yet), the fixture test and the Viewer's view are the developer's run.                 |
+
+Manual acceptance for #178:
+
+- `node tests/log-history/check.mjs` prints eight `ok` lines and exits 0. Record its duplicate count here.
+- The fixture test passes, with the two records at the seven-day boundary.
+- As a local Viewer: note an event's `request_id`, run `docker compose up -d --force-recreate loki alloy`, and find it again. Run the demo read: the new event appears too.
+- `docker inspect` of the demo backend shows `max-size` 10m and `max-file` 5.
 
 Agent verification for #247 on 25 November 2026: the pipeline recognizes the
 eight milestones and the `category` field. The unit spec passes, and a throwaway

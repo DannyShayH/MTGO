@@ -19,6 +19,12 @@ common:
       chunks_directory: /loki/chunks
       rules_directory: /loki/rules
 
+querier:
+  # Always ask for records not yet written to disk too. Long queries are split
+  # by the hour, and by default parts over three hours old would miss freshly
+  # imported history for up to half an hour (#178).
+  query_ingesters_within: 0s
+
 schema_config:
   configs:
     - from: 2026-11-01
@@ -36,12 +42,17 @@ limits_config:
   reject_old_samples: true
   reject_old_samples_max_age: 168h
   retention_period: 168h
+  # A chunk is deleted only when its newest record expires, and later still by
+  # the compactor's delay. No query returns a record older than seven days.
+  max_query_lookback: 168h
   ingestion_rate_mb: 1
   ingestion_burst_size_mb: 2
   max_label_names_per_series: 5
 
-# Seven-day retention is applied by the compactor; it is a time policy, not a
-# disk quota (#178 and #182 measure and bound storage).
+# Seven-day retention is applied by the compactor, whose state is in the same
+# volume. It marks expired chunks at every interval and deletes their files two
+# hours later (Loki's default delay). It is a time policy, not a disk quota
+# (#182 bounds storage), and separate from Docker's rotation of the source logs.
 compactor:
   working_directory: /loki/compactor
   compaction_interval: 10m

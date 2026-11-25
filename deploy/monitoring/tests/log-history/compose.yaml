@@ -1,0 +1,78 @@
+# Disposable containers for the log history check (#178); check.mjs drives them.
+# The collector, pipeline and Loki configuration are the real files. Docker's
+# rotation is made small enough to reach. Nothing publishes a port.
+name: mtogo-log-history-test
+
+x-fast-rotation: &fast-rotation
+  driver: json-file
+  options:
+    max-size: "10k"
+    max-file: "2"
+
+services:
+  # Stands in for the application: prints each line appended to its queue.
+  backend:
+    image: node:24.22.3-bookworm-slim
+    init: true
+    command: ["sh", "-c", ": > /tmp/queue; exec tail -n +1 -F /tmp/queue"]
+    networks: [logs]
+    logging: *fast-rotation
+
+  loki:
+    image: grafana/loki:3.7.10
+    command: ["-config.file=/etc/loki/config.yaml"]
+    volumes:
+      - ../../loki/config.yaml:/etc/loki/config.yaml:ro
+      - loki-data:/loki
+    networks: [logs]
+
+  alloy:
+    image: grafana/alloy:v1.22.0
+    # Root inside the container, only to read the Docker socket.
+    user: "0"
+    command:
+      - run
+      - --storage.path=/var/lib/alloy/data
+      - --disable-reporting
+      # The check reads its counters, inside the private network only.
+      - --server.http.listen-addr=0.0.0.0:12345
+      - /etc/alloy/config.alloy
+    environment:
+      MTOGO_LOG_PROJECT: mtogo-log-history-test
+    volumes:
+      - ../../alloy:/etc/alloy:ro
+      - alloy-data:/var/lib/alloy/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [logs]
+
+  # Queries Loki from inside the internal network.
+  query:
+    image: node:24.22.3-bookworm-slim
+    init: true
+    command: ["sleep", "infinity"]
+    networks: [logs]
+
+  # The real seven-day configuration with a fast Compactor. It accepts and shows
+  # old records only so that their deletion can be seen.
+  loki-retention:
+    image: grafana/loki:3.7.10
+    profiles: ["retention"]
+    command:
+      - -config.file=/etc/loki/config.yaml
+      - -validation.reject-old-samples=false
+      - -querier.max-query-lookback=0
+      - -compactor.compaction-interval=10s
+      - -compactor.retention-delete-delay=1s
+    volumes:
+      - ../../loki/config.yaml:/etc/loki/config.yaml:ro
+      - retention-data:/loki
+    networks: [logs]
+
+networks:
+  logs:
+    internal: true
+
+volumes:
+  loki-data:
+  alloy-data:
+  retention-data:

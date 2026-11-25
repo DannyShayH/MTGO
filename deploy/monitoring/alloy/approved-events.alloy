@@ -14,7 +14,7 @@
 // Stream labels are service, env and level. Request, actor, Restaurant and
 // Order IDs stay searchable fields inside the line, never labels.
 //
-// Keep the recognized combinations in step with packages/logging/src/index.cjs;
+// Keep the recognized combinations in step with packages/logging/src/record.cjs;
 // src/observability/__tests__/approved-log-events.unit.spec.ts fails when
 // they drift. deploy/monitoring/tests/log-pipeline runs this module against Loki.
 
@@ -282,6 +282,14 @@ declare "application_events" {
     stage.timestamp {
       source = "ok_time"
       format = "RFC3339"
+    }
+
+    // First collection reads all that Docker still has. Only records from the
+    // last seven days are imported (#178), by their own time: as long as Loki
+    // keeps and accepts them.
+    stage.drop {
+      older_than          = "168h"
+      drop_counter_reason = "older_than_seven_days"
     }
 
     stage.labels {

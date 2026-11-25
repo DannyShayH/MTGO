@@ -266,9 +266,8 @@ sudo mtogo-deploy.sh logs --since=10m backend partner | grep 'PASTE-REQUEST-ID'
 Use the actual service names if they differ. Approved backend, partner and
 storefront events can also be searched in Grafana through Loki; see
 [approved application events in Grafana](/MTGO/quality/approved-application-events/).
-Everything else stays only in these Docker logs. Docker's default
-`json-file` driver does not rotate by default; deployment should configure a
-bounded driver such as `local` with `max-size`/`max-file`. Driver configuration,
-rotation, retention, restricted log access, metrics, traces, dashboards and
-alerts are separate deployment/monitoring work. The team must still decide on
+Everything else stays only in these Docker logs, which Docker rotates by size.
+The approved events in Loki have their own
+[seven-day history](/MTGO/quality/approved-application-events/#history-import-resume-and-retention).
+Traces and alerts are separate work. The team must still decide on
 IP/user-agent collection and retention before enabling broad access logging.

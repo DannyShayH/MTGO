@@ -27,6 +27,8 @@ services:
       - run
       - --storage.path=/var/lib/alloy/data
       - --disable-reporting
+      # The check reads its drop counters, inside the private network only.
+      - --server.http.listen-addr=0.0.0.0:12345
       - /etc/alloy/fixture.alloy
     volumes:
       - ../../alloy/approved-events.alloy:/etc/alloy/approved-events.alloy:ro

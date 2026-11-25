@@ -18,6 +18,14 @@ x-environment: &environment
   PORT: "9000"
   MTOGO_MONITORING_DEMO: "1"
 
+# Docker's own rotation of the source logs, as on staging. It is not the
+# seven-day history: a record rotated away before Alloy read it is gone (#178).
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   postgres:
     image: postgres:16.16-bookworm
@@ -76,6 +84,7 @@ services:
       loopback:
       metrics:
         aliases: [backend-metrics]
+    logging: *logging
 
   # Partner app for the cross-app event journey (#177). Its server side calls
   # the backend privately, forwarding its request ID; Alloy collects both.
@@ -98,6 +107,7 @@ services:
     networks:
       - application
       - loopback
+    logging: *logging
 
 networks:
   application:

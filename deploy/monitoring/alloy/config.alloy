@@ -39,6 +39,16 @@ discovery.relabel "application" {
     source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
     target_label  = "source_service"
   }
+
+  // Alloy stores a container's read position under its whole label set (#178).
+  // Docker's labels include its network address, which a restart can change;
+  // the position would be lost and the log read again. The ID and the service
+  // identify a container for its whole life. Changing this set, or the name of
+  // loki.source.docker below, loses every stored position once.
+  rule {
+    action = "labelkeep"
+    regex  = "__meta_docker_container_id|source_service"
+  }
 }
 
 loki.source.docker "application" {

@@ -31,7 +31,8 @@ const fixtureTime = {
 }
 const fill = (text: string) =>
   text
-    .replaceAll("{{TIME}}", fixtureTime.time)
+    // {{TIME-167H}} is 167 hours earlier; the check script stamps it.
+    .replaceAll(/\{\{TIME(?:-\d+H)?\}\}/g, fixtureTime.time)
     .replaceAll("{{TIMESTAMP}}", fixtureTime.timestamp)
 
 /** `event|level|msg` combinations the pipeline recognizes, unescaped. */
@@ -105,6 +106,7 @@ describe("approved application events pipeline", () => {
     "compose.yaml",
     "compose.staging.yaml",
     "tests/log-pipeline/compose.yaml",
+    "tests/log-history/compose.yaml",
   ])("%s pins the Loki and Alloy images", (file) => {
     const compose = read(file)
     expect(compose).toContain("image: grafana/loki:3.7.10")
@@ -131,6 +133,19 @@ describe("approved-event fixtures", () => {
     )
     expect(spoofed.length).toBeGreaterThan(1)
     for (const { stored } of spoofed) expect(stored).toBeNull()
+  })
+
+  // Loki accepts a stream's records in time order only, within an hour.
+  it("cover both sides of the seven-day import window, oldest first", () => {
+    const aged = cases.map(({ line, stored }) => ({
+      hours: Number(line.match(/\{\{TIME-(\d+)H\}\}/)?.[1] ?? 0),
+      isKept: stored !== null,
+    }))
+    expect(aged.filter(({ hours }) => hours > 0)).toEqual([
+      { hours: 169, isKept: false },
+      { hours: 167, isKept: true },
+    ])
+    expect(aged.slice(0, 2).map(({ hours }) => hours)).toEqual([169, 167])
   })
 
   it("cover kept and dropped lines", () => {

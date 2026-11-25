@@ -1,8 +1,9 @@
 // Fixture check of the approved-events pipeline at the Loki query boundary
-// (#176, #177). `write` turns cases.json into one log file per source
+// (#176, #177, #178). `write` turns cases.json into one log file per source
 // container (backend, partner, storefront) stamped with the current time;
 // `check` waits for Alloy and then compares what Loki actually stores with the
-// expected reconstructions. Plain Node, no dependencies.
+// expected reconstructions. `{{TIME-167H}}` is 167 hours earlier; old cases come
+// first in cases.json, as an application writes them. Plain Node, no dependencies.
 const assert = require("node:assert/strict")
 const { readFileSync, writeFileSync } = require("node:fs")
 const { join } = require("node:path")
@@ -11,13 +12,15 @@ const cases = JSON.parse(readFileSync(join(__dirname, "cases.json"), "utf8"))
 const sources = ["backend", "partner", "storefront"]
 const [mode, dir] = process.argv.slice(2)
 const lokiUrl = process.env.LOKI_URL ?? "http://loki:3100"
+const alloyUrl = process.env.ALLOY_URL ?? "http://alloy:12345"
+const HOUR = 3_600_000
 const EVERY_STREAM = '{service=~".+"}'
 
 function stamp(text, now) {
-  const time = now.toISOString()
-  const timestamp = time.slice(0, 19).replace("T", " ")
+  const before = (hours) => new Date(now - hours * HOUR).toISOString()
+  const timestamp = before(0).slice(0, 19).replace("T", " ")
   return text
-    .replaceAll("{{TIME}}", time)
+    .replaceAll(/\{\{TIME(?:-(\d+)H)?\}\}/g, (_, hours = 0) => before(hours))
     .replaceAll("{{TIMESTAMP}}", timestamp)
 }
 
@@ -40,7 +43,7 @@ const countEntries = (streams) =>
 
 async function check() {
   const { now } = JSON.parse(readFileSync(join(dir, "meta.json"), "utf8"))
-  const start = now - 60_000
+  const start = now - 8 * 24 * HOUR
   const expected = cases
     .filter(({ stored }) => stored)
     .map(({ stored }) => stamp(stored, new Date(now)))
@@ -63,9 +66,13 @@ async function check() {
   }
   assert.deepEqual([...stored].sort(), [...expected].sort())
   for (const line of stored) assert.doesNotMatch(line, /SECRET/)
-  const timestamps = streams.flatMap(({ values }) => values.map(([ns]) => ns))
-  for (const ns of timestamps)
-    assert.equal(Number(BigInt(ns) / 1_000_000n), now, "source time kept")
+  for (const { values } of streams)
+    for (const [ns, line] of values)
+      assert.equal(
+        Number(BigInt(ns) / 1_000_000n),
+        Date.parse(JSON.parse(line).time),
+        "source time kept",
+      )
   assert.deepEqual(
     [...new Set(streams.map(({ stream }) => stream.service))].sort(),
     sources,
@@ -92,6 +99,15 @@ async function check() {
     ["backend", "partner"],
     "request ID is searchable across applications",
   )
+  // Loki returns nothing over seven days old, so only Alloy can show that the
+  // pipeline itself dropped it.
+  const metrics = await (await fetch(`${alloyUrl}/metrics`)).text()
+  assert.match(
+    metrics,
+    /^loki_process_dropped_lines_total\{[^}]*reason="older_than_seven_days"[^}]*\} 1$/m,
+    "exactly one record was too old to import",
+  )
+
   console.log(
     `approved-events pipeline: ${stored.length} records stored as expected, ` +
       `${cases.length - expected.length} lines excluded`,
