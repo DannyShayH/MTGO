@@ -95,10 +95,15 @@ project, with its own memory readings and floor.
 ## Release flow
 
 The Deploy workflow (`.github/workflows/on_main.yml`) runs on every push to
-`main`. The docs deployment and SonarQube jobs are unchanged, except that a
-docs deploy that cannot find its freshly uploaded Pages artifact waits until
-GitHub lists it and deploys once more; a second failure still fails the run
-and the `deploy:pages` status (#207). Two more jobs
+`main`. The docs job downloads the Ready artifact named for the delivered
+commit and uploads a Pages artifact named for the run and attempt. It tries
+Pages deployment up to three times, waiting 15 and then 30 seconds between
+attempts to allow artifact visibility to catch up. The final result sets the
+`deploy:pages` commit status. If deployment still fails, inspect the download,
+upload and deploy step logs. Rerun the failed job after correcting the cause;
+the new attempt uploads a distinct artifact and does not collide with earlier
+attempts. If the tested artifact is missing or expired, rerun Ready for the
+commit before retrying deployment. Two more jobs
 run only while the repository variable `STAGING_DEPLOY_ENABLED` is `true`:
 
 1. **release_images** builds the `backend` and `partner` targets of

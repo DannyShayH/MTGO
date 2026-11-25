@@ -80,61 +80,87 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      # Deploys the docs site built and tested by on_ready for this commit
-      - name: Deploy docs site to GitHub Pages
-        id: docs_deploy
-        continue-on-error: true
-        uses: devx-cafe/takt-actions/deploy-artifact@v1
-        with:
-          artifact_name: github-pages-${{ github.sha }}
-          artifact_path: apps/docs/dist
-
-      # GitHub's artifact list can lag a fresh upload, so deploy-pages sometimes
-      # finds no artifact a second after the action uploaded it (#207). Wait until
-      # that upload is listed and deploy it once more; the action cannot simply be
-      # rerun, because its upload name is fixed and is not overwritten.
-      - name: Wait for the Pages artifact to be listed
-        if: steps.docs_deploy.outcome == 'failure'
+      # The Ready workflow builds and tests this exact commit before merging it.
+      - name: Download the tested docs site
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PAGES_ARTIFACT: github-pages-${{ github.repository_id }}-${{ github.sha }}
         run: |
-          for attempt in {1..12}; do
-            count=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?name=$PAGES_ARTIFACT" --jq '.total_count' || echo 0)
-            if [[ "$count" -gt 0 ]]; then
-              echo "Pages artifact $PAGES_ARTIFACT is listed (attempt $attempt/12)."
-              exit 0
+          artifact_name="github-pages-$GITHUB_SHA"
+          run_ids=$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/actions/workflows/on_ready.yml/runs?head_sha=$GITHUB_SHA&per_page=100" \
+            --jq '[.[].workflow_runs[] | select(.head_sha == env.GITHUB_SHA) | .id] | .[]')
+          selected_run=""
+          for run_id in $run_ids; do
+            if gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?per_page=100" \
+              --jq '[.[].jobs[] | select(.name == "Docs tests and build" and .conclusion == "success")] | length > 0' | grep -qx true; then
+              selected_run="$run_id"
+              break
             fi
-            echo "Pages artifact is not listed yet (attempt $attempt/12); retrying in 5 seconds."
-            sleep 5
           done
-          echo "::error::Pages artifact $PAGES_ARTIFACT was not listed after 12 attempts; the docs deploy failed before or during its upload."
-          exit 1
-
-      - name: Retry the docs deploy to GitHub Pages
-        id: docs_retry
-        if: steps.docs_deploy.outcome == 'failure'
-        uses: actions/deploy-pages@v5
-        with:
-          artifact_name: github-pages-${{ github.repository_id }}-${{ github.sha }}
-
-      # The action already reported deploy:pages as failed; report the retry's outcome
-      - name: Report the retried docs deploy
-        if: always() && steps.docs_deploy.outcome == 'failure'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RETRY_OUTCOME: ${{ steps.docs_retry.outcome }}
-          PAGE_URL: ${{ steps.docs_retry.outputs.page_url }}
-        run: |
-          gh extension list | grep -q 'lakruzz/gh-set-status' || gh extension install lakruzz/gh-set-status
-          if [[ "$RETRY_OUTCOME" == "success" ]]; then
-            gh set-status success "Deployment successful after retry: $PAGE_URL" deploy:pages
-            echo "✅ Docs deployed after retry: $PAGE_URL" >> "$GITHUB_STEP_SUMMARY"
-          else
-            gh set-status failure "Deployment failed after retry" deploy:pages
-            echo "::error::The docs deploy failed again after the retry."
+          if [[ -z "$selected_run" ]]; then
+            echo "::error::No successful Ready docs job found for $GITHUB_SHA. Rerun Ready for this commit."
             exit 1
           fi
+          gh run download "$selected_run" --repo "$GITHUB_REPOSITORY" --name "$artifact_name" --dir apps/docs/dist
+          test -s apps/docs/dist/index.html || { echo "::error::The tested docs artifact is missing or empty. Rerun Ready for this commit."; exit 1; }
+
+      - name: Upload the Pages artifact for this attempt
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: apps/docs/dist
+          name: github-pages-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 1
+
+      - name: Deploy docs (attempt 1)
+        id: pages_1
+        continue-on-error: true
+        uses: actions/deploy-pages@v5
+        with:
+          artifact_name: github-pages-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Wait before attempt 2
+        if: steps.pages_1.outcome == 'failure'
+        run: sleep 15
+
+      - name: Deploy docs (attempt 2)
+        id: pages_2
+        if: steps.pages_1.outcome == 'failure'
+        continue-on-error: true
+        uses: actions/deploy-pages@v5
+        with:
+          artifact_name: github-pages-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Wait before attempt 3
+        if: steps.pages_2.outcome == 'failure'
+        run: sleep 30
+
+      - name: Deploy docs (attempt 3)
+        id: pages_3
+        if: steps.pages_2.outcome == 'failure'
+        continue-on-error: true
+        uses: actions/deploy-pages@v5
+        with:
+          artifact_name: github-pages-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Report docs deployment
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PAGE_OUTCOME: ${{ steps.pages_1.outcome == 'success' || steps.pages_2.outcome == 'success' || steps.pages_3.outcome == 'success' }}
+          PAGE_URL: ${{ steps.pages_1.outputs.page_url || steps.pages_2.outputs.page_url || steps.pages_3.outputs.page_url }}
+        run: |
+          if [[ "$PAGE_OUTCOME" == "true" ]]; then
+            state=success
+            description="Docs deployment successful"
+            echo "Docs deployed: $PAGE_URL" >> "$GITHUB_STEP_SUMMARY"
+          else
+            state=failure
+            description="Docs deployment failed; inspect the Deploy run"
+            echo "::error::Docs deployment failed. Inspect download, upload and deployment logs; rerun the failed job after correcting the cause."
+          fi
+          gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
+            -f state="$state" -f context=deploy:pages -f description="$description" \
+            -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          [[ "$state" == success ]]
 
   # Staging (#35). Both jobs are skipped until the repository variable
   # STAGING_DEPLOY_ENABLED is "true". The docs deployment above never depends
