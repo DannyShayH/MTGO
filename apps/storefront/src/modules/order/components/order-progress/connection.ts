@@ -47,6 +47,12 @@ export const INITIAL_TRACKING_CONNECTION: TrackingConnection = {
 /** A live page still rereads this often, to recover a missed hint. */
 export const RECONCILE_MS = 60_000
 
+export const WATCHDOG_MS = 40_000
+
+/** Delay between failed feed attempts, bounded to avoid reconnect storms. */
+export const retryDelay = (attempt: number) =>
+  Math.min(60_000, 1_000 * 2 ** Math.min(attempt, 6))
+
 type Transition = { state: TrackingConnection; shouldReread: boolean }
 
 /** A proving feed that is reconciled and active becomes live. */

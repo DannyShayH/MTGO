@@ -169,3 +169,22 @@ test("a failed read without an open feed changes nothing", () => {
   assert.deepEqual(state, checking)
   assert.deepEqual(rereads, [])
 })
+
+test("watchdog expires after forty seconds", async () => {
+  const { WATCHDOG_MS } = await import("../connection.ts")
+  assert.equal(WATCHDOG_MS, 40_000)
+})
+
+const retryCases = [
+  { reason: "EP: first attempt", attempt: 0, expected: 1_000 },
+  { reason: "EP: exponential backoff", attempt: 2, expected: 4_000 },
+  { reason: "BVA: immediately below cap", attempt: 5, expected: 32_000 },
+  { reason: "BVA: first capped attempt", attempt: 6, expected: 60_000 },
+  { reason: "BVA: above cap", attempt: 7, expected: 60_000 },
+]
+for (const { reason, attempt, expected } of retryCases) {
+  test(reason, async () => {
+    const { retryDelay } = await import("../connection.ts")
+    assert.equal(retryDelay(attempt), expected)
+  })
+}

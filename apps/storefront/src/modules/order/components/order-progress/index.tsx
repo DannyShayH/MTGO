@@ -24,6 +24,8 @@ import { POLL_MS, isSettled, serializeRefresh, startPolling } from "./polling"
 import {
   INITIAL_TRACKING_CONNECTION,
   RECONCILE_MS,
+  WATCHDOG_MS,
+  retryDelay,
   nextTrackingConnection,
   type TrackingConnectionEvent,
   type TrackingConnectionStatus,
@@ -32,17 +34,7 @@ import { locationAge, shownLocationState } from "./location-age"
 import DeliveryMap from "@modules/order/components/delivery-map"
 import { deliveryMapView } from "@modules/order/components/delivery-map/map-view"
 
-/** A successful read: the progress and the server's time of reading it. */
-type ConfirmedProgress = { progress: OrderProgress; server_time: string }
-
-/** Keep the later of two reads, so a slow older read never undoes a newer one. */
-const later = (
-  current: ConfirmedProgress | null,
-  next: ConfirmedProgress,
-): ConfirmedProgress =>
-  current && Date.parse(current.server_time) > Date.parse(next.server_time)
-    ? current
-    : next
+import { acceptProgress, type ConfirmedProgress } from "./confirmed-progress"
 
 /**
  * The Customer's Order timeline of food progress (#147) and the outcome
@@ -69,6 +61,7 @@ export default function OrderProgressPanel({
   const [confirmed, setConfirmed] = useState<ConfirmedProgress | null>(
     initial.state === "success" ? initial : null,
   )
+  const confirmedRef = useRef(confirmed)
   const [failures, setFailures] = useState(initial.state === "failed" ? 1 : 0)
   const [isRefused, setIsRefused] = useState(initial.state === "not_found")
   const [isBusy, setIsBusy] = useState(false)
@@ -83,6 +76,7 @@ export default function OrderProgressPanel({
   )
   /** Bumped to open the feed again after it failed. */
   const [streamAttempt, setStreamAttempt] = useState(0)
+  const retryCount = useRef(0)
   const dispatchRef = useRef<(event: TrackingConnectionEvent) => void>(() => {})
   const serializedRefresh = useRef<ReturnType<typeof serializeRefresh> | null>(
     null,
@@ -93,15 +87,23 @@ export default function OrderProgressPanel({
   if (adoptedRead !== initial) {
     setAdoptedRead(initial)
     if (initial.state === "success") {
-      setConfirmed((current) => later(current, initial))
-      setIsLive(true)
-      setIsRefused(false)
-      setFailures(0)
+      const accepted = acceptProgress(confirmed, initial)
+      setConfirmed(accepted)
+      if (accepted === initial) {
+        setIsLive(true)
+        setIsRefused(false)
+        setFailures(0)
+      } else {
+        setFailures((count) => count + 1)
+      }
     } else if (initial.state === "not_found") {
       setConfirmed(null)
       setIsRefused(true)
     }
   }
+  useEffect(() => {
+    confirmedRef.current = confirmed
+  }, [confirmed])
   useEffect(
     () => () => {
       generation.current += 1
@@ -116,12 +118,21 @@ export default function OrderProgressPanel({
     )
     if (readGeneration !== generation.current) return false
     if (result.state === "success") {
-      setConfirmed((current) => later(current, result))
+      const accepted = acceptProgress(confirmedRef.current, result)
+      if (accepted !== result) {
+        setFailures((count) => count + 1)
+        dispatchRef.current({ type: "read_failed", read: readNumber })
+        return true
+      }
+      confirmedRef.current = accepted
+      setConfirmed(accepted)
       setIsLive(true)
       setFailures(0)
       setIsRefused(false)
       dispatchRef.current({ type: "read_succeeded", read: readNumber })
     } else if (result.state === "not_found") {
+      generation.current += 1
+      confirmedRef.current = null
       setConfirmed(null)
       setIsRefused(true)
       return false
@@ -160,6 +171,10 @@ export default function OrderProgressPanel({
     }
   }, [reread])
 
+  useEffect(() => {
+    if (document.visibilityState === "visible") void refresh(true)
+  }, [orderId, refresh])
+
   const isFinal = confirmed ? isSettled(confirmed.progress) : false
   const isTracking = !isFinal && !isRefused
 
@@ -168,11 +183,26 @@ export default function OrderProgressPanel({
   useEffect(() => {
     if (!isTracking) return
     let source: EventSource | null = null
+    let watchdog: number | undefined
+    let retry: number | undefined
     const dispatch = (event: TrackingConnectionEvent) =>
       dispatchRef.current(event)
     const close = () => {
       source?.close()
       source = null
+      window.clearTimeout(watchdog)
+      window.clearTimeout(retry)
+    }
+    const failed = () => {
+      close()
+      dispatch({ type: "stream_failed" })
+      if (document.visibilityState === "visible") {
+        retry = window.setTimeout(open, retryDelay(retryCount.current++))
+      }
+    }
+    const activity = () => {
+      window.clearTimeout(watchdog)
+      watchdog = window.setTimeout(failed, WATCHDOG_MS)
     }
     const open = () => {
       close()
@@ -180,23 +210,33 @@ export default function OrderProgressPanel({
         `/api/orders/${encodeURIComponent(orderId)}/tracking/stream`,
       )
       source = opened
+      activity()
       /** Ignores events of a feed this page has already closed. */
       const whileCurrent = (listener: () => void) => () => {
         if (source === opened) listener()
       }
       opened.addEventListener(
         "ready",
-        whileCurrent(() =>
-          dispatch({ type: "stream_ready", nextRead: reads.current + 1 }),
-        ),
+        whileCurrent(() => {
+          activity()
+          dispatch({ type: "stream_ready", nextRead: reads.current + 1 })
+        }),
       )
       opened.addEventListener(
         "heartbeat",
-        whileCurrent(() => dispatch({ type: "heartbeat" })),
+        whileCurrent(() => {
+          activity()
+          retryCount.current = 0
+          dispatch({ type: "heartbeat" })
+        }),
       )
       opened.addEventListener(
         "tracking",
-        whileCurrent(() => dispatch({ type: "tracking_hinted" })),
+        whileCurrent(() => {
+          activity()
+          retryCount.current = 0
+          dispatch({ type: "tracking_hinted" })
+        }),
       )
       // Signed out, expired or no longer the Customer's: stop and clear.
       opened.addEventListener(
@@ -204,19 +244,26 @@ export default function OrderProgressPanel({
         whileCurrent(() => {
           close()
           generation.current += 1
+          confirmedRef.current = null
           setConfirmed(null)
           setIsRefused(true)
         }),
       )
       // The browser would retry by itself; the page checks instead.
-      opened.onerror = whileCurrent(() => {
-        close()
-        dispatch({ type: "stream_failed" })
-      })
+      opened.onerror = whileCurrent(failed)
     }
     const onVisibility = () => {
-      if (document.visibilityState === "hidden") close()
-      else if (!source && connectionRef.current.status !== "checking") open()
+      if (document.visibilityState === "hidden") {
+        close()
+        const next = nextTrackingConnection(connectionRef.current, {
+          type: "stream_failed",
+        })
+        connectionRef.current = next.state
+        setConnection(next.state.status)
+      } else if (!source) {
+        retryCount.current = 0
+        open()
+      }
     }
     if (document.visibilityState === "visible") open()
     document.addEventListener("visibilitychange", onVisibility)
@@ -255,13 +302,12 @@ export default function OrderProgressPanel({
     const onReturn = () => {
       if (document.visibilityState !== "visible" || isRefused) return
       void refresh(false)
-      retryStream()
     }
     document.addEventListener("visibilitychange", onReturn)
     return () => {
       document.removeEventListener("visibilitychange", onReturn)
     }
-  }, [refresh, retryStream, isRefused])
+  }, [refresh, isRefused])
 
   const freshness: Freshness = isRefused
     ? "refused"
