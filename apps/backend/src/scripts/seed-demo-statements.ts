@@ -28,9 +28,9 @@
  * page.
  *
  * DEMO_STATEMENTS_REMOVE_BLOCKERS=true first removes the demo Restaurant's
- * earlier test Orders that keep its current month incomplete: delivered
- * Orders without a preserved purchase basis and Orders with prepared-food
- * compensation that finance does not recognize yet. They are soft-deleted
+ * earlier test Orders that keep its current month incomplete: Orders with a
+ * recorded evidence problem, such as delivered Orders without a preserved
+ * purchase basis. They are soft-deleted
  * with their operational and finance records, so the Restaurant's Orders
  * and statement no longer show them. Synthetic test data only.
  */
@@ -441,9 +441,10 @@ async function recognizeAtPlannedHandover(
 
 /**
  * Soft-deletes the Restaurant's test Orders that keep `month` incomplete
- * (DEMO_STATEMENTS_REMOVE_BLOCKERS): delivered Orders recorded as missing
- * their purchase basis, and Orders with prepared-food compensation, which
- * finance does not recognize until #229. Their operational, delivery and
+ * (DEMO_STATEMENTS_REMOVE_BLOCKERS): Orders with a recorded evidence
+ * problem, such as delivered Orders missing their purchase basis. Since #229
+ * finance recognizes prepared-food compensation, so it is no blocker. Their
+ * operational, delivery and
  * finance records go with them. Application code never deletes Orders or
  * financial evidence; this synthetic seed does, only on databases
  * `syntheticSeedAllowed` accepts and only when asked to.
@@ -460,25 +461,12 @@ async function removeStatementBlockers(
     ORDER_OPERATION_MODULE,
   )
   const delivery = container.resolve<DeliveryModuleService>(DELIVERY_MODULE)
-  const period = copenhagenMonthPeriod(month)
-  const [problems, credits] = await Promise.all([
-    finance.listFinanceProblems(
-      { restaurant_id, original_month: month },
-      { select: ["id", "source_id"], take: null },
-    ),
-    operations.listFoodCredits(
-      {
-        restaurant_id,
-        created_at: { $gte: period.starts_at, $lt: period.ends_at },
-      },
-      { select: ["order_id"], take: null },
-    ),
-  ])
+  const problems = await finance.listFinanceProblems(
+    { restaurant_id, original_month: month },
+    { select: ["id", "order_id"], take: null },
+  )
   const order_ids = [
-    ...new Set([
-      ...problems.map(({ source_id }) => source_id),
-      ...credits.map(({ order_id }) => order_id),
-    ]),
+    ...new Set(problems.flatMap(({ order_id }) => order_id ?? [])),
   ]
   if (!order_ids.length) return []
   const { data: orders } = await container

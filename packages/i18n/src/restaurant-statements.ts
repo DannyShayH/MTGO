@@ -85,12 +85,19 @@ export const RESTAURANT_STATEMENTS_TEXT = {
     entry_order: "Ordre",
     entry_order_number: "Ordre #{number}",
     entry_order_unknown: "Ordre",
-    entry_delivered: "Leveret",
     entry_posted: "Bogført",
     entry_food_credit: "Madkredit",
     entry_commission: "Kommission",
     entry_net: "Netto",
     entry_funded_by_mtogo: "Betalt af MTOGO",
+    entry_outcome: "Udfald",
+    entry_prepared_food:
+      "Kompensation for tilberedt mad – betalt af MTOGO, ingen kommission",
+    unsuccessful_heading: "Ordrer uden madkredit",
+    unsuccessful_intro:
+      "Ordrer, der blev afvist eller annulleret, før maden blev tilberedt. De giver ingen madkredit og ingen kommission, så de har ingen postering.",
+    unsuccessful_count: "{count} ordrer",
+    unsuccessful_count_one: "1 ordre",
     calculation: "Beregning",
     page_status: "Posteringer {from}–{to} af {count}",
     previous: "Forrige",
@@ -180,12 +187,19 @@ export const RESTAURANT_STATEMENTS_TEXT = {
     entry_order: "Order",
     entry_order_number: "Order #{number}",
     entry_order_unknown: "Order",
-    entry_delivered: "Delivered",
     entry_posted: "Booked",
     entry_food_credit: "Food credit",
     entry_commission: "Commission",
     entry_net: "Net",
     entry_funded_by_mtogo: "Paid by MTOGO",
+    entry_outcome: "Outcome",
+    entry_prepared_food:
+      "Compensation for prepared food – paid by MTOGO, no commission",
+    unsuccessful_heading: "Orders without food credit",
+    unsuccessful_intro:
+      "Orders rejected or cancelled before the food was prepared. They earn no food credit and no commission, so they have no entry.",
+    unsuccessful_count: "{count} Orders",
+    unsuccessful_count_one: "1 Order",
     calculation: "Calculation",
     page_status: "Entries {from}–{to} of {count}",
     previous: "Previous",
@@ -208,9 +222,15 @@ const PROBLEM_TEXT: Record<Locale, Record<string, string>> = {
     recognition_pending:
       "{count} leverede ordrer fra denne måned er endnu ikke bogført.",
     earlier_month_processing_pending:
-      "{count} leverede ordrer fra tidligere måneder venter på behandling og vises senere som regulering.",
+      "{count} ordrer fra tidligere måneder venter på behandling og vises senere som regulering.",
     prepared_food_credit_pending:
-      "{count} ordrer har kompensation for tilberedt mad, som opgørelsen ikke viser endnu.",
+      "{count} ordrer har kompensation for tilberedt mad, som endnu ikke er bogført.",
+    cancellation_processing_pending:
+      "{count} annullerede ordrer uden tilberedt mad er endnu ikke behandlet. De giver ingen madkredit.",
+    missing_outcome_evidence:
+      "{count} annullerede ordrer mangler oplysninger om, hvorfor eller hvornår de blev annulleret, så deres madkredit kan ikke fastslås.",
+    responsibility_unknown:
+      "{count} leveringer mislykkedes uden registreret ansvar. Der beregnes ingen madkredit ud fra det alene.",
     participation_evidence_missing:
       "Historikken over aktivering og deaktivering mangler for dele af måneden, så servicegebyret kan ikke beregnes.",
     service_fee_accrual_pending:
@@ -227,9 +247,15 @@ const PROBLEM_TEXT: Record<Locale, Record<string, string>> = {
     recognition_pending:
       "{count} delivered Orders from this month are not booked yet.",
     earlier_month_processing_pending:
-      "{count} delivered Orders from earlier months await processing and will appear later as adjustments.",
+      "{count} Orders from earlier months await processing and will appear later as adjustments.",
     prepared_food_credit_pending:
-      "{count} Orders have prepared-food compensation that the statement does not show yet.",
+      "{count} Orders have prepared-food compensation that is not booked yet.",
+    cancellation_processing_pending:
+      "{count} cancelled Orders without prepared food are not processed yet. They earn no food credit.",
+    missing_outcome_evidence:
+      "{count} cancelled Orders lack the record of why or when they were cancelled, so their food credit cannot be established.",
+    responsibility_unknown:
+      "{count} deliveries failed without recorded responsibility. No food credit is calculated from that alone.",
     participation_evidence_missing:
       "The activation and deactivation history is missing for part of the month, so the service fee cannot be calculated.",
     service_fee_accrual_pending:
@@ -239,6 +265,32 @@ const PROBLEM_TEXT: Record<Locale, Record<string, string>> = {
     unknown: "Some financial evidence needs attention ({code}).",
   },
 }
+
+const OUTCOME_TEXT: Record<Locale, Record<string, string>> = {
+  da: {
+    delivered: "Leveret",
+    unassigned_timeout: "Intet bud inden fristen",
+    operator_cancelled: "Annulleret af MTOGO",
+    restaurant_rejected: "Afvist af restauranten",
+    acceptance_timeout: "Ikke accepteret i tide",
+    customer_cancelled: "Annulleret af kunden",
+  },
+  en: {
+    delivered: "Delivered",
+    unassigned_timeout: "No Delivery agent by the deadline",
+    operator_cancelled: "Cancelled by MTOGO",
+    restaurant_rejected: "Rejected by the Restaurant",
+    acceptance_timeout: "Not accepted in time",
+    customer_cancelled: "Cancelled by the Customer",
+  },
+}
+
+/**
+ * An Order's qualifying outcome on the statement (#229), in the reader's
+ * language; an outcome this text does not know yet reads as its code.
+ */
+export const statementOutcomeText = (outcome: string, locale: Locale) =>
+  OUTCOME_TEXT[locale][outcome] ?? outcome
 
 /** One statement problem in the reader's language. */
 export const statementProblemText = (

@@ -49,7 +49,7 @@
           "scale": null,
           "default": null,
           "comment": null,
-          "enumItems": ["delivered_order"],
+          "enumItems": ["delivered_order", "prepared_food_compensation"],
           "mappedType": "enum"
         },
         "restaurant_id": {
@@ -367,7 +367,11 @@
           "scale": null,
           "default": null,
           "comment": null,
-          "enumItems": ["order_delivered"],
+          "enumItems": [
+            "order_delivered",
+            "prepared_food_credit",
+            "order_cancelled"
+          ],
           "mappedType": "enum"
         },
         "source_id": {
@@ -431,7 +435,11 @@
           "scale": null,
           "default": null,
           "comment": null,
-          "enumItems": ["missing_financial_basis", "conflicting_recognition"],
+          "enumItems": [
+            "missing_financial_basis",
+            "conflicting_recognition",
+            "missing_outcome_evidence"
+          ],
           "mappedType": "enum"
         },
         "original_month": {
@@ -589,7 +597,11 @@
           "scale": null,
           "default": null,
           "comment": null,
-          "enumItems": ["order_delivered"],
+          "enumItems": [
+            "order_delivered",
+            "prepared_food_credit",
+            "order_cancelled"
+          ],
           "mappedType": "enum"
         },
         "source_id": {

@@ -4,6 +4,7 @@ import {
   RESTAURANT_STATEMENTS_TEXT,
   formatStatementDate,
   formatStatementMonth,
+  statementOutcomeText,
   statementProblemText,
 } from "../restaurant-statements.ts"
 
@@ -59,5 +60,30 @@ test("the service-fee problems explain what withholds the fee in both languages"
       assert.doesNotMatch(
         statementProblemText({ code, count: 1 }, locale),
         new RegExp(code),
+      )
+})
+
+test("each Order outcome reads in both languages, and an unknown one still reads", () => {
+  assert.equal(
+    statementOutcomeText("unassigned_timeout", "en"),
+    "No Delivery agent by the deadline",
+  )
+  assert.equal(
+    statementOutcomeText("restaurant_rejected", "da"),
+    "Afvist af restauranten",
+  )
+  assert.equal(statementOutcomeText("something_new", "en"), "something_new")
+})
+
+test("new cancellation problems are explained in both languages (#229)", () => {
+  for (const code of [
+    "missing_outcome_evidence",
+    "cancellation_processing_pending",
+    "responsibility_unknown",
+  ])
+    for (const locale of ["da", "en"] as const)
+      assert.doesNotMatch(
+        statementProblemText({ code, count: 1 }, locale),
+        /\(/,
       )
 })

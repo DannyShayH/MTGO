@@ -6,6 +6,7 @@ import {
   formatStatementMonth,
   formatText,
   RESTAURANT_STATEMENTS_TEXT,
+  statementOutcomeText,
   statementProblemText,
   type Locale,
 } from "@dtc/i18n"
@@ -373,13 +374,18 @@ export function StatementEntries({
   const currency = result.statement.currency_code
   const amount = (value: string) => money(value, currency, locale)
   // The Order detail shows the purchase and its terms; a row names its
-  // funding only in the exceptional case that MTOGO pays the food credit.
+  // funding only in the exceptional case that MTOGO pays the food credit,
+  // which is prepared-food compensation without commission (#229).
   const fundedByMtogo = (entry: StatementEntry) =>
     entry.funded_by === "mtogo" && (
-      <span className="txt-compact-small text-ui-fg-subtle">
-        {text.entry_funded_by_mtogo}
+      <span className={clx(WRAP, "txt-compact-small text-ui-fg-subtle")}>
+        {entry.kind === "prepared_food_compensation"
+          ? text.entry_prepared_food
+          : text.entry_funded_by_mtogo}
       </span>
     )
+  const outcome = (entry: StatementEntry) =>
+    statementOutcomeText(entry.outcome, locale)
   const pages = Math.max(1, Math.ceil(result.count / STATEMENT_PAGE_SIZE))
   return (
     <Container className="rounded-card divide-ui-border-base divide-y overflow-hidden p-0">
@@ -407,7 +413,7 @@ export function StatementEntries({
                   {text.entry_order}
                 </th>
                 <th scope="col" className="px-3 py-3">
-                  {text.entry_delivered}
+                  {text.entry_outcome}
                 </th>
                 <th scope="col" className="px-3 py-3 text-right">
                   {text.entry_food_credit}
@@ -434,6 +440,9 @@ export function StatementEntries({
                   </td>
                   <td className="txt-compact-small px-3 py-3">
                     <span className="flex flex-col gap-1">
+                      <span className={clx(WRAP, "txt-compact-small-plus")}>
+                        {outcome(entry)}
+                      </span>
                       <span>
                         {formatOrderDateTime(entry.occurred_at, locale)}
                       </span>
@@ -472,8 +481,10 @@ export function StatementEntries({
               >
                 <OrderReference entry={entry} locale={locale} />
                 <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1">
-                  <dt className="txt-compact-small text-ui-fg-subtle">
-                    {text.entry_delivered}
+                  <dt
+                    className={clx(WRAP, "txt-compact-small text-ui-fg-subtle")}
+                  >
+                    {outcome(entry)}
                   </dt>
                   <dd className="txt-compact-small text-right">
                     {formatOrderDateTime(entry.occurred_at, locale)}
@@ -545,6 +556,49 @@ export function StatementEntries({
           )}
         </nav>
       )}
+    </Container>
+  )
+}
+
+/**
+ * The month's unsuccessful Orders that earned nothing (#229): rejected or
+ * cancelled before the food was prepared. They book no entry, so this shows
+ * they were accounted for, by outcome, with no amount.
+ */
+export function UnsuccessfulOrders({
+  outcomes,
+  locale,
+}: {
+  outcomes: { outcome: string; count: number }[]
+  locale: Locale
+}) {
+  const text = RESTAURANT_STATEMENTS_TEXT[locale]
+  if (!outcomes.length) return null
+  return (
+    <Container className="rounded-card flex flex-col gap-2 px-4 py-4 sm:px-6">
+      <Heading level="h2" id="statement-unsuccessful">
+        {text.unsuccessful_heading}
+      </Heading>
+      <Text size="small" className="text-ui-fg-subtle max-w-prose">
+        {text.unsuccessful_intro}
+      </Text>
+      <dl
+        aria-labelledby="statement-unsuccessful"
+        className="grid max-w-prose grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1"
+      >
+        {outcomes.map(({ outcome, count }) => (
+          <div key={outcome} className="contents">
+            <dt className={clx(WRAP, "txt-compact-small")}>
+              {statementOutcomeText(outcome, locale)}
+            </dt>
+            <dd className="txt-compact-small-plus text-right tabular-nums">
+              {count === 1
+                ? text.unsuccessful_count_one
+                : formatText(text.unsuccessful_count, { count })}
+            </dd>
+          </div>
+        ))}
+      </dl>
     </Container>
   )
 }

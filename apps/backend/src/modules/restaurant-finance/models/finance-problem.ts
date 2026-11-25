@@ -3,12 +3,14 @@ import { FINANCE_SOURCE_KINDS } from "./finance-receipt"
 
 /**
  * Why a source cannot be recognized as it is (spec #52 §3, §8): its purchase
- * basis was never preserved, or a repeated recognition carried another
- * payload than the one already booked.
+ * basis was never preserved, a repeated recognition carried another payload
+ * than the one already booked, or a cancellation's recorded facts do not
+ * establish its outcome or prepared-food credit (#229).
  */
 export const FINANCE_PROBLEM_CODES = [
   "missing_financial_basis",
   "conflicting_recognition",
+  "missing_outcome_evidence",
 ] as const
 export type FinanceProblemCode = (typeof FINANCE_PROBLEM_CODES)[number]
 

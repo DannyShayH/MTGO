@@ -144,5 +144,6 @@ export {
   RESTAURANT_STATEMENTS_TEXT,
   formatStatementDate,
   formatStatementMonth,
+  statementOutcomeText,
   statementProblemText,
 } from "./restaurant-statements.ts"

@@ -8,14 +8,17 @@ obligation in the Order Operations module. Issue #227 adds the first part:
 delivered food credit and commission, and their evidence problems. Issue #228
 adds the monthly service-fee obligation from active Copenhagen dates.
 
+Issue #229 recognizes existing prepared-food credits and records
+cancellations that owe no entitlement.
+
 ## Data model
 
-| Model                 | Owns                                                                                                                                                                                                                                                                                                                                                                   |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `FinanceReceipt`      | One recognition per source: `source_kind` (`order_delivered`) and `source_id` (unique together), `restaurant_id`, `order_id`, `outcome`, `occurred_at` and `original_month` (the authoritative handover and its Copenhagen month), `posted_at` and `posting_month`, `terms_version`, `currency_code`, `evidence` (JSON: exact calculation inputs) and `payload_digest` |
-| `FinanceJournalEntry` | The booked effect of one receipt (`receipt_id` unique): `kind` (`delivered_order`), Restaurant, Order, original and posting dates and months, `currency_code`, `food_credit` and `commission` (exact decimals, statement direction: credit owed, commission charged) and `funded_by` (`customer` or `mtogo`)                                                           |
-| `FinanceServiceFee`   | The one service-fee obligation per `restaurant_id` and `month` (unique together): `terms_version`, `currency_code`, `policy_amount`, `month_day_count`, `active_dates` (JSON list of `YYYY-MM-DD`), `active_date_count`, `amount` (exact, rounded once for the month) and `accrued_at`                                                                                 |
-| `FinanceProblem`      | A visible evidence problem, once per source and `code`: `missing_financial_basis` or `conflicting_recognition`, with Restaurant, Order, `original_month` and `detected_at`                                                                                                                                                                                             |
+| Model                 | Owns                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `FinanceReceipt`      | One recognition per source: `source_kind` (`order_delivered`, `prepared_food_credit` or `order_cancelled`) and `source_id` (unique together: the Order, or the existing food credit), `restaurant_id`, `order_id`, `outcome` (`delivered` or the cancellation category), `occurred_at` and `original_month` (the qualifying moment and its Copenhagen month), `posted_at` and `posting_month`, `terms_version`, `currency_code`, `evidence` (JSON: exact calculation inputs) and `payload_digest` |
+| `FinanceJournalEntry` | The booked effect of one receipt (`receipt_id` unique): `kind` (`delivered_order` or `prepared_food_compensation`), Restaurant, Order, original and posting dates and months, `currency_code`, `food_credit` and `commission` (exact decimals, statement direction: credit owed, commission charged) and `funded_by` (`customer` or `mtogo`)                                                                                                                                                      |
+| `FinanceServiceFee`   | The one service-fee obligation per `restaurant_id` and `month` (unique together): `terms_version`, `currency_code`, `policy_amount`, `month_day_count`, `active_dates` (JSON list of `YYYY-MM-DD`), `active_date_count`, `amount` (exact, rounded once for the month) and `accrued_at`                                                                                                                                                                                                            |
+| `FinanceProblem`      | A visible evidence problem, once per source and `code`: `missing_financial_basis`, `conflicting_recognition` or `missing_outcome_evidence`, with Restaurant, Order, `original_month` and `detected_at`                                                                                                                                                                                                                                                                                            |
 
 - **One fee obligation per month.** `accrueServiceFee` creates the month's
   obligation or replaces its dates and amount while the month is current; the
@@ -23,7 +26,14 @@ adds the monthly service-fee obligation from active Copenhagen dates.
   and nothing accrues a month after it ended (#230 adjusts later differences).
 - **Created only.** Nothing updates or deletes a receipt, entry or problem.
   `recognizeSource` creates a receipt and its entry in one transaction; the
-  unique source identity in storage backs the workflow's guard.
+  unique source identity in storage backs the workflow's guard. An
+  `order_cancelled` receipt has no entry: it records that a cancellation was
+  processed with no entitlement, so recovery can tell an accounted-for zero
+  from work never assessed, without a fake monetary entry.
+- **Compensation is referenced, not created.** A `prepared_food_credit`
+  receipt's source is the Order Operations module's existing food credit, and
+  its entry books that credit's full value excluding VAT, `funded_by: mtogo`,
+  with zero commission. Finance creates no second credit or transfer.
 - **A replay returns the original.** The same source with the same
   `payload_digest` returns `already_recognized`; another payload records a
   `conflicting_recognition` problem, keeps the booked amounts and books
@@ -52,6 +62,26 @@ adds the monthly service-fee obligation from active Copenhagen dates.
   is the once-per-minute job `recover-restaurant-finance`, whose first tick
   after a restart is the startup reconciliation. Both run whatever the
   `restaurant_statements` flag says.
+- `cancellation-rules.ts` and `cancellation-recognition.ts` (#229):
+  `recognizeCancelledOrder` runs after every committed cancellation's
+  settlement (`settleCancellation`), outside the Order and settlement guards,
+  under the finance guard. With an existing prepared-food credit (unassigned
+  timeout or operator cancellation) it books that credit once; otherwise
+  (rejection, acceptance timeout, Customer cancellation, cancellation before
+  preparation) it records the outcome with no entitlement. The original date
+  is the qualifying moment: the delivery's claim deadline for an unassigned
+  timeout, the acceptance deadline for an acceptance timeout (the processing
+  time for a legacy Order without one) and the recorded cancellation
+  otherwise; the posting time is kept apart. Unrecognized compensation of an
+  ended month stays owed (`deferred`) for the closing work. The Customer's
+  refund plays no part: a pending, failed or retried refund leaves the one
+  recognition as it is. A cancellation whose facts do not establish its
+  outcome or credit is a `missing_outcome_evidence` problem, never inferred.
+  The recovery job sweeps cancellations from the start of the previous month
+  with its own batch, so an outcome with no entitlement whose processing
+  failed just before a month ended is still recorded. It skips compensation
+  whose month has ended, because that cannot be posted before the closing
+  work and would otherwise use up the batch on every tick.
 - `service-fee.ts`: the pure fee rules (#228). It replays the recorded
   activations and deactivations from creation (a Restaurant starts inactive)
   into intervals that end at the next change, so a deactivation at midnight

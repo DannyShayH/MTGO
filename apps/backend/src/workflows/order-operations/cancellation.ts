@@ -25,6 +25,7 @@ import { syncNativeOrderCancellationWorkflow } from "./native-cancellation"
 import { orderSettlementLock } from "./locks"
 import { logOrderCancelled } from "./cancellation-log"
 import { logRecoveryFailure } from "./recovery-log"
+import { recognizeCancelledOrder } from "../restaurant-finance/cancellation-recognition"
 
 /**
  * The one cancellation and refund engine (#143, #144, #145, #162). Staff
@@ -237,8 +238,9 @@ export async function settleCancellation(
     return { refund, native_cancellation: native }
   }
   const lock = orderSettlementLock(order_id)
+  let settlement: Settlement
   try {
-    return await container
+    settlement = await container
       .resolve(Modules.LOCKING)
       .execute(lock.key, settle, { timeout: lock.timeout, expire: lock.ttl })
   } catch (error) {
@@ -246,6 +248,11 @@ export async function settleCancellation(
     // could not be read. The durable record is unchanged, so the next sweep
     // resumes the settlement.
     logRecoveryFailure(container, order_id, error)
-    return { refund: "pending", native_cancellation: "pending" }
+    settlement = { refund: "pending", native_cancellation: "pending" }
   }
+  // Finance follows the committed cancellation whatever the refund did, after
+  // the settlement guard is released (#229). It never throws, and a repeat
+  // returns the one recognition already made.
+  await recognizeCancelledOrder(container, order_id)
+  return settlement
 }

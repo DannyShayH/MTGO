@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto"
 import {
   createStep,
   createWorkflow,
@@ -18,7 +17,9 @@ import {
   copenhagenMonthOf,
   copenhagenMonthPeriod,
   deliveredRecognition,
+  payloadDigest,
 } from "./calculation"
+import { recoverCancellations } from "./cancellation-recognition"
 import { restaurantFinanceLock } from "./locks"
 
 /** How many handovers the recovery sweep reads per page of the month. */
@@ -61,10 +62,6 @@ export type DeliveredRecognitionOutcome =
   | "deferred"
   | "not_owed"
   | "pending"
-
-/** A stable identity of what was recognized, independent of when. */
-const digestOf = (payload: unknown) =>
-  createHash("sha256").update(JSON.stringify(payload)).digest("hex")
 
 /**
  * Recognizes one successfully delivered Order (#227; spec #52 §3, §4): one
@@ -161,7 +158,7 @@ export async function recognizeDeliveredOrder(
             terms_version: recognition.evidence.terms_version,
             currency_code: recognition.currency_code,
             evidence: recognition.evidence,
-            payload_digest: digestOf(payload),
+            payload_digest: payloadDigest(payload),
           },
           entry: {
             kind: "delivered_order",
@@ -199,7 +196,8 @@ export const recognizeDeliveredOrderStep = createStep(
  * neither recognized nor recorded as an evidence problem. Every page is read,
  * so an owed handover is found however many were recognized before it; the
  * batch bounds one tick's work and the next tick resumes from durable state.
- * Its first tick after a restart is the startup reconciliation; the source
+ * Cancellations (#229) are recovered the same way, with their own batch,
+ * from the start of the previous month (see `recoverCancellations`). Its first tick after a restart is the startup reconciliation; the source
  * uniqueness and the finance guard make two sweeps, a retried handover and a
  * sweep safe together.
  */
@@ -231,7 +229,12 @@ const recoverRestaurantFinanceStep = createStep(
       if (handovers.length < FINANCE_RECOVERY_PAGE_SIZE) break
       page += 1
     }
-    return new StepResponse({ outcomes })
+    // Cancellations (#229) have their own batch, so neither starves the other.
+    const cancellations = await recoverCancellations(
+      container,
+      FINANCE_RECOVERY_BATCH_SIZE,
+    )
+    return new StepResponse({ outcomes, cancellations })
   },
 )
 

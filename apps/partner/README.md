@@ -611,8 +611,12 @@ While the monthly totals are withheld, the chart says it shows booked entries
 only. Totals show charges with a minus sign (read as "deducted"), the
 monthly balance card is highlighted, and an entry's booking time is shown
 only when it differs from its handover minute. Entries are a table from tablet width and
-a list on a phone: the Order, handover time, food credit, commission and
-net, and "Paid by MTOGO" only when MTOGO funds the credit. The whole row opens
+a list on a phone: the Order, its outcome and time (the handover, or for
+prepared-food compensation the qualifying deadline or cancellation), food
+credit, commission and net. MTOGO-funded prepared-food compensation (#229)
+says so in words, with no commission. Orders rejected or cancelled before
+the food was prepared book nothing; "Orders without food credit" lists them
+by outcome with their counts, without amounts. The whole row opens
 the Order detail, which shows the purchase and its financial terms; the
 Order link stays the row's one real link. The month's status labels have an
 information button explaining what they mean. Loading shows

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto"
 import { MathBN } from "@medusajs/framework/utils"
 import {
   financialBasisView,
@@ -112,3 +113,17 @@ export {
   copenhagenMidnight,
   copenhagenMonthPeriod,
 } from "../shared/copenhagen-time"
+
+/** A stable identity of what a receipt recognized, independent of when. */
+export const payloadDigest = (payload: unknown) =>
+  createHash("sha256").update(JSON.stringify(payload)).digest("hex")
+
+/**
+ * A stored bigNumber amount as its exact decimal, never through a JS number
+ * (spec #52 §10); the numeric value is only a fallback.
+ */
+export function exactAmount(record: object, key: string) {
+  const values = record as Record<string, unknown>
+  const raw = values[`raw_${key}`] as { value?: string } | undefined
+  return raw?.value ?? MathBN.convert(values[key] as string).toString()
+}

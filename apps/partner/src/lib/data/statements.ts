@@ -33,7 +33,9 @@ export type StatementHeader = {
 
 export type StatementEntry = {
   id: string
+  /** `delivered_order` or `prepared_food_compensation` (#229). */
   kind: string
+  source: { kind?: string; id?: string }
   order: { id: string; display_id: number | null } | null
   outcome: string
   occurred_at: string
@@ -89,6 +91,8 @@ export type Statement = {
     timezone: string
     service_fee_evidence: ServiceFeeEvidence
     days: StatementDay[]
+    /** Unsuccessful Orders processed with no entitlement, by outcome (#229). */
+    outcomes_without_entitlement: { outcome: string; count: number }[]
     verified_at: string
   }
   entries: StatementEntry[]

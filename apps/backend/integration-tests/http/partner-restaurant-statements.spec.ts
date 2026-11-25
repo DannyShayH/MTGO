@@ -4,6 +4,7 @@ import {
   generateJwtToken,
 } from "@medusajs/framework/utils"
 import type { FlagRouter } from "@medusajs/framework/utils"
+import SystemProviderService from "@medusajs/payment/dist/providers/system"
 import { DELIVERY_MODULE } from "../../src/modules/delivery"
 import type DeliveryModuleService from "../../src/modules/delivery/service"
 import { RESTAURANT_FINANCE_MODULE } from "../../src/modules/restaurant-finance"
@@ -18,6 +19,8 @@ import {
   recoverRestaurantFinanceWorkflow,
 } from "../../src/workflows/restaurant-finance/recognition"
 import { accrueServiceFeesWorkflow } from "../../src/workflows/restaurant-finance/service-fee-accrual"
+import { recognizeCancelledOrder } from "../../src/workflows/restaurant-finance/cancellation-recognition"
+import { recoverOrderOperationsWorkflow } from "../../src/workflows/order-operations"
 import { revokeRestaurantStaffWorkflow } from "../../src/workflows/restaurant-staff"
 import { restaurantOrdersHarness } from "../helpers/restaurant-orders"
 
@@ -60,6 +63,8 @@ medusaIntegrationTestRunner({
       accept,
       startPreparation,
       markReady,
+      reject,
+      cancel,
       operations,
       restaurants,
     } = harness
@@ -82,6 +87,7 @@ medusaIntegrationTestRunner({
       )
       setFlag(true)
     })
+    afterEach(() => jest.restoreAllMocks())
 
     const setFlag = (on: boolean) =>
       getContainer()
@@ -830,5 +836,340 @@ medusaIntegrationTestRunner({
         }
       },
     )
+    describe("prepared-food compensation and zero-credit cancellations (#229)", () => {
+      const providerRefunds = () =>
+        jest.spyOn(SystemProviderService.prototype, "refundPayment")
+      const recoverOperations = (now: Date) =>
+        recoverOrderOperationsWorkflow(getContainer()).run({
+          input: { now: now.toISOString() },
+        })
+      const creditOf = async (order_id: string) =>
+        (await operations().listFoodCredits({ order_id }))[0]
+      /**
+       * Accepted work, optionally prepared, whose claim deadline is now: the
+       * unassigned sweep cancels it 1 ms later. Returns that deadline.
+       */
+      const unassignedTimeout = async ({ prepared }: { prepared: boolean }) => {
+        const order = await placePaidOrder(pizzeriaId)
+        expect((await accept(staff.headers, order.id)).status).toBe(200)
+        if (prepared) {
+          expect((await startPreparation(staff.headers, order.id)).status).toBe(
+            200,
+          )
+          expect((await markReady(staff.headers, order.id)).status).toBe(200)
+        }
+        const deadline = new Date()
+        await delivery().updateIntendedDeliveries({
+          selector: { order_id: order.id },
+          data: { claim_deadline: deadline },
+        })
+        return { order, deadline }
+      }
+      const expire = async (deadline: Date) => {
+        const { result } = await recoverOperations(
+          new Date(deadline.getTime() + 1),
+        )
+        return result
+      }
+
+      it("shows an existing unassigned prepared-food credit once, MTOGO-funded with zero commission, dated by its claim deadline", async () => {
+        const { order, deadline } = await unassignedTimeout({ prepared: true })
+        expect((await expire(deadline)).unassigned_expired).toEqual([order.id])
+        const credit = await creditOf(order.id)
+        const prepared = (
+          await operations().listOrderOperations({ order_id: order.id })
+        )[0]
+
+        // A repeated sweep and repeated recognitions change nothing.
+        await expire(deadline)
+        expect(await recognizeCancelledOrder(getContainer(), order.id)).toBe(
+          "already_recognized",
+        )
+        await recoverRestaurantFinanceWorkflow(getContainer()).run({
+          input: {},
+        })
+
+        const { data } = await statement(staff.headers)
+        expect(data.count).toBe(1)
+        expect(data.entries[0]).toEqual({
+          id: expect.any(String),
+          kind: "prepared_food_compensation",
+          source: { kind: "prepared_food_credit", id: credit.id },
+          order: { id: order.id, display_id: order.display_id },
+          outcome: "unassigned_timeout",
+          occurred_at: deadline.toISOString(),
+          original_month: month(),
+          posted_at: expect.any(String),
+          posting_month: month(),
+          amounts: { food_credit: "76", commission: "0", net: "76" },
+          funded_by: "mtogo",
+          calculation: {
+            food_credit_id: credit.id,
+            cancellation_category: "unassigned_timeout",
+            cancelled_at: new Date(deadline.getTime() + 1).toISOString(),
+            claim_deadline: deadline.toISOString(),
+            preparation_started_at: new Date(
+              prepared.preparation_started_at as Date,
+            ).toISOString(),
+            ready_at: new Date(prepared.ready_at as Date).toISOString(),
+            food_value_excluding_vat: "76",
+            commission: "0",
+          },
+          original_statement: null,
+        })
+        // The actual processing time is kept apart from the deadline.
+        expect(data.entries[0].posted_at).not.toBe(deadline.toISOString())
+        expect(data.statement.totals).toMatchObject({
+          food_credits: { status: "available", amount: "76" },
+          commission: { status: "available", amount: "0" },
+        })
+        expect(
+          await operations().listFoodCredits({ order_id: order.id }),
+        ).toHaveLength(1)
+        expect(
+          await finance().listFinanceReceipts({ order_id: order.id }),
+        ).toHaveLength(1)
+      })
+
+      it("keeps the credit through a failed Customer refund, and a successful retry adds no credit or commission", async () => {
+        const { order, deadline } = await unassignedTimeout({ prepared: true })
+        const declined = providerRefunds().mockRejectedValue(
+          new Error("mock provider declined"),
+        )
+        await expire(deadline)
+        declined.mockRestore()
+        const [obligation] = await operations().listRefundObligations({
+          order_id: order.id,
+        })
+        expect(obligation.status).toBe("failed")
+
+        const failed = (await statement(staff.headers)).data
+        expect(failed.count).toBe(1)
+        expect(failed.entries[0]).toMatchObject({
+          kind: "prepared_food_compensation",
+          amounts: { food_credit: "76", commission: "0" },
+        })
+
+        const retried = await api.post(
+          `/admin/refunds/${order.id}/retry`,
+          {},
+          { headers: admin, validateStatus: () => true },
+        )
+        expect(retried.status).toBe(200)
+        expect(retried.data.refund.status).toBe("succeeded")
+        await recoverOperations(new Date())
+
+        const { data } = await statement(staff.headers)
+        expect(data.count).toBe(1)
+        expect(data.entries[0].id).toBe(failed.entries[0].id)
+        expect(data.statement.totals).toMatchObject({
+          food_credits: { status: "available", amount: "76" },
+          commission: { status: "available", amount: "0" },
+        })
+      })
+
+      it("recognizes an operator cancellation's prepared-food credit on its recorded cancellation time", async () => {
+        const order = await placePaidOrder(pizzeriaId)
+        expect((await accept(staff.headers, order.id)).status).toBe(200)
+        expect((await startPreparation(staff.headers, order.id)).status).toBe(
+          200,
+        )
+        const cancelled = await api.post(
+          `/admin/orders/${order.id}/operator-cancel`,
+          { reason: "Restaurant lost power" },
+          { headers: admin, validateStatus: () => true },
+        )
+        expect(cancelled.status).toBe(200)
+        const [record] = await operations().listOrderOperations({
+          order_id: order.id,
+        })
+
+        const { data } = await statement(staff.headers)
+        expect(data.entries).toEqual([
+          expect.objectContaining({
+            kind: "prepared_food_compensation",
+            outcome: "operator_cancelled",
+            occurred_at: new Date(record.cancelled_at as Date).toISOString(),
+            amounts: { food_credit: "76", commission: "0", net: "76" },
+            funded_by: "mtogo",
+          }),
+        ])
+      })
+
+      it("accounts for rejection, acceptance timeout, Customer cancellation and unprepared unassigned work with no entitlement or entry", async () => {
+        const rejected = await placePaidOrder(pizzeriaId)
+        expect((await reject(staff.headers, rejected.id)).status).toBe(200)
+        const withdrawn = await placePaidOrder(pizzeriaId)
+        expect((await cancel(customer, withdrawn.id)).status).toBe(200)
+        const ignored = await placePaidOrder(pizzeriaId)
+        const [awaiting] = await operations().listOrderOperations({
+          order_id: ignored.id,
+        })
+        const acceptanceDeadline = new Date(
+          awaiting.acceptance_deadline as Date,
+        )
+        await recoverOperations(acceptanceDeadline)
+        const { order: unassigned, deadline } = await unassignedTimeout({
+          prepared: false,
+        })
+        await expire(deadline)
+
+        const { data } = await statement(staff.headers)
+
+        expect(data.count).toBe(0)
+        expect(data.statement.totals).toMatchObject({
+          food_credits: { status: "available", amount: "0" },
+          commission: { status: "available", amount: "0" },
+        })
+        expect(data.statement.outcomes_without_entitlement).toEqual([
+          { outcome: "acceptance_timeout", count: 1 },
+          { outcome: "customer_cancelled", count: 1 },
+          { outcome: "restaurant_rejected", count: 1 },
+          { outcome: "unassigned_timeout", count: 1 },
+        ])
+        expect(data.statement.problems).not.toContainEqual(
+          expect.objectContaining({ code: "cancellation_processing_pending" }),
+        )
+        const receipts = await finance().listFinanceReceipts({
+          source_kind: "order_cancelled",
+        })
+        expect(
+          Object.fromEntries(
+            receipts.map(({ source_id, occurred_at }) => [
+              source_id,
+              new Date(occurred_at).toISOString(),
+            ]),
+          ),
+        ).toMatchObject({
+          [ignored.id]: acceptanceDeadline.toISOString(),
+          [unassigned.id]: deadline.toISOString(),
+        })
+        expect(await finance().listFinanceJournalEntries({})).toEqual([])
+      })
+
+      it("shows unprocessed cancellations as pending until recovery accounts for each once", async () => {
+        const { order, deadline } = await unassignedTimeout({ prepared: true })
+        await expire(deadline)
+        const rejected = await placePaidOrder(pizzeriaId)
+        expect((await reject(staff.headers, rejected.id)).status).toBe(200)
+        await forgetFinance()
+        const credit = await creditOf(order.id)
+
+        const pending = (await statement(staff.headers)).data.statement
+        expect(pending.totals.food_credits).toEqual({
+          status: "unavailable",
+          reason: "processing_pending",
+        })
+        expect(pending.totals.commission.status).toBe("available")
+        expect(pending.problems).toEqual(
+          expect.arrayContaining([
+            {
+              code: "prepared_food_credit_pending",
+              count: 1,
+              sources: [{ kind: "prepared_food_credit", id: credit.id }],
+            },
+            {
+              code: "cancellation_processing_pending",
+              count: 1,
+              sources: [{ kind: "order_cancelled", id: rejected.id }],
+            },
+          ]),
+        )
+
+        const [first, second] = await Promise.all([
+          recoverRestaurantFinanceWorkflow(getContainer()).run({ input: {} }),
+          recoverRestaurantFinanceWorkflow(getContainer()).run({ input: {} }),
+        ])
+
+        expect(
+          [
+            first.result.cancellations[order.id],
+            second.result.cancellations[order.id],
+          ].filter((outcome) => outcome === "recognized"),
+        ).toHaveLength(1)
+        const { data } = await statement(staff.headers)
+        expect(data.count).toBe(1)
+        expect(data.statement.totals.food_credits).toEqual({
+          status: "available",
+          amount: "76",
+        })
+        expect(
+          data.statement.problems.map(({ code }: { code: string }) => code),
+        ).not.toEqual(expect.arrayContaining(["prepared_food_credit_pending"]))
+        expect(await finance().listFinanceReceipts({})).toHaveLength(2)
+      })
+
+      it("leaves a credit whose claim deadline is in an ended month pending instead of entering that month", async () => {
+        const { order, deadline } = await unassignedTimeout({ prepared: true })
+        await expire(deadline)
+        await forgetFinance()
+        const credit = await creditOf(order.id)
+        const earlier = new Date(Date.now() - 40 * 24 * 3600 * 1000)
+        await delivery().updateIntendedDeliveries({
+          selector: { order_id: order.id },
+          data: { claim_deadline: earlier },
+        })
+        await getContainer()
+          .resolve(ContainerRegistrationKeys.PG_CONNECTION)("restaurant")
+          .where({ id: pizzeriaId })
+          .update({ created_at: earlier })
+        const endedMonth = copenhagenMonthOf(earlier)
+
+        expect(await recognizeCancelledOrder(getContainer(), order.id)).toBe(
+          "deferred",
+        )
+
+        const current = (await statement(staff.headers)).data
+        expect(current.count).toBe(0)
+        expect(current.statement.totals.adjustments).toEqual({
+          status: "unavailable",
+          reason: "processing_pending",
+        })
+        expect(current.statement.problems).toContainEqual({
+          code: "earlier_month_processing_pending",
+          count: 1,
+          sources: [{ kind: "prepared_food_credit", id: credit.id }],
+        })
+        const ended = (
+          await statement(staff.headers, "", pizzeriaId, endedMonth)
+        ).data
+        expect(ended.count).toBe(0)
+        expect(ended.statement.totals.food_credits).toEqual({
+          status: "unavailable",
+          reason: "processing_pending",
+        })
+        expect(ended.statement.problems).toContainEqual({
+          code: "prepared_food_credit_pending",
+          count: 1,
+          sources: [{ kind: "prepared_food_credit", id: credit.id }],
+        })
+        expect(await finance().listFinanceReceipts({})).toEqual([])
+      })
+
+      it("infers no credit from a failed delivery outcome and withholds food credits as missing evidence", async () => {
+        const { order } = await collectedOrder()
+        await delivery().updateIntendedDeliveries({
+          selector: { order_id: order.id },
+          data: { terminal_outcome: "failed", terminal_at: new Date() },
+        })
+
+        const { data } = await statement(staff.headers)
+
+        expect(data.count).toBe(0)
+        expect(data.statement.totals.food_credits).toEqual({
+          status: "unavailable",
+          reason: "evidence_missing",
+        })
+        expect(data.statement.totals.commission).toEqual({
+          status: "available",
+          amount: "0",
+        })
+        expect(data.statement.problems).toContainEqual({
+          code: "responsibility_unknown",
+          count: 1,
+          sources: [{ kind: "delivery_failed", id: order.id }],
+        })
+      })
+    })
   },
 })

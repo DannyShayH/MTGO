@@ -18,6 +18,7 @@ import {
   StatementEntries,
   StatementProblems,
   StatementTotals,
+  UnsuccessfulOrders,
 } from "@modules/statements/components/statement-view"
 import { StatementDaysChart } from "@modules/statements/components/statement-days-chart"
 
@@ -115,6 +116,10 @@ export default async function StatementsPage({
             />
           )}
           <StatementEntries result={result} query={query} locale={locale} />
+          <UnsuccessfulOrders
+            outcomes={result.statement.outcomes_without_entitlement ?? []}
+            locale={locale}
+          />
         </>
       )}
     </div>

@@ -41,8 +41,23 @@ export type ProblemCode =
    * it as adjustments once the later closing and adjustment work exists.
    */
   | "earlier_month_processing_pending"
-  /** Prepared-food compensation that this release does not recognize yet. */
+  /**
+   * An existing prepared-food credit of the month that finance has not yet
+   * recognized (#229). The recovery sweep recognizes the current month's;
+   * an ended month's waits for the later closing and adjustment work.
+   */
   | "prepared_food_credit_pending"
+  /**
+   * A cancellation of the month without prepared food that finance has not
+   * yet recorded as processed with no entitlement (#229). It changes no
+   * total, but the month is not complete until it is accounted for.
+   */
+  | "cancellation_processing_pending"
+  /**
+   * A delivery that ended as failed without a supported responsibility
+   * outcome (spec #52 §4): no credit is inferred, so food credits wait.
+   */
+  | "responsibility_unknown"
   /**
    * The month's active dates cannot be established from recorded
    * activation and deactivation, so its service fee is unknown (#228).
@@ -65,21 +80,40 @@ export type StatementProblem = {
   count: number
   /** The identified sources, one per counted problem. */
   sources: {
-    kind: "order_delivered" | "restaurant_participation" | "service_fee_month"
+    kind:
+      | "order_delivered"
+      | "prepared_food_credit"
+      | "order_cancelled"
+      | "delivery_failed"
+      | "restaurant_participation"
+      | "service_fee_month"
     id: string
   }[]
 }
 
 /** Missing evidence of what a delivered Order earned. */
-const DELIVERED_EVIDENCE_PROBLEMS: ProblemCode[] = [...FINANCE_PROBLEM_CODES]
+const DELIVERED_EVIDENCE_PROBLEMS: ProblemCode[] = [
+  "missing_financial_basis",
+  "conflicting_recognition",
+]
+/**
+ * Missing evidence of an unsuccessful Order's food credit (#229). Every such
+ * outcome has zero commission, so only food credits are unknown.
+ */
+const FOOD_CREDIT_EVIDENCE_PROBLEMS: ProblemCode[] = [
+  "missing_outcome_evidence",
+  "responsibility_unknown",
+]
 const EVIDENCE_PROBLEMS: ProblemCode[] = [
-  ...DELIVERED_EVIDENCE_PROBLEMS,
+  ...FINANCE_PROBLEM_CODES,
+  ...FOOD_CREDIT_EVIDENCE_PROBLEMS,
   "participation_evidence_missing",
 ]
 const PENDING_PROBLEMS: ProblemCode[] = [
   "recognition_pending",
   "earlier_month_processing_pending",
   "prepared_food_credit_pending",
+  "cancellation_processing_pending",
   "service_fee_accrual_pending",
   "earlier_month_service_fee_pending",
 ]
@@ -152,7 +186,8 @@ export function completenessOf(
  * The month's totals, availability and completeness. Totals sum the booked
  * amounts; nothing is recomputed from aggregated food values. A delivered
  * Order's evidence problem withholds the delivered components and pending
- * processing does too, in an ended month as much as in the current one.
+ * processing does too; an unsuccessful Order's (#229) withholds only food
+ * credits, since its commission is always zero, in an ended month as much as in the current one.
  * Unknown active days withhold only the fee. Adjustments are those booked
  * in the month; none are booked yet, so they are a verified zero unless
  * earlier months' work is known to be on its way. The balance is food
@@ -171,6 +206,8 @@ export function assembleStatementHeader(
     )
   const delivered = (key: "food_credit" | "commission"): Total => {
     if (occurred(DELIVERED_EVIDENCE_PROBLEMS))
+      return unavailable("evidence_missing")
+    if (key === "food_credit" && occurred(FOOD_CREDIT_EVIDENCE_PROBLEMS))
       return unavailable("evidence_missing")
     if (occurred(["recognition_pending"]))
       return unavailable("processing_pending")
@@ -363,4 +400,20 @@ export function statementDays(input: {
       net: MathBN.sub(food_credit, commission).toString(),
     }
   })
+}
+
+/**
+ * The month's unsuccessful Orders that finance processed with no
+ * entitlement (#229), counted by outcome: rejection, acceptance timeout,
+ * Customer cancellation, and unassigned or operator cancellation before
+ * preparation. They book nothing, so they are not entries; this shows they
+ * were accounted for rather than never assessed.
+ */
+export function outcomesWithoutEntitlement(outcomes: string[]) {
+  const counts = new Map<string, number>()
+  for (const outcome of outcomes)
+    counts.set(outcome, (counts.get(outcome) ?? 0) + 1)
+  return [...counts]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([outcome, count]) => ({ outcome, count }))
 }

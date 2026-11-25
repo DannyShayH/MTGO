@@ -1,6 +1,7 @@
 import {
   assembleStatementHeader,
   completenessOf,
+  outcomesWithoutEntitlement,
   statementEntry,
   statementDays,
   statementMonths,
@@ -109,6 +110,50 @@ describe("A Restaurant statement's totals and availability (spec #52 §8)", () =
       completeness: "processing_pending",
       reason:
         "DT R5: pending prepared-food compensation withholds only food credits",
+    },
+    {
+      booked: [...booked, { food_credit: "152", commission: "0" }],
+      problems: [],
+      food_credits: sum("380"),
+      commission: sum("13.16"),
+      adjustments: sum("0"),
+      balance: sum("366.84"),
+      completeness: "complete",
+      reason:
+        "#229: recognized prepared-food compensation adds its credit and no commission",
+    },
+    {
+      booked,
+      problems: [problem("missing_outcome_evidence")],
+      food_credits: withheld("evidence_missing"),
+      commission: sum("13.16"),
+      adjustments: sum("0"),
+      balance: withheld("depends_on_unavailable"),
+      completeness: "incomplete",
+      reason:
+        "#229: a cancellation whose facts do not establish its outcome withholds only food credits",
+    },
+    {
+      booked,
+      problems: [problem("responsibility_unknown")],
+      food_credits: withheld("evidence_missing"),
+      commission: sum("13.16"),
+      adjustments: sum("0"),
+      balance: withheld("depends_on_unavailable"),
+      completeness: "incomplete",
+      reason:
+        "#229: a failed outcome without established responsibility infers no credit",
+    },
+    {
+      booked,
+      problems: [problem("cancellation_processing_pending")],
+      food_credits: sum("228"),
+      commission: sum("13.16"),
+      adjustments: sum("0"),
+      balance: sum("214.84"),
+      completeness: "processing_pending",
+      reason:
+        "#229: an unassessed cancellation without prepared food changes no total but is not complete",
     },
     {
       booked,
@@ -477,5 +522,24 @@ describe("A statement's month day by day (#228)", () => {
     expect(days.map(({ date }) => date)).toHaveLength(28)
     expect(days[0].date).toBe("2026-02-01")
     expect(days[27].date).toBe("2026-02-28")
+  })
+})
+
+describe("Unsuccessful Orders processed with no entitlement (#229)", () => {
+  it("counts each outcome once per Order, in a stable order", () => {
+    expect(
+      outcomesWithoutEntitlement([
+        "restaurant_rejected",
+        "acceptance_timeout",
+        "restaurant_rejected",
+      ]),
+    ).toEqual([
+      { outcome: "acceptance_timeout", count: 1 },
+      { outcome: "restaurant_rejected", count: 2 },
+    ])
+  })
+
+  it("shows none for a month without unsuccessful Orders", () => {
+    expect(outcomesWithoutEntitlement([])).toEqual([])
   })
 })

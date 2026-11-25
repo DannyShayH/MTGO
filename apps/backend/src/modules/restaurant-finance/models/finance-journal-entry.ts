@@ -1,7 +1,14 @@
 import { model } from "@medusajs/framework/utils"
 
-/** What kind of booked effect an entry is; later kinds join (#52). */
-export const JOURNAL_ENTRY_KINDS = ["delivered_order"] as const
+/**
+ * What kind of booked effect an entry is (#52): a delivered Order's food
+ * credit and commission, or an existing prepared-food credit (#229),
+ * MTOGO-funded with zero commission.
+ */
+export const JOURNAL_ENTRY_KINDS = [
+  "delivered_order",
+  "prepared_food_compensation",
+] as const
 export type JournalEntryKind = (typeof JOURNAL_ENTRY_KINDS)[number]
 
 /** Who funds an entry's food credit (ADR-0006, ADR-0010). */

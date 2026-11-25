@@ -1953,6 +1953,9 @@ is the header below without entries.
         "accrued_at": "2026-11-25T08:30:00.000Z"
       }
     },
+    "outcomes_without_entitlement": [
+      { "outcome": "restaurant_rejected", "count": 1 }
+    ],
     "verified_at": "2026-11-24T19:00:00.000Z"
   },
   "entries": [
@@ -1977,14 +1980,48 @@ is the header below without entries.
         "lines": ["..."]
       },
       "original_statement": null
+    },
+    {
+      "id": "fjrnl_...",
+      "kind": "prepared_food_compensation",
+      "source": { "kind": "prepared_food_credit", "id": "fcred_..." },
+      "order": { "id": "order_...", "display_id": 1043 },
+      "outcome": "unassigned_timeout",
+      "occurred_at": "2026-11-24T18:35:00.000Z",
+      "original_month": "2026-11",
+      "posted_at": "2026-11-24T18:35:04.300Z",
+      "posting_month": "2026-11",
+      "amounts": { "food_credit": "76", "commission": "0", "net": "76" },
+      "funded_by": "mtogo",
+      "calculation": {
+        "food_credit_id": "fcred_...",
+        "cancellation_category": "unassigned_timeout",
+        "cancelled_at": "2026-11-24T18:35:04.000Z",
+        "claim_deadline": "2026-11-24T18:35:00.000Z",
+        "preparation_started_at": "2026-11-24T18:12:00.000Z",
+        "ready_at": "2026-11-24T18:25:00.000Z",
+        "food_value_excluding_vat": "76",
+        "commission": "0"
+      },
+      "original_statement": null
     }
   ],
-  "count": 1,
+  "count": 2,
   "limit": 20,
   "offset": 0
 }
 ```
 
+- **Unsuccessful Orders (#229).** An existing prepared-food credit (unassigned
+  timeout or operator cancellation after preparation started) is one
+  `prepared_food_compensation` entry referencing that credit
+  (`source.kind: prepared_food_credit`): its full food value excluding VAT,
+  `funded_by: mtogo`, commission `"0"`. `occurred_at` is the qualifying moment
+  (the unassigned claim deadline, or the operator's cancellation), kept apart
+  from `posted_at`. A pending, failed or retried Customer refund never removes
+  or repeats it. Rejection, acceptance timeout, Customer cancellation and
+  cancellation before preparation book nothing; the detail route counts them
+  by `outcome` in `outcomes_without_entitlement` for the month they occurred.
 - **Totals are whole-month** on every page and sum the booked amounts; amounts
   are exact decimal strings. Entries sort by `posted_at` then `id`, newest first.
   Commission is a charge, shown as a positive amount the balance deducts.
@@ -2033,9 +2070,17 @@ is the header below without entries.
   what was booked; the booked amount is kept), `recognition_pending` (a
   handover of the statement's month not booked yet; in an ended month it waits
   for the later adjustment work), `earlier_month_processing_pending` (on the
-  current month: handovers of ended months, left for the later adjustment work
-  rather than backdated), `prepared_food_credit_pending` (compensation not
-  recognized yet), `participation_evidence_missing` (source
+  current month: handovers and prepared-food credits of ended months, left for
+  the later adjustment work rather than backdated), `prepared_food_credit_pending` (source
+  `prepared_food_credit`: an existing credit of the month not booked yet; it
+  withholds food credits only), `cancellation_processing_pending` (source
+  `order_cancelled`: a cancellation without prepared food not yet recorded as
+  processed; it withholds no total), `missing_outcome_evidence` (a
+  cancellation whose recorded facts do not establish its outcome or credit;
+  food credits are withheld), `responsibility_unknown` (source
+  `delivery_failed`: a delivery that ended as failed with no supported
+  responsibility outcome; no credit is inferred and food credits are
+  withheld), `participation_evidence_missing` (source
   `restaurant_participation`: the month's active dates cannot be established,
   so fee and balance are withheld while food credits stay readable),
   `service_fee_accrual_pending` (the obligation has not accrued every active

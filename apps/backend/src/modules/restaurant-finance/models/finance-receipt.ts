@@ -1,7 +1,15 @@
 import { model } from "@medusajs/framework/utils"
 
-/** The authoritative sources a receipt can recognize; later kinds join (#52). */
-export const FINANCE_SOURCE_KINDS = ["order_delivered"] as const
+/**
+ * The authoritative sources a receipt can recognize (#52): a handover, an
+ * existing prepared-food credit (#229) and a cancellation that owes no
+ * entitlement (#229), whose receipt books nothing.
+ */
+export const FINANCE_SOURCE_KINDS = [
+  "order_delivered",
+  "prepared_food_credit",
+  "order_cancelled",
+] as const
 export type FinanceSourceKind = (typeof FINANCE_SOURCE_KINDS)[number]
 
 /**
@@ -11,7 +19,9 @@ export type FinanceSourceKind = (typeof FINANCE_SOURCE_KINDS)[number]
  * calculation inputs and policy evidence. Unique per source, so a replay can
  * never recognize the same entitlement twice. `payload_digest` identifies
  * what was recognized; a later attempt with another payload is a conflict,
- * never an overwrite. Created only, together with its journal entry.
+ * never an overwrite. Created only, together with its journal entry, or
+ * alone for a processed outcome with no entitlement (`order_cancelled`), so
+ * recovery can tell an accounted-for zero from work never assessed.
  */
 const FinanceReceipt = model
   .define("finance_receipt", {

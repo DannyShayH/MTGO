@@ -24,8 +24,8 @@ export type RecognitionCommand = {
     source_id: string
     restaurant_id: string
     order_id: string | null
-    /** The qualifying outcome, as the source kind names it. */
-    outcome: "delivered"
+    /** The qualifying outcome: `delivered` or the cancellation category. */
+    outcome: string
     occurred_at: Date
     original_month: string
     posted_at: Date
@@ -35,13 +35,14 @@ export type RecognitionCommand = {
     evidence: Record<string, unknown>
     payload_digest: string
   }
+  /** The booked effect, or null for an outcome with no entitlement. */
   entry: {
     kind: JournalEntryKind
     /** Exact decimal strings in statement direction. */
     food_credit: string
     commission: string
     funded_by: (typeof FOOD_CREDIT_FUNDING)[number]
-  }
+  } | null
 }
 
 export type RecognitionResult =
@@ -89,7 +90,8 @@ class RestaurantFinanceModuleService extends MedusaService({
   FinanceServiceFee,
 }) {
   /**
-   * Records one source's receipt and journal entry in one transaction. A
+   * Records one source's receipt and journal entry in one transaction (only
+   * the receipt for an outcome with no entitlement). A
    * repeat with the same payload returns the original receipt; another
    * payload for the same source is recorded as a conflict problem and books
    * nothing. The unique source identity in storage backs the caller's guard.
@@ -124,6 +126,7 @@ class RestaurantFinanceModuleService extends MedusaService({
       return { outcome: "conflict", receipt_id: existing.id }
     }
     const created = await this.createFinanceReceipts(receipt, context)
+    if (!entry) return { outcome: "recognized", receipt_id: created.id }
     await this.createFinanceJournalEntries(
       {
         receipt_id: created.id,

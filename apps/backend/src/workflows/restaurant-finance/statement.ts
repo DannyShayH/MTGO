@@ -7,14 +7,11 @@ import {
 } from "@medusajs/framework/workflows-sdk"
 import {
   ContainerRegistrationKeys,
-  MathBN,
   MedusaError,
 } from "@medusajs/framework/utils"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { DELIVERY_MODULE } from "../../modules/delivery"
 import type DeliveryModuleService from "../../modules/delivery/service"
-import { ORDER_OPERATION_MODULE } from "../../modules/order-operation"
-import type OrderOperationModuleService from "../../modules/order-operation/service"
 import { RESTAURANT_MODULE } from "../../modules/restaurant"
 import type RestaurantModuleService from "../../modules/restaurant/service"
 import { RESTAURANT_FINANCE_MODULE } from "../../modules/restaurant-finance"
@@ -24,11 +21,16 @@ import { assertOwnRestaurantStep } from "../restaurant-staff/steps/own-restauran
 import {
   copenhagenMonthOf,
   copenhagenMonthPeriod,
+  exactAmount,
   FINANCE_TIMEZONE,
   isCalendarMonth,
 } from "./calculation"
 import { FINANCE_PROBLEM_CODES } from "../../modules/restaurant-finance/models/finance-problem"
 import { unaccountedHandovers } from "./recognition"
+import {
+  restaurantCancellations,
+  unaccountedCancellations,
+} from "./cancellation-recognition"
 import { readParticipation } from "./service-fee-accrual"
 import {
   serviceFeeEvidence,
@@ -38,6 +40,7 @@ import {
 } from "./service-fee"
 import {
   assembleStatementHeader,
+  outcomesWithoutEntitlement,
   statementDays,
   statementEntry,
   statementMonths,
@@ -64,15 +67,9 @@ const statementNotFound = () =>
     "statement_not_found",
   )
 
-/**
- * A booked amount as its stored exact decimal, never through a JS number
- * (spec #52 §10); the numeric value is only a fallback.
- */
-const exact = (entry: object, key: "food_credit" | "commission" | "amount") => {
-  const record = entry as Record<string, unknown>
-  const raw = record[`raw_${key}`] as { value?: string } | undefined
-  return raw?.value ?? MathBN.convert(record[key] as string).toString()
-}
+/** A booked amount as its stored exact decimal (spec #52 §10). */
+const exact = (entry: object, key: "food_credit" | "commission" | "amount") =>
+  exactAmount(entry, key)
 
 type Restaurant = { id: string; name: string; created_at: Date | string }
 
@@ -87,14 +84,15 @@ async function readRestaurant(container: MedusaContainer, id: string) {
   return restaurant as Restaurant
 }
 
+type ProblemSource = StatementProblem["sources"][number]
+
 const problemOf = (
   code: StatementProblem["code"],
-  ids: string[],
-): StatementProblem => ({
-  code,
-  count: ids.length,
-  sources: ids.map((id) => ({ kind: "order_delivered" as const, id })),
-})
+  sources: ProblemSource[],
+): StatementProblem => ({ code, count: sources.length, sources })
+
+const handoversOf = (ids: string[]): ProblemSource[] =>
+  ids.map((id) => ({ kind: "order_delivered", id }))
 
 /**
  * The Orders handed over in `terminal_at`'s range that have neither a
@@ -123,18 +121,46 @@ type AccruedFee = {
   accrued_at: string
 }
 
-/** What every month's fee is read from: participation and obligations. */
+/** A cancellation finance has not yet accounted for (#229). */
+type UnaccountedCancellation = {
+  source: ProblemSource
+  /** Its qualifying moment's month. */
+  original_month: string
+  /** Prepared-food compensation, owed money, rather than a zero outcome. */
+  compensation: boolean
+}
+
+/**
+ * What every month of the request is read from: participation, fee
+ * obligations and the Restaurant's cancellations still owed processing.
+ */
 type FeeContext = {
   restaurant: Restaurant
   participation: ParticipationFacts
   accrued: Map<string, AccruedFee>
+  cancellations: UnaccountedCancellation[]
+}
+
+async function readUnaccountedCancellations(
+  container: MedusaContainer,
+  restaurant_id: string,
+): Promise<UnaccountedCancellation[]> {
+  const owed = await unaccountedCancellations(
+    container,
+    await restaurantCancellations(container, restaurant_id),
+  )
+  return owed.map(({ recognition }) => ({
+    source: recognition.source,
+    original_month: copenhagenMonthOf(recognition.occurred_at),
+    compensation: recognition.source.kind === "prepared_food_credit",
+  }))
 }
 
 async function readFeeContext(
   container: MedusaContainer,
   restaurant: Restaurant,
 ): Promise<FeeContext> {
-  const [participation, fees] = await Promise.all([
+  const [participation, fees, cancellations] = await Promise.all([
     readParticipation(container, [restaurant.id]),
     resolveFinance(container).listFinanceServiceFees(
       { restaurant_id: restaurant.id },
@@ -143,9 +169,11 @@ async function readFeeContext(
         take: null,
       },
     ),
+    readUnaccountedCancellations(container, restaurant.id),
   ])
   return {
     restaurant,
+    cancellations,
     participation: participation.get(restaurant.id) ?? {
       created_at: restaurant.created_at,
       is_active: false,
@@ -227,7 +255,7 @@ async function readHeader(
     ),
     finance.listFinanceProblems(
       { restaurant_id, original_month: month },
-      { select: ["code", "source_id"], take: null },
+      { select: ["code", "source_kind", "source_id"], take: null },
     ),
   ])
   const problems: StatementProblem[] = FINANCE_PROBLEM_CODES.map((code) =>
@@ -235,13 +263,16 @@ async function readHeader(
       code,
       recorded
         .filter((problem) => problem.code === code)
-        .map(({ source_id }) => source_id),
+        .map(({ source_kind, source_id }) => ({
+          kind: source_kind,
+          id: source_id,
+        })),
     ),
   )
   // Every month, ended ones too, withholds what it knows is still owed: an
   // ended month's handovers wait for the later closing and adjustment work
   // rather than being backdated, and its totals must not look final.
-  const [pending, earlier, foodCredits] = await Promise.all([
+  const [pending, earlier, failed] = await Promise.all([
     unaccountedHandoversIn(container, restaurant_id, {
       $gte: period.starts_at,
       $lt: period.ends_at,
@@ -251,23 +282,47 @@ async function readHeader(
           $lt: period.starts_at,
         })
       : [],
-    // Prepared-food compensation is not recognized by this release yet.
+    // A failed outcome has no supported responsibility journey: nothing is
+    // inferred from it (spec #52 §4).
     container
-      .resolve<OrderOperationModuleService>(ORDER_OPERATION_MODULE)
-      .listFoodCredits(
+      .resolve<DeliveryModuleService>(DELIVERY_MODULE)
+      .listIntendedDeliveries(
         {
           restaurant_id,
-          created_at: { $gte: period.starts_at, $lt: period.ends_at },
+          terminal_outcome: "failed",
+          terminal_at: { $gte: period.starts_at, $lt: period.ends_at },
         },
         { select: ["order_id"], take: null },
       ),
   ])
+  const cancellationsOf = (
+    compensation: boolean,
+    inMonth: (original: string) => boolean,
+  ) =>
+    context.cancellations
+      .filter((owed) => owed.compensation === compensation)
+      .filter(({ original_month }) => inMonth(original_month))
+      .map(({ source }) => source)
   problems.push(
-    problemOf("recognition_pending", pending),
-    problemOf("earlier_month_processing_pending", earlier),
+    problemOf("recognition_pending", handoversOf(pending)),
+    problemOf("earlier_month_processing_pending", [
+      ...handoversOf(earlier),
+      // Compensation of an ended month reaches this one as an adjustment.
+      ...(isCurrent
+        ? cancellationsOf(true, (original) => original < month)
+        : []),
+    ]),
     problemOf(
       "prepared_food_credit_pending",
-      foodCredits.map(({ order_id }) => order_id),
+      cancellationsOf(true, (original) => original === month),
+    ),
+    problemOf(
+      "cancellation_processing_pending",
+      cancellationsOf(false, (original) => original === month),
+    ),
+    problemOf(
+      "responsibility_unknown",
+      failed.map(({ order_id }) => ({ kind: "delivery_failed", id: order_id })),
     ),
   )
   const { standing } = feeOf(context, month, now)
@@ -335,7 +390,7 @@ export async function readStatement(
   if (!statementMonths(restaurant.created_at, now).includes(input.month))
     throw statementNotFound()
   const context = await readFeeContext(container, restaurant)
-  const [header, [entries, count], monthBooked] = await Promise.all([
+  const [header, [entries, count], monthBooked, zero] = await Promise.all([
     readHeader(container, context, input.month, now),
     resolveFinance(container).listAndCountFinanceJournalEntries(
       { restaurant_id: restaurant.id, posting_month: input.month },
@@ -358,6 +413,15 @@ export async function readStatement(
         ],
         take: null,
       },
+    ),
+    // The month's unsuccessful Orders processed with no entitlement (#229).
+    resolveFinance(container).listFinanceReceipts(
+      {
+        restaurant_id: restaurant.id,
+        source_kind: "order_cancelled",
+        original_month: input.month,
+      },
+      { select: ["outcome"], take: null },
     ),
   ])
   const fee = feeOf(context, input.month, now)
@@ -402,6 +466,9 @@ export async function readStatement(
           commission: exact(entry, "commission"),
         })),
       }),
+      outcomes_without_entitlement: outcomesWithoutEntitlement(
+        zero.map(({ outcome }) => outcome),
+      ),
       verified_at: now.toISOString(),
     },
     entries: entries.map((entry) =>
