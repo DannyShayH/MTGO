@@ -80,6 +80,7 @@ import {
 } from "./store/orders/validators"
 import { requireFeatureFlag, requireFeatureFlagFor } from "./feature-flag"
 import FeedbackFeatureFlag from "../feature-flags/feedback"
+import { GetFeedbackStatisticsSchema } from "./admin/feedback/statistics/validators"
 import RestaurantStatementsFeatureFlag from "../feature-flags/restaurant-statements"
 import { PostCustomerVerificationRequestSchema } from "./auth/customer-verification/validators"
 import {
@@ -469,6 +470,14 @@ export default defineMiddlewares({
           requireMfa: false,
         }),
         requireIsolatedCustomerIdentity,
+      ],
+    },
+    {
+      matcher: "/admin/feedback/statistics",
+      middlewares: [
+        requireFeatureFlag(FeedbackFeatureFlag.key),
+        authenticate("user", ["session", "bearer"]),
+        validateAndTransformQuery(GetFeedbackStatisticsSchema, {}),
       ],
     },
     {

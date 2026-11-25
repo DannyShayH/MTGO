@@ -100,3 +100,20 @@ At the #51 discovery, [product acceptance](/MTGO/quality/product-acceptance/) as
 - Operator-only access to statistics, food ratings never appearing in agent rows, "No ratings" for unrated subjects and grouping by handover time in Copenhagen time.
 - The statistics page within the shared response-time requirement on the 500-Order seed.
 - Danish and English labels and keyboard operation of the rating control in a browser journey.
+
+### Operator Feedback statistics (#221)
+
+The operator-only Feedback page shows the last 30 × 24 hours of handovers.
+Food ratings describe Restaurants, agent ratings describe Delivery agents,
+and overall experience is platform-wide. Each summary shows the average,
+number and distribution of ratings and delivered Orders, including unrated
+Orders. Inactive Restaurants and revoked agents remain visible. With the
+`feedback` flag off the page says “Feedback is not released yet” and does not
+request statistics; the endpoint answers 404. Additional periods are a
+separate issue.
+
+The HTTP performance test loads the seed generator's 500 planned handovers and
+ratings into a disposable database across four Restaurants and five agents,
+then makes 20 concurrent operator reads. This exercises the same statistics
+facts without running the full commerce-order seed script. On the local test
+run, p95 was 74 ms; the shared target is at least 95% within two seconds.

@@ -274,6 +274,36 @@ class DeliveryModuleService extends MedusaService({
   DeliveryContactAttempt,
   DeliveryLocation,
 }) {
+  /** Delivered Order counts grouped within the Delivery module. */
+  @InjectManager()
+  async statistics(
+    range: { from: Date; to: Date },
+    @MedusaContext() context: Context = {},
+  ) {
+    const manager = context.manager as EntityManager
+    const grouped = async (field: string) => {
+      const query = manager
+        .createQueryBuilder("IntendedDelivery", "d")
+        .select([field])
+        .where({
+          terminal_outcome: "delivered",
+          terminal_at: { $gte: range.from, $lt: range.to },
+          deleted_at: null,
+        })
+        .groupBy([field])
+      return query
+        .getKnexQuery()
+        .count({ count: "d.id" }) as unknown as Promise<
+        Record<string, unknown>[]
+      >
+    }
+    const [restaurants, agents] = await Promise.all([
+      grouped("restaurant_id"),
+      grouped("assigned_agent_id"),
+    ])
+    return { restaurants, agents }
+  }
+
   /** Fence credential creation against consumption and revocation, even if a lease is lost. */
   @InjectManager()
   @InjectTransactionManager()

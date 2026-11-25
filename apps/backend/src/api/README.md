@@ -2918,3 +2918,14 @@ Restaurant. With no photo, a removed or unreadable photo, an unlinked, deleted
 or unknown Product, it returns 200 with a placeholder SVG so the native Admin
 row keeps rendering. It is the `thumbnail` value stored on dish Products; see
 [Admin customizations](../admin/README.md).
+
+### `GET /admin/feedback/statistics`
+
+Operator-only, behind the `feedback` Feature flag (404 while off). It accepts
+`period=last_30_days` (the default and currently the only supported value).
+It returns `period` with the inclusive `from` and exclusive `to` instants,
+`experience`, `restaurants`, and `agents`. Each summary contains `average`
+(null when unrated), `count`, a 1–5 `distribution`, and `delivered_orders`.
+Rows also contain `id`, `name`, and `is_active`; they are sorted by name.
+Restaurant ratings are food ratings, agent ratings describe only agents, and
+experience is platform-wide.

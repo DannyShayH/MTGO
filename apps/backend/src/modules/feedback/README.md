@@ -80,3 +80,13 @@ second run adds only the missing Orders, plus a new open Order once the
 previous one was rated or its window closed (`isSeededSlotKept`), and moves the
 kept Orders to the current plan's times, so rerun it shortly before a demo. A
 full run places 502 Orders and takes about 15 minutes in the devcontainer.
+
+## Operator statistics
+
+`statistics` groups food ratings by Restaurant, agent ratings by Delivery agent,
+and overall-experience ratings platform-wide in the database over a half-open
+handover-time range. The operator workflow combines those distributions with
+Delivery's counts. Unrated delivered Orders increase the delivery count, never
+rating counts or averages. `GET /admin/feedback/statistics` and the Feedback
+Admin page are behind the `feedback` flag; the only supported period is the
+last 30 × 24 hours.
