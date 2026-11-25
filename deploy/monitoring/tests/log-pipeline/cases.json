@@ -1,0 +1,152 @@
+[
+  {
+    "name": "access denied with request id",
+    "reason": "EP: genuine producer record (Medusa production logger)",
+    "line": "{\"env\":\"production\",\"event\":\"access.denied\",\"level\":\"warn\",\"message\":\"Access denied\",\"method\":\"GET\",\"msg\":\"Access denied\",\"request_id\":\"demo-176-denied\",\"route\":\"/partner/me\",\"service\":\"backend\",\"status\":401,\"time\":\"{{TIME}}\",\"timestamp\":\"{{TIMESTAMP}}\"}",
+    "stored": "{\"time\":\"{{TIME}}\",\"level\":\"warn\",\"service\":\"backend\",\"env\":\"production\",\"event\":\"access.denied\",\"msg\":\"Access denied\",\"request_id\":\"demo-176-denied\",\"status\":401,\"route\":\"/partner/me\",\"method\":\"GET\"}"
+  },
+  {
+    "name": "request failed with safe error type",
+    "reason": "EP: genuine producer record (Medusa production logger)",
+    "line": "{\"env\":\"production\",\"err\":{\"type\":\"TypeError\"},\"event\":\"request.failed\",\"level\":\"error\",\"message\":\"Request failed\",\"method\":\"POST\",\"msg\":\"Request failed\",\"order_id\":\"order_01FIXTURE\",\"request_id\":\"demo-176-failed\",\"route\":\"/partner/orders/:id/accept\",\"service\":\"backend\",\"status\":500,\"time\":\"{{TIME}}\",\"timestamp\":\"{{TIMESTAMP}}\"}",
+    "stored": "{\"time\":\"{{TIME}}\",\"level\":\"error\",\"service\":\"backend\",\"env\":\"production\",\"event\":\"request.failed\",\"msg\":\"Request failed\",\"request_id\":\"demo-176-failed\",\"status\":500,\"order_id\":\"order_01FIXTURE\",\"route\":\"/partner/orders/:id/accept\",\"method\":\"POST\",\"err\":{\"type\":\"TypeError\"}}"
+  },
+  {
+    "name": "upstream failure at warn",
+    "reason": "EP: the event whose level depends on status (5xx class)",
+    "line": "{\"env\":\"production\",\"event\":\"upstream.request.failed\",\"level\":\"warn\",\"message\":\"Upstream request failed\",\"method\":\"GET\",\"msg\":\"Upstream request failed\",\"route\":\"/partner/me\",\"service\":\"backend\",\"status\":503,\"time\":\"{{TIME}}\",\"timestamp\":\"{{TIMESTAMP}}\"}",
+    "stored": "{\"time\":\"{{TIME}}\",\"level\":\"warn\",\"service\":\"backend\",\"env\":\"production\",\"event\":\"upstream.request.failed\",\"msg\":\"Upstream request failed\",\"status\":503,\"route\":\"/partner/me\",\"method\":\"GET\"}"
+  },
+  {
+    "name": "refund attempt outcome",
+    "reason": "EP: genuine producer record (Medusa production logger)",
+    "line": "{\"actor_id\":\"user_01FIXTURE\",\"actor_type\":\"user\",\"env\":\"production\",\"event\":\"refund.attempted\",\"level\":\"info\",\"message\":\"Refund attempted\",\"msg\":\"Refund attempted\",\"order_id\":\"order_01FIXTURE\",\"outcome\":\"failed\",\"service\":\"backend\",\"time\":\"{{TIME}}\",\"timestamp\":\"{{TIMESTAMP}}\"}",
+    "stored": "{\"time\":\"{{TIME}}\",\"level\":\"info\",\"service\":\"backend\",\"env\":\"production\",\"event\":\"refund.attempted\",\"msg\":\"Refund attempted\",\"actor_type\":\"user\",\"actor_id\":\"user_01FIXTURE\",\"order_id\":\"order_01FIXTURE\",\"outcome\":\"failed\"}"
+  },
+  {
+    "name": "slow menu read timings",
+    "reason": "BVA: timings at 0 and the day maximum 86400000; EP: genuine record",
+    "line": "{\"dish_prices_ms\":86400000,\"dishes\":3,\"env\":\"production\",\"event\":\"menu.read.slow\",\"level\":\"warn\",\"message\":\"Slow Customer menu read\",\"msg\":\"Slow Customer menu read\",\"photos\":2,\"restaurant_id\":\"rest_01FIXTURE\",\"restaurant_ms\":0,\"service\":\"backend\",\"time\":\"{{TIME}}\",\"timestamp\":\"{{TIMESTAMP}}\",\"whole_read_ms\":1200}",
+    "stored": "{\"time\":\"{{TIME}}\",\"level\":\"warn\",\"service\":\"backend\",\"env\":\"production\",\"event\":\"menu.read.slow\",\"msg\":\"Slow Customer menu read\",\"restaurant_id\":\"rest_01FIXTURE\",\"whole_read_ms\":1200,\"restaurant_ms\":0,\"dish_prices_ms\":86400000,\"dishes\":3,\"photos\":2}"
+  },
+  {
+    "name": "demo product read",
+    "reason": "EP: genuine producer record (Medusa production logger)",
+    "line": "{\"env\":\"production\",\"event\":\"monitoring.demo_read.succeeded\",\"level\":\"info\",\"message\":\"Disposable backend product read completed\",\"method\":\"GET\",\"msg\":\"Disposable backend product read completed\",\"route\":\"/store/products\",\"service\":\"backend\",\"status\":200,\"time\":\"{{TIME}}\",\"timestamp\":\"{{TIMESTAMP}}\"}",
+    "stored": "{\"time\":\"{{TIME}}\",\"level\":\"info\",\"service\":\"backend\",\"env\":\"production\",\"event\":\"monitoring.demo_read.succeeded\",\"msg\":\"Disposable backend product read completed\",\"status\":200,\"route\":\"/store/products\",\"method\":\"GET\"}"
+  },
+  {
+    "name": "extra top-level secret field is stripped",
+    "reason": "EP: recognized record with an unsafe or invalid part to strip",
+    "line": "{\"env\":\"production\",\"event\":\"access.denied\",\"level\":\"warn\",\"message\":\"Access denied\",\"msg\":\"Access denied\",\"password\":\"SECRET-MARKER-password\",\"request_id\":\"demo-176-extra\",\"service\":\"backend\",\"status\":403,\"time\":\"{{TIME}}\",\"timestamp\":\"{{TIMESTAMP}}\"}",
+    "stored": "{\"time\":\"{{TIME}}\",\"level\":\"warn\",\"service\":\"backend\",\"env\":\"production\",\"event\":\"access.denied\",\"msg\":\"Access denied\",\"request_id\":\"demo-176-extra\",\"status\":403}"
+  },
+  {
+    "name": "nested request object is stripped",
+    "reason": "EP: recognized record with an unsafe or invalid part to strip",
+    "line": "{\"env\":\"production\",\"event\":\"access.denied\",\"level\":\"warn\",\"message\":\"Access denied\",\"msg\":\"Access denied\",\"req\":{\"headers\":{\"authorization\":\"Bearer SECRET-MARKER-token\"}},\"request_id\":\"demo-176-nested\",\"service\":\"backend\",\"status\":403,\"time\":\"{{TIME}}\",\"timestamp\":\"{{TIMESTAMP}}\"}",
+    "stored": "{\"time\":\"{{TIME}}\",\"level\":\"warn\",\"service\":\"backend\",\"env\":\"production\",\"event\":\"access.denied\",\"msg\":\"Access denied\",\"request_id\":\"demo-176-nested\",\"status\":403}"
+  },
+  {
+    "name": "medusa message text is never forwarded",
+    "reason": "EP: recognized record with an unsafe or invalid part to strip",
+    "line": "{\"env\":\"production\",\"event\":\"access.denied\",\"level\":\"warn\",\"message\":\"SECRET-MARKER-message\",\"msg\":\"Access denied\",\"request_id\":\"demo-176-message\",\"service\":\"backend\",\"status\":403,\"time\":\"{{TIME}}\",\"timestamp\":\"{{TIMESTAMP}}\"}",
+    "stored": "{\"time\":\"{{TIME}}\",\"level\":\"warn\",\"service\":\"backend\",\"env\":\"production\",\"event\":\"access.denied\",\"msg\":\"Access denied\",\"request_id\":\"demo-176-message\",\"status\":403}"
+  },
+  {
+    "name": "invalid request id is left out",
+    "reason": "EP: recognized record with an unsafe or invalid part to strip",
+    "line": "{\"env\":\"production\",\"event\":\"access.denied\",\"level\":\"warn\",\"message\":\"Access denied\",\"msg\":\"Access denied\",\"request_id\":\"SECRET-MARKER id with spaces\",\"service\":\"backend\",\"status\":403,\"time\":\"{{TIME}}\",\"timestamp\":\"{{TIMESTAMP}}\"}",
+    "stored": "{\"time\":\"{{TIME}}\",\"level\":\"warn\",\"service\":\"backend\",\"env\":\"production\",\"event\":\"access.denied\",\"msg\":\"Access denied\",\"status\":403}"
+  },
+  {
+    "name": "object in an id field is left out",
+    "reason": "EP: recognized record with an unsafe or invalid part to strip",
+    "line": "{\"env\":\"production\",\"event\":\"access.denied\",\"level\":\"warn\",\"message\":\"Access denied\",\"msg\":\"Access denied\",\"order_id\":{\"email\":\"SECRET-MARKER@example.test\"},\"request_id\":\"demo-176-object\",\"service\":\"backend\",\"status\":403,\"time\":\"{{TIME}}\",\"timestamp\":\"{{TIMESTAMP}}\"}",
+    "stored": "{\"time\":\"{{TIME}}\",\"level\":\"warn\",\"service\":\"backend\",\"env\":\"production\",\"event\":\"access.denied\",\"msg\":\"Access denied\",\"request_id\":\"demo-176-object\",\"status\":403}"
+  },
+  {
+    "name": "error details beyond the type are stripped",
+    "reason": "EP: recognized record with an unsafe or invalid part to strip",
+    "line": "{\"env\":\"production\",\"err\":{\"type\":\"RangeError\",\"message\":\"SECRET-MARKER-err\",\"stack\":\"at SECRET-MARKER-stack\"},\"event\":\"request.failed\",\"level\":\"error\",\"message\":\"Request failed\",\"msg\":\"Request failed\",\"request_id\":\"demo-176-err\",\"service\":\"backend\",\"status\":500,\"time\":\"{{TIME}}\",\"timestamp\":\"{{TIMESTAMP}}\"}",
+    "stored": "{\"time\":\"{{TIME}}\",\"level\":\"error\",\"service\":\"backend\",\"env\":\"production\",\"event\":\"request.failed\",\"msg\":\"Request failed\",\"request_id\":\"demo-176-err\",\"status\":500,\"err\":{\"type\":\"RangeError\"}}"
+  },
+  {
+    "name": "event-specific field on another event is left out",
+    "reason": "EP: outcome and timing fields on an event that does not allow them",
+    "line": "{\"env\":\"production\",\"event\":\"access.denied\",\"level\":\"warn\",\"message\":\"Access denied\",\"msg\":\"Access denied\",\"outcome\":\"succeeded\",\"whole_read_ms\":5,\"request_id\":\"demo-176-scope\",\"service\":\"backend\",\"status\":403,\"time\":\"{{TIME}}\",\"timestamp\":\"{{TIMESTAMP}}\"}",
+    "stored": "{\"time\":\"{{TIME}}\",\"level\":\"warn\",\"service\":\"backend\",\"env\":\"production\",\"event\":\"access.denied\",\"msg\":\"Access denied\",\"request_id\":\"demo-176-scope\",\"status\":403}"
+  },
+  {
+    "name": "out-of-range timing is left out",
+    "reason": "BVA: one above the day maximum (86400001) and a fraction",
+    "line": "{\"dishes\":3,\"env\":\"production\",\"event\":\"menu.read.slow\",\"level\":\"warn\",\"message\":\"Slow Customer menu read\",\"msg\":\"Slow Customer menu read\",\"service\":\"backend\",\"time\":\"{{TIME}}\",\"timestamp\":\"{{TIMESTAMP}}\",\"whole_read_ms\":86400001,\"photos\":1.5}",
+    "stored": "{\"time\":\"{{TIME}}\",\"level\":\"warn\",\"service\":\"backend\",\"env\":\"production\",\"event\":\"menu.read.slow\",\"msg\":\"Slow Customer menu read\",\"dishes\":3}"
+  },
+  {
+    "name": "framework startup line",
+    "reason": "EP: line class that must never reach Loki",
+    "line": "{\"level\":\"info\",\"message\":\"Server is ready on port: 9000 SECRET-MARKER-startup\",\"timestamp\":\"{{TIMESTAMP}}\"}",
+    "stored": null
+  },
+  {
+    "name": "raw framework error with stack",
+    "reason": "EP: line class that must never reach Loki",
+    "line": "{\"level\":\"error\",\"message\":\"boom: SECRET-MARKER-raw\",\"stack\":[{\"fileName\":\"/app/SECRET-MARKER.js\",\"lineNumber\":9}],\"timestamp\":\"{{TIMESTAMP}}\"}",
+    "stored": null
+  },
+  {
+    "name": "unknown event",
+    "reason": "EP: line class that must never reach Loki",
+    "line": "{\"env\":\"production\",\"event\":\"debug.dump\",\"level\":\"info\",\"message\":\"dump\",\"msg\":\"dump\",\"service\":\"backend\",\"secret\":\"SECRET-MARKER-unknown\",\"time\":\"{{TIME}}\"}",
+    "stored": null
+  },
+  {
+    "name": "known event with a different message",
+    "reason": "EP: line class that must never reach Loki",
+    "line": "{\"env\":\"production\",\"event\":\"access.denied\",\"level\":\"warn\",\"msg\":\"SECRET-MARKER-free-text\",\"service\":\"backend\",\"time\":\"{{TIME}}\"}",
+    "stored": null
+  },
+  {
+    "name": "known event at the wrong level",
+    "reason": "EP: line class that must never reach Loki",
+    "line": "{\"env\":\"production\",\"event\":\"request.failed\",\"level\":\"info\",\"msg\":\"Request failed\",\"service\":\"backend\",\"note\":\"SECRET-MARKER-level\",\"time\":\"{{TIME}}\"}",
+    "stored": null
+  },
+  {
+    "name": "another service in the backend slice",
+    "reason": "EP: line class that must never reach Loki",
+    "line": "{\"env\":\"production\",\"event\":\"auth.sign_in.failed\",\"level\":\"warn\",\"msg\":\"Partner sign-in failed\",\"service\":\"partner\",\"note\":\"SECRET-MARKER-service\",\"time\":\"{{TIME}}\"}",
+    "stored": null
+  },
+  {
+    "name": "unknown environment",
+    "reason": "EP: line class that must never reach Loki",
+    "line": "{\"env\":\"SECRET-MARKER-env\",\"event\":\"access.denied\",\"level\":\"warn\",\"msg\":\"Access denied\",\"service\":\"backend\",\"time\":\"{{TIME}}\"}",
+    "stored": null
+  },
+  {
+    "name": "missing time",
+    "reason": "EP: line class that must never reach Loki",
+    "line": "{\"env\":\"production\",\"event\":\"access.denied\",\"level\":\"warn\",\"msg\":\"Access denied\",\"service\":\"backend\",\"note\":\"SECRET-MARKER-time\"}",
+    "stored": null
+  },
+  {
+    "name": "plain text",
+    "reason": "EP: line class that must never reach Loki",
+    "line": "Authorization: Bearer SECRET-MARKER-plain",
+    "stored": null
+  },
+  {
+    "name": "JSON array",
+    "reason": "EP: line class that must never reach Loki",
+    "line": "[\"SECRET-MARKER-array\"]",
+    "stored": null
+  },
+  {
+    "name": "oversized recognized record",
+    "reason": "BVA: just over the 4 KiB line bound",
+    "line": "{\"env\":\"production\",\"event\":\"access.denied\",\"level\":\"warn\",\"message\":\"Access denied\",\"msg\":\"Access denied\",\"padding\":\"SECRET-MARKER-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"service\":\"backend\",\"status\":403,\"time\":\"{{TIME}}\",\"timestamp\":\"{{TIMESTAMP}}\"}",
+    "stored": null
+  }
+]

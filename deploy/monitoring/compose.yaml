@@ -42,6 +42,40 @@ services:
     networks:
       - loopback
       - metrics
+      - logs
+    logging: *logging
+
+  # Approved backend application events (#176). Neither publishes a port.
+  loki:
+    image: grafana/loki:3.7.10
+    command: ["-config.file=/etc/loki/config.yaml"]
+    volumes:
+      - ./loki/config.yaml:/etc/loki/config.yaml:ro
+      - loki-data:/loki
+    networks:
+      - logs
+    logging: *logging
+
+  alloy:
+    image: grafana/alloy:v1.22.0
+    # Root inside the container, only to read the Docker socket.
+    user: "0"
+    command:
+      - run
+      - --storage.path=/var/lib/alloy/data
+      - --disable-reporting
+      - /etc/alloy/config.alloy
+    environment:
+      MTOGO_LOG_PROJECT: mtogo-monitoring-demo
+    volumes:
+      - ./alloy:/etc/alloy:ro
+      - alloy-data:/var/lib/alloy/data
+      # Read-only mount: it does not restrict which Docker API calls are made.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - logs
+    depends_on:
+      - loki
     logging: *logging
 
 networks:
@@ -49,7 +83,11 @@ networks:
   metrics:
     external: true
     name: mtogo-local-metrics
+  logs:
+    internal: true
 
 volumes:
   prometheus-data:
   grafana-data:
+  loki-data:
+  alloy-data:

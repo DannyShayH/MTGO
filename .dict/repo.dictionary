@@ -116,3 +116,6 @@ reqps
 subsecond
 stddev
 pelias
+loki
+kvstore
+ingester

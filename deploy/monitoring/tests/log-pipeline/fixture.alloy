@@ -1,0 +1,24 @@
+// Fixture run of the approved-events pipeline (#176): the same module as the
+// collector, fed with the generated fixture file instead of Docker.
+local.file_match "fixtures" {
+  path_targets = [{"__path__" = "/fixtures/backend.log"}]
+}
+
+loki.source.file "fixtures" {
+  targets    = local.file_match.fixtures.targets
+  forward_to = [approved.backend_events.fixtures.receiver]
+}
+
+import.file "approved" {
+  filename = "/etc/alloy/approved-events.alloy"
+}
+
+approved.backend_events "fixtures" {
+  forward_to = [loki.write.test.receiver]
+}
+
+loki.write "test" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

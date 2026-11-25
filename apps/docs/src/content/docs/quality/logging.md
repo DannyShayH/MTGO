@@ -208,8 +208,10 @@ sudo mtogo-deploy.sh logs --follow --tail=100 backend partner storefront
 sudo mtogo-deploy.sh logs --since=10m backend partner | grep 'PASTE-REQUEST-ID'
 ```
 
-Use the actual service names if they differ. JSON on stdout allows a later
-Dozzle or Grafana/Loki viewer without changing app code. Docker's default
+Use the actual service names if they differ. Approved backend events can also
+be searched in Grafana through Loki; see
+[approved backend events in Grafana](/MTGO/quality/approved-backend-events/).
+Everything else stays only in these Docker logs. Docker's default
 `json-file` driver does not rotate by default; deployment should configure a
 bounded driver such as `local` with `max-size`/`max-file`. Driver configuration,
 rotation, retention, restricted log access, metrics, traces, dashboards and

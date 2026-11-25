@@ -4,6 +4,7 @@ const { PassThrough } = require("node:stream")
 const {
   createApplicationLogger,
   createLogRecord,
+  logEvents,
   httpStatus,
 } = require("../index.cjs")
 
@@ -224,4 +225,13 @@ test("records an unavailable metrics exporter with no detail", () => {
   assert.equal(record.msg, "Metrics exporter unavailable; the app continues")
   assert.equal(record.err, undefined)
   assert.doesNotMatch(JSON.stringify(record), /9465/)
+})
+
+test("lists every event name the record builder accepts", () => {
+  assert.ok(logEvents.includes("request.failed"))
+  assert.ok(logEvents.includes("menu.read.slow"))
+  assert.ok(Object.isFrozen(logEvents))
+  for (const event of logEvents)
+    assert.equal(createLogRecord("backend", event).event, event)
+  assert.throws(() => createLogRecord("backend", "debug.dump"))
 })

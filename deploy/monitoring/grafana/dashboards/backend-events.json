@@ -1,0 +1,156 @@
+{
+  "uid": "mtogo-backend-events",
+  "title": "MTOGO — approved backend events",
+  "description": "Approved backend application events, rebuilt from allowlisted fields by Alloy before Loki (#176). Framework and startup output is not here; it stays in Docker logs.",
+  "schemaVersion": 41,
+  "version": 1,
+  "editable": false,
+  "refresh": "30s",
+  "timezone": "utc",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "tags": ["mtogo", "logs"],
+  "annotations": {
+    "list": []
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "level",
+        "label": "Severity",
+        "type": "custom",
+        "query": "info,warn,error",
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".+",
+        "current": {
+          "text": ["All"],
+          "value": ["$__all"]
+        },
+        "options": []
+      },
+      {
+        "name": "event",
+        "label": "Event starts with",
+        "type": "textbox",
+        "query": "",
+        "current": {
+          "text": "",
+          "value": ""
+        }
+      },
+      {
+        "name": "request_id",
+        "label": "Request ID starts with",
+        "type": "textbox",
+        "query": "",
+        "current": {
+          "text": "",
+          "value": ""
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "What this shows",
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "Only **recognized backend events** reach this view, rebuilt from the logging allowlist. Raw framework, startup and provider lines stay in `docker compose logs`. **No events** with a healthy pipeline means no matching approved event happened in the time range; it does not mean the application is idle. IDs are fields, so filter them here, not as labels."
+      }
+    },
+    {
+      "id": 2,
+      "type": "logs",
+      "title": "Approved backend events",
+      "datasource": {
+        "type": "loki",
+        "uid": "mtogo-loki"
+      },
+      "gridPos": {
+        "h": 20,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "dedupStrategy": "none"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "mtogo-loki"
+          },
+          "queryType": "range",
+          "expr": "{service=\"backend\", level=~\"${level:regex}\"} | json | event=~\"${event:regex}.*\" | request_id=~\"${request_id:regex}.*\""
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Approved events per minute by severity",
+      "datasource": {
+        "type": "loki",
+        "uid": "mtogo-loki"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "mtogo-loki"
+          },
+          "queryType": "range",
+          "legendFormat": "{{level}}",
+          "expr": "sum by (level) (count_over_time({service=\"backend\", level=~\"${level:regex}\"} [1m]))"
+        }
+      ]
+    }
+  ]
+}

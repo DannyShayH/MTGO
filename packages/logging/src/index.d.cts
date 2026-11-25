@@ -44,6 +44,8 @@ export type LogRecord = LogFields & {
   event: LogEvent
   msg: string
 }
+/** Every application event name, in vocabulary order. */
+export const logEvents: readonly LogEvent[]
 export function requestId(value?: unknown): string
 export function httpStatus(error: unknown): number | undefined
 export function safeError(error: unknown): { type: string }

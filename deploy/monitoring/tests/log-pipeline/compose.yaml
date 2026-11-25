@@ -1,0 +1,58 @@
+# Disposable fixture run of the approved-events pipeline (#176). From
+# deploy/monitoring:
+#   docker compose -f tests/log-pipeline/compose.yaml up --abort-on-container-exit --exit-code-from check
+#   docker compose -f tests/log-pipeline/compose.yaml down --volumes
+# Uses the pinned Loki/Alloy images and the real configuration files; no
+# application, Docker socket or published port.
+name: mtogo-log-pipeline-test
+
+services:
+  fixtures:
+    image: node:24.22.3-bookworm-slim
+    command: ["node", "/tests/check.cjs", "write", "/fixtures/backend.log"]
+    volumes:
+      - ./:/tests:ro
+      - fixtures:/fixtures
+
+  loki:
+    image: grafana/loki:3.7.10
+    command: ["-config.file=/etc/loki/config.yaml"]
+    volumes:
+      - ../../loki/config.yaml:/etc/loki/config.yaml:ro
+    networks: [test]
+
+  alloy:
+    image: grafana/alloy:v1.22.0
+    command:
+      - run
+      - --storage.path=/var/lib/alloy/data
+      - --disable-reporting
+      - /etc/alloy/fixture.alloy
+    volumes:
+      - ../../alloy/approved-events.alloy:/etc/alloy/approved-events.alloy:ro
+      - ./fixture.alloy:/etc/alloy/fixture.alloy:ro
+      - fixtures:/fixtures:ro
+    networks: [test]
+    depends_on:
+      fixtures:
+        condition: service_completed_successfully
+      loki:
+        condition: service_started
+
+  check:
+    image: node:24.22.3-bookworm-slim
+    command: ["node", "/tests/check.cjs", "check", "/fixtures/backend.log"]
+    volumes:
+      - ./:/tests:ro
+      - fixtures:/fixtures:ro
+    networks: [test]
+    depends_on:
+      alloy:
+        condition: service_started
+
+networks:
+  test:
+    internal: true
+
+volumes:
+  fixtures:

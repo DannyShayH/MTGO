@@ -8,8 +8,11 @@
 # application, Caddy or PostgreSQL. The scrape network is created by the
 # application project (deploy/staging/compose.yaml); this project only joins it.
 #
-# Exposure: Prometheus and the backend exporter publish no ports and have no
-# Caddy route. Grafana publishes one port on STAGING_BIND_ADDRESS for Caddy,
+# Approved backend events (#176): Loki and Alloy run only with the `logs`
+# profile, which mtogo-deploy.sh enables when STAGING_LOGS_ENABLED=1.
+#
+# Exposure: Prometheus, Loki, Alloy and the backend exporter publish no ports
+# and have no Caddy route. Grafana publishes one port on STAGING_BIND_ADDRESS for Caddy,
 # which serves it over HTTPS with a login (no anonymous access, no sign-up).
 name: mtogo-staging-monitoring
 
@@ -80,12 +83,64 @@ services:
     networks:
       - loopback
       - metrics
+      - logs
     logging: *logging
     memswap_limit: 448m
     deploy:
       resources:
         limits:
           memory: 448m
+
+  loki:
+    image: grafana/loki:3.7.10
+    profiles: ["logs"]
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/config.yaml"]
+    environment:
+      GOMEMLIMIT: 200MiB
+    volumes:
+      - ./loki/config.yaml:/etc/loki/config.yaml:ro
+      - loki-data:/loki
+    networks:
+      - logs
+    logging: *logging
+    memswap_limit: 256m
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+
+  # Reads only the backend container of the mtogo-staging project through the
+  # Docker socket. A read-only mount does not limit the Docker API calls Alloy
+  # could make; the admin accepts that when enabling the profile.
+  alloy:
+    image: grafana/alloy:v1.22.0
+    # Root inside the container, only to read the Docker socket.
+    user: "0"
+    profiles: ["logs"]
+    restart: unless-stopped
+    command:
+      - run
+      - --storage.path=/var/lib/alloy/data
+      - --disable-reporting
+      - /etc/alloy/config.alloy
+    environment:
+      GOMEMLIMIT: 120MiB
+      MTOGO_LOG_PROJECT: mtogo-staging
+    volumes:
+      - ./alloy:/etc/alloy:ro
+      - alloy-data:/var/lib/alloy/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - logs
+    depends_on:
+      - loki
+    logging: *logging
+    memswap_limit: 160m
+    deploy:
+      resources:
+        limits:
+          memory: 160m
 
 networks:
   # Internal scrape network owned by the mtogo-staging application project.
@@ -94,7 +149,12 @@ networks:
     name: mtogo-staging-metrics
   # Publishes Grafana's single port for Caddy (same role as in compose.yaml).
   loopback:
+  # Grafana, Loki and Alloy only; no route out.
+  logs:
+    internal: true
 
 volumes:
   prometheus-data:
   grafana-data:
+  loki-data:
+  alloy-data:

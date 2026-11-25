@@ -158,7 +158,11 @@ function createApplicationLogger(
   return log
 }
 
+/** The event vocabulary, for consumers that must recognize these records. */
+const logEvents = Object.freeze(Object.keys(events))
+
 module.exports = {
+  logEvents,
   createApplicationLogger,
   createLogRecord,
   requestId,

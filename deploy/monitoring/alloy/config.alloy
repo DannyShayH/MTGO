@@ -1,0 +1,56 @@
+// Collects approved backend application events into Loki (#176).
+//
+// Source selection is bounded to one Compose service: the backend of the
+// application project named by MTOGO_LOG_PROJECT (local demo:
+// mtogo-monitoring-demo, staging: mtogo-staging). Database, Redis, Caddy,
+// other services, one-off `run` containers and unrelated projects are never
+// read. The Docker socket gives read access to every container's logs and
+// metadata; see the runbook before mounting it on a shared host.
+
+discovery.docker "application" {
+  host             = "unix:///var/run/docker.sock"
+  refresh_interval = "15s"
+
+  filter {
+    name   = "label"
+    values = [
+      "com.docker.compose.project=" + sys.env("MTOGO_LOG_PROJECT"),
+      "com.docker.compose.service=backend",
+      "com.docker.compose.oneoff=False",
+    ]
+  }
+}
+
+// No container metadata becomes a stream label; the pipeline sets them.
+discovery.relabel "backend" {
+  targets = discovery.docker.application.targets
+
+  rule {
+    action        = "keep"
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    regex         = "backend"
+  }
+}
+
+loki.source.docker "backend" {
+  host             = "unix:///var/run/docker.sock"
+  targets          = discovery.relabel.backend.output
+  refresh_interval = "15s"
+  forward_to       = [approved.backend_events.backend.receiver]
+}
+
+import.file "approved" {
+  filename = "/etc/alloy/approved-events.alloy"
+}
+
+approved.backend_events "backend" {
+  forward_to = [loki.write.local.receiver]
+}
+
+// Best effort: a bounded retry, never a wait inside the application.
+loki.write "local" {
+  endpoint {
+    url                 = "http://loki:3100/loki/api/v1/push"
+    max_backoff_retries = 10
+  }
+}

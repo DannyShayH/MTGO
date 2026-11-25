@@ -33,7 +33,8 @@
 #   mtogo-deploy.sh monitoring up      Private request metrics (#194): turn on the
 #       backend exporter, copy deploy/monitoring/ from the current release and
 #       (re)start Prometheus and Grafana. Needs STAGING_METRICS_ENABLED=1.
-#   mtogo-deploy.sh monitoring down    Stop Prometheus and Grafana; history is kept.
+#       STAGING_LOGS_ENABLED=1 also starts Loki and Alloy (#176).
+#   mtogo-deploy.sh monitoring down    Stop the monitoring stack; history is kept.
 #   mtogo-deploy.sh monitoring status  Monitoring containers and their source release.
 #   mtogo-deploy.sh monitoring viewer-add <login>     Grafana Viewer, prints its first password.
 #   mtogo-deploy.sh monitoring viewer-remove <login>  Delete that Grafana account.
@@ -501,8 +502,16 @@ cmd_compose() {
 
 # Prometheus and Grafana: a separate Compose project, never touched by
 # prepare, release or rollback (deploy/monitoring/compose.staging.yaml).
+# STAGING_LOGS_ENABLED=1 adds Loki and Alloy (the `logs` profile, #176).
+logs_enabled() {
+  [[ "$(env_optional STAGING_LOGS_ENABLED)" == "1" ]]
+}
+
 monitoring_compose() {
-  docker compose --project-name mtogo-staging-monitoring \
+  local profiles=""
+  logs_enabled && profiles=logs
+  COMPOSE_PROFILES=$profiles \
+    docker compose --project-name mtogo-staging-monitoring \
     --project-directory "$MONITORING_DIR/config" \
     --env-file "$ENV_FILE" \
     --file "$MONITORING_DIR/config/compose.staging.yaml" "$@"
@@ -580,14 +589,21 @@ cmd_monitoring() {
       monitoring_compose config --quiet
       monitoring_compose run --rm --no-deps --entrypoint /bin/promtool \
         prometheus check config /etc/prometheus/prometheus.yaml > /dev/null
-      log "starting Prometheus and Grafana"
+      if logs_enabled; then
+        monitoring_compose run --rm --no-deps loki \
+          -config.file=/etc/loki/config.yaml -verify-config > /dev/null
+        log "starting Prometheus, Grafana, Loki and Alloy"
+      else
+        log "starting Prometheus and Grafana"
+      fi
       monitoring_compose up -d --wait --force-recreate
       monitoring_compose ps --format 'table {{.Service}}\t{{.Status}}\t{{.Image}}'
       ;;
     down)
       [[ $# -eq 0 ]] || die "monitoring down takes no arguments"
       [[ -f "$MONITORING_DIR/config/compose.staging.yaml" ]] || die "monitoring is not installed"
-      monitoring_compose down
+      # Includes Loki and Alloy even after STAGING_LOGS_ENABLED was set to 0.
+      monitoring_compose --profile logs down
       log "stopped; history and accounts are kept. Set STAGING_METRICS_ENABLED=0 to turn the exporter off at the next deploy"
       ;;
     status)

@@ -1,0 +1,11 @@
+apiVersion: 1
+datasources:
+  # Approved backend application events (#176), rebuilt by Alloy before Loki.
+  - name: Application events
+    uid: mtogo-loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    editable: false
+    jsonData:
+      maxLines: 1000

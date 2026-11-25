@@ -12,6 +12,18 @@ and, for the Droplet,
 join the explicitly created internal `mtogo-local-metrics` network. Only the
 API and Grafana have loopback host ports.
 
+## Approved backend events (#176)
+
+`alloy/approved-events.alloy` is the Loki dataset boundary: it keeps only
+recognized `@dtc/logging` backend records and rebuilds them from allowlisted
+fields. `alloy/config.alloy` feeds it from the `backend` container of the
+project in `MTOGO_LOG_PROJECT`; `loki/config.yaml` stores the result with the
+labels `service`, `env` and `level`. `tests/log-pipeline/` runs the module against the
+pinned Loki with fixtures (`cases.json`) and checks the stored records. The
+runbook is
+[Approved backend events in Grafana](../../apps/docs/src/content/docs/quality/approved-backend-events.md).
+On staging, Loki and Alloy run only with `STAGING_LOGS_ENABLED=1`.
+
 ## Query tests
 
 `tests/dashboard-queries.test.yaml` is a `promtool test rules` file holding

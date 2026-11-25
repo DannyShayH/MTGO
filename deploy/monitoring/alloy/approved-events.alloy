@@ -1,0 +1,254 @@
+// Approved backend application events (#176): the dataset boundary for Loki.
+//
+// A line reaches Loki only when it is a recognized @dtc/logging record from
+// the backend: a known event with its own level and constant message, a
+// service, an environment and a UTC time. The forwarded line is rebuilt from
+// validated allowlisted fields only; the original line, Medusa's `message`
+// and `timestamp`, unknown fields and nested data never leave this pipeline.
+// Everything else (framework/startup output, stacks, unknown events, plain
+// text) is dropped here and stays only in Docker's own log files.
+//
+// Stream labels are service, env and level. Request, actor, Restaurant and
+// Order IDs stay searchable fields inside the line, never labels.
+//
+// Keep the recognized combinations in step with packages/logging/src/index.cjs;
+// src/observability/__tests__/approved-log-events.unit.spec.ts fails when
+// they drift. deploy/monitoring/tests/log-pipeline runs this module against Loki.
+
+declare "backend_events" {
+  argument "forward_to" {
+    comment = "Receivers of the rebuilt approved records."
+  }
+
+  export "receiver" {
+    value = loki.process.approved.receiver
+  }
+
+  loki.process "approved" {
+    forward_to = argument.forward_to.value
+
+    // Approved records are a few hundred bytes; bound the parsing cost.
+    stage.drop {
+      longer_than         = "4KiB"
+      drop_counter_reason = "line_too_long"
+    }
+
+    // Not JSON: plain framework text, never an approved record.
+    stage.json {
+      drop_malformed = true
+      expressions    = {
+        time                = "",
+        level               = "",
+        service             = "",
+        env                 = "",
+        event               = "",
+        msg                 = "",
+        request_id          = "",
+        route               = "",
+        method              = "",
+        status              = "",
+        actor_type          = "",
+        actor_id            = "",
+        restaurant_id       = "",
+        order_id            = "",
+        outcome             = "",
+        err_type            = "err.type",
+        whole_read_ms       = "",
+        restaurant_ms       = "",
+        dish_prices_ms      = "",
+        photos_ms           = "",
+        photo_urls_ms       = "",
+        food_information_ms = "",
+        dishes              = "",
+        photos              = "",
+      }
+    }
+
+    // Recognized event, level and constant message, as one combination.
+    stage.template {
+      source   = "combination"
+      template = `{{ .event }}|{{ .level }}|{{ .msg }}`
+    }
+
+    stage.regex {
+      source     = "combination"
+      expression = `^(?P<recognized>auth\.sign_in\.succeeded\|info\|Partner sign-in succeeded|auth\.sign_in\.failed\|warn\|Partner sign-in failed|auth\.session\.ended\|info\|Partner session ended|access\.denied\|warn\|Access denied|input\.rejected\|info\|Input rejected|upstream\.request\.failed\|info\|Upstream request failed|upstream\.request\.failed\|warn\|Upstream request failed|request\.failed\|error\|Request failed|pickup_location_missing\|error\|Restaurant pickup location is missing|refund\.attempted\|info\|Refund attempted|menu\.read\.slow\|warn\|Slow Customer menu read|monitoring\.exporter\.unavailable\|warn\|Metrics exporter unavailable; the app continues|monitoring\.demo_read\.succeeded\|info\|Disposable backend product read completed)$`
+    }
+
+    stage.regex {
+      source     = "recognized"
+      expression = `^(?P<ok_event>[^|]+)\|(?P<ok_level>[^|]+)\|(?P<ok_msg>[^|]+)$`
+    }
+
+    stage.regex {
+      source     = "service"
+      expression = `^(?P<ok_service>backend)$`
+    }
+
+    stage.regex {
+      source     = "env"
+      expression = `^(?P<ok_env>development|test|production|staging)$`
+    }
+
+    stage.regex {
+      source     = "time"
+      expression = `^(?P<ok_time>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z)$`
+    }
+
+    stage.template {
+      source   = "approved"
+      // Nested plain conditions: no function that could fail on a missing key
+      // and leave `approved` unset (which stage.drop would let through).
+      template = `{{ if .recognized }}{{ if .ok_service }}{{ if .ok_env }}{{ if .ok_time }}yes{{ else }}no{{ end }}{{ else }}no{{ end }}{{ else }}no{{ end }}{{ else }}no{{ end }}`
+    }
+
+    stage.drop {
+      source              = "approved"
+      value               = "no"
+      drop_counter_reason = "not_an_approved_event"
+    }
+
+    // Optional fields: an invalid value is left out, as the builder does.
+    stage.regex {
+      source     = "request_id"
+      expression = `^(?P<ok_request_id>[A-Za-z0-9-]{1,64})$`
+    }
+
+    stage.regex {
+      source     = "route"
+      expression = `^(?P<ok_route>/[A-Za-z0-9/_:*.-]{0,127})$`
+    }
+
+    stage.regex {
+      source     = "method"
+      expression = `^(?P<ok_method>GET|POST|DELETE|PUT|PATCH|HEAD|OPTIONS)$`
+    }
+
+    stage.regex {
+      source     = "status"
+      expression = `^(?P<ok_status>[1-5][0-9]{2})$`
+    }
+
+    stage.regex {
+      source     = "actor_type"
+      expression = `^(?P<ok_actor_type>[A-Za-z0-9_-]{1,128})$`
+    }
+
+    stage.regex {
+      source     = "actor_id"
+      expression = `^(?P<ok_actor_id>[A-Za-z0-9_-]{1,128})$`
+    }
+
+    stage.regex {
+      source     = "restaurant_id"
+      expression = `^(?P<ok_restaurant_id>[A-Za-z0-9_-]{1,128})$`
+    }
+
+    stage.regex {
+      source     = "order_id"
+      expression = `^(?P<ok_order_id>[A-Za-z0-9_-]{1,128})$`
+    }
+
+    // Event-specific fields; the rebuild below keeps each only on its event.
+    stage.regex {
+      source     = "outcome"
+      expression = `^(?P<ok_outcome>succeeded|failed|in_progress)$`
+    }
+
+    stage.regex {
+      source     = "err_type"
+      expression = `^(?P<ok_err_type>Error|TypeError|RangeError)$`
+    }
+
+    // Whole numbers from 0 up to a day's milliseconds (86400000).
+    stage.regex {
+      source     = "whole_read_ms"
+      expression = `^(?P<ok_whole_read_ms>0|[1-9][0-9]{0,6}|[1-7][0-9]{7}|8[0-5][0-9]{6}|86[0-3][0-9]{5}|86400000)$`
+    }
+
+    stage.regex {
+      source     = "restaurant_ms"
+      expression = `^(?P<ok_restaurant_ms>0|[1-9][0-9]{0,6}|[1-7][0-9]{7}|8[0-5][0-9]{6}|86[0-3][0-9]{5}|86400000)$`
+    }
+
+    stage.regex {
+      source     = "dish_prices_ms"
+      expression = `^(?P<ok_dish_prices_ms>0|[1-9][0-9]{0,6}|[1-7][0-9]{7}|8[0-5][0-9]{6}|86[0-3][0-9]{5}|86400000)$`
+    }
+
+    stage.regex {
+      source     = "photos_ms"
+      expression = `^(?P<ok_photos_ms>0|[1-9][0-9]{0,6}|[1-7][0-9]{7}|8[0-5][0-9]{6}|86[0-3][0-9]{5}|86400000)$`
+    }
+
+    stage.regex {
+      source     = "photo_urls_ms"
+      expression = `^(?P<ok_photo_urls_ms>0|[1-9][0-9]{0,6}|[1-7][0-9]{7}|8[0-5][0-9]{6}|86[0-3][0-9]{5}|86400000)$`
+    }
+
+    stage.regex {
+      source     = "food_information_ms"
+      expression = `^(?P<ok_food_information_ms>0|[1-9][0-9]{0,6}|[1-7][0-9]{7}|8[0-5][0-9]{6}|86[0-3][0-9]{5}|86400000)$`
+    }
+
+    stage.regex {
+      source     = "dishes"
+      expression = `^(?P<ok_dishes>0|[1-9][0-9]{0,6}|[1-7][0-9]{7}|8[0-5][0-9]{6}|86[0-3][0-9]{5}|86400000)$`
+    }
+
+    stage.regex {
+      source     = "photos"
+      expression = `^(?P<ok_photos>0|[1-9][0-9]{0,6}|[1-7][0-9]{7}|8[0-5][0-9]{6}|86[0-3][0-9]{5}|86400000)$`
+    }
+
+    // Every value above is validated against a character set without quotes,
+    // backslashes or control characters, so it needs no JSON escaping.
+    stage.template {
+      source   = "rebuilt"
+      template = `{"time":"{{ .ok_time }}","level":"{{ .ok_level }}","service":"{{ .ok_service }}","env":"{{ .ok_env }}","event":"{{ .ok_event }}","msg":"{{ .ok_msg }}"
+        {{- if .ok_request_id }},"request_id":"{{ .ok_request_id }}"{{ end }}
+        {{- if .ok_status }},"status":{{ .ok_status }}{{ end }}
+        {{- if .ok_actor_type }},"actor_type":"{{ .ok_actor_type }}"{{ end }}
+        {{- if .ok_actor_id }},"actor_id":"{{ .ok_actor_id }}"{{ end }}
+        {{- if .ok_restaurant_id }},"restaurant_id":"{{ .ok_restaurant_id }}"{{ end }}
+        {{- if .ok_order_id }},"order_id":"{{ .ok_order_id }}"{{ end }}
+        {{- if .ok_route }},"route":"{{ .ok_route }}"{{ end }}
+        {{- if .ok_method }},"method":"{{ .ok_method }}"{{ end }}
+        {{- if and (eq .ok_event "refund.attempted") .ok_outcome }},"outcome":"{{ .ok_outcome }}"{{ end }}
+        {{- if eq .ok_event "menu.read.slow" }}
+          {{- if .ok_whole_read_ms }},"whole_read_ms":{{ .ok_whole_read_ms }}{{ end }}
+          {{- if .ok_restaurant_ms }},"restaurant_ms":{{ .ok_restaurant_ms }}{{ end }}
+          {{- if .ok_dish_prices_ms }},"dish_prices_ms":{{ .ok_dish_prices_ms }}{{ end }}
+          {{- if .ok_photos_ms }},"photos_ms":{{ .ok_photos_ms }}{{ end }}
+          {{- if .ok_photo_urls_ms }},"photo_urls_ms":{{ .ok_photo_urls_ms }}{{ end }}
+          {{- if .ok_food_information_ms }},"food_information_ms":{{ .ok_food_information_ms }}{{ end }}
+          {{- if .ok_dishes }},"dishes":{{ .ok_dishes }}{{ end }}
+          {{- if .ok_photos }},"photos":{{ .ok_photos }}{{ end }}
+        {{- end }}
+        {{- if eq .ok_event "request.failed" }},"err":{"type":"{{ or .ok_err_type "Error" }}"}{{ end }}
+        {{- "}" }}`
+    }
+
+    stage.output {
+      source = "rebuilt"
+    }
+
+    // The producer's own time, not the moment Docker or Alloy saw the line.
+    stage.timestamp {
+      source = "ok_time"
+      format = "RFC3339"
+    }
+
+    stage.labels {
+      values = {
+        service = "ok_service",
+        env     = "ok_env",
+        level   = "ok_level",
+      }
+    }
+
+    stage.label_keep {
+      values = ["service", "env", "level"]
+    }
+  }
+}
