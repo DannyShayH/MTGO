@@ -17,22 +17,24 @@ authentication, publishable-key and body refusals before application
 middleware, with its server-side duration. It shows rates, five-minute
 counts, the 5xx proportion and ordinary API p95, and states plainly when
 evidence is unavailable. Beside the requests it shows the CPU, memory and
-event-loop delay of the same HTTP-serving Node process, and nothing wider:
-no host, worker, Next.js or database runtime. It does not count Customers or Orders, and HTTP
+event-loop delay of the same HTTP-serving Node process, and the CPU, load,
+memory, swap and free disk of the host (#182). It has no worker, Next.js or database
+runtime. It does not count Customers or Orders, and HTTP
 latency is not Order processing time. Business state, logging
 and request correlation retain their existing contracts.
 
 ## Scope and boundaries
 
-| Component                    | Pinned version                             | Local access                             |
-| ---------------------------- | ------------------------------------------ | ---------------------------------------- |
-| Medusa                       | 2.22.4                                     | API at `127.0.0.1:9000`                  |
-| HTTP process                 | Node 24.22.3 in the existing backend image | Single shared process                    |
-| Prometheus JavaScript client | `@prometheus-io/client` 0.16.1             | Isolated backend registry                |
-| Exporter                     | `GET /metrics`, Prometheus text 0.0.4      | `backend-metrics:9464`, no host port     |
-| Prometheus                   | 3.16.0                                     | Internal `prometheus:9090`, no host port |
-| Grafana OSS                  | 13.3.1                                     | `127.0.0.1:3000`, login required         |
-| Disposable database          | PostgreSQL 16.16                           | Internal only, `medusa_ci_monitoring`    |
+| Component                    | Pinned version                             | Local access                                |
+| ---------------------------- | ------------------------------------------ | ------------------------------------------- |
+| Medusa                       | 2.22.4                                     | API at `127.0.0.1:9000`                     |
+| HTTP process                 | Node 24.22.3 in the existing backend image | Single shared process                       |
+| Prometheus JavaScript client | `@prometheus-io/client` 0.16.1             | Isolated backend registry                   |
+| Exporter                     | `GET /metrics`, Prometheus text 0.0.4      | `backend-metrics:9464`, no host port        |
+| Prometheus                   | 3.16.0                                     | Internal `prometheus:9090`, no host port    |
+| Node Exporter                | 1.13.1                                     | Internal `node-exporter:9100`, no host port |
+| Grafana OSS                  | 13.3.1                                     | `127.0.0.1:3000`, login required            |
+| Disposable database          | PostgreSQL 16.16                           | Internal only, `medusa_ci_monitoring`       |
 
 The dashboard's Customer menu page panels (#202) read a second target,
 `storefront-metrics:9465`, which only the staging storefront runs. The demo has
@@ -56,7 +58,7 @@ override and keep the default exporter bind at `127.0.0.1`.
 Approved backend and partner events (and, on staging, storefront events) are
 collected separately by Loki and Alloy in the same monitoring project; see
 [approved application events in Grafana](/MTGO/quality/approved-application-events/).
-There is no host/container/database/Redis or
+There are no container/database/Redis or
 Next.js process metrics or separate-worker runtime metrics yet.
 The [confirmed discovery](/MTGO/quality/prometheus-monitoring-discovery/)
 describes the later work. Seven-day Prometheus retention is a time policy,
@@ -466,6 +468,46 @@ larger bounds). Further cases cover counts just under 100, exactly 500, just
 over 500, exactly 750 and valid zero, and DOWN, absent and one-scrape targets.
 The unit test fails if any setting it lists is missing for either panel.
 
+## Host CPU, memory and disk (#182)
+
+The **Host** row reads Node Exporter. What each panel means, its limits and
+what to do on staging are in
+[staging request monitoring](/MTGO/quality/staging-request-monitoring/#host-cpu-memory-and-disk).
+Locally it shows the host of the Docker engine you use: in the devcontainer
+and with Docker Desktop that is a virtual machine, so its memory and disk are
+not your computer's.
+
+From `deploy/monitoring`, check that a stopped exporter reads **Unavailable**
+in grey while the applications keep answering:
+
+```bash
+docker compose stop node-exporter
+curl --fail http://127.0.0.1:9000/health
+docker compose up -d node-exporter
+```
+
+Check the disk thresholds on a disposable 64 MB volume in memory, never by
+filling a real disk and never on staging. It replaces what the **Docker
+volumes** panel reads; the other panels are unchanged.
+
+```bash
+disk_check() { docker compose -f compose.yaml -f tests/disk-check/compose.yaml "$@"; }
+disk_check up -d node-exporter                # 100 % free: green
+disk_check run --rm disk-filler count=54      # about 16 % free: amber
+disk_check run --rm disk-filler count=60      # about 6 % free: red
+docker compose up -d node-exporter            # back to the real disk
+docker volume rm mtogo-monitoring_disk-check
+```
+
+Allow up to 45 seconds after each step (scrape plus dashboard refresh). Record
+Node Exporter's own memory, idle and while it is being scraped:
+
+```bash
+docker stats --no-stream mtogo-monitoring-node-exporter-1
+docker compose exec -T prometheus timeout 20 sh -c 'while true; do wget -qO /dev/null http://node-exporter:9100/metrics; done' < /dev/null &
+sleep 5; docker stats --no-stream mtogo-monitoring-node-exporter-1; wait
+```
+
 ## Reading the dashboard at a glance (#246)
 
 Signing in opens **MTOGO — backend API requests and process** as the home
@@ -478,6 +520,7 @@ _Unavailable_ meaning no current evidence. The panels sit in rows:
 | Traffic and thresholds                      | Yes             | Scrape and data state, counts, rate, the low- and high-traffic indications, responses by status class and by final status |
 | Latency and errors                          | Yes             | 5xx proportion, p95 and its observation count, their charts, and the ten slowest route patterns now                       |
 | HTTP-serving process                        | Yes             | CPU, memory against the container cap, event-loop delay                                                                   |
+| Host                                        | Yes             | CPU, load, memory available, swap used and free disk of the whole host (#182)                                             |
 | Streams and interrupted requests            | No              | Server-Sent Event connections, their terminations, interrupted requests                                                   |
 | Customer menu read and restaurant menu page | No              | The #202 panels                                                                                                           |
 | Latency by route over time                  | No              | The p95 of every route pattern over the displayed range                                                                   |
@@ -487,17 +530,21 @@ The first two rows fit on one 1080p screen. Headline values are coloured by
 the agreed targets; a value with no current evidence reads _Unavailable_ in
 neutral grey, never green:
 
-| Value                  | Green       | Amber        | Red          | Source of the target                         |
-| ---------------------- | ----------- | ------------ | ------------ | -------------------------------------------- |
-| Ordinary API p95       | below 2 s   | 2 s to 5 s   | 5 s and over | ADR-0014: browsing 2 s, Order submission 5 s |
-| 5xx proportion         | 0 %         | above 0 %    |              | Any server failure is worth a look           |
-| Event-loop delay (p99) | below 0.1 s | 0.1 s to 1 s | 1 s and over | Requests wait behind blocking work           |
-| Resident memory        | below 80 %  | 80 % to 90 % | 90 % of cap  | The 768 MiB staging backend memory cap       |
+| Value                  | Green           | Amber        | Red          | Source of the target                         |
+| ---------------------- | --------------- | ------------ | ------------ | -------------------------------------------- |
+| Ordinary API p95       | below 2 s       | 2 s to 5 s   | 5 s and over | ADR-0014: browsing 2 s, Order submission 5 s |
+| 5xx proportion         | 0 %             | above 0 %    |              | Any server failure is worth a look           |
+| Event-loop delay (p99) | below 0.1 s     | 0.1 s to 1 s | 1 s and over | Requests wait behind blocking work           |
+| Host memory available  | 200 MB and over |              | below 200 MB | The agreed floor, `available` in `free -m`   |
+| Host disk free         | 20 % and over   | 10 % to 20 % | below 10 %   | Agreed in #182                               |
+| Resident memory        | below 80 %      | 80 % to 90 % | 90 % of cap  | The 768 MiB staging backend memory cap       |
 
-The p95 and event-loop charts draw the same targets as dashed lines. The
-memory bar ends at 768 MiB, the staging cap; the local demo has no cap. CPU has
-no colour: cores used has no meaningful maximum on a shared Droplet. The
-counts, rates and streams stay neutral because they have no target.
+The p95, event-loop, host memory and host disk charts draw the same targets as
+dashed lines. The process memory bar ends at 768 MiB, the staging cap; the local
+demo has no cap. Process CPU has no colour: cores used has no meaningful maximum
+on a shared Droplet. Host CPU, load and swap have none either, because no limit
+is agreed. The counts, rates and streams stay neutral because they have no
+target.
 
 Stats show the current instant value only. They have no sparkline: a stat
 drawn from a range query would keep its last value after the target goes
@@ -661,6 +708,7 @@ raw count starts again from zero, as after any backend restart.
 | A traffic panel Unavailable with valid values      | No valid five-minute count: check **Data state**. No setting, including low 0 or an enabled high 0, turns DOWN or missing samples into data.                                                                                                                                                           |
 | HIGH traffic shown                                 | The count is above your own number, not a capacity limit: nothing is throttled and nobody is notified. Check the p95, 5xx proportion and event-loop delay before concluding the backend is overloaded.                                                                                                 |
 | Someone else sees a different traffic result       | Settings live in each view's URL. Compare the `var-low_traffic_threshold`, `var-high_traffic_warning` and `var-high_traffic_threshold` values; the Git defaults are 0, off and 0.                                                                                                                      |
+| Host panels Unavailable                            | `docker compose ps node-exporter` and its logs. One disk only: Node Exporter cannot read that mount; recreate it with `docker compose up -d --force-recreate node-exporter`.                                                                                                                           |
 | `test rules` fails after a dashboard change        | Update the expression and expected values in `tests/dashboard-queries.test.yaml` together; the backend unit test names any query the file lacks.                                                                                                                                                       |
 | Dashboard absent                                   | Check Grafana provisioning logs and the mounted dashboard/provider/data-source paths; keep the pinned versions together.                                                                                                                                                                               |
 | `docker: command not found`                        | Rebuild and reopen the devcontainer with the Docker-in-Docker feature, then check `docker version` and `docker compose version`.                                                                                                                                                                       |
@@ -1103,3 +1151,24 @@ Grafana, because `exec` output is not in the container's Docker log (the
 runbook now says so). A burst of requests on routes never seen before counts
 from the second scrape on, as described under
 [interpret the view](/MTGO/quality/local-request-monitoring/#interpret-the-view).
+
+### Host CPU, memory and disk (#182)
+
+Agent verification on 25 November 2026:
+
+| Check                   | Result                                                                                                                                                                                                                  |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Configuration           | The `host-metrics`, `monitoring-lifecycle` and `dashboard-queries` unit specs pass. `promtool check config --syntax-only` passes with 3.16.0.                                                                           |
+| Prometheus query engine | `promtool test rules` with 3.16.0: **SUCCESS**. Without the check that the target is UP, the case "DOWN within the lookback" fails.                                                                                     |
+| Node Exporter options   | Read in the 1.13.1 source: every option exists, mounts come from the container's own mount table, and free space is read with `statfs`, which also works on a file. **Not run by the agent.**                           |
+| Containers              | **Not run by the agent**: the development container has no Docker, and running the downloaded Node Exporter was refused by the session's permissions. `docker compose config`, the rows below and the browser are open. |
+
+To be filled in by the developer:
+
+| Check                                                                   | Date and result |
+| ----------------------------------------------------------------------- | --------------- |
+| Host row shows values with units                                        |                 |
+| Node Exporter stopped: Unavailable in grey, applications keep answering |                 |
+| Disposable volume: amber, then red                                      |                 |
+| Node Exporter's memory, idle                                            |                 |
+| Node Exporter's memory, during scrapes                                  |                 |

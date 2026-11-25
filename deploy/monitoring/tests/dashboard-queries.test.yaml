@@ -2971,3 +2971,647 @@ tests:
         exp_samples:
           - labels: '{instance="backend-metrics:9464", job="mtogo-backend"}'
             value: 1300000
+  # host (#182): memory and swap in bytes, each disk as its own free share
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "1x40"
+      - series: 'node_memory_MemAvailable_bytes{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "566231040x40"
+      - series: 'node_memory_SwapTotal_bytes{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "2147483648x40"
+      - series: 'node_memory_SwapFree_bytes{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "1673527296x40"
+      - series: 'node_filesystem_avail_bytes{job="mtogo-node",instance="node-exporter:9100",device="/dev/vda1",fstype="ext4",mountpoint="/host/root"}'
+        values: "30x40"
+      - series: 'node_filesystem_size_bytes{job="mtogo-node",instance="node-exporter:9100",device="/dev/vda1",fstype="ext4",mountpoint="/host/root"}'
+        values: "100x40"
+      - series: 'node_filesystem_avail_bytes{job="mtogo-node",instance="node-exporter:9100",device="/dev/vda1",fstype="ext4",mountpoint="/host/docker-volumes"}'
+        values: "15x40"
+      - series: 'node_filesystem_size_bytes{job="mtogo-node",instance="node-exporter:9100",device="/dev/vda1",fstype="ext4",mountpoint="/host/docker-volumes"}'
+        values: "100x40"
+      - series: 'node_memory_MemAvailable_bytes{job="unrelated",instance="elsewhere:9100"}'
+        values: "1x40"
+      - series: 'node_filesystem_avail_bytes{job="unrelated",instance="elsewhere:9100",device="/dev/vda1",fstype="ext4",mountpoint="/host/root"}'
+        values: "1x40"
+      - series: 'node_filesystem_size_bytes{job="unrelated",instance="elsewhere:9100",device="/dev/vda1",fstype="ext4",mountpoint="/host/root"}'
+        values: "100x40"
+    promql_expr_test:
+      - expr: 'node_memory_MemAvailable_bytes{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: 'node_memory_MemAvailable_bytes{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 566231040
+      - expr: 'node_memory_SwapTotal_bytes{job="mtogo-node"} - node_memory_SwapFree_bytes{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 473956352
+      - expr: 'node_memory_SwapTotal_bytes{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: 'node_memory_SwapTotal_bytes{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 2147483648
+      - expr: 'node_filesystem_avail_bytes{job="mtogo-node",mountpoint="/host/root"} / node_filesystem_size_bytes{job="mtogo-node",mountpoint="/host/root"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{device="/dev/vda1", fstype="ext4", instance="node-exporter:9100", job="mtogo-node", mountpoint="/host/root"}'
+            value: 0.3
+      - expr: 'node_filesystem_avail_bytes{job="mtogo-node",mountpoint="/host/docker-volumes"} / node_filesystem_size_bytes{job="mtogo-node",mountpoint="/host/docker-volumes"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{device="/dev/vda1", fstype="ext4", instance="node-exporter:9100", job="mtogo-node", mountpoint="/host/docker-volumes"}'
+            value: 0.15
+  # host at the thresholds, BVA (one byte): below, on and above the 200 MiB floor, 20 % and 10 % free (5 minutes each)
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "1x59"
+      - series: 'node_memory_MemAvailable_bytes{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "209715199x19 209715200x19 209715201x19"
+      - series: 'node_filesystem_avail_bytes{job="mtogo-node",instance="node-exporter:9100",device="/dev/vda1",fstype="ext4",mountpoint="/host/root"}'
+        values: "19x19 20x19 21x19"
+      - series: 'node_filesystem_size_bytes{job="mtogo-node",instance="node-exporter:9100",device="/dev/vda1",fstype="ext4",mountpoint="/host/root"}'
+        values: "100x59"
+      - series: 'node_filesystem_avail_bytes{job="mtogo-node",instance="node-exporter:9100",device="/dev/vda1",fstype="ext4",mountpoint="/host/docker-volumes"}'
+        values: "9x19 10x19 11x19"
+      - series: 'node_filesystem_size_bytes{job="mtogo-node",instance="node-exporter:9100",device="/dev/vda1",fstype="ext4",mountpoint="/host/docker-volumes"}'
+        values: "100x59"
+    promql_expr_test:
+      - expr: 'node_memory_MemAvailable_bytes{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 4m
+        exp_samples:
+          - labels: 'node_memory_MemAvailable_bytes{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 209715199
+      - expr: 'node_memory_MemAvailable_bytes{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 9m
+        exp_samples:
+          - labels: 'node_memory_MemAvailable_bytes{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 209715200
+      - expr: 'node_memory_MemAvailable_bytes{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 14m
+        exp_samples:
+          - labels: 'node_memory_MemAvailable_bytes{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 209715201
+      - expr: 'node_filesystem_avail_bytes{job="mtogo-node",mountpoint="/host/root"} / node_filesystem_size_bytes{job="mtogo-node",mountpoint="/host/root"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 4m
+        exp_samples:
+          - labels: '{device="/dev/vda1", fstype="ext4", instance="node-exporter:9100", job="mtogo-node", mountpoint="/host/root"}'
+            value: 0.19
+      - expr: 'node_filesystem_avail_bytes{job="mtogo-node",mountpoint="/host/root"} / node_filesystem_size_bytes{job="mtogo-node",mountpoint="/host/root"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 9m
+        exp_samples:
+          - labels: '{device="/dev/vda1", fstype="ext4", instance="node-exporter:9100", job="mtogo-node", mountpoint="/host/root"}'
+            value: 0.2
+      - expr: 'node_filesystem_avail_bytes{job="mtogo-node",mountpoint="/host/root"} / node_filesystem_size_bytes{job="mtogo-node",mountpoint="/host/root"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 14m
+        exp_samples:
+          - labels: '{device="/dev/vda1", fstype="ext4", instance="node-exporter:9100", job="mtogo-node", mountpoint="/host/root"}'
+            value: 0.21
+      - expr: 'node_filesystem_avail_bytes{job="mtogo-node",mountpoint="/host/docker-volumes"} / node_filesystem_size_bytes{job="mtogo-node",mountpoint="/host/docker-volumes"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 4m
+        exp_samples:
+          - labels: '{device="/dev/vda1", fstype="ext4", instance="node-exporter:9100", job="mtogo-node", mountpoint="/host/docker-volumes"}'
+            value: 0.09
+      - expr: 'node_filesystem_avail_bytes{job="mtogo-node",mountpoint="/host/docker-volumes"} / node_filesystem_size_bytes{job="mtogo-node",mountpoint="/host/docker-volumes"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 9m
+        exp_samples:
+          - labels: '{device="/dev/vda1", fstype="ext4", instance="node-exporter:9100", job="mtogo-node", mountpoint="/host/docker-volumes"}'
+            value: 0.1
+      - expr: 'node_filesystem_avail_bytes{job="mtogo-node",mountpoint="/host/docker-volumes"} / node_filesystem_size_bytes{job="mtogo-node",mountpoint="/host/docker-volumes"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 14m
+        exp_samples:
+          - labels: '{device="/dev/vda1", fstype="ext4", instance="node-exporter:9100", job="mtogo-node", mountpoint="/host/docker-volumes"}'
+            value: 0.11
+  # host DOWN: the last memory, swap and disk values are not shown as current
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "1x20 0x20"
+      - series: 'node_memory_MemAvailable_bytes{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "566231040x20 stale"
+      - series: 'node_memory_SwapTotal_bytes{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "2147483648x20 stale"
+      - series: 'node_memory_SwapFree_bytes{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "1673527296x20 stale"
+      - series: 'node_filesystem_avail_bytes{job="mtogo-node",instance="node-exporter:9100",device="/dev/vda1",fstype="ext4",mountpoint="/host/root"}'
+        values: "30x20 stale"
+      - series: 'node_filesystem_size_bytes{job="mtogo-node",instance="node-exporter:9100",device="/dev/vda1",fstype="ext4",mountpoint="/host/root"}'
+        values: "100x20 stale"
+      - series: 'node_filesystem_avail_bytes{job="mtogo-node",instance="node-exporter:9100",device="/dev/vda1",fstype="ext4",mountpoint="/host/docker-volumes"}'
+        values: "15x20 stale"
+      - series: 'node_filesystem_size_bytes{job="mtogo-node",instance="node-exporter:9100",device="/dev/vda1",fstype="ext4",mountpoint="/host/docker-volumes"}'
+        values: "100x20 stale"
+    promql_expr_test:
+      - expr: 'node_memory_MemAvailable_bytes{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'node_memory_SwapTotal_bytes{job="mtogo-node"} - node_memory_SwapFree_bytes{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'node_memory_SwapTotal_bytes{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'node_filesystem_avail_bytes{job="mtogo-node",mountpoint="/host/root"} / node_filesystem_size_bytes{job="mtogo-node",mountpoint="/host/root"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'node_filesystem_avail_bytes{job="mtogo-node",mountpoint="/host/docker-volumes"} / node_filesystem_size_bytes{job="mtogo-node",mountpoint="/host/docker-volumes"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples: []
+  # host DOWN while its last values are still within the lookback: not shown either
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "1x38 0"
+      - series: 'node_memory_MemAvailable_bytes{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "566231040x38"
+      - series: 'node_memory_SwapTotal_bytes{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "2147483648x38"
+      - series: 'node_memory_SwapFree_bytes{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "1673527296x38"
+      - series: 'node_filesystem_avail_bytes{job="mtogo-node",instance="node-exporter:9100",device="/dev/vda1",fstype="ext4",mountpoint="/host/root"}'
+        values: "30x38"
+      - series: 'node_filesystem_size_bytes{job="mtogo-node",instance="node-exporter:9100",device="/dev/vda1",fstype="ext4",mountpoint="/host/root"}'
+        values: "100x38"
+      - series: 'node_filesystem_avail_bytes{job="mtogo-node",instance="node-exporter:9100",device="/dev/vda1",fstype="ext4",mountpoint="/host/docker-volumes"}'
+        values: "15x38"
+      - series: 'node_filesystem_size_bytes{job="mtogo-node",instance="node-exporter:9100",device="/dev/vda1",fstype="ext4",mountpoint="/host/docker-volumes"}'
+        values: "100x38"
+    promql_expr_test:
+      - expr: 'node_memory_MemAvailable_bytes{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 9m45s
+        exp_samples: []
+      - expr: 'node_memory_SwapTotal_bytes{job="mtogo-node"} - node_memory_SwapFree_bytes{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 9m45s
+        exp_samples: []
+      - expr: 'node_memory_SwapTotal_bytes{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 9m45s
+        exp_samples: []
+      - expr: 'node_filesystem_avail_bytes{job="mtogo-node",mountpoint="/host/root"} / node_filesystem_size_bytes{job="mtogo-node",mountpoint="/host/root"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 9m45s
+        exp_samples: []
+      - expr: 'node_filesystem_avail_bytes{job="mtogo-node",mountpoint="/host/docker-volumes"} / node_filesystem_size_bytes{job="mtogo-node",mountpoint="/host/docker-volumes"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 9m45s
+        exp_samples: []
+  # host absent: another job's host is not shown
+  - interval: 15s
+    input_series:
+      - series: 'up{job="unrelated",instance="elsewhere:9100"}'
+        values: "1x40"
+      - series: 'node_memory_MemAvailable_bytes{job="unrelated",instance="elsewhere:9100"}'
+        values: "1x40"
+      - series: 'node_memory_SwapTotal_bytes{job="unrelated",instance="elsewhere:9100"}'
+        values: "1x40"
+      - series: 'node_memory_SwapFree_bytes{job="unrelated",instance="elsewhere:9100"}'
+        values: "1x40"
+      - series: 'node_filesystem_avail_bytes{job="unrelated",instance="elsewhere:9100",device="/dev/vda1",fstype="ext4",mountpoint="/host/root"}'
+        values: "1x40"
+      - series: 'node_filesystem_size_bytes{job="unrelated",instance="elsewhere:9100",device="/dev/vda1",fstype="ext4",mountpoint="/host/root"}'
+        values: "100x40"
+      - series: 'node_filesystem_avail_bytes{job="unrelated",instance="elsewhere:9100",device="/dev/vda1",fstype="ext4",mountpoint="/host/docker-volumes"}'
+        values: "1x40"
+      - series: 'node_filesystem_size_bytes{job="unrelated",instance="elsewhere:9100",device="/dev/vda1",fstype="ext4",mountpoint="/host/docker-volumes"}'
+        values: "100x40"
+    promql_expr_test:
+      - expr: 'node_memory_MemAvailable_bytes{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'node_memory_SwapTotal_bytes{job="mtogo-node"} - node_memory_SwapFree_bytes{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'node_memory_SwapTotal_bytes{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'node_filesystem_avail_bytes{job="mtogo-node",mountpoint="/host/root"} / node_filesystem_size_bytes{job="mtogo-node",mountpoint="/host/root"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'node_filesystem_avail_bytes{job="mtogo-node",mountpoint="/host/docker-volumes"} / node_filesystem_size_bytes{job="mtogo-node",mountpoint="/host/docker-volumes"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples: []
+  # one host scrape: current gauges are evidence
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "_x39 1"
+      - series: 'node_memory_MemAvailable_bytes{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "_x39 566231040"
+      - series: 'node_memory_SwapTotal_bytes{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "_x39 2147483648"
+      - series: 'node_memory_SwapFree_bytes{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "_x39 1673527296"
+      - series: 'node_filesystem_avail_bytes{job="mtogo-node",instance="node-exporter:9100",device="/dev/vda1",fstype="ext4",mountpoint="/host/root"}'
+        values: "_x39 30"
+      - series: 'node_filesystem_size_bytes{job="mtogo-node",instance="node-exporter:9100",device="/dev/vda1",fstype="ext4",mountpoint="/host/root"}'
+        values: "_x39 100"
+      - series: 'node_filesystem_avail_bytes{job="mtogo-node",instance="node-exporter:9100",device="/dev/vda1",fstype="ext4",mountpoint="/host/docker-volumes"}'
+        values: "_x39 15"
+      - series: 'node_filesystem_size_bytes{job="mtogo-node",instance="node-exporter:9100",device="/dev/vda1",fstype="ext4",mountpoint="/host/docker-volumes"}'
+        values: "_x39 100"
+    promql_expr_test:
+      - expr: 'node_memory_MemAvailable_bytes{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: 'node_memory_MemAvailable_bytes{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 566231040
+      - expr: 'node_memory_SwapTotal_bytes{job="mtogo-node"} - node_memory_SwapFree_bytes{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 473956352
+      - expr: 'node_memory_SwapTotal_bytes{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: 'node_memory_SwapTotal_bytes{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 2147483648
+      - expr: 'node_filesystem_avail_bytes{job="mtogo-node",mountpoint="/host/root"} / node_filesystem_size_bytes{job="mtogo-node",mountpoint="/host/root"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{device="/dev/vda1", fstype="ext4", instance="node-exporter:9100", job="mtogo-node", mountpoint="/host/root"}'
+            value: 0.3
+      - expr: 'node_filesystem_avail_bytes{job="mtogo-node",mountpoint="/host/docker-volumes"} / node_filesystem_size_bytes{job="mtogo-node",mountpoint="/host/docker-volumes"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{device="/dev/vda1", fstype="ext4", instance="node-exporter:9100", job="mtogo-node", mountpoint="/host/docker-volumes"}'
+            value: 0.15
+  # host without swap and with a full disk: 0, not Unavailable
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "1x40"
+      - series: 'node_memory_MemAvailable_bytes{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "566231040x40"
+      - series: 'node_memory_SwapTotal_bytes{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "0x40"
+      - series: 'node_memory_SwapFree_bytes{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "0x40"
+      - series: 'node_filesystem_avail_bytes{job="mtogo-node",instance="node-exporter:9100",device="/dev/vda1",fstype="ext4",mountpoint="/host/root"}'
+        values: "0x40"
+      - series: 'node_filesystem_size_bytes{job="mtogo-node",instance="node-exporter:9100",device="/dev/vda1",fstype="ext4",mountpoint="/host/root"}'
+        values: "100x40"
+      - series: 'node_filesystem_avail_bytes{job="mtogo-node",instance="node-exporter:9100",device="/dev/vda1",fstype="ext4",mountpoint="/host/docker-volumes"}'
+        values: "15x40"
+      - series: 'node_filesystem_size_bytes{job="mtogo-node",instance="node-exporter:9100",device="/dev/vda1",fstype="ext4",mountpoint="/host/docker-volumes"}'
+        values: "100x40"
+    promql_expr_test:
+      - expr: 'node_memory_SwapTotal_bytes{job="mtogo-node"} - node_memory_SwapFree_bytes{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 0
+      - expr: 'node_memory_SwapTotal_bytes{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: 'node_memory_SwapTotal_bytes{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 0
+      - expr: 'node_filesystem_avail_bytes{job="mtogo-node",mountpoint="/host/root"} / node_filesystem_size_bytes{job="mtogo-node",mountpoint="/host/root"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{device="/dev/vda1", fstype="ext4", instance="node-exporter:9100", job="mtogo-node", mountpoint="/host/root"}'
+            value: 0
+      - expr: 'node_filesystem_avail_bytes{job="mtogo-node",mountpoint="/host/docker-volumes"} / node_filesystem_size_bytes{job="mtogo-node",mountpoint="/host/docker-volumes"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{device="/dev/vda1", fstype="ext4", instance="node-exporter:9100", job="mtogo-node", mountpoint="/host/docker-volumes"}'
+            value: 0.15
+  # host whose Docker volumes cannot be read: only that disk is missing
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "1x40"
+      - series: 'node_memory_MemAvailable_bytes{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "566231040x40"
+      - series: 'node_memory_SwapTotal_bytes{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "2147483648x40"
+      - series: 'node_memory_SwapFree_bytes{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "1673527296x40"
+      - series: 'node_filesystem_avail_bytes{job="mtogo-node",instance="node-exporter:9100",device="/dev/vda1",fstype="ext4",mountpoint="/host/root"}'
+        values: "30x40"
+      - series: 'node_filesystem_size_bytes{job="mtogo-node",instance="node-exporter:9100",device="/dev/vda1",fstype="ext4",mountpoint="/host/root"}'
+        values: "100x40"
+    promql_expr_test:
+      - expr: 'node_filesystem_avail_bytes{job="mtogo-node",mountpoint="/host/root"} / node_filesystem_size_bytes{job="mtogo-node",mountpoint="/host/root"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{device="/dev/vda1", fstype="ext4", instance="node-exporter:9100", job="mtogo-node", mountpoint="/host/root"}'
+            value: 0.3
+      - expr: 'node_filesystem_avail_bytes{job="mtogo-node",mountpoint="/host/docker-volumes"} / node_filesystem_size_bytes{job="mtogo-node",mountpoint="/host/docker-volumes"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples: []
+  # host CPU and load (#182): 30 % of two cores, without idle and waiting for the disk; load 1.5 on two cores
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "1x40"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="0",mode="idle"}'
+        values: "0+9x40"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="0",mode="iowait"}'
+        values: "0+1.5x40"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="0",mode="user"}'
+        values: "0+3x40"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="0",mode="system"}'
+        values: "0+0.75x40"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="0",mode="steal"}'
+        values: "0+0.75x40"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="1",mode="idle"}'
+        values: "0+9x40"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="1",mode="iowait"}'
+        values: "0+1.5x40"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="1",mode="user"}'
+        values: "0+3x40"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="1",mode="system"}'
+        values: "0+0.75x40"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="1",mode="steal"}'
+        values: "0+0.75x40"
+      - series: 'node_load1{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "3x40"
+      - series: 'node_load5{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "1.5x40"
+      - series: 'node_load15{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "1x40"
+      - series: 'node_cpu_seconds_total{job="unrelated",instance="elsewhere:9100",cpu="0",mode="user"}'
+        values: "0+15x40"
+      - series: 'node_load5{job="unrelated",instance="elsewhere:9100"}'
+        values: "9x40"
+    promql_expr_test:
+      - expr: 'sum by (job, instance) (rate(node_cpu_seconds_total{job="mtogo-node",mode!~"idle|iowait"}[5m])) / sum by (job, instance) (rate(node_cpu_seconds_total{job="mtogo-node"}[5m])) and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 0.3
+      - expr: 'node_load5{job="mtogo-node"} / on(job, instance) count by (job, instance) (node_cpu_seconds_total{job="mtogo-node",mode="idle"}) and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 0.75
+      - expr: 'node_load1{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: 'node_load1{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 3
+      - expr: 'node_load5{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: 'node_load5{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 1.5
+      - expr: 'node_load15{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: 'node_load15{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 1
+      - expr: 'count by (job, instance) (node_cpu_seconds_total{job="mtogo-node",mode="idle"}) and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 2
+  # host CPU idle: 0, not Unavailable
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "1x40"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="0",mode="idle"}'
+        values: "0+15x40"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="0",mode="user"}'
+        values: "5x40"
+      - series: 'node_load5{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "0x40"
+    promql_expr_test:
+      - expr: 'sum by (job, instance) (rate(node_cpu_seconds_total{job="mtogo-node",mode!~"idle|iowait"}[5m])) / sum by (job, instance) (rate(node_cpu_seconds_total{job="mtogo-node"}[5m])) and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 0
+      - expr: 'node_load5{job="mtogo-node"} / on(job, instance) count by (job, instance) (node_cpu_seconds_total{job="mtogo-node",mode="idle"}) and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 0
+      - expr: 'count by (job, instance) (node_cpu_seconds_total{job="mtogo-node",mode="idle"}) and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 1
+  # host CPU and load DOWN: the last values are not shown as current
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "1x20 0x20"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="0",mode="idle"}'
+        values: "0+9x20 stale"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="0",mode="iowait"}'
+        values: "0+1.5x20 stale"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="0",mode="user"}'
+        values: "0+3x20 stale"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="0",mode="system"}'
+        values: "0+0.75x20 stale"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="0",mode="steal"}'
+        values: "0+0.75x20 stale"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="1",mode="idle"}'
+        values: "0+9x20 stale"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="1",mode="iowait"}'
+        values: "0+1.5x20 stale"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="1",mode="user"}'
+        values: "0+3x20 stale"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="1",mode="system"}'
+        values: "0+0.75x20 stale"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="1",mode="steal"}'
+        values: "0+0.75x20 stale"
+      - series: 'node_load1{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "3x20 stale"
+      - series: 'node_load5{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "1.5x20 stale"
+      - series: 'node_load15{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "1x20 stale"
+    promql_expr_test:
+      - expr: 'sum by (job, instance) (rate(node_cpu_seconds_total{job="mtogo-node",mode!~"idle|iowait"}[5m])) / sum by (job, instance) (rate(node_cpu_seconds_total{job="mtogo-node"}[5m])) and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'node_load5{job="mtogo-node"} / on(job, instance) count by (job, instance) (node_cpu_seconds_total{job="mtogo-node",mode="idle"}) and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'node_load1{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'node_load5{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'node_load15{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'count by (job, instance) (node_cpu_seconds_total{job="mtogo-node",mode="idle"}) and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples: []
+  # host CPU and load DOWN within the lookback: not shown either
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "1x38 0"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="0",mode="idle"}'
+        values: "0+9x38"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="0",mode="iowait"}'
+        values: "0+1.5x38"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="0",mode="user"}'
+        values: "0+3x38"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="0",mode="system"}'
+        values: "0+0.75x38"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="0",mode="steal"}'
+        values: "0+0.75x38"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="1",mode="idle"}'
+        values: "0+9x38"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="1",mode="iowait"}'
+        values: "0+1.5x38"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="1",mode="user"}'
+        values: "0+3x38"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="1",mode="system"}'
+        values: "0+0.75x38"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="1",mode="steal"}'
+        values: "0+0.75x38"
+      - series: 'node_load1{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "3x38"
+      - series: 'node_load5{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "1.5x38"
+      - series: 'node_load15{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "1x38"
+    promql_expr_test:
+      - expr: 'sum by (job, instance) (rate(node_cpu_seconds_total{job="mtogo-node",mode!~"idle|iowait"}[5m])) / sum by (job, instance) (rate(node_cpu_seconds_total{job="mtogo-node"}[5m])) and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 9m45s
+        exp_samples: []
+      - expr: 'node_load5{job="mtogo-node"} / on(job, instance) count by (job, instance) (node_cpu_seconds_total{job="mtogo-node",mode="idle"}) and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 9m45s
+        exp_samples: []
+      - expr: 'node_load1{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 9m45s
+        exp_samples: []
+      - expr: 'node_load5{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 9m45s
+        exp_samples: []
+      - expr: 'node_load15{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 9m45s
+        exp_samples: []
+      - expr: 'count by (job, instance) (node_cpu_seconds_total{job="mtogo-node",mode="idle"}) and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 9m45s
+        exp_samples: []
+  # host CPU and load absent: another job's host is not shown
+  - interval: 15s
+    input_series:
+      - series: 'up{job="unrelated",instance="elsewhere:9100"}'
+        values: "1x40"
+      - series: 'node_cpu_seconds_total{job="unrelated",instance="elsewhere:9100",cpu="0",mode="idle"}'
+        values: "0+15x40"
+      - series: 'node_load1{job="unrelated",instance="elsewhere:9100"}'
+        values: "9x40"
+    promql_expr_test:
+      - expr: 'sum by (job, instance) (rate(node_cpu_seconds_total{job="mtogo-node",mode!~"idle|iowait"}[5m])) / sum by (job, instance) (rate(node_cpu_seconds_total{job="mtogo-node"}[5m])) and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'node_load5{job="mtogo-node"} / on(job, instance) count by (job, instance) (node_cpu_seconds_total{job="mtogo-node",mode="idle"}) and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'node_load1{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'node_load5{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'node_load15{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'count by (job, instance) (node_cpu_seconds_total{job="mtogo-node",mode="idle"}) and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples: []
+  # one host scrape: load is evidence, a CPU rate needs two samples
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "_x39 1"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="0",mode="idle"}'
+        values: "_x39 9"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="0",mode="iowait"}'
+        values: "_x39 1.5"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="0",mode="user"}'
+        values: "_x39 3"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="0",mode="system"}'
+        values: "_x39 0.75"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="0",mode="steal"}'
+        values: "_x39 0.75"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="1",mode="idle"}'
+        values: "_x39 9"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="1",mode="iowait"}'
+        values: "_x39 1.5"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="1",mode="user"}'
+        values: "_x39 3"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="1",mode="system"}'
+        values: "_x39 0.75"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="1",mode="steal"}'
+        values: "_x39 0.75"
+      - series: 'node_load1{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "_x39 3"
+      - series: 'node_load5{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "_x39 1.5"
+      - series: 'node_load15{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "_x39 1"
+    promql_expr_test:
+      - expr: 'sum by (job, instance) (rate(node_cpu_seconds_total{job="mtogo-node",mode!~"idle|iowait"}[5m])) / sum by (job, instance) (rate(node_cpu_seconds_total{job="mtogo-node"}[5m])) and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'node_load5{job="mtogo-node"} / on(job, instance) count by (job, instance) (node_cpu_seconds_total{job="mtogo-node",mode="idle"}) and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 0.75
+      - expr: 'node_load1{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: 'node_load1{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 3
+      - expr: 'node_load5{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: 'node_load5{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 1.5
+      - expr: 'node_load15{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: 'node_load15{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 1
+      - expr: 'count by (job, instance) (node_cpu_seconds_total{job="mtogo-node",mode="idle"}) and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 2
+  # host reboot: CPU counters start again, the share stays between 0 and 1
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "1x40"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="0",mode="idle"}'
+        values: "100+9x30 9+9x9"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="0",mode="iowait"}'
+        values: "100+1.5x30 1.5+1.5x9"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="0",mode="user"}'
+        values: "100+3x30 3+3x9"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="0",mode="system"}'
+        values: "100+0.75x30 0.75+0.75x9"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="0",mode="steal"}'
+        values: "100+0.75x30 0.75+0.75x9"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="1",mode="idle"}'
+        values: "100+9x30 9+9x9"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="1",mode="iowait"}'
+        values: "100+1.5x30 1.5+1.5x9"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="1",mode="user"}'
+        values: "100+3x30 3+3x9"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="1",mode="system"}'
+        values: "100+0.75x30 0.75+0.75x9"
+      - series: 'node_cpu_seconds_total{job="mtogo-node",instance="node-exporter:9100",cpu="1",mode="steal"}'
+        values: "100+0.75x30 0.75+0.75x9"
+      - series: 'node_load1{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "3x40"
+      - series: 'node_load5{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "1.5x40"
+      - series: 'node_load15{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "1x40"
+    promql_expr_test:
+      - expr: 'sum by (job, instance) (rate(node_cpu_seconds_total{job="mtogo-node",mode!~"idle|iowait"}[5m])) / sum by (job, instance) (rate(node_cpu_seconds_total{job="mtogo-node"}[5m])) and on(job, instance) (up{job="mtogo-node"} == 1)'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 0.3

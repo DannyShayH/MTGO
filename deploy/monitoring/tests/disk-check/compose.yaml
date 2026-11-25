@@ -1,0 +1,24 @@
+# Local only (#182): puts a disposable 64 MB volume where Node Exporter reads
+# the disk of the Docker volumes, so it can be filled without filling a real
+# disk. Its contents live in memory and are gone when no container uses it.
+# Used on top of ../../compose.yaml; see local-request-monitoring.md.
+services:
+  node-exporter:
+    volumes:
+      - disk-check:/host/docker-volumes:ro
+
+  disk-filler:
+    image: prom/node-exporter:v1.13.1
+    profiles: ["disk-check"]
+    network_mode: none
+    entrypoint: ["/bin/dd", "if=/dev/zero", "of=/disk/fill", "bs=1M"]
+    volumes:
+      - disk-check:/disk
+
+volumes:
+  disk-check:
+    name: mtogo-monitoring_disk-check
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: size=64m,mode=1777

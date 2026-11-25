@@ -9,7 +9,8 @@ and, for the Droplet,
 
 `compose.application.yaml` owns the disposable PostgreSQL/Medusa application
 and the partner app.
-`compose.yaml` independently owns Prometheus/Grafana and their volumes. Both
+`compose.yaml` independently owns Prometheus, Grafana, Loki, Alloy, Node
+Exporter and their volumes. Both
 join the explicitly created internal `mtogo-local-metrics` network. Only the
 API, the partner app and Grafana have loopback host ports.
 
@@ -50,6 +51,18 @@ each state and the loss limits are in the runbook's health section.
 
 `tests/disposable-project.mjs` and `tests/record-line.cjs` are shared by the two checks.
 
+## Host (#182)
+
+Node Exporter (`node-exporter:9100`) reads the host's CPU, load, memory,
+swap and free disk for the **Host** row. It shares the internal `host-metrics` network with
+Prometheus only, publishes no port and mounts no host folder: `/etc/hostname`
+stands for the root file system and an empty volume for the disk of the Docker
+volumes, both read-only. Prometheus keeps only the series the row shows.
+`tests/disk-check/compose.yaml` puts a disposable volume in place of the second
+one, to fill it locally. `host-metrics.unit.spec.ts` in the backend guards the
+configuration; the meaning of each panel and the rollback are in
+[staging request monitoring](../../apps/docs/src/content/docs/quality/staging-request-monitoring.md#host-cpu-memory-and-disk).
+
 ## Query tests
 
 `tests/dashboard-queries.test.yaml` is a `promtool test rules` file holding
@@ -67,7 +80,9 @@ one-scrape counts, and the Customer menu read and restaurant menu page panels
 of #202 (a slow tail with idle parts and kinds, and no menu reads with the
 storefront DOWN), and the log pipeline panels of #179 (collecting, quiet, Alloy
 or Loki DOWN, dropping, retrying, Docker unreachable, read errors, one scrape, missing
-scrapes, recovered and absent). The backend unit
+scrapes, recovered and absent), and the Host row of #182 (CPU and load, healthy, at each
+threshold, DOWN, absent, one scrape, no swap, a full disk and an unreadable
+disk). The backend unit
 tests `dashboard-queries.unit.spec.ts` and `log-pipeline-health.unit.spec.ts` in
 `src/observability/__tests__/` fail when a dashboard query is not in that file. Change both together.
 

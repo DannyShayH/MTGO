@@ -1,9 +1,9 @@
 {
   "uid": "mtogo-backend-requests",
   "title": "MTOGO — backend API requests and process",
-  "description": "Slices #169/#170/#194/#171/#172/#173/#174/#175/#202: completed ordinary API responses, 5xx proportion, p95 latency and process CPU, memory and event-loop delay, with established streams and interrupted requests kept apart, from one HTTP-serving Medusa process, plus the Customer menu read by part and the storefront restaurant menu page render time, with explicit unavailable states. Per-view low- and high-traffic indications. No business counts.",
+  "description": "Slices #169/#170/#194/#171/#172/#173/#174/#175/#202/#182: completed ordinary API responses, 5xx proportion, p95 latency and process CPU, memory and event-loop delay, with established streams and interrupted requests kept apart, from one HTTP-serving Medusa process, plus host CPU, load, memory, swap and free disk, the Customer menu read by part and the storefront restaurant menu page render time, with explicit unavailable states. Per-view low- and high-traffic indications. No business counts.",
   "schemaVersion": 41,
-  "version": 8,
+  "version": 9,
   "editable": false,
   "refresh": "30s",
   "timezone": "browser",
@@ -1522,6 +1522,670 @@
       }
     },
     {
+      "id": 48,
+      "type": "row",
+      "title": "Host",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 30
+      },
+      "panels": []
+    },
+    {
+      "id": 57,
+      "title": "Host CPU used — rolling 5 minutes",
+      "type": "stat",
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 0,
+        "y": 31
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Share of all cores' time spent working over five minutes: everything but idle and waiting for input or output, including time the hypervisor gave to other machines (steal). 100 % = every core busy. Whole host, unlike the HTTP-serving process CPU, which is in cores. No limit is agreed, so it has no colour. Unavailable with fewer than two scrapes or no current evidence.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B8BEC9"
+          },
+          "noValue": "Unavailable",
+          "unit": "percentunit",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (job, instance) (rate(node_cpu_seconds_total{job=\"mtogo-node\",mode!~\"idle|iowait\"}[5m])) / sum by (job, instance) (rate(node_cpu_seconds_total{job=\"mtogo-node\"}[5m])) and on(job, instance) (up{job=\"mtogo-node\"} == 1)",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 58,
+      "title": "Host load per core — 5 minutes",
+      "type": "stat",
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 4,
+        "y": 31
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Five-minute load average divided by the number of cores. Load counts tasks that run, wait for a core or wait for the disk. Around 1 means the cores are fully used; staying above 1 means work is queueing, and with a low CPU value the queue is at the disk. No limit is agreed, so it has no colour. Unavailable when Node Exporter is not being scraped.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B8BEC9"
+          },
+          "noValue": "Unavailable",
+          "unit": "short",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_load5{job=\"mtogo-node\"} / on(job, instance) count by (job, instance) (node_cpu_seconds_total{job=\"mtogo-node\",mode=\"idle\"}) and on(job, instance) (up{job=\"mtogo-node\"} == 1)",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 49,
+      "title": "Host memory available",
+      "type": "stat",
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 8,
+        "y": 31
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Memory the kernel can still hand out without swapping (`available` in `free -m`), of the whole host: the applications, monitoring and everything else on it. Red below 200 MB (200 MiB), the agreed floor: roll back the monitoring stack (staging runbook). Unavailable when Node Exporter is not being scraped.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "Unavailable",
+          "unit": "bytes",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#B8BEC9",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0
+              },
+              {
+                "color": "green",
+                "value": 209715200
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_memory_MemAvailable_bytes{job=\"mtogo-node\"} and on(job, instance) (up{job=\"mtogo-node\"} == 1)",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 50,
+      "title": "Host swap used",
+      "type": "stat",
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 12,
+        "y": 31
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Swap in use on the whole host. No limit is agreed, so it has no colour. Read it next to memory available: swap that keeps growing while memory is low means the host is too small. 0 B is also shown by a host without swap. Unavailable when Node Exporter is not being scraped.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B8BEC9"
+          },
+          "noValue": "Unavailable",
+          "unit": "bytes",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_memory_SwapTotal_bytes{job=\"mtogo-node\"} - node_memory_SwapFree_bytes{job=\"mtogo-node\"} and on(job, instance) (up{job=\"mtogo-node\"} == 1)",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 51,
+      "title": "Host disk free — root file system",
+      "type": "stat",
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 16,
+        "y": 31
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Space an ordinary process can still use on the host's root file system, as a share of its size (`Avail` in `df`). Amber below 20 %, red below 10 %. The database, images, logs, Loki and Prometheus can share this disk, so a low value is not always monitoring. Unavailable when Node Exporter is not being scraped or cannot read the disk.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "Unavailable",
+          "unit": "percentunit",
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#B8BEC9",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0
+              },
+              {
+                "color": "orange",
+                "value": 0.1
+              },
+              {
+                "color": "green",
+                "value": 0.2
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_filesystem_avail_bytes{job=\"mtogo-node\",mountpoint=\"/host/root\"} / node_filesystem_size_bytes{job=\"mtogo-node\",mountpoint=\"/host/root\"} and on(job, instance) (up{job=\"mtogo-node\"} == 1)",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 52,
+      "title": "Host disk free — Docker volumes",
+      "type": "stat",
+      "gridPos": {
+        "h": 3,
+        "w": 4,
+        "x": 20,
+        "y": 31
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Space an ordinary process can still use on the disk that holds the Docker volumes, as a share of its size (`Avail` in `df`). On the Droplet it is the same disk as the root file system. Amber below 20 %, red below 10 %. The database, images, logs, Loki and Prometheus can share this disk, so a low value is not always monitoring. Unavailable when Node Exporter is not being scraped or cannot read the disk.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "Unavailable",
+          "unit": "percentunit",
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#B8BEC9",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0
+              },
+              {
+                "color": "orange",
+                "value": 0.1
+              },
+              {
+                "color": "green",
+                "value": 0.2
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_filesystem_avail_bytes{job=\"mtogo-node\",mountpoint=\"/host/docker-volumes\"} / node_filesystem_size_bytes{job=\"mtogo-node\",mountpoint=\"/host/docker-volumes\"} and on(job, instance) (up{job=\"mtogo-node\"} == 1)",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 53,
+      "title": "Host memory available",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 0,
+        "y": 34
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Memory the kernel can still hand out without swapping (`available` in `free -m`), of the whole host: the applications, monitoring and everything else on it. Red below 200 MB (200 MiB), the agreed floor: roll back the monitoring stack (staging runbook). Unavailable when Node Exporter is not being scraped. The dashed line is the floor; gaps mean no current evidence.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false,
+            "thresholdsStyle": {
+              "mode": "dashed"
+            }
+          },
+          "noValue": "Unavailable",
+          "unit": "bytes",
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 209715200
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_memory_MemAvailable_bytes{job=\"mtogo-node\"} and on(job, instance) (up{job=\"mtogo-node\"} == 1)",
+          "legendFormat": "available",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 54,
+      "title": "Host swap used",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 8,
+        "y": 34
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Swap in use on the whole host. No limit is agreed, so it has no colour. Read it next to memory available: swap that keeps growing while memory is low means the host is too small. 0 B is also shown by a host without swap. Unavailable when Node Exporter is not being scraped.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false
+          },
+          "noValue": "Unavailable",
+          "unit": "bytes",
+          "min": 0
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_memory_SwapTotal_bytes{job=\"mtogo-node\"} - node_memory_SwapFree_bytes{job=\"mtogo-node\"} and on(job, instance) (up{job=\"mtogo-node\"} == 1)",
+          "legendFormat": "swap used",
+          "range": true,
+          "instant": false
+        },
+        {
+          "refId": "B",
+          "expr": "node_memory_SwapTotal_bytes{job=\"mtogo-node\"} and on(job, instance) (up{job=\"mtogo-node\"} == 1)",
+          "legendFormat": "swap total",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 55,
+      "title": "Host disk free",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 16,
+        "y": 34
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Free share of both disks. Dashed lines: amber below 20 %, red below 10 %. On the Droplet the two are the same disk, so the lines cover each other. Gaps mean no current evidence.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false,
+            "thresholdsStyle": {
+              "mode": "dashed"
+            }
+          },
+          "noValue": "Unavailable",
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.1
+              },
+              {
+                "color": "orange",
+                "value": 0.2
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_filesystem_avail_bytes{job=\"mtogo-node\",mountpoint=\"/host/root\"} / node_filesystem_size_bytes{job=\"mtogo-node\",mountpoint=\"/host/root\"} and on(job, instance) (up{job=\"mtogo-node\"} == 1)",
+          "legendFormat": "root file system",
+          "range": true,
+          "instant": false
+        },
+        {
+          "refId": "B",
+          "expr": "node_filesystem_avail_bytes{job=\"mtogo-node\",mountpoint=\"/host/docker-volumes\"} / node_filesystem_size_bytes{job=\"mtogo-node\",mountpoint=\"/host/docker-volumes\"} and on(job, instance) (up{job=\"mtogo-node\"} == 1)",
+          "legendFormat": "Docker volumes",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 59,
+      "title": "Host CPU used — rolling 5 minutes",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 40
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Share of all cores' time spent working over five minutes: everything but idle and waiting for input or output, including time the hypervisor gave to other machines (steal). 100 % = every core busy. Whole host, unlike the HTTP-serving process CPU, which is in cores. No limit is agreed, so it has no colour. Unavailable with fewer than two scrapes or no current evidence.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false
+          },
+          "noValue": "Unavailable",
+          "min": 0,
+          "unit": "percentunit",
+          "max": 1
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (job, instance) (rate(node_cpu_seconds_total{job=\"mtogo-node\",mode!~\"idle|iowait\"}[5m])) / sum by (job, instance) (rate(node_cpu_seconds_total{job=\"mtogo-node\"}[5m])) and on(job, instance) (up{job=\"mtogo-node\"} == 1)",
+          "legendFormat": "CPU used",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 60,
+      "title": "Host load average and cores",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 40
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Load over 1, 5 and 15 minutes next to the number of cores. Load counts tasks that run, wait for a core or wait for the disk; staying above the cores line means work is queueing. Gaps mean no current evidence.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "spanNulls": false
+          },
+          "noValue": "Unavailable",
+          "min": 0,
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_load1{job=\"mtogo-node\"} and on(job, instance) (up{job=\"mtogo-node\"} == 1)",
+          "legendFormat": "1 minute",
+          "range": true,
+          "instant": false
+        },
+        {
+          "refId": "B",
+          "expr": "node_load5{job=\"mtogo-node\"} and on(job, instance) (up{job=\"mtogo-node\"} == 1)",
+          "legendFormat": "5 minutes",
+          "range": true,
+          "instant": false
+        },
+        {
+          "refId": "C",
+          "expr": "node_load15{job=\"mtogo-node\"} and on(job, instance) (up{job=\"mtogo-node\"} == 1)",
+          "legendFormat": "15 minutes",
+          "range": true,
+          "instant": false
+        },
+        {
+          "refId": "D",
+          "expr": "count by (job, instance) (node_cpu_seconds_total{job=\"mtogo-node\",mode=\"idle\"}) and on(job, instance) (up{job=\"mtogo-node\"} == 1)",
+          "legendFormat": "cores",
+          "range": true,
+          "instant": false
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
       "id": 43,
       "type": "row",
       "title": "Streams and interrupted requests",
@@ -1530,7 +2194,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 30
+        "y": 46
       },
       "panels": [
         {
@@ -1541,7 +2205,7 @@
             "h": 4,
             "w": 24,
             "x": 0,
-            "y": 31
+            "y": 47
           },
           "options": {
             "mode": "markdown",
@@ -1556,7 +2220,7 @@
             "h": 3,
             "w": 8,
             "x": 0,
-            "y": 35
+            "y": 51
           },
           "datasource": {
             "type": "prometheus",
@@ -1602,7 +2266,7 @@
             "h": 3,
             "w": 8,
             "x": 8,
-            "y": 35
+            "y": 51
           },
           "datasource": {
             "type": "prometheus",
@@ -1648,7 +2312,7 @@
             "h": 3,
             "w": 8,
             "x": 16,
-            "y": 35
+            "y": 51
           },
           "datasource": {
             "type": "prometheus",
@@ -1694,7 +2358,7 @@
             "h": 6,
             "w": 8,
             "x": 0,
-            "y": 38
+            "y": 54
           },
           "datasource": {
             "type": "prometheus",
@@ -1742,7 +2406,7 @@
             "h": 6,
             "w": 8,
             "x": 8,
-            "y": 38
+            "y": 54
           },
           "datasource": {
             "type": "prometheus",
@@ -1790,7 +2454,7 @@
             "h": 6,
             "w": 8,
             "x": 16,
-            "y": 38
+            "y": 54
           },
           "datasource": {
             "type": "prometheus",
@@ -1841,7 +2505,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 31
+        "y": 47
       },
       "panels": [
         {
@@ -1852,7 +2516,7 @@
             "h": 5,
             "w": 24,
             "x": 0,
-            "y": 32
+            "y": 48
           },
           "options": {
             "mode": "markdown",
@@ -1867,7 +2531,7 @@
             "h": 3,
             "w": 12,
             "x": 0,
-            "y": 37
+            "y": 53
           },
           "datasource": {
             "type": "prometheus",
@@ -1916,7 +2580,7 @@
             "h": 3,
             "w": 12,
             "x": 12,
-            "y": 37
+            "y": 53
           },
           "datasource": {
             "type": "prometheus",
@@ -1976,7 +2640,7 @@
             "h": 7,
             "w": 12,
             "x": 0,
-            "y": 40
+            "y": 56
           },
           "datasource": {
             "type": "prometheus",
@@ -2030,7 +2694,7 @@
             "h": 7,
             "w": 12,
             "x": 12,
-            "y": 40
+            "y": 56
           },
           "datasource": {
             "type": "prometheus",
@@ -2077,7 +2741,7 @@
             "h": 6,
             "w": 24,
             "x": 0,
-            "y": 47
+            "y": 63
           },
           "datasource": {
             "type": "prometheus",
@@ -2128,7 +2792,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 32
+        "y": 48
       },
       "panels": [
         {
@@ -2139,7 +2803,7 @@
             "h": 8,
             "w": 24,
             "x": 0,
-            "y": 33
+            "y": 49
           },
           "datasource": {
             "type": "prometheus",
@@ -2209,7 +2873,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 33
+        "y": 49
       },
       "panels": [
         {
@@ -2220,7 +2884,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 34
+            "y": 50
           },
           "options": {
             "mode": "markdown",
@@ -2235,7 +2899,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 34
+            "y": 50
           },
           "options": {
             "mode": "markdown",
@@ -2250,7 +2914,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 42
+            "y": 58
           },
           "options": {
             "mode": "markdown",
@@ -2265,11 +2929,26 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 42
+            "y": 58
           },
           "options": {
             "mode": "markdown",
             "content": "**One HTTP-serving backend Node process**, the same target `backend-metrics:9464` (job `mtogo-backend`) as the request panels: the local demo backend, or the staging `backend` container. Values come from the Prometheus client's standard process collectors on each scrape. **CPU** is cores used by this process (1 = one full CPU core), **not host utilization**: the Droplet has other processes and cores. **Memory** is bytes: resident set and V8 heap. **Event-loop delay** is seconds between 10 ms sampling ticks, over the window since the previous scrape; about 0.01 s is the healthy floor. Not covered: a separate worker process, the Next.js storefront and partner apps, the host or container, PostgreSQL and Redis. CPU seconds count from exporter start; a restart resets them and rates handle it."
+          }
+        },
+        {
+          "id": 56,
+          "title": "Host scope",
+          "type": "text",
+          "gridPos": {
+            "h": 6,
+            "w": 24,
+            "x": 0,
+            "y": 66
+          },
+          "options": {
+            "mode": "markdown",
+            "content": "**The host this monitoring stack runs on**, read by Node Exporter (`node-exporter:9100`, job `mtogo-node`) every 15 seconds: on staging the Droplet, locally the Docker engine's host, which with Docker Desktop is its virtual machine and not your computer. **CPU, load, memory, swap and disk are the whole host's, not per container**: MTOGO, the monitoring stack and everything else on it; for one container use `docker stats`. The memory floor of 200 MB is `available` in `free -m`. **Root file system** and **Docker volumes** are the same disk on the Droplet, so both read the same there. A short dip between two scrapes is not seen. **CPU used** is a share of all cores, unlike the process CPU, which is in cores; **load per core** counts tasks that run or wait, for a core or for the disk."
           }
         }
       ]

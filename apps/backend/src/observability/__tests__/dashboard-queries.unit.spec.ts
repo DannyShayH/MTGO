@@ -1,32 +1,13 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
+import { NEUTRAL, readRequestDashboard, type Panel } from "./dashboard"
 
 const monitoring = join(__dirname, "../../../../../deploy/monitoring")
 const read = (path: string) => readFileSync(join(monitoring, path), "utf8")
 
-type Panel = {
-  title: string
-  type: string
-  collapsed?: boolean
-  panels?: Panel[]
-  gridPos: { h: number; w: number; x: number; y: number }
-  description?: string
-  options?: { content?: string }
-  targets?: { expr: string }[]
-  fieldConfig?: {
-    defaults: {
-      unit?: string
-      min?: number
-      max?: number
-      color?: { mode: string }
-      thresholds?: { steps: { color: string; value: number | null }[] }
-    }
-  }
-}
-
-const dashboard = JSON.parse(read("grafana/dashboards/backend-requests.json"))
+const dashboard = readRequestDashboard()
 // A collapsed row holds its panels; an expanded row's panels follow it.
-const panels: Panel[] = (dashboard.panels as Panel[]).flatMap((panel) =>
+const panels: Panel[] = dashboard.panels.flatMap((panel) =>
   panel.type === "row" ? (panel.panels ?? []) : [panel],
 )
 const queries = panels.flatMap((panel) =>
@@ -450,9 +431,7 @@ describe("provisioned backend dashboard queries", () => {
 
   describe("viewer-tuned low- and high-traffic indications", () => {
     const variable = (name: string) =>
-      dashboard.templating.list.find(
-        (control: { name: string }) => control.name === name,
-      )
+      dashboard.templating.list.find((control) => control.name === name)!
     const indications = [
       "Low-traffic indication — rolling 5 minutes",
       "High-traffic indication — rolling 5 minutes",
@@ -476,9 +455,7 @@ describe("provisioned backend dashboard queries", () => {
         includeAll: false,
         current: { value: "off" },
       })
-      expect(
-        warning.options.map(({ value }: { value: string }) => value),
-      ).toEqual(["off", "on"])
+      expect(warning.options!.map(({ value }) => value)).toEqual(["off", "on"])
     })
 
     it("offers a High traffic above textbox whose shared default in Git is 0", () => {
@@ -673,12 +650,11 @@ describe("provisioned backend dashboard queries", () => {
   })
 
   describe("readable at a glance (#246)", () => {
-    const NEUTRAL = "#B8BEC9"
     // The staging backend container cap (deploy/staging/compose.yaml).
     const BACKEND_CAP_BYTES = 768 * 1024 * 1024
     // Any share above 0 %: thresholds compare with >=, so 0 must stay green.
     const ABOVE_ZERO = 0.000001
-    const topLevel = dashboard.panels as Panel[]
+    const topLevel = dashboard.panels
     const rows = topLevel.filter(({ type }) => type === "row")
     const panelOf = (title: string, type: string) =>
       panels.find((panel) => panel.title === title && panel.type === type)!
@@ -753,6 +729,7 @@ describe("provisioned backend dashboard queries", () => {
         ["Traffic and thresholds", false],
         ["Latency and errors", false],
         ["HTTP-serving process", false],
+        ["Host", false],
         ["Streams and interrupted requests", true],
         ["Customer menu read and restaurant menu page (#202)", true],
         ["Latency by route over time", true],
@@ -789,8 +766,8 @@ describe("provisioned backend dashboard queries", () => {
     // Every restart resets the process counters; the marker explains the drop.
     it("marks backend restarts on every chart, with a promtool-tested query", () => {
       const restarts = dashboard.annotations.list.find(
-        ({ name }: { name: string }) => name === "Backend restarts",
-      )
+        ({ name }) => name === "Backend restarts",
+      )!
       expect(restarts).toMatchObject({
         enable: true,
         datasource: { type: "prometheus", uid: "mtogo-prometheus" },

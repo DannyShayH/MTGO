@@ -16,7 +16,7 @@ never changes the existing Compose stack.
 | `sudoers.example`     | Lets the deploy user run only those four subcommands of the deploy script as root                             |
 | `Caddyfile.example`   | Site blocks for the Caddy that already runs on the Droplet                                                    |
 
-Optional request monitoring (Prometheus and Grafana) lives in
+Optional request monitoring (Prometheus, Grafana and Node Exporter) lives in
 `deploy/monitoring/compose.staging.yaml` and is run with
 `sudo mtogo-deploy.sh monitoring up` (`monitoring update` installs a release's
 monitoring files; deploys and rollback never change them, #180); the runbook is

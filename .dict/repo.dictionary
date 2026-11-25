@@ -127,3 +127,9 @@ labelkeep
 boltdb
 rgba
 topk
+erofs
+loadavg
+mountpoint
+squashfs
+statfs
+tmpfs

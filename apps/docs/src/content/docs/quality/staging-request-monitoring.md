@@ -1,13 +1,14 @@
 ---
 title: Staging request monitoring
-description: Private Prometheus and Grafana beside the staging application on the Droplet, with a login-protected Viewer dashboard, memory readings, and monitoring that survives application releases and rollback.
+description: Private Prometheus, Grafana and Node Exporter beside the staging application on the Droplet, with a login-protected Viewer dashboard, memory readings, and monitoring that survives application releases and rollback.
 ---
 
 This is issue [#194](https://github.com/DannyShayH/MTGO/issues/194), part of
 [#167](https://github.com/DannyShayH/MTGO/issues/167). It runs the request
 metrics from [local monitoring](/MTGO/quality/local-request-monitoring/)
 (#169 and #170) on the staging Droplet, so the team can look at real staging
-traffic before deciding on the log pipeline. It adds Prometheus and Grafana.
+traffic before deciding on the log pipeline. It adds Prometheus and Grafana,
+and from #182 Node Exporter.
 Loki and Alloy for approved application events are an opt-in on top of this
 (`STAGING_LOGS_ENABLED=1`, see
 [approved application events](/MTGO/quality/approved-application-events/#staging-opt-in)). The full four-component capacity gate and
@@ -21,16 +22,18 @@ command per Viewer.
 
 ## Access model
 
-| Component               | Where it listens                                                            | Reachable from                                                                                                        |
-| ----------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| Backend exporter        | `backend-metrics:9464` on `mtogo-staging-metrics`                           | Prometheus only. No published port, no Caddy route. The API's `/metrics` 404s                                         |
-| Prometheus 3.16         | `prometheus:9090` on `mtogo-staging-metrics` and the stack's `logs` network | Grafana uses it. The backend, storefront, Loki and Alloy share one of its networks. No published port, no Caddy route |
-| Loki and Alloy (opt-in) | `loki:3100` and `alloy:12345` on `logs`                                     | Grafana and Prometheus. No published port, no Caddy route                                                             |
-| Grafana 13.3            | `STAGING_BIND_ADDRESS:STAGING_GRAFANA_PORT` (port `3300`)                   | Caddy over HTTPS at the Grafana hostname, with a login                                                                |
+| Component               | Where it listens                                                                                | Reachable from                                                                                                                       |
+| ----------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Backend exporter        | `backend-metrics:9464` on `mtogo-staging-metrics`                                               | Prometheus only. No published port, no Caddy route. The API's `/metrics` 404s                                                        |
+| Prometheus 3.16         | `prometheus:9090` on `mtogo-staging-metrics` and the stack's `logs` and `host-metrics` networks | Grafana uses it. The backend, storefront, Loki, Alloy and Node Exporter share one of its networks. No published port, no Caddy route |
+| Loki and Alloy (opt-in) | `loki:3100` and `alloy:12345` on `logs`                                                         | Grafana and Prometheus. No published port, no Caddy route                                                                            |
+| Node Exporter 1.13      | `node-exporter:9100` on the stack's `host-metrics` network                                      | Prometheus only. No published port, no Caddy route                                                                                   |
+| Grafana 13.3            | `STAGING_BIND_ADDRESS:STAGING_GRAFANA_PORT` (port `3300`)                                       | Caddy over HTTPS at the Grafana hostname, with a login                                                                               |
 
-`mtogo-staging-metrics` and `logs` are internal Docker networks: no published
-ports and no internet. No application container is on `logs`, so none has a path
-to Loki or Alloy. Prometheus and Grafana are on both. Grafana has a login for every person. Anonymous access, sign-up,
+`mtogo-staging-metrics`, `logs` and `host-metrics` are internal Docker networks:
+no published ports and no internet. No application container is on `logs` or
+`host-metrics`, so none has a path to Loki, Alloy or Node Exporter. Prometheus
+is on all three, Grafana on the first two. Grafana has a login for every person. Anonymous access, sign-up,
 organisation creation, public dashboards and external snapshots are off.
 Grafana's brute-force login protection is on, and the session cookie is
 `Secure` and `SameSite=Strict`. Everyone on the team gets an individual
@@ -57,15 +60,15 @@ Update the issue's acceptance criteria to match before acceptance.
 
 ## Files
 
-| Repository file                          | Role                                                                                                                                                                                                                                    |
-| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `deploy/monitoring/compose.staging.yaml` | Project `mtogo-staging-monitoring`: Prometheus and Grafana with memory caps and fixed-name volumes                                                                                                                                      |
-| `deploy/monitoring/prometheus.yaml`      | Scrape targets `backend-metrics:9464`, `storefront-metrics:9465` and, for the [log pipeline](/MTGO/quality/approved-application-events/#pipeline-health-and-failures), `alloy:12345` and `loki:3100`; the same file the local demo uses |
-| `deploy/monitoring/grafana/`             | Provisioned data source and the read-only dashboard `mtogo-backend-requests`, shared with the local demo                                                                                                                                |
-| `deploy/staging/compose.yaml`            | Creates `mtogo-staging-metrics`, attaches the backend and storefront; `STAGING_METRICS_ENABLED=1` turns both exporters on                                                                                                               |
-| `deploy/staging/.env.template`           | `STAGING_METRICS_ENABLED`, `STAGING_GRAFANA_URL`, `STAGING_GRAFANA_PORT`, `GRAFANA_ADMIN_PASSWORD`                                                                                                                                      |
-| `deploy/staging/mtogo-deploy.sh`         | `monitoring up`, `update`, `down`, `status`, `viewer-add` and `viewer-remove`, for administrators only                                                                                                                                  |
-| `deploy/staging/Caddyfile.example`       | The Grafana site block                                                                                                                                                                                                                  |
+| Repository file                          | Role                                                                                                                                                                                                                                                                       |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `deploy/monitoring/compose.staging.yaml` | Project `mtogo-staging-monitoring`: Prometheus, Grafana and Node Exporter with memory caps and fixed-name volumes                                                                                                                                                          |
+| `deploy/monitoring/prometheus.yaml`      | Scrape targets `backend-metrics:9464`, `storefront-metrics:9465` and, for the [log pipeline](/MTGO/quality/approved-application-events/#pipeline-health-and-failures), `alloy:12345` and `loki:3100`, and the host `node-exporter:9100`; the same file the local demo uses |
+| `deploy/monitoring/grafana/`             | Provisioned data source and the read-only dashboard `mtogo-backend-requests`, shared with the local demo                                                                                                                                                                   |
+| `deploy/staging/compose.yaml`            | Creates `mtogo-staging-metrics`, attaches the backend and storefront; `STAGING_METRICS_ENABLED=1` turns both exporters on                                                                                                                                                  |
+| `deploy/staging/.env.template`           | `STAGING_METRICS_ENABLED`, `STAGING_GRAFANA_URL`, `STAGING_GRAFANA_PORT`, `GRAFANA_ADMIN_PASSWORD`                                                                                                                                                                         |
+| `deploy/staging/mtogo-deploy.sh`         | `monitoring up`, `update`, `down`, `status`, `viewer-add` and `viewer-remove`, for administrators only                                                                                                                                                                     |
+| `deploy/staging/Caddyfile.example`       | The Grafana site block                                                                                                                                                                                                                                                     |
 
 The monitoring stack is a separate Compose project. Deploys (`prepare`,
 `release`, `rollback`) never start, stop or recreate it, and the CI identity
@@ -84,12 +87,16 @@ not scraped.
 The idle snapshot on 20 November 2026: 1,963 MB RAM, 883 MB available,
 194 MB of 2,047 MB swap in use; the four MTOGO containers use about 494 MiB.
 
-| Container  | Hard cap | Go memory limit | Persistent state                                 |
-| ---------- | -------- | --------------- | ------------------------------------------------ |
-| prometheus | 192 MB   | 160 MiB         | Volume `prometheus-data`: 7 days, at most 512 MB |
-| grafana    | 448 MB   | 220 MiB         | Volume `grafana-data`: users, sessions           |
+| Container     | Hard cap | Go memory limit | Persistent state                                  |
+| ------------- | -------- | --------------- | ------------------------------------------------- |
+| prometheus    | 192 MB   | 160 MiB         | Volume `prometheus-data`: 7 days, at most 512 MB  |
+| grafana       | 448 MB   | 220 MiB         | Volume `grafana-data`: users, sessions            |
+| node-exporter | 48 MB    | 32 MiB          | None; the volume `node-exporter-disk` stays empty |
 
-The caps add at most 640 MB. Grafana's first cap of 256 MB (Go limit 220 MiB)
+With `STAGING_LOGS_ENABLED=1`, Loki (cap 256 MB, Go limit 200 MiB) and Alloy
+(cap 160 MB, Go limit 120 MiB) run too.
+
+The caps add at most 688 MB, or 1,104 MB with logs. Grafana's first cap of 256 MB (Go limit 220 MiB)
 was too small for Grafana 13: on 20 November 2026 it sat at 99% of the cap
 with 28% CPU, spending its time on garbage collection, and pages took 3 to
 90 seconds or failed with 500. It was not killed. With the cap raised to
@@ -98,14 +105,15 @@ answered in 0.11 s: about 100 MiB of Grafana's use is outside the Go heap. The
 cap is now 448 MB with the Go limit kept at 220 MiB, leaving roughly 120 MiB
 of headroom over that reading. Each cap also limits swap (`memswap_limit` equals
 the memory limit), so a container cannot grow into the host's swap. The Go
-memory limits make both collect garbage before the kernel enforces the cap.
-The tightest moment is a deploy: the migration container and the new backend
-run next to the old one.
+memory limits make every container collect garbage before the kernel enforces
+the cap. The tightest moment is a deploy: the migration container and the new
+backend run next to the old one.
 
-**Proposed floor (agree with the team before activation):** `available` in
+**Agreed floor:** `available` in
 `free -m` stays at **200 MB or more** at every reading, including during a
 deploy. If a reading falls below the floor, or `dmesg` shows an out-of-memory
-kill, roll back the monitoring stack (below) and reopen the hosting question
+kill, roll back the monitoring stack
+([what to do](#when-memory-falls-below-the-floor)) and reopen the hosting question
 with the team in #183.
 
 ## Activation (repository admin)
@@ -163,7 +171,7 @@ are set. Then it:
 3. Checks the Compose file and `promtool check config` (and Loki's
    configuration with `STAGING_LOGS_ENABLED=1`). On the first install, only a
    passing folder replaces `/srv/mtogo-monitoring/config`.
-4. Starts (or recreates) Prometheus and Grafana and prints their status.
+4. Starts (or recreates) Prometheus, Grafana and Node Exporter and prints their status.
 
 Later, `monitoring up` restarts with the installed configuration. When a
 release changes `deploy/monitoring/`, install its files on purpose:
@@ -261,7 +269,7 @@ From a release with #172, the **HTTP-serving process** row shows the CPU (in cor
 and heap memory (bytes) and event-loop delay (seconds) of the staging
 `backend` container's Node process. The CPU value is not the Droplet's
 utilization: the host also runs the storefront, partner app, Redis and the
-non-MTOGO containers, which no panel covers. Compare resident memory with the
+non-MTOGO containers, which only the [Host row](#host-cpu-memory-and-disk) covers, all together. Compare resident memory with the
 backend's `docker stats` reading. They are close but not equal: one is the
 process's resident set, the other the memory the container's cgroup is
 charged for. The meaning and useful range of each
@@ -349,6 +357,74 @@ network while monitoring is attached, and it stops the application.
 Not covered: losing the Droplet or its disk loses the history. There is no
 backup or replication of the monitoring volumes.
 
+## Host CPU, memory and disk
+
+Issue [#182](https://github.com/DannyShayH/MTGO/issues/182). From a release
+with it, after `sudo mtogo-deploy.sh monitoring update`, the **Host** row of the
+request dashboard shows the Droplet that monitoring shares with the
+applications, read by Node Exporter every 15 seconds. All values are the whole
+host's: MTOGO, monitoring and the non-MTOGO containers.
+
+| Panel                             | Meaning                                                                                                                                                                                                                                     | Colour                               |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| Host CPU used                     | Share of all cores' time over five minutes, without idle and waiting for the disk; includes time the hypervisor took (steal). High for minutes outside a deploy means the Droplet is too busy                                               | Neutral: no limit is agreed          |
+| Host load per core                | Five-minute load average divided by the cores: tasks that run, or wait for a core or the disk. Staying above 1 means work queues; with a low CPU value it queues at the disk. The chart shows the 1, 5 and 15 minute load next to the cores | Neutral: no limit is agreed          |
+| Host memory available             | Memory the kernel can hand out without swapping; `available` in `free -m`                                                                                                                                                                   | Green from 200 MB, red below (floor) |
+| Host swap used                    | Swap total minus swap free. Growing while memory is low means the Droplet is too small                                                                                                                                                      | Neutral: no limit is agreed          |
+| Host disk free — root file system | Space an ordinary process can still use, as a share of the disk's size (`Avail` in `df`)                                                                                                                                                    | Amber below 20 %, red below 10 %     |
+| Host disk free — Docker volumes   | The same for the disk with the Docker volumes. On the Droplet it is the root file system, so both are equal                                                                                                                                 | Amber below 20 %, red below 10 %     |
+
+The charts show the same over time, with the limits as dashed lines. `free -m`
+counts MiB, so the 200 MB floor is 200 MiB in the panel. _Unavailable_ in grey
+means Node Exporter is not being scraped (or cannot read that disk), never
+zero. A dip shorter than 15 seconds can fall between two scrapes. The row is
+not per container: use `docker stats` for that. To read one deploy, choose the
+time range around its purple restart marker.
+
+Node Exporter sees no host folder. It runs without privileges on a network it
+shares with Prometheus only, and mounts two things read-only: the file
+`/etc/hostname`, which is on the root file system, and an empty volume, which
+is on the disk of the Docker volumes. Only the `cpu`, `loadavg`,
+`meminfo` and `filesystem` collectors run.
+
+### When memory falls below the floor
+
+1. Note the time, the lowest value and whether a deploy was running. Take
+   `free -m` and `docker stats --no-stream` while it lasts.
+2. Stop monitoring. The applications keep running, and history and accounts
+   stay:
+
+   ```bash
+   sudo mtogo-deploy.sh monitoring down
+   ```
+
+3. Check with `free -m` that `available` is back above 200 MB, and with
+   `sudo mtogo-deploy.sh status` that every service is healthy. The dashboard is
+   gone while monitoring is stopped.
+4. Record the breach on
+   [#183](https://github.com/DannyShayH/MTGO/issues/183) and reopen the hosting
+   question with the team. Run `monitoring up` again only after that, for
+   example with `STAGING_LOGS_ENABLED=0` (without Loki and Alloy). It recreates
+   the backend when its exporter setting changed and starts a short
+   configuration check, so do not run it while memory is low.
+
+### When a disk is nearly full
+
+Find what grew before removing anything:
+
+```bash
+df -h /
+sudo docker system df -v | head -60
+```
+
+Prometheus stays within 512 MB. Loki has no disk quota, only its ingestion rate
+and seven-day retention. Old application images and database backups are the
+other candidates. If monitoring is the cause, stop it as above; removing its
+volumes deletes history and accounts ([rollback](#rollback), step 4). Never
+fill the disk of staging to test the colours; the
+[local check](/MTGO/quality/local-request-monitoring/#host-cpu-memory-and-disk-182)
+uses a disposable volume.
+
 ## Customer menu read and restaurant menu page
 
 Issue #202 adds a collapsed row near the bottom of the dashboard to find where a slow
@@ -398,7 +474,7 @@ docker compose -p mtogo-staging logs --since 15m backend | grep '"path":"/store/
 Each step is independent and leaves the application running. Do them in this
 order to remove monitoring completely.
 
-1. Stop Prometheus and Grafana. History and accounts stay for a later
+1. Stop Prometheus, Grafana, Node Exporter and, if they run, Loki and Alloy. History and accounts stay for a later
    `monitoring up`.
 
    ```bash
@@ -421,13 +497,15 @@ order to remove monitoring completely.
    project; leave it.
 
    ```bash
-   sudo docker volume rm mtogo-staging-monitoring_prometheus-data mtogo-staging-monitoring_grafana-data
+   sudo docker volume rm mtogo-staging-monitoring_prometheus-data mtogo-staging-monitoring_grafana-data mtogo-staging-monitoring_node-exporter-disk
    sudo docker volume rm mtogo-staging-monitoring_loki-data mtogo-staging-monitoring_alloy-data   # if logs were on
    sudo rm -rf /srv/mtogo-monitoring
    ```
 
    To go back to the previous monitoring configuration instead, run
    `sudo mtogo-deploy.sh monitoring update <sha>` with the release it came from.
+   Run `sudo mtogo-deploy.sh monitoring down` first: a release from before #182
+   does not know Node Exporter, so it would leave that container running.
 
 Check afterwards that the application is unaffected:
 `sudo mtogo-deploy.sh status` shows every service healthy, and
@@ -440,6 +518,7 @@ Check afterwards that the application is unaffected:
 | `unknown command: monitoring`              | The installed deploy script is older: deploys never replace it. Re-install it from the live release commit ([staging deployment, step 4](/MTGO/quality/staging-deployment/#4-scripts)); `sudo mtogo-deploy.sh help \| grep monitoring` then lists the commands. |
 | `release ... has no staging monitoring`    | That release predates #194; the installed configuration is unchanged. Use `monitoring up`, or `monitoring update <sha>` with a release that has it.                                                                                                             |
 | Target DOWN                                | `STAGING_METRICS_ENABLED=1`, then `monitoring up` again (it recreates the backend). Check backend logs for the constant metrics warning. Never publish 9464.                                                                                                    |
+| Host row Unavailable                       | `monitoring status`: Node Exporter must run. The release with #182 is installed only after `monitoring update`.                                                                                                                                                 |
 | Caddy returns 502 for Grafana              | `monitoring status`; the Caddy upstream must match `STAGING_BIND_ADDRESS:STAGING_GRAFANA_PORT`. With Caddy in a container, use the `docker0` gateway address.                                                                                                   |
 | `viewer-add` fails                         | The login already exists, or `GRAFANA_ADMIN_PASSWORD` differs from the one Grafana stored on its first start.                                                                                                                                                   |
 | Admin password from `.env` does not work   | Reset Grafana to a new value and put the same value in `.env`: `openssl rand -hex 24 \| tee /dev/tty \| sudo docker exec -i mtogo-staging-monitoring-grafana-1 grafana cli admin reset-admin-password --password-from-stdin`.                                   |
@@ -460,7 +539,7 @@ To be filled in by the repository admin. No secrets or passwords belong here.
 | `docker stats` prometheus / grafana after activation         | 20 November 2026: prometheus 49.9 MiB of 192 MiB (26%), grafana 187.5 MiB of 256 MiB (73%). MTOGO apps unchanged: backend 265, storefront 145, partner 102, redis 8 MiB                                                                                                                                                                                                                                                                  |
 | Lowest `free -m` available during one deploy                 |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `docker stats` at that moment                                |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| Floor agreed with the team, and whether every reading met it |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Whether every reading met the agreed floor of 200 MB (above) |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | Exporter, Prometheus and admin API unreachable (step 6)      |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | Viewer sees real traffic and an early rejection (step 6)     | 20 November 2026, about 18:55, #171 dashboard: UP — traffic observed, real traffic by route pattern (for example `GET /store/collections` 200, `GET /store/orders` 401, 404s), 0.081 req/s, 5xx 0.0%, p95 96 ms from 24 observations. Checked signed in as the admin (the page offered **Make editable**), not as a Viewer, and before the step 6 `curl` commands, so the Viewer sign-in and the `early_rejection` series are still open |
 | Rollback steps 1 and 3 rehearsed, application unaffected     |                                                                                                                                                                                                                                                                                                                                                                                                                                          |

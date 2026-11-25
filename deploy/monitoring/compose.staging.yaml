@@ -12,9 +12,10 @@
 # Approved backend events (#176): Loki and Alloy run only with the `logs`
 # profile, which mtogo-deploy.sh enables when STAGING_LOGS_ENABLED=1.
 #
-# Exposure: Prometheus, Loki, Alloy and the backend exporter publish no ports
-# and have no Caddy route. Grafana publishes one port on STAGING_BIND_ADDRESS for Caddy,
-# which serves it over HTTPS with a login (no anonymous access, no sign-up).
+# Exposure: Prometheus, Loki, Alloy, Node Exporter and the backend exporter
+# publish no ports and have no Caddy route. Grafana publishes one port on
+# STAGING_BIND_ADDRESS for Caddy, which serves it over HTTPS with a login (no
+# anonymous access, no sign-up).
 name: mtogo-staging-monitoring
 
 x-logging: &logging
@@ -43,6 +44,8 @@ services:
       - metrics
       # Scrapes the health of Alloy and Loki (#179).
       - logs
+      # Scrapes the host through Node Exporter (#182).
+      - host-metrics
     logging: *logging
     # Same value as the memory limit: no additional swap, so the cap is hard.
     memswap_limit: 192m
@@ -154,6 +157,41 @@ services:
         limits:
           memory: 160m
 
+  # Host CPU, load, memory, swap and free disk (#182). It sees no host folder: a file on the
+  # root file system and an empty volume are enough to read how full the disks
+  # under them are, and /proc already shows the host's CPU, load and memory.
+  node-exporter:
+    image: prom/node-exporter:v1.13.1
+    restart: unless-stopped
+    command:
+      - --web.disable-exporter-metrics
+      - --collector.disable-defaults
+      - --collector.cpu
+      - --collector.loadavg
+      - --collector.meminfo
+      - --collector.filesystem
+      - --collector.filesystem.mount-points-include=^/host/(root|docker-volumes)$$
+      # Overlay and tmpfs are read too: a virtual machine's root can be either.
+      - --collector.filesystem.fs-types-exclude=^(erofs|squashfs)$$
+    environment:
+      GOMEMLIMIT: 32MiB
+    volumes:
+      - /etc/hostname:/host/root:ro
+      - node-exporter-disk:/host/docker-volumes:ro
+    networks:
+      - host-metrics
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    logging: *logging
+    memswap_limit: 48m
+    deploy:
+      resources:
+        limits:
+          memory: 48m
+
 networks:
   # Internal scrape network owned by the mtogo-staging application project.
   metrics:
@@ -163,6 +201,9 @@ networks:
   loopback:
   # Prometheus, Grafana, Loki and Alloy only; no route out.
   logs:
+    internal: true
+  # Prometheus and Node Exporter only; no route out.
+  host-metrics:
     internal: true
 
 # Application deploys and rollback never touch these volumes because they
@@ -179,3 +220,6 @@ volumes:
     name: mtogo-staging-monitoring_loki-data
   alloy-data:
     name: mtogo-staging-monitoring_alloy-data
+  # Stays empty: only tells which disk the Docker volumes are on.
+  node-exporter-disk:
+    name: mtogo-staging-monitoring_node-exporter-disk

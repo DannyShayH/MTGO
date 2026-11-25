@@ -480,17 +480,17 @@ label set and the pinned images too.
 
 Loki and Alloy are in `deploy/monitoring/compose.staging.yaml` under the
 Compose profile `logs`. They start only when `/srv/mtogo-staging/.env` has
-`STAGING_LOGS_ENABLED=1`. Without it, `monitoring up` starts only what
-[#194](/MTGO/quality/staging-request-monitoring/) does, and the two log pipeline
-targets are DOWN.
+`STAGING_LOGS_ENABLED=1`. Without it, `monitoring up` starts only
+[Prometheus, Grafana and Node Exporter](/MTGO/quality/staging-request-monitoring/),
+and the two log pipeline targets are DOWN.
 
 | Container | Hard cap | Go memory limit | Persistent state                     |
 | --------- | -------- | --------------- | ------------------------------------ |
 | loki      | 256 MB   | 200 MiB         | `loki-data`: chunks, retention state |
 | alloy     | 160 MB   | 120 MiB         | `alloy-data`: read positions         |
 
-The caps add at most 416 MB to the 640 MB of Prometheus and Grafana. The idle
-reading on 20 November 2026, before monitoring, had 883 MB available. Whether
+The caps add at most 416 MB to the 688 MB of Prometheus, Grafana and Node
+Exporter. The idle reading on 20 November 2026, before monitoring, had 883 MB available. Whether
 the whole stack fits is not yet measured. That is
 [#183](https://github.com/DannyShayH/MTGO/issues/183). Use the same 200 MB
 `available` floor and readings as

@@ -61,8 +61,8 @@ mode and starts a `worker` container (cap 512 MB). If the backend is killed for
 memory (`dmesg | grep -i kill`), lower `BACKEND_HEAP_MB` before resizing.
 
 The optional [request monitoring](/MTGO/quality/staging-request-monitoring/)
-adds Prometheus (cap 192 MB) and Grafana (cap 256 MB) as a separate Compose
-project, with its own memory readings and floor.
+adds Prometheus (cap 192 MB), Grafana (cap 448 MB) and Node Exporter (cap
+48 MB) as a separate Compose project, with its own memory readings and floor.
 
 ### Decisions recorded for issue #35
 

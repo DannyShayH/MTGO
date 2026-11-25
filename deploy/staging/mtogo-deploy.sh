@@ -31,8 +31,8 @@
 #   mtogo-deploy.sh psql [args...]    psql as the restricted staging database user.
 #   mtogo-deploy.sh compose [args...] Any docker compose command for the current release.
 #   mtogo-deploy.sh monitoring up      Private request metrics (#194): turn on the
-#       backend exporter and (re)start Prometheus and Grafana with the installed
-#       configuration; the first time, install it from the current release.
+#       backend exporter and (re)start Prometheus, Grafana and Node Exporter with
+#       the installed configuration (first time: from the current release).
 #       Needs STAGING_METRICS_ENABLED=1. STAGING_LOGS_ENABLED=1 also starts Loki
 #       and Alloy (#176). Deploys and rollback never change either (#180).
 #   mtogo-deploy.sh monitoring update [<sha>]  Install deploy/monitoring/ from
@@ -503,8 +503,8 @@ cmd_compose() {
   compose "$(current_release)" "$@"
 }
 
-# Prometheus and Grafana: a separate Compose project, never touched by
-# prepare, release or rollback (deploy/monitoring/compose.staging.yaml).
+# Prometheus, Grafana and Node Exporter: a separate Compose project, never
+# touched by prepare, release or rollback (deploy/monitoring/compose.staging.yaml).
 # STAGING_LOGS_ENABLED=1 adds Loki and Alloy (the `logs` profile, #176).
 logs_enabled() {
   [[ "$(env_optional STAGING_LOGS_ENABLED)" == "1" ]]
@@ -629,9 +629,9 @@ cmd_monitoring() {
         check_monitoring_config "$MONITORING_DIR/config"
       fi
       if logs_enabled; then
-        log "starting Prometheus, Grafana, Loki and Alloy"
+        log "starting Prometheus, Grafana, Node Exporter, Loki and Alloy"
       else
-        log "starting Prometheus and Grafana"
+        log "starting Prometheus, Grafana and Node Exporter"
       fi
       monitoring_compose up -d --wait --force-recreate
       monitoring_compose ps --format 'table {{.Service}}\t{{.Status}}\t{{.Image}}'

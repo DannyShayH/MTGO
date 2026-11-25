@@ -17,8 +17,11 @@ const applicationReleases = {
   "deploy/staging/compose.yaml": "mtogo-staging",
   "deploy/monitoring/compose.application.yaml": "mtogo-monitoring-demo",
 }
-const monitoringServices = ["prometheus", "grafana", "loki", "alloy"]
-const stateVolumes = monitoringServices.map((service) => `${service}-data`)
+const statefulServices = ["prometheus", "grafana", "loki", "alloy"]
+const monitoringServices = [...statefulServices, "node-exporter"]
+const stateVolumes = statefulServices.map((service) => `${service}-data`)
+// Node Exporter reads the disk these are on, and no host folder (#182).
+const diskProbes = ["/etc/hostname", "node-exporter-disk"]
 
 const findProjectName = (compose: string) =>
   compose.match(/^name: (\S+)$/m)?.[1]
@@ -60,16 +63,21 @@ describe("separate lifecycles", () => {
   // The configuration is installed once into the stack's own folder, never
   // mounted from a release folder that pruning or rollback replaces.
   it.each(Object.keys(monitoringStacks))(
-    "%s mounts only its own files, its volumes and the Docker socket",
+    "%s mounts only its own files, its volumes, the disk probes and the Docker socket",
     (file) => {
       const compose = readRepoFile(file)
       const sources = listMountSources(compose)
       expect(sources.length).toBeGreaterThan(5)
+      // Each once: no other service mounts them.
+      expect(sources.filter((source) => diskProbes.includes(source))).toEqual(
+        diskProbes,
+      )
       // No `..`: every segment starts with a letter.
       for (const source of sources)
         expect(
           /^\.(?:\/[a-z][a-z.-]*)+$/.test(source) ||
             stateVolumes.includes(source) ||
+            diskProbes.includes(source) ||
             source === "/var/run/docker.sock",
         ).toBe(true)
       // The long syntax would escape the check above.

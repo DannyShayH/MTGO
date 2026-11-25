@@ -8,8 +8,8 @@
 # container "db" of the existing Compose stack, reached on its existing Docker
 # network (STAGING_DB_NETWORK) with the restricted mtogo_staging user.
 #
-# Optional private request monitoring (Prometheus and Grafana) is a separate
-# Compose project that the admin runs by hand; see
+# Optional private monitoring (Prometheus, Grafana and Node Exporter) is a
+# separate Compose project that the admin runs by hand; see
 # apps/docs/src/content/docs/quality/staging-request-monitoring.md.
 name: mtogo-staging
 

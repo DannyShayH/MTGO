@@ -32,3 +32,13 @@ scrape_configs:
       - source_labels: [__name__]
         regex: loki_discarded_samples_total
         action: keep
+
+  # Host CPU, load, memory, swap and free disk (#182). Only the series the Host row shows
+  # are stored.
+  - job_name: mtogo-node
+    static_configs:
+      - targets: [node-exporter:9100]
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: node_cpu_seconds_total|node_load1|node_load5|node_load15|node_memory_MemAvailable_bytes|node_memory_SwapTotal_bytes|node_memory_SwapFree_bytes|node_filesystem_avail_bytes|node_filesystem_size_bytes
+        action: keep
