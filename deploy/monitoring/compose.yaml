@@ -94,8 +94,17 @@ networks:
   logs:
     internal: true
 
+# Application deploys and rollback never touch these volumes because they
+# belong to another Compose project, not because of their names (#180). The
+# names equal Compose's defaults and only keep history, accounts and collector
+# positions in place if the project is ever renamed. `down --volumes` on
+# mtogo-monitoring still deletes them.
 volumes:
   prometheus-data:
+    name: mtogo-monitoring_prometheus-data
   grafana-data:
+    name: mtogo-monitoring_grafana-data
   loki-data:
+    name: mtogo-monitoring_loki-data
   alloy-data:
+    name: mtogo-monitoring_alloy-data

@@ -1,6 +1,6 @@
 ---
 title: Staging request monitoring
-description: Private Prometheus and Grafana beside the staging application on the Droplet, with a login-protected Viewer dashboard, memory readings and rollback.
+description: Private Prometheus and Grafana beside the staging application on the Droplet, with a login-protected Viewer dashboard, memory readings, and monitoring that survives application releases and rollback.
 ---
 
 This is issue [#194](https://github.com/DannyShayH/MTGO/issues/194), part of
@@ -59,20 +59,22 @@ Update the issue's acceptance criteria to match before acceptance.
 
 | Repository file                          | Role                                                                                                                                                                                                                                    |
 | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `deploy/monitoring/compose.staging.yaml` | Project `mtogo-staging-monitoring`: Prometheus and Grafana with memory caps and named volumes                                                                                                                                           |
+| `deploy/monitoring/compose.staging.yaml` | Project `mtogo-staging-monitoring`: Prometheus and Grafana with memory caps and fixed-name volumes                                                                                                                                      |
 | `deploy/monitoring/prometheus.yaml`      | Scrape targets `backend-metrics:9464`, `storefront-metrics:9465` and, for the [log pipeline](/MTGO/quality/approved-application-events/#pipeline-health-and-failures), `alloy:12345` and `loki:3100`; the same file the local demo uses |
 | `deploy/monitoring/grafana/`             | Provisioned data source and the read-only dashboard `mtogo-backend-requests`, shared with the local demo                                                                                                                                |
 | `deploy/staging/compose.yaml`            | Creates `mtogo-staging-metrics`, attaches the backend and storefront; `STAGING_METRICS_ENABLED=1` turns both exporters on                                                                                                               |
 | `deploy/staging/.env.template`           | `STAGING_METRICS_ENABLED`, `STAGING_GRAFANA_URL`, `STAGING_GRAFANA_PORT`, `GRAFANA_ADMIN_PASSWORD`                                                                                                                                      |
-| `deploy/staging/mtogo-deploy.sh`         | `monitoring up`, `down`, `status`, `viewer-add` and `viewer-remove`, for administrators only                                                                                                                                            |
+| `deploy/staging/mtogo-deploy.sh`         | `monitoring up`, `update`, `down`, `status`, `viewer-add` and `viewer-remove`, for administrators only                                                                                                                                  |
 | `deploy/staging/Caddyfile.example`       | The Grafana site block                                                                                                                                                                                                                  |
 
 The monitoring stack is a separate Compose project. Deploys (`prepare`,
 `release`, `rollback`) never start, stop or recreate it, and the CI identity
-cannot run `monitoring`. `monitoring up` copies `deploy/monitoring/` out of
-the live backend image into `/srv/mtogo-monitoring/config`, so the
-configuration always matches a reviewed release and the Droplet needs no Git
-checkout. The backend's exporter counts the same responses as locally:
+cannot run `monitoring`. `monitoring update` copies `deploy/monitoring/` out
+of a release's backend image into `/srv/mtogo-monitoring/config`, so the
+configuration always comes from a reviewed release and the Droplet needs no Git
+checkout. Once installed, it stays until the next `monitoring update`: an
+application deploy or rollback never changes it (see
+[releases and rollback](#releases-and-rollback)). The backend's exporter counts the same responses as locally:
 browser calls through Caddy, server-side calls from the storefront and the
 partner app, and early refusals. A split staging worker serves no HTTP and is
 not scraped.
@@ -156,13 +158,25 @@ are set. Then it:
 
 1. Recreates the backend with the exporter on, if its setting changed. The
    API restarts for about a minute; the storefront and partner app keep running.
-2. Copies `deploy/monitoring/` from the live release to
-   `/srv/mtogo-monitoring/config`.
-3. Checks the Compose file and `promtool check config`.
+2. The first time only: copies `deploy/monitoring/` from the live release to
+   `/srv/mtogo-monitoring/config.new` and checks it.
+3. Checks the Compose file and `promtool check config` (and Loki's
+   configuration with `STAGING_LOGS_ENABLED=1`). On the first install, only a
+   passing folder replaces `/srv/mtogo-monitoring/config`.
 4. Starts (or recreates) Prometheus and Grafana and prints their status.
 
-Run it again whenever a later release changes `deploy/monitoring/`. Named
-volumes keep history and accounts.
+Later, `monitoring up` restarts with the installed configuration. When a
+release changes `deploy/monitoring/`, install its files on purpose:
+
+```bash
+sudo mtogo-deploy.sh monitoring update            # from the live release
+sudo mtogo-deploy.sh monitoring update <sha>      # from another kept release
+```
+
+Deploys, rollback, `monitoring up` and `monitoring down` keep history,
+accounts and collector positions: the volumes belong to the monitoring project.
+`monitoring down` never passes `--volumes`; a manual
+`docker compose down --volumes` on `mtogo-staging-monitoring` deletes them.
 
 ### 4. Caddy
 
@@ -237,7 +251,7 @@ the Administration pages are not available.
 
 Staging reuses the same provisioned dashboard. Deploys do not update it:
 after a release that changes the dashboard or Prometheus configuration, run
-`sudo mtogo-deploy.sh monitoring up` to install that release's files
+`sudo mtogo-deploy.sh monitoring update` to install that release's files
 (`monitoring status` names the release they came from). From #171 it shows
 the data state, response rate, 5xx proportion and p95 panels described in
 [local request monitoring](/MTGO/quality/local-request-monitoring/).
@@ -289,13 +303,51 @@ sudo mtogo-deploy.sh monitoring status   # source release and container health
 sudo docker logs --since=10m mtogo-staging-monitoring-grafana-1
 sudo docker logs --since=10m mtogo-staging-monitoring-prometheus-1
 sudo mtogo-deploy.sh monitoring up       # restart after a problem; history survives
+sudo mtogo-deploy.sh monitoring update   # install the live release's monitoring files
 ```
 
 A backend restart or deploy resets the raw counts. Rolling five-minute values
 need two scrapes after the restart, and the dashboard shows the gap. Stopping
-Prometheus or Grafana never affects the application. A rollback of the
-application to a release from before #194 detaches the backend from the scrape
-network: the dashboard shows **DOWN** until a release with #194 runs again.
+Prometheus or Grafana never affects the application.
+
+## Releases and rollback
+
+Issue [#180](https://github.com/DannyShayH/MTGO/issues/180). Monitoring is
+managed apart from the application, so deploys and rollback keep it running and
+keep its history.
+
+| Part                 | Owner and lifecycle                                                                                                                                                                                                                    |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Containers           | Compose project `mtogo-staging-monitoring`. `prepare`, `release`, `deploy` and `rollback` run the project `mtogo-staging`; their `--remove-orphans` removes only that project's containers                                             |
+| Configuration        | `/srv/mtogo-monitoring/config`, outside `releases/`. Release pruning and rollback never touch it. Only `monitoring update` replaces it, and only with a folder that passed its checks                                                  |
+| History and accounts | Volumes `mtogo-staging-monitoring_prometheus-data`, `_grafana-data`, `_loki-data` and `_alloy-data`, in the monitoring project. Deploys, rollback, `monitoring up` and `monitoring down` keep them; only `down --volumes` deletes them |
+| Scrape network       | `mtogo-staging-metrics`, created by the application release and joined by monitoring as `external`. Every release since #194 defines it the same way, so Compose reuses it and monitoring stays attached                               |
+| Exporters            | Part of each release. Whether a release has them decides whether its targets are UP                                                                                                                                                    |
+
+**Rollback to an uninstrumented release.** A release from before #194 (or
+before #202 for the storefront) has no exporter and is not on the scrape
+network. After `sudo mtogo-deploy.sh rollback` to it:
+
+- the **Exporter scrape availability** panel shows **DOWN — scrape failed**,
+  and the request panels show **Unavailable**, never zero traffic or zero
+  failures;
+- the history from before the rollback stays visible for its seven days;
+- the monitoring configuration is unchanged. `monitoring update` without a SHA
+  refuses such a release and keeps the installed files.
+
+The targets return to UP after the next deploy of an instrumented release.
+`monitoring up` and `monitoring update` also recreate the backend of the live
+release, which is harmless for an uninstrumented one.
+
+**Never change the scrape network's definition** in `deploy/staging/compose.yaml`.
+Compose recreates a network whose definition changed, and Docker refuses while
+monitoring containers are attached, so that deploy would fail.
+`monitoring-lifecycle.unit.spec.ts` fails on such a change. For the same
+reason, do not run `sudo mtogo-deploy.sh compose down`: it cannot remove the
+network while monitoring is attached, and it stops the application.
+
+Not covered: losing the Droplet or its disk loses the history. There is no
+backup or replication of the monitoring volumes.
 
 ## Customer menu read and restaurant menu page
 
@@ -364,14 +416,18 @@ order to remove monitoring completely.
    sudo mtogo-deploy.sh compose up -d --wait backend
    ```
 
-4. Only to discard history and accounts too: remove the two volumes and the
+4. Only to discard history and accounts too: remove the volumes and the
    folder. The `mtogo-staging-metrics` network belongs to the application
    project; leave it.
 
    ```bash
    sudo docker volume rm mtogo-staging-monitoring_prometheus-data mtogo-staging-monitoring_grafana-data
+   sudo docker volume rm mtogo-staging-monitoring_loki-data mtogo-staging-monitoring_alloy-data   # if logs were on
    sudo rm -rf /srv/mtogo-monitoring
    ```
+
+   To go back to the previous monitoring configuration instead, run
+   `sudo mtogo-deploy.sh monitoring update <sha>` with the release it came from.
 
 Check afterwards that the application is unaffected:
 `sudo mtogo-deploy.sh status` shows every service healthy, and
@@ -382,7 +438,7 @@ Check afterwards that the application is unaffected:
 | Symptom                                    | Check/action                                                                                                                                                                                                                                                    |
 | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `unknown command: monitoring`              | The installed deploy script is older: deploys never replace it. Re-install it from the live release commit ([staging deployment, step 4](/MTGO/quality/staging-deployment/#4-scripts)); `sudo mtogo-deploy.sh help \| grep monitoring` then lists the commands. |
-| `release ... has no staging monitoring`    | The live release predates #194. Wait for the deploy of a release that contains it.                                                                                                                                                                              |
+| `release ... has no staging monitoring`    | That release predates #194; the installed configuration is unchanged. Use `monitoring up`, or `monitoring update <sha>` with a release that has it.                                                                                                             |
 | Target DOWN                                | `STAGING_METRICS_ENABLED=1`, then `monitoring up` again (it recreates the backend). Check backend logs for the constant metrics warning. Never publish 9464.                                                                                                    |
 | Caddy returns 502 for Grafana              | `monitoring status`; the Caddy upstream must match `STAGING_BIND_ADDRESS:STAGING_GRAFANA_PORT`. With Caddy in a container, use the `docker0` gateway address.                                                                                                   |
 | `viewer-add` fails                         | The login already exists, or `GRAFANA_ADMIN_PASSWORD` differs from the one Grafana stored on its first start.                                                                                                                                                   |
@@ -390,7 +446,7 @@ Check afterwards that the application is unaffected:
 | "Too many login attempts"                  | Brute-force protection locked the login for a few minutes. Wait, then sign in with the right password.                                                                                                                                                          |
 | Grafana pages hang or `/login` returns 500 | `docker stats`: Grafana near its cap with steady CPU means garbage-collection thrashing, not a crash. Raise the cap (above) and check `available` stays above the floor.                                                                                        |
 | A container restarts with exit code 137    | It reached its memory cap. Record `docker stats`, then raise the cap only within the floor above, or roll back.                                                                                                                                                 |
-| Dashboard or data source missing           | Check Grafana's logs for provisioning errors, then `monitoring up` again so all files come from one release.                                                                                                                                                    |
+| Dashboard or data source missing           | Check Grafana's logs for provisioning errors, then `monitoring update` so all files come from one release.                                                                                                                                                      |
 
 ## Manual acceptance record
 
@@ -423,8 +479,8 @@ About 15 minutes later Grafana reached 253.9 MiB of 256 MiB with 28% CPU; the
 site no longer loaded and `/login` returned 500 after 45 to 92 seconds. Host
 `available` was 618 MB, load average 2.16, so the host itself was not
 exhausted. The cap was raised to 448 MB in Git. Until a release carries it,
-raise it on the running container (`monitoring up` would restore the cap of
-the release it copies):
+raise it on the running container (`monitoring update` would restore the cap
+of the release it copies):
 
 ```bash
 sudo docker update --memory 448m --memory-swap 448m mtogo-staging-monitoring-grafana-1
@@ -444,3 +500,11 @@ container used, so `monitoring up` runs `docker compose config` and
 `promtool check config` on the Droplet before starting anything. The deploy
 script passes `shellcheck`. The application code is unchanged: the exporter
 and its tests are those of #169 and #170.
+
+Agent verification for #180 on 25 November 2026: the changed deploy script
+passes `bash -n` and `shellcheck`, and `monitoring-lifecycle.unit.spec.ts`
+passes; each of its guards was seen failing on a deliberately broken Compose
+file. Neither `monitoring update` nor the
+[local rehearsal](/MTGO/quality/local-request-monitoring/#release-and-rollback-rehearsal-180)
+ran here, because the development container has no Docker. The developer runs
+the rehearsal and records it; staging activation stays with #183 and #184.

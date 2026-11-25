@@ -568,6 +568,12 @@ folders and images). Any older verified release can be redeployed from GitHub
 with the manual Deploy run and `release_sha`, as long as its images still
 exist in GHCR.
 
+Deploys and rollback leave the optional monitoring stack, its configuration
+and its history alone. After a rollback to a release without the metrics
+exporter, the dashboard shows the backend **DOWN** until an instrumented
+release runs again; see
+[releases and rollback](/MTGO/quality/staging-request-monitoring/#releases-and-rollback).
+
 ### Troubleshooting
 
 - **SSH step fails with "rejected":** the workflow and the installed

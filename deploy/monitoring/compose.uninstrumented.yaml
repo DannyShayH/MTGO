@@ -1,0 +1,11 @@
+# Rollback rehearsal only (#180), always on top of compose.application.yaml:
+#   docker compose -f compose.application.yaml -f compose.uninstrumented.yaml ...
+# The backend runs as a release from before #194 would: no exporter, and not
+# attached to the scrape network. `!override` needs Docker Compose 2.24.4+.
+services:
+  backend:
+    environment:
+      MTOGO_METRICS_ENABLED: "0"
+    networks: !override
+      application:
+      loopback:

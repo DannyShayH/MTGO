@@ -1,6 +1,7 @@
 # Staging request monitoring on the Droplet (issue #194). Run only through
-# `mtogo-deploy.sh monitoring up`, which copies this folder from the current
-# release's backend image and supplies /srv/mtogo-staging/.env; see
+# `mtogo-deploy.sh monitoring up|update`: `update` copies this folder from a
+# release's backend image to /srv/mtogo-monitoring/config, where it stays
+# through deploys and rollback (#180); both supply /srv/mtogo-staging/.env; see
 # apps/docs/src/content/docs/quality/staging-request-monitoring.md.
 #
 # Separate project from the application (mtogo-staging): deploys never start,
@@ -162,8 +163,17 @@ networks:
   logs:
     internal: true
 
+# Application deploys and rollback never touch these volumes because they
+# belong to another Compose project, not because of their names (#180). The
+# names equal Compose's defaults and only keep history, accounts and collector
+# positions in place if the project is ever renamed. `down --volumes` on
+# mtogo-staging-monitoring still deletes them.
 volumes:
   prometheus-data:
+    name: mtogo-staging-monitoring_prometheus-data
   grafana-data:
+    name: mtogo-staging-monitoring_grafana-data
   loki-data:
+    name: mtogo-staging-monitoring_loki-data
   alloy-data:
+    name: mtogo-staging-monitoring_alloy-data

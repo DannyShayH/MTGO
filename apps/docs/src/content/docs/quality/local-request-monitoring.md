@@ -489,9 +489,10 @@ samples before and after it.
 Normal recreation preserves named monitoring volumes. Application restart,
 recreation or `docker compose -f compose.application.yaml down` does not remove
 monitoring history. Data generated while Prometheus is stopped is not guaranteed
-recoverable, especially across backend restart. Rollback to an uninstrumented
-app would leave collection unavailable. Staging activation, persistence and
-rollback are in [staging request monitoring](/MTGO/quality/staging-request-monitoring/).
+recoverable, especially across backend restart. A rollback to an
+uninstrumented app shows collection as unavailable; rehearse it below. Staging
+activation, persistence and rollback are in
+[staging request monitoring](/MTGO/quality/staging-request-monitoring/#releases-and-rollback).
 
 To stop this demonstration, run both `down` commands without `--volumes`.
 Only when intentionally discarding **local synthetic history**, add
@@ -502,6 +503,70 @@ ignored `.env` only when resetting both databases too.
 docker compose -f compose.application.yaml down
 docker compose down
 ```
+
+## Release and rollback rehearsal (#180)
+
+The application (`compose.application.yaml`, project `mtogo-monitoring-demo`)
+and monitoring (`compose.yaml`, project `mtogo-monitoring`) are separate
+Compose projects. They share only the internal `mtogo-local-metrics` network,
+which neither creates. Monitoring keeps its state in its own project's volumes
+(`mtogo-monitoring_prometheus-data`, `_grafana-data`, `_loki-data`,
+`_alloy-data`). These steps redeploy and roll back the application the way
+`mtogo-deploy.sh` does on staging (`up --remove-orphans` for the application
+project only). The rollback adds `compose.uninstrumented.yaml`: the backend
+runs without its exporter and leaves the scrape network, as a release from
+before #194 would. So no older image needs to be built. The override uses
+`!override`, which needs Docker Compose 2.24.4 or later. Run the steps from
+`deploy/monitoring` with the stack of [fresh local startup](#fresh-local-startup)
+running and the local Viewer created.
+
+First record the state to compare against. As the Viewer, open
+**MTOGO — approved application events**, trigger one event (the failed partner
+sign-in of the
+[local journey](/MTGO/quality/approved-application-events/#local-journey)) and
+copy its `request_id`. Then:
+
+```bash
+before=$(docker compose ps -q | sort)
+docker compose exec alloy cat /var/lib/alloy/data/loki.source.docker.application/positions.yml > /tmp/positions-before.yml
+# A new release: the application is recreated and its orphans removed.
+docker compose -f compose.application.yaml up -d --wait --force-recreate --remove-orphans backend partner
+docker compose -f compose.application.yaml exec backend npm exec --no -- medusa exec ./src/scripts/observe-local-request.js
+sleep 35
+# Rollback to an uninstrumented backend, off the scrape network.
+docker compose -f compose.application.yaml -f compose.uninstrumented.yaml up -d --wait --remove-orphans backend partner
+[ "$(docker compose ps -q | sort)" = "$before" ] && echo "monitoring containers unchanged"
+docker inspect -f '{{range $n, $_ := .NetworkSettings.Networks}}{{$n}} {{end}}' "$(docker compose -f compose.application.yaml ps -q backend)"
+```
+
+The last line lists no `mtogo-local-metrics`. Wait 35 seconds and look as the
+Viewer (`local-viewer`) at **MTOGO → MTOGO — backend API requests and process**,
+last 30 minutes:
+
+- **Exporter scrape availability** shows **DOWN — scrape failed**, and the
+  request panels show **Unavailable**, not zero traffic.
+- The samples from before the rollback are still drawn, followed by a gap.
+- In **MTOGO — approved application events**, the copied `request_id` still
+  finds its event.
+
+Then recreate monitoring normally and roll forward:
+
+```bash
+docker compose up -d --force-recreate
+docker compose exec alloy cat /var/lib/alloy/data/loki.source.docker.application/positions.yml | diff /tmp/positions-before.yml - && echo "positions unchanged"
+docker compose -f compose.application.yaml up -d --wait --remove-orphans backend partner
+```
+
+The positions may differ only where the application wrote new lines; an entry
+that went back to an earlier position, or disappeared for a running container,
+means `alloy-data` was lost. After the recreation, the Viewer signs in with the
+same password (Grafana's state survived), the samples from before the rollback
+are still there (Prometheus's state survived), and the copied `request_id`
+still finds its event (Loki's state survived). Trigger the partner sign-in once
+more: the new event appears once, and the earlier one is not duplicated
+(Alloy resumed from its positions). After the roll forward and two scrapes, the
+target is **UP** again, with a gap where the uninstrumented backend ran. The
+raw count starts again from zero, as after any backend restart.
 
 ## Troubleshooting
 
@@ -595,6 +660,32 @@ for wrapup. Use this checklist to repeat the acceptance run:
 - Viewer cannot overwrite the provisioned dashboard or data source.
 - Prometheus/Grafana stoppage leaves the real read usable; collection gaps remain visible.
 - Backend restart resets raw counts; normal monitoring recreation retains history.
+
+### Release and rollback (#180)
+
+`src/observability/__tests__/monitoring-lifecycle.unit.spec.ts` fails if a
+release file defines a monitoring service, if a monitoring stack mounts files
+from outside its own folder, if a state volume changes its name, if the
+uninstrumented override stops taking the backend off the scrape network, or if
+the staging scrape network's definition changes. It guards configuration only
+and does not show that the journey works. The runtime journey is the
+[rehearsal above](#release-and-rollback-rehearsal-180).
+
+**Manual acceptance is deferred.** The development container has no Docker, and
+the developer will run the rehearsal and the Viewer checks with the staging
+activation slice. Until then, #180's local verification criterion is only
+partly met: the configuration is guarded, but deploy and rollback have not
+been run.
+
+| Check (developer, local stack)                                          | Date and result                             |
+| ----------------------------------------------------------------------- | ------------------------------------------- |
+| Monitoring containers unchanged by redeploy and rollback                | Not yet run: deferred to staging activation |
+| Rolled-back backend not on `mtogo-local-metrics`                        | Not yet run: deferred to staging activation |
+| Viewer: DOWN and Unavailable after rollback to the uninstrumented app   | Not yet run: deferred to staging activation |
+| Viewer: samples and the copied event still there after the rollback     | Not yet run: deferred to staging activation |
+| After `docker compose up -d --force-recreate`: sign-in, metrics, events | Not yet run: deferred to staging activation |
+| Alloy positions kept; new event appears once, no duplicate              | Not yet run: deferred to staging activation |
+| After roll forward: UP again, gap kept                                  | Not yet run: deferred to staging activation |
 
 ### Ordinary API coverage (#170)
 

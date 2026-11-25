@@ -31,9 +31,12 @@
 #   mtogo-deploy.sh psql [args...]    psql as the restricted staging database user.
 #   mtogo-deploy.sh compose [args...] Any docker compose command for the current release.
 #   mtogo-deploy.sh monitoring up      Private request metrics (#194): turn on the
-#       backend exporter, copy deploy/monitoring/ from the current release and
-#       (re)start Prometheus and Grafana. Needs STAGING_METRICS_ENABLED=1.
-#       STAGING_LOGS_ENABLED=1 also starts Loki and Alloy (#176).
+#       backend exporter and (re)start Prometheus and Grafana with the installed
+#       configuration; the first time, install it from the current release.
+#       Needs STAGING_METRICS_ENABLED=1. STAGING_LOGS_ENABLED=1 also starts Loki
+#       and Alloy (#176). Deploys and rollback never change either (#180).
+#   mtogo-deploy.sh monitoring update [<sha>]  Install deploy/monitoring/ from
+#       that release (default: current), check it, then do what up does.
 #   mtogo-deploy.sh monitoring down    Stop the monitoring stack; history is kept.
 #   mtogo-deploy.sh monitoring status  Monitoring containers and their source release.
 #   mtogo-deploy.sh monitoring viewer-add <login>     Grafana Viewer, prints its first password.
@@ -507,15 +510,22 @@ logs_enabled() {
   [[ "$(env_optional STAGING_LOGS_ENABLED)" == "1" ]]
 }
 
+# docker compose for the monitoring folder given (the installed one by default).
 monitoring_compose() {
-  local profiles=""
+  local dir="$MONITORING_DIR/config" profiles=""
+  if [[ "${1:-}" == /* ]]; then
+    dir=$1
+    shift
+  fi
   logs_enabled && profiles=logs
   COMPOSE_PROFILES=$profiles \
     docker compose --project-name mtogo-staging-monitoring \
-    --project-directory "$MONITORING_DIR/config" \
+    --project-directory "$dir" \
     --env-file "$ENV_FILE" \
-    --file "$MONITORING_DIR/config/compose.staging.yaml" "$@"
+    --file "$dir/compose.staging.yaml" "$@"
 }
+
+monitoring_installed() { [[ -f "$MONITORING_DIR/config/compose.staging.yaml" ]]; }
 
 check_monitoring_env() {
   [[ "$(env_optional STAGING_METRICS_ENABLED)" == "1" ]] ||
@@ -525,18 +535,37 @@ check_monitoring_env() {
     die "GRAFANA_ADMIN_PASSWORD must be at least 24 letters and digits (openssl rand -hex 24)"
 }
 
-# The monitoring files of the given release, swapped in as one folder. The old
-# folder stays until the next swap, because running containers still mount it.
+# Checks a monitoring folder with the pinned tools before it is used. Each
+# step returns explicitly: called left of ||, set -e does not apply inside.
+check_monitoring_config() {
+  local dir=$1
+  monitoring_compose "$dir" config --quiet || return 1
+  monitoring_compose "$dir" run --rm --no-deps --entrypoint /bin/promtool \
+    prometheus check config /etc/prometheus/prometheus.yaml > /dev/null || return 1
+  if logs_enabled; then
+    monitoring_compose "$dir" run --rm --no-deps loki \
+      -config.file=/etc/loki/config.yaml -verify-config > /dev/null || return 1
+  fi
+}
+
+# The monitoring files of the given release, checked and then swapped in as one
+# folder (#180). They live outside the release folders, so pruning, deploys and
+# rollback never change them; a failed check leaves the installed folder as it
+# was. The old folder stays until the next swap, for a manual rollback of
+# monitoring itself.
 install_monitoring_config() {
   local sha=$1 new="$MONITORING_DIR/config.new"
   install -d -o root -g root -m 755 "$MONITORING_DIR"
   rm -rf -- "$new"
   install -d -o root -g root -m 755 "$new"
+  pull_image "$(image_prefix)-backend:$sha"
   docker run --rm --entrypoint tar "$(image_prefix)-backend:$sha" \
     -C "$MONITORING_PATH_IN_IMAGE" -cf - . | tar -xf - --no-same-owner -C "$new"
   [[ -f "$new/compose.staging.yaml" ]] ||
-    die "release $sha has no staging monitoring (deliver #194 first)"
+    die "release $sha has no staging monitoring (deliver #194 first); the installed configuration is unchanged"
   printf '%s\n' "$sha" > "$new/SOURCE_RELEASE"
+  check_monitoring_config "$new" ||
+    die "the monitoring configuration of $sha failed its check; the installed configuration is unchanged"
   rm -rf -- "$MONITORING_DIR/config.old"
   if [[ -d "$MONITORING_DIR/config" ]]; then
     mv -- "$MONITORING_DIR/config" "$MONITORING_DIR/config.old"
@@ -574,24 +603,32 @@ cmd_monitoring() {
   shift || true
   check_env_file
   case "$action" in
-    up)
-      [[ $# -eq 0 ]] || die "monitoring up takes no arguments"
+    up | update)
+      local sha config_sha
+      sha=$(current_release)
+      config_sha=${1:-$sha}
+      if [[ "$action" == up ]]; then
+        [[ $# -eq 0 ]] || die "monitoring up takes no arguments (to install another release's configuration: monitoring update <sha>)"
+      else
+        [[ $# -le 1 ]] || die "monitoring update takes at most one release SHA"
+        require_sha "$config_sha"
+      fi
       check_monitoring_env
       take_lock
-      local sha
-      sha=$(current_release)
       # Creates the internal scrape network and applies the exporter setting;
-      # recreates the backend only when its configuration changed.
+      # recreates the backend only when its configuration changed. A release
+      # from before #194 has no exporter: its target stays DOWN.
       log "applying the exporter setting to the backend"
       compose "$sha" up -d --wait backend
-      log "installing the monitoring configuration of $sha"
-      install_monitoring_config "$sha"
-      monitoring_compose config --quiet
-      monitoring_compose run --rm --no-deps --entrypoint /bin/promtool \
-        prometheus check config /etc/prometheus/prometheus.yaml > /dev/null
+      if [[ "$action" == update ]] || ! monitoring_installed; then
+        log "installing the monitoring configuration of $config_sha"
+        install_monitoring_config "$config_sha"
+      else
+        # The configuration stays the installed one, whatever release runs now.
+        log "using the installed monitoring configuration of $(cat "$MONITORING_DIR/config/SOURCE_RELEASE")"
+        check_monitoring_config "$MONITORING_DIR/config"
+      fi
       if logs_enabled; then
-        monitoring_compose run --rm --no-deps loki \
-          -config.file=/etc/loki/config.yaml -verify-config > /dev/null
         log "starting Prometheus, Grafana, Loki and Alloy"
       else
         log "starting Prometheus and Grafana"
@@ -601,13 +638,13 @@ cmd_monitoring() {
       ;;
     down)
       [[ $# -eq 0 ]] || die "monitoring down takes no arguments"
-      [[ -f "$MONITORING_DIR/config/compose.staging.yaml" ]] || die "monitoring is not installed"
+      monitoring_installed || die "monitoring is not installed"
       # Includes Loki and Alloy even after STAGING_LOGS_ENABLED was set to 0.
       monitoring_compose --profile logs down
       log "stopped; history and accounts are kept. Set STAGING_METRICS_ENABLED=0 to turn the exporter off at the next deploy"
       ;;
     status)
-      [[ -f "$MONITORING_DIR/config/compose.staging.yaml" ]] || die "monitoring is not installed"
+      monitoring_installed || die "monitoring is not installed"
       printf 'monitoring configuration from release: %s\n' "$(cat "$MONITORING_DIR/config/SOURCE_RELEASE")"
       monitoring_compose ps --format 'table {{.Service}}\t{{.Status}}\t{{.Image}}'
       ;;
@@ -634,7 +671,7 @@ cmd_monitoring() {
       grafana_api DELETE "/api/admin/users/$id" > /dev/null
       log "removed Grafana account $1"
       ;;
-    *) die "unknown monitoring action: $action (up, down, status, viewer-add, viewer-remove)" ;;
+    *) die "unknown monitoring action: $action (up, update, down, status, viewer-add, viewer-remove)" ;;
   esac
 }
 
@@ -657,7 +694,7 @@ main() {
     psql) cmd_psql "$@" ;;
     compose) cmd_compose "$@" ;;
     monitoring) cmd_monitoring "$@" ;;
-    help | --help | -h) sed -n '2,42p' "$0" ;;
+    help | --help | -h) sed -n '2,46p' "$0" ;;
     *) die "unknown command: $command (try: help)" ;;
   esac
 }

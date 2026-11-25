@@ -18,5 +18,6 @@ never changes the existing Compose stack.
 
 Optional request monitoring (Prometheus and Grafana) lives in
 `deploy/monitoring/compose.staging.yaml` and is run with
-`sudo mtogo-deploy.sh monitoring up`; the runbook is
+`sudo mtogo-deploy.sh monitoring up` (`monitoring update` installs a release's
+monitoring files; deploys and rollback never change them, #180); the runbook is
 [Staging request monitoring](../../apps/docs/src/content/docs/quality/staging-request-monitoring.md).

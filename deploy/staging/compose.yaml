@@ -287,7 +287,8 @@ networks:
   # (deploy/monitoring/compose.staging.yaml), which joins it by this fixed name.
   # The backend and storefront exporters listen only here.
   # No published ports, no internet. Created here so deploys never depend on
-  # the monitoring stack.
+  # the monitoring stack. Never change this definition (#180): Compose would
+  # recreate the network, which Docker refuses while monitoring is attached.
   metrics:
     internal: true
     name: mtogo-staging-metrics

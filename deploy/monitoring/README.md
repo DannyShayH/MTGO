@@ -82,3 +82,20 @@ is DOWN there. Without `STAGING_LOGS_ENABLED=1` the `mtogo-alloy` and
 `mtogo-loki` targets are DOWN on staging. Only
 Grafana publishes a port, for Caddy, behind a login. The admin starts it with
 `sudo mtogo-deploy.sh monitoring up`; deploys never touch it.
+
+## Releases and rollback (#180)
+
+Monitoring is its own Compose project, with its configuration installed in
+`/srv/mtogo-monitoring/config` by `monitoring update` and kept there through
+deploys and rollback; plain `monitoring up` reuses it. Its volumes belong to
+that project, so application deploys and rollback never remove them; only
+`down --volumes` on the monitoring project does. Releases attach to it only
+through the scrape network, which every release defines identically. A rollback
+to a release without the exporter shows the target DOWN while the history
+stays. `compose.uninstrumented.yaml` stands in for such a release in the local
+rehearsal: no exporter, not on the scrape network.
+`monitoring-lifecycle.unit.spec.ts` in the backend guards the configuration;
+the rehearsal is the runtime check. The local rehearsal is in
+[local request monitoring](../../apps/docs/src/content/docs/quality/local-request-monitoring.md#release-and-rollback-rehearsal-180),
+the staging behaviour in
+[staging request monitoring](../../apps/docs/src/content/docs/quality/staging-request-monitoring.md#releases-and-rollback).
