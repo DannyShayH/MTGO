@@ -86,12 +86,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           artifact_name="github-pages-$GITHUB_SHA"
-          run_ids=$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/actions/workflows/on_ready.yml/runs?head_sha=$GITHUB_SHA&per_page=100" \
-            --jq '[.[].workflow_runs[] | select(.head_sha == env.GITHUB_SHA) | .id] | .[]')
+          run_ids=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/workflows/on_ready.yml/runs?head_sha=$GITHUB_SHA&per_page=100" \
+            --jq '.workflow_runs[] | select(.head_sha == env.GITHUB_SHA) | .id')
           selected_run=""
           for run_id in $run_ids; do
-            if gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?per_page=100" \
-              --jq '[.[].jobs[] | select(.name == "Docs tests and build" and .conclusion == "success")] | length > 0' | grep -qx true; then
+            successful_jobs=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?per_page=100" \
+              --jq '.jobs[] | select(.name == "Docs tests and build" and .conclusion == "success") | .id')
+            if [[ -n "$successful_jobs" ]]; then
               selected_run="$run_id"
               break
             fi

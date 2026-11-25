@@ -167,13 +167,13 @@ it("selects only the current attempt's artifact when a previous attempt remains"
 it.each([
   {
     reason: "DT R1: skip an unsuccessful docs job",
-    jobs: "false true",
+    jobs: "none success",
     selected: "22",
     succeeds: true,
   },
   {
     reason: "DT R2: reject runs without a successful docs job",
-    jobs: "false false",
+    jobs: "none none",
     selected: "",
     succeeds: false,
   },
@@ -193,9 +193,11 @@ it.each([
 if [[ "$1 $2" == "api --paginate" && "$*" == *"/workflows/"* ]]; then
   printf '11\\n22\\n'
 elif [[ "$1 $2" == "api --paginate" && "$*" == *"/11/jobs"* ]]; then
-  echo "${jobs.split(" ")[0]}"
+  [[ "${jobs.split(" ")[0]}" == success ]] && echo 99
+  true
 elif [[ "$1 $2" == "api --paginate" && "$*" == *"/22/jobs"* ]]; then
-  echo "${jobs.split(" ")[1]}"
+  [[ "${jobs.split(" ")[1]}" == success ]] && echo 99
+  true
 elif [[ "$1 $2" == "run download" ]]; then
   printf '%s' "$3" > "$CAPTURE"
 else
@@ -224,5 +226,33 @@ fi
     else expect(result.stdout).toContain("No successful Ready docs job")
   } finally {
     rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+it("passes both API command options through the real GitHub CLI", async () => {
+  const { spawnSync } = await import("node:child_process")
+  const download = step("Download the tested docs site")
+  const commands = [
+    ...download.matchAll(/gh api ([^\n]+) \\\n\s+--jq '([^']+)'/g),
+  ]
+  expect(commands).toHaveLength(2)
+  for (const [, options, query] of commands) {
+    const flags = options.split(/\s+/).filter((part) => part.startsWith("--"))
+    const result = spawnSync(
+      "gh",
+      ["api", ...flags, "repos/example/example", "--jq", query],
+      {
+        env: {
+          ...process.env,
+          GH_HOST: "127.0.0.1:1",
+          GH_ENTERPRISE_TOKEN: "test",
+          GH_TOKEN: "test",
+        },
+        encoding: "utf8",
+        timeout: 5000,
+      },
+    )
+    expect(result.stderr).toMatch(/127\.0\.0\.1:1/)
+    expect(result.stderr).not.toContain("option is not supported")
   }
 })
