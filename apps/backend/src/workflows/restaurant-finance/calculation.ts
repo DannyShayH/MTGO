@@ -140,11 +140,17 @@ export function copenhagenMonthOf(instant: Date | string) {
   return `${year}-${String(month).padStart(2, "0")}`
 }
 
+/** The Copenhagen calendar date an instant falls on, as `YYYY-MM-DD`. */
+export function copenhagenDateOf(instant: Date | string) {
+  const { year, month, day } = copenhagenParts(new Date(instant))
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+}
+
 /** The instant of Copenhagen midnight starting the given day. */
-function copenhagenMidnight(year: number, month: number) {
-  // Copenhagen changes its offset at 02:00/03:00 on a Sunday, never at the
-  // first midnight of a month, so the offset at a UTC guess is exact.
-  const guess = Date.UTC(year, month - 1, 1)
+export function copenhagenMidnight(year: number, month: number, day = 1) {
+  // Copenhagen changes its offset at 02:00/03:00 on a Sunday, never at
+  // midnight, so the offset at a UTC guess for the same date is exact.
+  const guess = Date.UTC(year, month - 1, day)
   const local = copenhagenParts(new Date(guess))
   const asUtc = Date.UTC(
     local.year,

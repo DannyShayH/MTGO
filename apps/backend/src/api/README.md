@@ -1898,7 +1898,7 @@ curl http://localhost:9000/partner/restaurants/$RESTAURANT_ID \
 
 **Actor:** Restaurant staff (`restaurant_staff`, bearer token only) of that
 very Restaurant, also after the Restaurant is deactivated. Read-only monthly
-statements (#227, spec #52 §8, §10): Copenhagen calendar months in DKK
+statements (#227, #228, spec #52 §6, §8, §10): Copenhagen calendar months in DKK
 excluding VAT. Both routes answer `404` while the default-off
 `restaurant_statements` Feature flag is off, before authentication (ADR-0022).
 Reading never books, recognizes or closes anything.
@@ -1925,20 +1925,33 @@ is the header below without entries.
       "ends_at": "2026-11-30T23:00:00.000Z"
     },
     "lifecycle": "provisional",
-    "completeness": "incomplete",
+    "completeness": "complete",
     "totals": {
       "food_credits": { "status": "available", "amount": "76" },
       "commission": { "status": "available", "amount": "4.56" },
-      "service_fee": { "status": "unavailable", "reason": "not_yet_supported" },
-      "adjustments": { "status": "unavailable", "reason": "not_yet_supported" },
-      "balance": { "status": "unavailable", "reason": "depends_on_unavailable" }
+      "service_fee": { "status": "available", "amount": "3.33" },
+      "adjustments": { "status": "available", "amount": "0" },
+      "balance": { "status": "available", "amount": "68.11" }
     },
     "problems": [],
     "currency_code": "dkk",
     "amounts_exclude_vat": true,
     "service_fee_evidence": {
-      "status": "unavailable",
-      "reason": "not_yet_supported"
+      "status": "verified",
+      "month": "2026-11",
+      "terms_version": "common_mvp_v1",
+      "policy_amount": "100",
+      "month_day_count": 30,
+      "counted_through": "2026-11-25",
+      "active_dates": ["2026-11-25"],
+      "active_date_count": 1,
+      "unknown_dates": [],
+      "amount": "3.33",
+      "accrual": {
+        "status": "accrued",
+        "amount": "3.33",
+        "accrued_at": "2026-11-25T08:30:00.000Z"
+      }
     },
     "verified_at": "2026-11-24T19:00:00.000Z"
   },
@@ -1975,9 +1988,36 @@ is the header below without entries.
 - **Totals are whole-month** on every page and sum the booked amounts; amounts
   are exact decimal strings. Entries sort by `posted_at` then `id`, newest first.
   Commission is a charge, shown as a positive amount the balance deducts.
+- **Monthly balance** is food credits minus commission minus service fee plus
+  adjustments, all excluding VAT, with no earlier balance carried in and no
+  payout implied. It can be negative, for example an active month without
+  Orders.
+- **Service fee (#228)** is `policy_amount` (DKK 100) times
+  `active_date_count` divided by `month_day_count`, rounded once for the month.
+  `active_dates` are the distinct Copenhagen dates the Restaurant was active at
+  any time, from recorded activation and deactivation only: opening and closing
+  do not change them, and a deactivation exactly at midnight does not make the
+  new date active. The current month counts dates up to and including today
+  (`counted_through`), never future ones. `status` is `evidence_missing`, with
+  `unknown_dates` and `amount: null`, when the history cannot establish every
+  date, such as a Restaurant active today without a recorded activation.
+  Today's flag is not proof of earlier dates. `accrual.status` says whether the
+  month's one stored obligation holds exactly these dates (`accrued`), is still
+  owed them (`accrual_pending`, accrued again within a minute) or cannot be
+  known (`evidence_missing`). A month without an active date is a verified
+  zero.
+- **`days`** (detail route only, #228) lists every date of the month, oldest
+  first: `{ date, participation, orders, food_credit, commission, net }`.
+  `participation` is `active`, `inactive`, `unknown` or `not_reached` (after
+  today), as the fee counts it. The amounts sum the entries booked on that
+  Copenhagen date; they describe booked entries, which stay readable while a
+  monthly total is withheld, and never replace one.
+- **Adjustments** are a verified `"0"` until later work books them (#230),
+  withheld as `processing_pending` while ended months' work is known to be on
+  its way to the current month.
 - **An unknown amount is never zero.** A total is `unavailable` with a
-  `reason`: `not_yet_supported` (service fee and adjustments are not
-  calculated yet), `evidence_missing`, `processing_pending` or
+  `reason`: `evidence_missing`, `processing_pending`, `not_yet_supported`
+  (reserved for a component a release does not calculate) or
   `depends_on_unavailable` (the balance). An ended month is `closed` from the
   Copenhagen boundary on: nothing posts into it afterwards, and later
   processing belongs to the current month. Closing is not verification: an
@@ -1985,8 +2025,7 @@ is the header below without entries.
   withholds its delivered totals. While any component is unavailable, the
   balance is too.
 - **`completeness`** is `incomplete` when evidence is missing,
-  `processing_pending` when known processing is still owed, otherwise
-  `incomplete` while a component is not calculated yet, and `complete` only
+  `processing_pending` when known processing is still owed, and `complete` only
   when every total is available.
 - **`problems`** lists, with counts and identified sources:
   `missing_financial_basis` (a delivered Order without a preserved purchase
@@ -1995,8 +2034,15 @@ is the header below without entries.
   handover of the statement's month not booked yet; in an ended month it waits
   for the later adjustment work), `earlier_month_processing_pending` (on the
   current month: handovers of ended months, left for the later adjustment work
-  rather than backdated) and `prepared_food_credit_pending` (compensation not
-  recognized yet).
+  rather than backdated), `prepared_food_credit_pending` (compensation not
+  recognized yet), `participation_evidence_missing` (source
+  `restaurant_participation`: the month's active dates cannot be established,
+  so fee and balance are withheld while food credits stay readable),
+  `service_fee_accrual_pending` (the obligation has not accrued every active
+  date yet) and `earlier_month_service_fee_pending` (on the current month:
+  ended months, source `service_fee_month`, whose fee never fully accrued; the
+  verified difference arrives later as an adjustment, never by rewriting the
+  ended month).
 
 | Status | When                                                                                                                                        |
 | ------ | ------------------------------------------------------------------------------------------------------------------------------------------- |

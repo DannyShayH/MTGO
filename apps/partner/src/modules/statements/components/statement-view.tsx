@@ -1,8 +1,8 @@
 import Link from "next/link"
 import {
   formatExactDkk,
-  formatExactPercent,
   formatOrderDateTime,
+  formatStatementDate,
   formatStatementMonth,
   formatText,
   RESTAURANT_STATEMENTS_TEXT,
@@ -10,7 +10,9 @@ import {
   type Locale,
 } from "@dtc/i18n"
 import { Badge, Container, Heading, Text, clx } from "@medusajs/ui"
+import { InfoPopover } from "./info-popover"
 import type {
+  ServiceFeeEvidence as FeeEvidence,
   Statement,
   StatementComponent,
   StatementEntry,
@@ -41,7 +43,10 @@ const money = (amount: string, currency: string, locale: Locale) =>
 const reasonText = (text: Text, reason: string) =>
   (text as Record<string, string>)[`reason_${reason}`] ?? text.unavailable
 
-/** The month's state in words, never by colour alone. */
+/**
+ * The month's state in words, never by colour alone, with an information
+ * button explaining what both labels mean for this month.
+ */
 export function StatementBadges({
   header,
   locale,
@@ -50,8 +55,9 @@ export function StatementBadges({
   locale: Locale
 }) {
   const text = RESTAURANT_STATEMENTS_TEXT[locale]
+  const explain = (key: string) => (text as Record<string, string>)[key]
   return (
-    <span className="flex flex-wrap gap-2">
+    <span className="flex flex-wrap items-center gap-2">
       <Badge
         size="small"
         color={header.lifecycle === "closed" ? "grey" : "blue"}
@@ -64,6 +70,27 @@ export function StatementBadges({
       >
         {text[header.completeness]}
       </Badge>
+      <InfoPopover label={text.status_explain}>
+        <Heading level="h3" className="txt-compact-medium-plus">
+          {text.status_heading}
+        </Heading>
+        <dl className="flex flex-col gap-3">
+          {[header.lifecycle, header.completeness].map((state) => (
+            <div key={state} className="flex flex-col gap-0.5">
+              <dt className="txt-compact-small-plus">{text[state]}</dt>
+              <dd className="txt-compact-small text-ui-fg-subtle">
+                {explain(`status_${state}`)}
+              </dd>
+            </div>
+          ))}
+        </dl>
+        {header.completeness === "complete" &&
+          header.lifecycle === "provisional" && (
+            <Text size="small" className="text-ui-fg-subtle">
+              {text.status_complete_not_final}
+            </Text>
+          )}
+      </InfoPopover>
     </span>
   )
 }
@@ -110,23 +137,30 @@ function TotalValue({
           "txt-compact-large-plus text-ui-fg-base tabular-nums",
         )}
       >
+        {/* Charges carry a minus sign, and screen readers hear "deducted". */}
+        {isDeduction && <span aria-hidden="true">−&#8202;</span>}
         {money(total.amount, currency, locale)}
+        {isDeduction && <span className="sr-only"> ({text.deduction})</span>}
       </span>
-      {isDeduction && (
-        <span className="txt-compact-small text-ui-fg-subtle">
-          {text.deduction}
-        </span>
-      )}
     </>
   )
 }
 
-/** The five whole-month totals, the same on every page of entries. */
+/**
+ * The five whole-month totals, the same on every page of entries. The
+ * service-fee card's information button opens how the fee is calculated
+ * (#228).
+ */
 export function StatementTotals({
   header,
+  serviceFee,
   locale,
 }: {
   header: StatementHeader
+  serviceFee?: {
+    evidence: FeeEvidence
+    lifecycle: StatementHeader["lifecycle"]
+  }
   locale: Locale
 }) {
   const text = RESTAURANT_STATEMENTS_TEXT[locale]
@@ -145,12 +179,19 @@ export function StatementTotals({
           <div
             key={component}
             className={clx(
-              "rounded-card bg-ui-bg-base shadow-borders-base flex min-w-0 flex-col gap-1 px-4 py-3",
-              component === "balance" && "sm:col-span-2 xl:col-span-1",
+              "rounded-card shadow-borders-base flex min-w-0 flex-col gap-1 px-4 py-3",
+              component === "balance"
+                ? "bg-mtogo-surface-selected sm:col-span-2 xl:col-span-1"
+                : "bg-ui-bg-base",
             )}
           >
-            <dt className="txt-compact-small text-ui-fg-subtle">
+            <dt className="txt-compact-small text-ui-fg-subtle flex items-center gap-1">
               {text[component]}
+              {component === "service_fee" && serviceFee && (
+                <InfoPopover label={text.service_fee_explain}>
+                  <ServiceFeeEvidence {...serviceFee} locale={locale} />
+                </InfoPopover>
+              )}
             </dt>
             <dd className="flex min-w-0 flex-col gap-0.5">
               <TotalValue
@@ -191,6 +232,97 @@ export function StatementProblems({
   )
 }
 
+/**
+ * How the month's service fee is calculated (#228), shown in the service-fee
+ * card's popover: the policy amount, the active days and the month's day
+ * count, so staff can reproduce it. An unknown or not yet booked fee says
+ * why instead of showing a number.
+ */
+export function ServiceFeeEvidence({
+  evidence,
+  lifecycle,
+  locale,
+}: {
+  evidence: FeeEvidence
+  lifecycle: StatementHeader["lifecycle"]
+  locale: Locale
+}) {
+  const text = RESTAURANT_STATEMENTS_TEXT[locale]
+  const policy = formatExactDkk(evidence.policy_amount, locale)
+  const days = {
+    active: evidence.active_date_count,
+    days: evidence.month_day_count,
+  }
+  return (
+    <>
+      <Heading level="h3" className="txt-compact-medium-plus">
+        {text.service_fee_heading}
+      </Heading>
+      <Text size="small" className="text-ui-fg-subtle max-w-prose">
+        {formatText(text.service_fee_intro, { policy })}
+      </Text>
+      {evidence.status === "evidence_missing" ? (
+        <Text size="small" className={clx(WRAP, "max-w-prose")}>
+          {formatText(text.service_fee_evidence_missing, {
+            count: evidence.unknown_dates.length,
+          })}
+        </Text>
+      ) : (
+        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1">
+          <dt className="txt-compact-small text-ui-fg-subtle">
+            {text.calculation}
+          </dt>
+          <dd className={clx(WRAP, "txt-compact-small-plus tabular-nums")}>
+            {formatText(text.service_fee_calculation, {
+              policy,
+              ...days,
+              amount: formatExactDkk(evidence.amount ?? "0", locale),
+            })}
+          </dd>
+          <dt className="txt-compact-small text-ui-fg-subtle">
+            {text.service_fee_active_dates}
+          </dt>
+          <dd className={clx(WRAP, "txt-compact-small")}>
+            {evidence.active_dates.length === 0 ? (
+              text.service_fee_no_active_dates
+            ) : (
+              <>
+                <span className="block">
+                  {formatText(text.service_fee_days, days)}
+                </span>
+                <span className="text-ui-fg-subtle block">
+                  {text.service_fee_dates_hint}
+                </span>
+              </>
+            )}
+          </dd>
+        </dl>
+      )}
+      {evidence.accrual.status === "accrual_pending" && (
+        <Text size="small" className="max-w-prose">
+          {text.service_fee_accrual_pending}
+        </Text>
+      )}
+      {lifecycle === "provisional" && evidence.counted_through && (
+        <Text size="small" className="text-ui-fg-subtle max-w-prose">
+          {formatText(text.service_fee_counted_through, {
+            date: formatStatementDate(evidence.counted_through, locale),
+          })}
+        </Text>
+      )}
+    </>
+  )
+}
+
+/**
+ * Whether an entry was booked later than its handover minute, such as a
+ * recovered recognition; a prompt booking repeats the same time, so it is
+ * left out to keep the row short.
+ */
+const bookedLater = (entry: StatementEntry, locale: Locale) =>
+  formatOrderDateTime(entry.posted_at, locale) !==
+  formatOrderDateTime(entry.occurred_at, locale)
+
 function OrderReference({
   entry,
   locale,
@@ -206,6 +338,8 @@ function OrderReference({
       className={clx(
         WRAP,
         "text-ui-fg-interactive hover:text-ui-fg-interactive-hover focus-visible:ring-mtogo-focus-ring txt-compact-small-plus rounded focus-visible:outline-none focus-visible:ring-2",
+        // The link covers its whole row, so the row opens the Order.
+        "after:absolute after:inset-0 after:content-['']",
       )}
     >
       {entry.order.display_id === null
@@ -217,42 +351,13 @@ function OrderReference({
   )
 }
 
-function Calculation({
-  entry,
-  locale,
-}: {
-  entry: StatementEntry
-  locale: Locale
-}) {
-  const text = RESTAURANT_STATEMENTS_TEXT[locale]
-  const calculation = entry.calculation
-  if (
-    !calculation?.food_value_including_vat ||
-    !calculation.food_value_excluding_vat ||
-    !calculation.vat_rate
-  )
-    return null
-  return (
-    <span className={clx(WRAP, "txt-compact-small text-ui-fg-subtle")}>
-      {formatText(text.calculation_food_value, {
-        including: formatExactDkk(calculation.food_value_including_vat, locale),
-        excluding: formatExactDkk(calculation.food_value_excluding_vat, locale),
-        rate: formatExactPercent(calculation.vat_rate, locale),
-      })}
-      {calculation.terms_version && (
-        <>
-          {" · "}
-          {formatText(text.calculation_terms, {
-            terms:
-              calculation.terms_version === "common_mvp_v1"
-                ? text.terms_common_mvp_v1
-                : calculation.terms_version,
-          })}
-        </>
-      )}
-    </span>
-  )
-}
+/**
+ * A row whose Order link covers it (Medusa Admin's clickable table rows):
+ * hover and keyboard focus highlight the whole row, while the link stays the
+ * one real link, so middle-click and screen readers work as for any link.
+ */
+const ROW_OPENS_ORDER =
+  "relative cursor-pointer transition-colors duration-150 hover:bg-ui-bg-base-hover focus-within:bg-ui-bg-base-hover motion-reduce:transition-none"
 
 /** One page of booked entries: a table when wide, a list when narrow. */
 export function StatementEntries({
@@ -267,10 +372,14 @@ export function StatementEntries({
   const text = RESTAURANT_STATEMENTS_TEXT[locale]
   const currency = result.statement.currency_code
   const amount = (value: string) => money(value, currency, locale)
-  const funded = (entry: StatementEntry) =>
-    entry.funded_by === "mtogo"
-      ? text.entry_funded_by_mtogo
-      : text.entry_funded_by_customer
+  // The Order detail shows the purchase and its terms; a row names its
+  // funding only in the exceptional case that MTOGO pays the food credit.
+  const fundedByMtogo = (entry: StatementEntry) =>
+    entry.funded_by === "mtogo" && (
+      <span className="txt-compact-small text-ui-fg-subtle">
+        {text.entry_funded_by_mtogo}
+      </span>
+    )
   const pages = Math.max(1, Math.ceil(result.count / STATEMENT_PAGE_SIZE))
   return (
     <Container className="rounded-card divide-ui-border-base divide-y overflow-hidden p-0">
@@ -294,7 +403,7 @@ export function StatementEntries({
           >
             <thead>
               <tr className="txt-compact-small-plus text-ui-fg-subtle text-left">
-                <th scope="col" className="w-[40%] px-6 py-3">
+                <th scope="col" className="w-[28%] px-6 py-3">
                   {text.entry_order}
                 </th>
                 <th scope="col" className="px-3 py-3">
@@ -313,14 +422,14 @@ export function StatementEntries({
             </thead>
             <tbody className="divide-ui-border-base divide-y">
               {result.entries.map((entry) => (
-                <tr key={entry.id} className="align-top">
+                <tr
+                  key={entry.id}
+                  className={clx("align-top", entry.order && ROW_OPENS_ORDER)}
+                >
                   <td className="px-6 py-3">
                     <span className="flex min-w-0 flex-col gap-1">
                       <OrderReference entry={entry} locale={locale} />
-                      <span className="txt-compact-small text-ui-fg-subtle">
-                        {funded(entry)}
-                      </span>
-                      <Calculation entry={entry} locale={locale} />
+                      {fundedByMtogo(entry)}
                     </span>
                   </td>
                   <td className="txt-compact-small px-3 py-3">
@@ -328,10 +437,12 @@ export function StatementEntries({
                       <span>
                         {formatOrderDateTime(entry.occurred_at, locale)}
                       </span>
-                      <span className="text-ui-fg-subtle">
-                        {text.entry_posted}{" "}
-                        {formatOrderDateTime(entry.posted_at, locale)}
-                      </span>
+                      {bookedLater(entry, locale) && (
+                        <span className="text-ui-fg-subtle">
+                          {text.entry_posted}{" "}
+                          {formatOrderDateTime(entry.posted_at, locale)}
+                        </span>
+                      )}
                     </span>
                   </td>
                   <td className="txt-compact-small px-3 py-3 text-right tabular-nums">
@@ -352,7 +463,13 @@ export function StatementEntries({
             className="divide-ui-border-base divide-y md:hidden"
           >
             {result.entries.map((entry) => (
-              <li key={entry.id} className="flex flex-col gap-2 px-4 py-4">
+              <li
+                key={entry.id}
+                className={clx(
+                  "flex flex-col gap-2 px-4 py-4",
+                  entry.order && ROW_OPENS_ORDER,
+                )}
+              >
                 <OrderReference entry={entry} locale={locale} />
                 <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1">
                   <dt className="txt-compact-small text-ui-fg-subtle">
@@ -361,12 +478,16 @@ export function StatementEntries({
                   <dd className="txt-compact-small text-right">
                     {formatOrderDateTime(entry.occurred_at, locale)}
                   </dd>
-                  <dt className="txt-compact-small text-ui-fg-subtle">
-                    {text.entry_posted}
-                  </dt>
-                  <dd className="txt-compact-small text-right">
-                    {formatOrderDateTime(entry.posted_at, locale)}
-                  </dd>
+                  {bookedLater(entry, locale) && (
+                    <>
+                      <dt className="txt-compact-small text-ui-fg-subtle">
+                        {text.entry_posted}
+                      </dt>
+                      <dd className="txt-compact-small text-right">
+                        {formatOrderDateTime(entry.posted_at, locale)}
+                      </dd>
+                    </>
+                  )}
                   <dt className="txt-compact-small text-ui-fg-subtle">
                     {text.entry_food_credit}
                   </dt>
@@ -384,10 +505,7 @@ export function StatementEntries({
                     {amount(entry.amounts.net)}
                   </dd>
                 </dl>
-                <span className="txt-compact-small text-ui-fg-subtle">
-                  {funded(entry)}
-                </span>
-                <Calculation entry={entry} locale={locale} />
+                {fundedByMtogo(entry)}
               </li>
             ))}
           </ul>

@@ -50,11 +50,45 @@ export type StatementEntry = {
   } | null
 }
 
+/**
+ * How the month's service fee is calculated (#228): its active Copenhagen
+ * dates from the recorded participation history, the month's day count and
+ * the policy amount, and whether the obligation has booked it.
+ */
+export type ServiceFeeEvidence = {
+  status: "verified" | "evidence_missing"
+  month: string
+  terms_version: string
+  policy_amount: string
+  month_day_count: number
+  counted_through: string | null
+  active_dates: string[]
+  active_date_count: number
+  unknown_dates: string[]
+  amount: string | null
+  accrual: {
+    status: "accrued" | "accrual_pending" | "evidence_missing"
+    amount: string | null
+    accrued_at: string | null
+  }
+}
+
+/** One date of the month: its fee participation and booked entries (#228). */
+export type StatementDay = {
+  date: string
+  participation: "active" | "inactive" | "unknown" | "not_reached"
+  orders: number
+  food_credit: string
+  commission: string
+  net: string
+}
+
 export type Statement = {
   statement: StatementHeader & {
     restaurant: { id: string; name: string }
     timezone: string
-    service_fee_evidence: { status: string; reason?: string }
+    service_fee_evidence: ServiceFeeEvidence
+    days: StatementDay[]
     verified_at: string
   }
   entries: StatementEntry[]

@@ -28,6 +28,7 @@ import {
 } from "./steps/commercial-terms"
 import { TermsVersion } from "./commercial-terms"
 import { restaurantLock } from "./restaurant-lock"
+import { accrueServiceFeeStep } from "../restaurant-finance/service-fee-accrual"
 import { activateRestaurantStep } from "./steps/activate-restaurant"
 import { deactivateRestaurantStep } from "./steps/deactivate-restaurant"
 import {
@@ -191,9 +192,10 @@ export const activateRestaurantWorkflow = createWorkflow(
       },
     )
     releaseLockStep(lock)
-    return new WorkflowResponse({
-      restaurant: retrieveRestaurantDetailStep({ id: input.restaurant_id }),
-    })
+    const restaurant = retrieveRestaurantDetailStep({ id: input.restaurant_id })
+    // Last, after the Restaurant's lock: the change can no longer roll back.
+    accrueServiceFeeStep({ restaurant_id: input.restaurant_id })
+    return new WorkflowResponse({ restaurant })
   },
 )
 /**
@@ -246,9 +248,10 @@ export const deactivateRestaurantWorkflow = createWorkflow(
       }).config({ name: "emit-restaurant-closed" })
     })
     releaseLockStep(lock)
-    return new WorkflowResponse({
-      restaurant: retrieveRestaurantDetailStep({ id: input.restaurant_id }),
-    })
+    const restaurant = retrieveRestaurantDetailStep({ id: input.restaurant_id })
+    // Last, after the Restaurant's lock: the change can no longer roll back.
+    accrueServiceFeeStep({ restaurant_id: input.restaurant_id })
+    return new WorkflowResponse({ restaurant })
   },
 )
 export const removeCommercialTermsWorkflow = createWorkflow(

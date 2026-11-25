@@ -594,11 +594,28 @@ completeness as text badges, then the five whole-month totals (food credits,
 commission and service fee marked as deducted, adjustments and the monthly
 balance). A total the backend withholds says "Unavailable" with its reason,
 never zero. Problems (missing purchase terms, conflicting recognition, pending
-processing) are listed in words with their counts, and the service-fee panel
-says the fee is not calculated yet. Entries are a table from tablet width and
-a list on a phone: the Order (linked to its detail), handover and booking
-times, food credit, commission and net, who funded the credit and the
-calculation (food value incl. and excl. VAT, VAT rate and terms). Loading shows
+processing, missing participation history, unbooked fees) are listed in words
+with their counts. The service-fee card (#228) shows how many of the month's days were active,
+and its information button (a Medusa UI popover, opened by pointer, touch or
+keyboard and closed with Escape) explains the fee: the monthly policy amount
+shared over active days, that a temporarily closed day still counts, the
+calculation (`100,00 kr. × 13 ÷ 30 = 43,33 kr.`) and, in the current month,
+the date counted through, with no forecast. Missing history or a fee not
+booked yet is said in words instead of a number. Below the totals, "The month day by day" charts the
+`days` of the statement: one column per date with the day's booked net (food
+credit minus commission), a dot under each active day and a ring under an
+unknown one, today's number in bold and later days greyed. Only the peak day
+is labelled (from tablet width); hovering a day shows its participation,
+Orders and net, and "Show the days as a table" gives every value by keyboard.
+While the monthly totals are withheld, the chart says it shows booked entries
+only. Totals show charges with a minus sign (read as "deducted"), the
+monthly balance card is highlighted, and an entry's booking time is shown
+only when it differs from its handover minute. Entries are a table from tablet width and
+a list on a phone: the Order, handover time, food credit, commission and
+net, and "Paid by MTOGO" only when MTOGO funds the credit. The whole row opens
+the Order detail, which shows the purchase and its financial terms; the
+Order link stays the row's one real link. The month's status labels have an
+information button explaining what they mean. Loading shows
 a skeleton, a failed read says it does not mean the month is empty and offers
 a retry, and a revoked session ends as on every page.
 

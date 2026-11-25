@@ -19,6 +19,7 @@ import {
   StatementProblems,
   StatementTotals,
 } from "@modules/statements/components/statement-view"
+import { StatementDaysChart } from "@modules/statements/components/statement-days-chart"
 
 /**
  * The Restaurant's monthly statement (#227): read-only, in DKK excl. VAT,
@@ -89,23 +90,29 @@ export default async function StatementsPage({
               <StatementBadges header={result.statement} locale={locale} />
             </div>
             <Text size="small" className="text-ui-fg-subtle">
-              {result.statement.lifecycle === "closed"
-                ? text.closed_hint
-                : text.provisional_hint}{" "}
               {formatText(text.verified_at, {
                 time: formatOrderTime(result.statement.verified_at, locale),
               })}
             </Text>
           </section>
-          <StatementTotals header={result.statement} locale={locale} />
+          <StatementTotals
+            header={result.statement}
+            serviceFee={{
+              evidence: result.statement.service_fee_evidence,
+              lifecycle: result.statement.lifecycle,
+            }}
+            locale={locale}
+          />
           <StatementProblems header={result.statement} locale={locale} />
-          {result.statement.service_fee_evidence.status !== "available" && (
-            <Container className="rounded-card flex flex-col gap-1 px-4 py-4 sm:px-6">
-              <Heading level="h2">{text.service_fee_heading}</Heading>
-              <Text size="small" className="text-ui-fg-subtle">
-                {text.service_fee_unavailable}
-              </Text>
-            </Container>
+          {result.statement.days?.length > 0 && (
+            <StatementDaysChart
+              month={result.statement.month}
+              days={result.statement.days}
+              isWithheld={
+                result.statement.totals.balance.status === "unavailable"
+              }
+              locale={locale}
+            />
           )}
           <StatementEntries result={result} query={query} locale={locale} />
         </>

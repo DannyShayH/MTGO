@@ -250,7 +250,7 @@ function shiftTimes<T extends object>(
  * `syntheticSeedAllowed` accepts. The field lists name every recorded time
  * of these records: add a new one here too.
  */
-async function backdate(
+export async function backdate(
   container: MedusaContainer,
   orderId: string,
   delivered_at: Date,

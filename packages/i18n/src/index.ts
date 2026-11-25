@@ -142,6 +142,7 @@ export {
 } from "./order-financial-basis.ts"
 export {
   RESTAURANT_STATEMENTS_TEXT,
+  formatStatementDate,
   formatStatementMonth,
   statementProblemText,
 } from "./restaurant-statements.ts"

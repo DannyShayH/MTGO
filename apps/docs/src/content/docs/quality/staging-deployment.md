@@ -481,6 +481,27 @@ sudo mtogo-deploy.sh compose run --rm migrate npm exec --no -- medusa exec ./src
 
 Each refund appears in the logs as `refund.attempted` with `actor_id` `system`.
 
+### Seed demo Restaurant statements
+
+Delivered demo Orders for the Statements page (#228), spread over the current
+month's active dates of "Pizzeria Nørrebro" and three other active, open
+Restaurants with a menu. The deploy's migrations must have run first. It is
+safe to repeat: a later run adds only the days since the last one, and a run
+in a new month leaves the previous month as a closed statement. Use
+`-e DEMO_STATEMENTS_RESTAURANT_ID=<id>` to seed another Restaurant than
+Pizzeria Nørrebro, and `-e DEMO_STATEMENTS_STAFF_PASSWORD=<password>` to give
+the other Restaurants' demo staff a sign-in (the log names their emails).
+`-e DEMO_STATEMENTS_REMOVE_BLOCKERS=true` first soft-deletes that
+Restaurant's earlier test Orders that keep the month incomplete (delivered
+without a preserved purchase basis, or with prepared-food compensation), and
+logs their numbers:
+
+```bash
+sudo mtogo-deploy.sh compose run --rm migrate npm exec --no -- medusa exec ./src/scripts/seed-demo-statements.js
+```
+
+The page shows only while `MTOGO_FF_RESTAURANT_STATEMENTS=true`.
+
 ### Database backup and restore
 
 `prepare` dumps the staging database to

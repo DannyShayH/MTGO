@@ -9,11 +9,15 @@ import type DeliveryModuleService from "../../src/modules/delivery/service"
 import { RESTAURANT_FINANCE_MODULE } from "../../src/modules/restaurant-finance"
 import type RestaurantFinanceModuleService from "../../src/modules/restaurant-finance/service"
 import RestaurantStatementsFeatureFlag from "../../src/feature-flags/restaurant-statements"
-import { copenhagenMonthOf } from "../../src/workflows/restaurant-finance/calculation"
+import {
+  copenhagenDateOf,
+  copenhagenMonthOf,
+} from "../../src/workflows/restaurant-finance/calculation"
 import {
   recognizeDeliveredOrder,
   recoverRestaurantFinanceWorkflow,
 } from "../../src/workflows/restaurant-finance/recognition"
+import { accrueServiceFeesWorkflow } from "../../src/workflows/restaurant-finance/service-fee-accrual"
 import { revokeRestaurantStaffWorkflow } from "../../src/workflows/restaurant-staff"
 import { restaurantOrdersHarness } from "../helpers/restaurant-orders"
 
@@ -25,7 +29,26 @@ jest.setTimeout(300000)
  * month's statement, behind the default-off `restaurant_statements` flag.
  * The harness dish costs DKK 95 incl. VAT: food value 76 excl. VAT, so food
  * credit 76 and commission 6% of 76 = 4.56; two cost 152 and 6 + 2.60.
+ *
+ * #228: the service fee is DKK 100 times the month's active Copenhagen
+ * dates over its day count. The harness activates its Restaurants without
+ * recording it, so their fee is unknown until a test records participation
+ * through the Admin routes; one active date costs 100/28 = 3.57, 100/29 =
+ * 3.45, 100/30 = 3.33 or 100/31 = 3.23 by the current month's length.
  */
+const ONE_DAY_FEE: Record<number, string> = {
+  28: "3.57",
+  29: "3.45",
+  30: "3.33",
+  31: "3.23",
+}
+/** 76 food credit - 4.56 commission - one day's fee. */
+const ONE_ORDER_ONE_DAY_BALANCE: Record<number, string> = {
+  28: "67.87",
+  29: "67.99",
+  30: "68.11",
+  31: "68.21",
+}
 medusaIntegrationTestRunner({
   dbName: "medusa_ci_partner_restaurant_statements_http",
   env: { JWT_SECRET: "ci-only-partner-statements-secret", REDIS_URL: "" },
@@ -46,6 +69,11 @@ medusaIntegrationTestRunner({
     let burgerId: string
     let staff: Awaited<ReturnType<typeof signInAsStaffOf>>
     const month = () => copenhagenMonthOf(new Date())
+    /** The current Copenhagen month's number of dates. */
+    const daysInMonth = () => {
+      const [year, number] = month().split("-").map(Number)
+      return new Date(Date.UTC(year, number, 0)).getUTCDate()
+    }
     beforeEach(async () => {
       ;({ admin, customer, pizzeriaId, burgerId } = harness.seeded())
       staff = await signInAsStaffOf(
@@ -149,14 +177,43 @@ medusaIntegrationTestRunner({
       })
     /** Removes the Restaurant's booked finance, as if it never ran. */
     const forgetFinance = async () => {
-      const [receipts, entries, problems] = await Promise.all([
+      const [receipts, entries, problems, fees] = await Promise.all([
         finance().listFinanceReceipts({}, { take: null }),
         finance().listFinanceJournalEntries({}, { take: null }),
         finance().listFinanceProblems({}, { take: null }),
+        finance().listFinanceServiceFees({}, { take: null }),
       ])
       await finance().deleteFinanceReceipts(receipts.map(({ id }) => id))
       await finance().deleteFinanceJournalEntries(entries.map(({ id }) => id))
       await finance().deleteFinanceProblems(problems.map(({ id }) => id))
+      await finance().deleteFinanceServiceFees(fees.map(({ id }) => id))
+    }
+    const adminPost = (path: string, body: Record<string, unknown> = {}) =>
+      api.post(`/admin/restaurants/${pizzeriaId}${path}`, body, {
+        headers: admin,
+        validateStatus: () => true,
+      })
+    /**
+     * Participation recorded as the product records it: the operator
+     * deactivates the harness's unrecorded activation away, activates the
+     * Restaurant in Admin, and its staff open it for Orders again.
+     */
+    const participateFromNow = async () => {
+      await restaurants().updateRestaurants({
+        id: pizzeriaId,
+        is_active: false,
+        is_open: false,
+      })
+      expect((await adminPost("/activate")).status).toBe(200)
+      expect(
+        (
+          await api.post(
+            `/partner/restaurants/${pizzeriaId}/open`,
+            {},
+            { headers: staff.headers },
+          )
+        ).status,
+      ).toBe(200)
     }
 
     it("recognizes a handover once with its food credit, commission and evidence on the current month's statement", async () => {
@@ -176,16 +233,13 @@ medusaIntegrationTestRunner({
         totals: {
           food_credits: { status: "available", amount: "76" },
           commission: { status: "available", amount: "4.56" },
-          service_fee: { status: "unavailable", reason: "not_yet_supported" },
-          adjustments: { status: "unavailable", reason: "not_yet_supported" },
+          // The harness never recorded the Restaurant's activation.
+          service_fee: { status: "unavailable", reason: "evidence_missing" },
+          adjustments: { status: "available", amount: "0" },
           balance: { status: "unavailable", reason: "depends_on_unavailable" },
         },
-        service_fee_evidence: {
-          status: "unavailable",
-          reason: "not_yet_supported",
-        },
+        service_fee_evidence: { status: "evidence_missing", amount: null },
       })
-      // Unsupported components keep the month from claiming completeness.
       expect(data.statement.completeness).toBe("incomplete")
       expect(data.count).toBe(1)
       expect(data.entries).toEqual([
@@ -373,7 +427,10 @@ medusaIntegrationTestRunner({
 
       const current = (await statement(staff.headers)).data
       expect(current.count).toBe(0)
-      expect(current.statement.completeness).toBe("processing_pending")
+      expect(current.statement.totals.adjustments).toEqual({
+        status: "unavailable",
+        reason: "processing_pending",
+      })
       expect(current.statement.problems).toContainEqual({
         code: "earlier_month_processing_pending",
         count: 1,
@@ -385,7 +442,6 @@ medusaIntegrationTestRunner({
       expect(ended.count).toBe(1)
       expect(ended.statement).toMatchObject({
         lifecycle: "closed",
-        completeness: "processing_pending",
         totals: {
           food_credits: { status: "unavailable", reason: "processing_pending" },
           commission: { status: "unavailable", reason: "processing_pending" },
@@ -395,6 +451,243 @@ medusaIntegrationTestRunner({
         code: "recognition_pending",
         count: 1,
         sources: [{ kind: "order_delivered", id: order.id }],
+      })
+    })
+
+    it("charges today's active date and completes the monthly balance with the fee's calculation", async () => {
+      await participateFromNow()
+      await deliveredOrder()
+
+      const { status, data } = await statement(staff.headers)
+
+      expect(status).toBe(200)
+      expect(data.statement).toMatchObject({
+        completeness: "complete",
+        totals: {
+          food_credits: { status: "available", amount: "76" },
+          commission: { status: "available", amount: "4.56" },
+          service_fee: {
+            status: "available",
+            amount: ONE_DAY_FEE[daysInMonth()],
+          },
+          adjustments: { status: "available", amount: "0" },
+          balance: {
+            status: "available",
+            amount: ONE_ORDER_ONE_DAY_BALANCE[daysInMonth()],
+          },
+        },
+        problems: [],
+      })
+      expect(data.statement.service_fee_evidence).toEqual({
+        status: "verified",
+        month: month(),
+        terms_version: "common_mvp_v1",
+        policy_amount: "100",
+        month_day_count: daysInMonth(),
+        counted_through: copenhagenDateOf(new Date()),
+        active_dates: [copenhagenDateOf(new Date())],
+        active_date_count: 1,
+        unknown_dates: [],
+        amount: ONE_DAY_FEE[daysInMonth()],
+        accrual: {
+          status: "accrued",
+          amount: ONE_DAY_FEE[daysInMonth()],
+          accrued_at: expect.any(String),
+        },
+      })
+      // The month day by day: every date, today active with its booking.
+      expect(data.statement.days).toHaveLength(daysInMonth())
+      expect(
+        data.statement.days.find(
+          ({ date }: { date: string }) => date === copenhagenDateOf(new Date()),
+        ),
+      ).toEqual({
+        date: copenhagenDateOf(new Date()),
+        participation: "active",
+        orders: 1,
+        food_credit: "76",
+        commission: "4.56",
+        net: "71.44",
+      })
+    })
+
+    it("owes one date's fee once through closing, deactivation and reactivation, as a negative balance without Orders", async () => {
+      await participateFromNow()
+      for (const step of [
+        () =>
+          api.post(
+            `/partner/restaurants/${pizzeriaId}/close`,
+            {},
+            { headers: staff.headers },
+          ),
+        () => adminPost("/deactivate", { reason: "Kitchen renovation" }),
+        () => adminPost("/activate"),
+        () => adminPost("/deactivate", { reason: "Still renovating" }),
+      ])
+        expect((await step()).status).toBe(200)
+      await accrueServiceFeesWorkflow(getContainer()).run({ input: {} })
+      await accrueServiceFeesWorkflow(getContainer()).run({ input: {} })
+
+      const { data } = await statement(staff.headers)
+
+      const fee = ONE_DAY_FEE[daysInMonth()]
+      expect(data.statement.service_fee_evidence).toMatchObject({
+        active_date_count: 1,
+      })
+      expect(data.statement).toMatchObject({
+        completeness: "complete",
+        totals: {
+          food_credits: { status: "available", amount: "0" },
+          service_fee: { status: "available", amount: fee },
+          balance: { status: "available", amount: `-${fee}` },
+        },
+      })
+      expect(
+        await finance().listFinanceServiceFees({ restaurant_id: pizzeriaId }),
+      ).toHaveLength(1)
+    })
+
+    it("shows verified zeros for a Restaurant that stayed inactive without any activity", async () => {
+      await restaurants().updateRestaurants({
+        id: pizzeriaId,
+        is_active: false,
+        is_open: false,
+      })
+
+      const { data } = await statement(staff.headers)
+
+      expect(data.count).toBe(0)
+      expect(data.statement).toMatchObject({
+        completeness: "complete",
+        totals: {
+          food_credits: { status: "available", amount: "0" },
+          commission: { status: "available", amount: "0" },
+          service_fee: { status: "available", amount: "0" },
+          adjustments: { status: "available", amount: "0" },
+          balance: { status: "available", amount: "0" },
+        },
+        service_fee_evidence: { status: "verified", active_dates: [] },
+      })
+    })
+
+    it("withholds the fee and balance, not food credits, when history does not show participation", async () => {
+      // The harness Restaurant is active today without any recorded activation.
+      await deliveredOrder()
+
+      const { data } = await statement(staff.headers)
+
+      expect(data.statement).toMatchObject({
+        completeness: "incomplete",
+        totals: {
+          food_credits: { status: "available", amount: "76" },
+          service_fee: { status: "unavailable", reason: "evidence_missing" },
+          balance: { status: "unavailable", reason: "depends_on_unavailable" },
+        },
+        service_fee_evidence: {
+          status: "evidence_missing",
+          amount: null,
+          active_dates: [],
+          unknown_dates: expect.arrayContaining([copenhagenDateOf(new Date())]),
+        },
+      })
+      expect(data.statement.problems).toContainEqual({
+        code: "participation_evidence_missing",
+        count: 1,
+        sources: [{ kind: "restaurant_participation", id: pizzeriaId }],
+      })
+      expect(
+        await finance().listFinanceServiceFees({ restaurant_id: pizzeriaId }),
+      ).toHaveLength(0)
+    })
+
+    it("shows an accrual that never ran as pending until recovery accrues it once", async () => {
+      await participateFromNow()
+      await forgetFinance()
+
+      const pending = (await statement(staff.headers)).data.statement
+      expect(pending).toMatchObject({
+        completeness: "processing_pending",
+        totals: {
+          service_fee: { status: "unavailable", reason: "processing_pending" },
+          balance: { status: "unavailable", reason: "depends_on_unavailable" },
+        },
+        service_fee_evidence: {
+          status: "verified",
+          amount: ONE_DAY_FEE[daysInMonth()],
+          accrual: { status: "accrual_pending", accrued_at: null },
+        },
+      })
+      expect(pending.problems).toContainEqual({
+        code: "service_fee_accrual_pending",
+        count: 1,
+        sources: [{ kind: "restaurant_participation", id: pizzeriaId }],
+      })
+
+      const { result } = await accrueServiceFeesWorkflow(getContainer()).run({
+        input: {},
+      })
+      const again = await accrueServiceFeesWorkflow(getContainer()).run({
+        input: {},
+      })
+
+      expect(result.outcomes[pizzeriaId]).toBe("accrued")
+      expect(again.result.outcomes[pizzeriaId]).toBeUndefined()
+      const { data } = await statement(staff.headers)
+      expect(data.statement.totals.service_fee).toEqual({
+        status: "available",
+        amount: ONE_DAY_FEE[daysInMonth()],
+      })
+      expect(
+        await finance().listFinanceServiceFees({ restaurant_id: pizzeriaId }),
+      ).toHaveLength(1)
+    })
+
+    it("does not accrue an ended month's fee late, and withholds the current adjustments it is owed", async () => {
+      const activatedAt = new Date(Date.now() - 40 * 24 * 3600 * 1000)
+      await getContainer()
+        .resolve(ContainerRegistrationKeys.PG_CONNECTION)("restaurant")
+        .where({ id: pizzeriaId })
+        .update({ created_at: activatedAt })
+      // Recorded activation since then explains today's active flag.
+      await restaurants().createRestaurantHistoryEntries({
+        restaurant_id: pizzeriaId,
+        kind: "activated",
+        occurred_at: activatedAt,
+        actor_type: "user",
+        actor_id: "user_operator",
+        actor_name: "Operator",
+      })
+      const endedMonth = copenhagenMonthOf(activatedAt)
+
+      await accrueServiceFeesWorkflow(getContainer()).run({ input: {} })
+
+      const current = (await statement(staff.headers)).data.statement
+      expect(current.totals.service_fee).toMatchObject({ status: "available" })
+      expect(current.totals.adjustments).toEqual({
+        status: "unavailable",
+        reason: "processing_pending",
+      })
+      expect(current.problems).toContainEqual(
+        expect.objectContaining({
+          code: "earlier_month_service_fee_pending",
+          sources: expect.arrayContaining([
+            { kind: "service_fee_month", id: endedMonth },
+          ]),
+        }),
+      )
+      const ended = (await statement(staff.headers, "", pizzeriaId, endedMonth))
+        .data.statement
+      expect(ended).toMatchObject({
+        lifecycle: "closed",
+        completeness: "processing_pending",
+        totals: {
+          service_fee: { status: "unavailable", reason: "processing_pending" },
+        },
+        service_fee_evidence: {
+          status: "verified",
+          month: endedMonth,
+          accrual: { status: "accrual_pending" },
+        },
       })
     })
 

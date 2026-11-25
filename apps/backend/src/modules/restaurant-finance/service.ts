@@ -13,6 +13,7 @@ import FinanceJournalEntry, {
   FOOD_CREDIT_FUNDING,
   type JournalEntryKind,
 } from "./models/finance-journal-entry"
+import FinanceServiceFee from "./models/finance-service-fee"
 import FinanceProblem, {
   type FinanceProblemCode,
 } from "./models/finance-problem"
@@ -47,6 +48,24 @@ export type RecognitionResult =
   | { outcome: "recognized" | "already_recognized"; receipt_id: string }
   | { outcome: "conflict"; receipt_id: string }
 
+export type ServiceFeeAccrual = {
+  restaurant_id: string
+  month: string
+  terms_version: string
+  currency_code: string
+  /** Exact decimal strings. */
+  policy_amount: string
+  amount: string
+  month_day_count: number
+  active_dates: string[]
+  accrued_at: Date
+}
+
+export type ServiceFeeAccrualResult = {
+  outcome: "accrued" | "unchanged"
+  service_fee_id: string
+}
+
 export type ProblemCommand = {
   source_kind: FinanceSourceKind
   source_id: string
@@ -67,6 +86,7 @@ class RestaurantFinanceModuleService extends MedusaService({
   FinanceReceipt,
   FinanceJournalEntry,
   FinanceProblem,
+  FinanceServiceFee,
 }) {
   /**
    * Records one source's receipt and journal entry in one transaction. A
@@ -124,6 +144,52 @@ class RestaurantFinanceModuleService extends MedusaService({
       context,
     )
     return { outcome: "recognized", receipt_id: created.id }
+  }
+
+  /**
+   * Accrues the month's one service-fee obligation (#228): creates it, or
+   * replaces its active dates and amount when they changed. The same dates
+   * again change nothing. The workflow decides that the month is still
+   * current, under the Restaurant's finance guard; the unique Restaurant
+   * and month in storage keep it one obligation.
+   */
+  @InjectManager()
+  @InjectTransactionManager()
+  async accrueServiceFee(
+    accrual: ServiceFeeAccrual,
+    @MedusaContext() context: Context = {},
+  ): Promise<ServiceFeeAccrualResult> {
+    const [existing] = await this.listFinanceServiceFees(
+      { restaurant_id: accrual.restaurant_id, month: accrual.month },
+      { take: 1, select: ["id", "active_dates"] },
+      context,
+    )
+    // Exact decimals: a bigNumber property stores a BigNumber unrounded.
+    const amounts = {
+      policy_amount: new BigNumber(accrual.policy_amount) as unknown as number,
+      amount: new BigNumber(accrual.amount) as unknown as number,
+    }
+    const obligation = {
+      ...accrual,
+      ...amounts,
+      // A json property stores the date list as it is.
+      active_dates: accrual.active_dates as unknown as Record<string, unknown>,
+      active_date_count: accrual.active_dates.length,
+    }
+    if (!existing) {
+      const created = await this.createFinanceServiceFees(obligation, context)
+      return { outcome: "accrued", service_fee_id: created.id }
+    }
+    if (
+      JSON.stringify(existing.active_dates) ===
+      JSON.stringify(accrual.active_dates)
+    )
+      return { outcome: "unchanged", service_fee_id: existing.id }
+    await this.updateFinanceServiceFees(
+      { id: existing.id, ...obligation },
+      context,
+    )
+    return { outcome: "accrued", service_fee_id: existing.id }
   }
 
   /** Records an evidence problem once per source and code. */

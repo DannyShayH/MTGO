@@ -2,6 +2,7 @@ import {
   assembleStatementHeader,
   completenessOf,
   statementEntry,
+  statementDays,
   statementMonths,
   type ProblemCode,
   type StatementProblem,
@@ -23,6 +24,13 @@ const problem = (code: ProblemCode, count = 1): StatementProblem => ({
   })),
 })
 
+/** A problem of the Restaurant's participation rather than of an Order. */
+const participation = (code: ProblemCode): StatementProblem => ({
+  code,
+  count: 1,
+  sources: [{ kind: "restaurant_participation", id: "rest_1" }],
+})
+
 const sum = (amount: string): Total => ({ status: "available", amount })
 const withheld = (reason: UnavailableReason): Total => ({
   status: "unavailable",
@@ -32,41 +40,43 @@ const withheld = (reason: UnavailableReason): Total => ({
 describe("A Restaurant statement's totals and availability (spec #52 §8)", () => {
   /**
    * Conditions: evidence problem, this month's recognition pending,
-   * prepared-food compensation pending, earlier months pending, lifecycle.
-   * The service fee is not calculated yet, so the balance is always
-   * withheld and no row reaches "complete".
+   * prepared-food compensation pending, earlier months pending, the service
+   * fee's evidence and accrual, lifecycle. Unless a row says otherwise the
+   * Restaurant was inactive all month: a verified zero fee.
    */
   it.each([
     {
-      lifecycle: "provisional" as const,
       booked,
       problems: [],
       food_credits: sum("228"),
       commission: sum("13.16"),
-      completeness: "incomplete",
+      adjustments: sum("0"),
+      balance: sum("214.84"),
+      completeness: "complete",
       reason:
-        "DT R1: nothing owed sums the booked amounts; the fee keeps it incomplete",
+        "DT R1: nothing owed sums the booked amounts into a complete balance",
     },
     {
-      lifecycle: "provisional" as const,
       booked: [],
       problems: [],
       food_credits: sum("0"),
       commission: sum("0"),
-      completeness: "incomplete",
-      reason: "EP: a verified empty month shows actual zeros",
+      adjustments: sum("0"),
+      balance: sum("0"),
+      completeness: "complete",
+      reason: "EP: a fully inactive month with no activity shows actual zeros",
     },
     {
-      lifecycle: "provisional" as const,
       booked,
       problems: [problem("missing_financial_basis")],
       food_credits: withheld("evidence_missing"),
       commission: withheld("evidence_missing"),
+      adjustments: sum("0"),
+      balance: withheld("depends_on_unavailable"),
       completeness: "incomplete",
       reason: "DT R2: missing evidence withholds both delivered totals",
     },
     {
-      lifecycle: "provisional" as const,
       booked,
       problems: [
         problem("conflicting_recognition"),
@@ -74,37 +84,42 @@ describe("A Restaurant statement's totals and availability (spec #52 §8)", () =
       ],
       food_credits: withheld("evidence_missing"),
       commission: withheld("evidence_missing"),
+      adjustments: sum("0"),
+      balance: withheld("depends_on_unavailable"),
       completeness: "incomplete",
       reason: "DT R3: missing evidence outranks pending processing",
     },
     {
-      lifecycle: "provisional" as const,
       booked,
       problems: [problem("recognition_pending")],
       food_credits: withheld("processing_pending"),
       commission: withheld("processing_pending"),
+      adjustments: sum("0"),
+      balance: withheld("depends_on_unavailable"),
       completeness: "processing_pending",
       reason: "DT R4: a handover still being recognized withholds both totals",
     },
     {
-      lifecycle: "provisional" as const,
       booked,
       problems: [problem("prepared_food_credit_pending")],
       food_credits: withheld("processing_pending"),
       commission: sum("13.16"),
+      adjustments: sum("0"),
+      balance: withheld("depends_on_unavailable"),
       completeness: "processing_pending",
       reason:
         "DT R5: pending prepared-food compensation withholds only food credits",
     },
     {
-      lifecycle: "provisional" as const,
       booked,
       problems: [problem("earlier_month_processing_pending")],
       food_credits: sum("228"),
       commission: sum("13.16"),
+      adjustments: withheld("processing_pending"),
+      balance: withheld("depends_on_unavailable"),
       completeness: "processing_pending",
       reason:
-        "DT R6: earlier months' pending handovers become adjustments, not this month's totals",
+        "DT R6: earlier months' pending work becomes adjustments, so they and the balance wait",
     },
     {
       lifecycle: "closed" as const,
@@ -112,6 +127,8 @@ describe("A Restaurant statement's totals and availability (spec #52 §8)", () =
       problems: [problem("recognition_pending")],
       food_credits: withheld("processing_pending"),
       commission: withheld("processing_pending"),
+      adjustments: sum("0"),
+      balance: withheld("depends_on_unavailable"),
       completeness: "processing_pending",
       reason:
         "DT R7: an ended month with an unrecognized handover does not look final",
@@ -122,33 +139,126 @@ describe("A Restaurant statement's totals and availability (spec #52 §8)", () =
       problems: [],
       food_credits: sum("228"),
       commission: sum("13.16"),
-      completeness: "incomplete",
+      adjustments: sum("0"),
+      balance: sum("214.84"),
+      completeness: "complete",
       reason: "DT R8: an ended month with nothing owed keeps its booked totals",
     },
     {
-      lifecycle: "provisional" as const,
       booked,
       problems: [problem("recognition_pending", 0)],
       food_credits: sum("228"),
       commission: sum("13.16"),
-      completeness: "incomplete",
+      adjustments: sum("0"),
+      balance: sum("214.84"),
+      completeness: "complete",
       reason: "BVA: a problem counted 0 times did not occur",
     },
-  ])("$reason", ({ lifecycle, booked, problems, ...expected }) => {
-    const header = assembleStatementHeader({ lifecycle, booked, problems })
-    expect(header).toEqual({
-      lifecycle,
-      completeness: expected.completeness,
-      totals: {
-        food_credits: expected.food_credits,
-        commission: expected.commission,
-        service_fee: withheld("not_yet_supported"),
-        adjustments: withheld("not_yet_supported"),
-        balance: withheld("depends_on_unavailable"),
-      },
-      problems: problems.filter(({ count }) => count > 0),
-    })
-  })
+    {
+      booked: [{ food_credit: "600", commission: "30" }],
+      problems: [],
+      service_fee: "50",
+      food_credits: sum("600"),
+      commission: sum("30"),
+      adjustments: sum("0"),
+      balance: sum("520"),
+      completeness: "complete",
+      reason:
+        "DT R9: food credits minus commission minus the fee, with no earlier balance",
+    },
+    {
+      booked: [],
+      problems: [],
+      service_fee: "83.33",
+      food_credits: sum("0"),
+      commission: sum("0"),
+      adjustments: sum("0"),
+      balance: sum("-83.33"),
+      completeness: "complete",
+      reason: "DT R10: an active month without Orders still owes its fee",
+    },
+    {
+      booked: [{ food_credit: "76", commission: "4.56" }],
+      problems: [],
+      service_fee: "100",
+      food_credits: sum("76"),
+      commission: sum("4.56"),
+      adjustments: sum("0"),
+      balance: sum("-28.56"),
+      completeness: "complete",
+      reason: "DT R11: charges above credits give an honest negative balance",
+    },
+    {
+      booked,
+      problems: [participation("participation_evidence_missing")],
+      service_fee: null,
+      food_credits: sum("228"),
+      commission: sum("13.16"),
+      fee: withheld("evidence_missing"),
+      adjustments: sum("0"),
+      balance: withheld("depends_on_unavailable"),
+      completeness: "incomplete",
+      reason:
+        "DT R12: unknown active days withhold the fee and balance, not food credits",
+    },
+    {
+      booked,
+      problems: [participation("service_fee_accrual_pending")],
+      service_fee: null,
+      food_credits: sum("228"),
+      commission: sum("13.16"),
+      fee: withheld("processing_pending"),
+      adjustments: sum("0"),
+      balance: withheld("depends_on_unavailable"),
+      completeness: "processing_pending",
+      reason: "DT R13: an accrual not yet reconciled withholds fee and balance",
+    },
+    {
+      booked,
+      problems: [
+        {
+          code: "earlier_month_service_fee_pending" as const,
+          count: 1,
+          sources: [{ kind: "service_fee_month" as const, id: "2026-10" }],
+        },
+      ],
+      food_credits: sum("228"),
+      commission: sum("13.16"),
+      adjustments: withheld("processing_pending"),
+      balance: withheld("depends_on_unavailable"),
+      completeness: "processing_pending",
+      reason:
+        "DT R14: an ended month's unaccrued fee will arrive as an adjustment, so adjustments wait",
+    },
+  ])(
+    "$reason",
+    ({
+      lifecycle = "provisional" as const,
+      booked,
+      problems,
+      service_fee = "0",
+      ...expected
+    }) => {
+      const header = assembleStatementHeader({
+        lifecycle,
+        booked,
+        problems,
+        service_fee,
+      })
+      expect(header).toEqual({
+        lifecycle,
+        completeness: expected.completeness,
+        totals: {
+          food_credits: expected.food_credits,
+          commission: expected.commission,
+          service_fee: expected.fee ?? sum(service_fee ?? ""),
+          adjustments: expected.adjustments,
+          balance: expected.balance,
+        },
+        problems: problems.filter(({ count }) => count > 0),
+      })
+    },
+  )
 
   it.each([
     {
@@ -292,5 +402,80 @@ describe("A statement entry's explanation (spec #52 §10)", () => {
         original_statement: null,
       },
     )
+  })
+})
+
+describe("A statement's month day by day (#228)", () => {
+  const days = statementDays({
+    month: "2026-02",
+    counted_through: "2026-02-11",
+    active_dates: ["2026-02-09", "2026-02-10"],
+    unknown_dates: ["2026-02-01"],
+    booked: [
+      // 23:30 UTC on 9 February is already 10 February in Copenhagen.
+      {
+        posted_at: "2026-02-09T23:30:00.000Z",
+        food_credit: "76",
+        commission: "4.56",
+      },
+      {
+        posted_at: "2026-02-10T11:00:00.000Z",
+        food_credit: "152",
+        commission: "8.6",
+      },
+      {
+        posted_at: "2026-02-09T12:00:00.000Z",
+        food_credit: "40.25",
+        commission: "2.41",
+      },
+    ],
+  })
+
+  it.each([
+    {
+      date: "2026-02-01",
+      expected: { participation: "unknown", orders: 0, net: "0" },
+      reason: "DT: a date history cannot establish is unknown, not inactive",
+    },
+    {
+      date: "2026-02-02",
+      expected: { participation: "inactive", orders: 0, food_credit: "0" },
+      reason: "EP: a reached date without activity was inactive",
+    },
+    {
+      date: "2026-02-09",
+      expected: {
+        participation: "active",
+        orders: 1,
+        food_credit: "40.25",
+        commission: "2.41",
+        net: "37.84",
+      },
+      reason: "EP: an active date with its booked entries",
+    },
+    {
+      date: "2026-02-10",
+      expected: {
+        participation: "active",
+        orders: 2,
+        food_credit: "228",
+        commission: "13.16",
+        net: "214.84",
+      },
+      reason: "BVA: an entry booked 23:30 UTC counts on the Copenhagen date",
+    },
+    {
+      date: "2026-02-12",
+      expected: { participation: "not_reached", orders: 0 },
+      reason: "BVA: the day after the counted date is not reached yet",
+    },
+  ])("$reason", ({ date, expected }) => {
+    expect(days.find((day) => day.date === date)).toMatchObject(expected)
+  })
+
+  it("has one entry per date of the month, in order", () => {
+    expect(days.map(({ date }) => date)).toHaveLength(28)
+    expect(days[0].date).toBe("2026-02-01")
+    expect(days[27].date).toBe("2026-02-28")
   })
 })

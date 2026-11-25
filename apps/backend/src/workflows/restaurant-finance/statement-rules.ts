@@ -3,7 +3,7 @@ import {
   type FinanceProblemCode,
 } from "../../modules/restaurant-finance/models/finance-problem"
 import { MathBN } from "@medusajs/framework/utils"
-import { copenhagenMonthOf } from "./calculation"
+import { copenhagenDateOf, copenhagenMonthOf } from "./calculation"
 
 /**
  * How a statement presents what is known (spec #52 §8, §10): each component
@@ -43,19 +43,50 @@ export type ProblemCode =
   | "earlier_month_processing_pending"
   /** Prepared-food compensation that this release does not recognize yet. */
   | "prepared_food_credit_pending"
+  /**
+   * The month's active dates cannot be established from recorded
+   * activation and deactivation, so its service fee is unknown (#228).
+   */
+  | "participation_evidence_missing"
+  /**
+   * The month's service-fee obligation has not yet accrued every active
+   * date its evidence shows (#228). Accrual recovers it each minute.
+   */
+  | "service_fee_accrual_pending"
+  /**
+   * Shown on the current month: ended months whose fee obligation never
+   * accrued every active date. The verified difference reaches the current
+   * month as an adjustment once the closing and adjustment work exists.
+   */
+  | "earlier_month_service_fee_pending"
 
 export type StatementProblem = {
   code: ProblemCode
   count: number
   /** The identified sources, one per counted problem. */
-  sources: { kind: "order_delivered"; id: string }[]
+  sources: {
+    kind: "order_delivered" | "restaurant_participation" | "service_fee_month"
+    id: string
+  }[]
 }
 
-const EVIDENCE_PROBLEMS: ProblemCode[] = [...FINANCE_PROBLEM_CODES]
+/** Missing evidence of what a delivered Order earned. */
+const DELIVERED_EVIDENCE_PROBLEMS: ProblemCode[] = [...FINANCE_PROBLEM_CODES]
+const EVIDENCE_PROBLEMS: ProblemCode[] = [
+  ...DELIVERED_EVIDENCE_PROBLEMS,
+  "participation_evidence_missing",
+]
 const PENDING_PROBLEMS: ProblemCode[] = [
   "recognition_pending",
   "earlier_month_processing_pending",
   "prepared_food_credit_pending",
+  "service_fee_accrual_pending",
+  "earlier_month_service_fee_pending",
+]
+/** Later processing of ended months that will arrive as adjustments. */
+const ADJUSTMENT_PROBLEMS: ProblemCode[] = [
+  "earlier_month_processing_pending",
+  "earlier_month_service_fee_pending",
 ]
 
 /**
@@ -73,6 +104,11 @@ export type StatementFacts = {
   lifecycle: Lifecycle
   /** Booked amounts of every entry posted in the month. */
   booked: { food_credit: string; commission: string }[]
+  /**
+   * The month's accrued service fee, a verified zero for a month without
+   * active dates, or `null` when a problem says why it is not known.
+   */
+  service_fee: string | null
   problems: StatementProblem[]
 }
 
@@ -114,10 +150,14 @@ export function completenessOf(
 
 /**
  * The month's totals, availability and completeness. Totals sum the booked
- * amounts; nothing is recomputed from aggregated food values. An evidence
- * problem withholds the delivered components and pending processing does
- * too, in an ended month as much as in the current one. The balance needs
- * every component, so a component not calculated yet withholds it.
+ * amounts; nothing is recomputed from aggregated food values. A delivered
+ * Order's evidence problem withholds the delivered components and pending
+ * processing does too, in an ended month as much as in the current one.
+ * Unknown active days withhold only the fee. Adjustments are those booked
+ * in the month; none are booked yet, so they are a verified zero unless
+ * earlier months' work is known to be on its way. The balance is food
+ * credits minus commission minus the fee plus adjustments, with no
+ * earlier balance carried in, and needs every component (spec #52 §8).
  */
 export function assembleStatementHeader(
   facts: StatementFacts,
@@ -130,20 +170,47 @@ export function assembleStatementHeader(
       MathBN.convert(0),
     )
   const delivered = (key: "food_credit" | "commission"): Total => {
-    if (occurred(EVIDENCE_PROBLEMS)) return unavailable("evidence_missing")
+    if (occurred(DELIVERED_EVIDENCE_PROBLEMS))
+      return unavailable("evidence_missing")
     if (occurred(["recognition_pending"]))
       return unavailable("processing_pending")
     if (key === "food_credit" && occurred(["prepared_food_credit_pending"]))
       return unavailable("processing_pending")
     return available(sum(key))
   }
-  const totals = {
+  const serviceFee = (): Total => {
+    if (occurred(["participation_evidence_missing"]))
+      return unavailable("evidence_missing")
+    if (facts.service_fee === null || occurred(["service_fee_accrual_pending"]))
+      return unavailable("processing_pending")
+    return available(facts.service_fee)
+  }
+  const components = {
     food_credits: delivered("food_credit"),
     commission: delivered("commission"),
-    service_fee: unavailable("not_yet_supported"),
-    adjustments: unavailable("not_yet_supported"),
-    // The balance needs every component; the fee is not calculated yet.
-    balance: unavailable("depends_on_unavailable"),
+    service_fee: serviceFee(),
+    adjustments: occurred(ADJUSTMENT_PROBLEMS)
+      ? unavailable("processing_pending")
+      : available(0),
+  }
+  const known = Object.values(components).every(
+    ({ status }) => status === "available",
+  )
+  const amountOf = (component: keyof typeof components) =>
+    (components[component] as { amount: string }).amount
+  const totals = {
+    ...components,
+    balance: known
+      ? available(
+          MathBN.add(
+            MathBN.sub(
+              MathBN.sub(amountOf("food_credits"), amountOf("commission")),
+              amountOf("service_fee"),
+            ),
+            amountOf("adjustments"),
+          ),
+        )
+      : unavailable("depends_on_unavailable"),
   }
   return {
     lifecycle: facts.lifecycle,
@@ -232,4 +299,68 @@ export function statementEntry(
     // Adjustments of a closed month will link their original statement.
     original_statement: null,
   }
+}
+
+export type StatementDay = {
+  date: string
+  /** Whether the date counts for the service fee, or is still ahead. */
+  participation: "active" | "inactive" | "unknown" | "not_reached"
+  /** Entries booked on the date, by their Copenhagen posting date. */
+  orders: number
+  food_credit: string
+  commission: string
+  net: string
+}
+
+/**
+ * The month day by day (#228): each Copenhagen date with its participation
+ * for the fee and the entries booked on it. It describes booked entries,
+ * which are readable whatever the totals' availability; it is not a monthly
+ * total and never replaces one that is withheld.
+ */
+export function statementDays(input: {
+  month: string
+  counted_through: string | null
+  active_dates: string[]
+  unknown_dates: string[]
+  booked: {
+    posted_at: Date | string
+    food_credit: string
+    commission: string
+  }[]
+}): StatementDay[] {
+  const [year, monthNumber] = input.month.split("-").map(Number)
+  const count = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate()
+  const byDate = new Map<string, typeof input.booked>()
+  for (const entry of input.booked) {
+    const date = copenhagenDateOf(entry.posted_at)
+    byDate.set(date, [...(byDate.get(date) ?? []), entry])
+  }
+  const active = new Set(input.active_dates)
+  const unknown = new Set(input.unknown_dates)
+  return Array.from({ length: count }, (_, index) => {
+    const date = `${input.month}-${String(index + 1).padStart(2, "0")}`
+    const entries = byDate.get(date) ?? []
+    const sum = (key: "food_credit" | "commission") =>
+      entries.reduce(
+        (total, entry) => MathBN.add(total, entry[key]),
+        MathBN.convert(0),
+      )
+    const food_credit = sum("food_credit")
+    const commission = sum("commission")
+    const reached =
+      input.counted_through !== null && date <= input.counted_through
+    let participation: StatementDay["participation"] = "inactive"
+    if (!reached) participation = "not_reached"
+    else if (active.has(date)) participation = "active"
+    else if (unknown.has(date)) participation = "unknown"
+    return {
+      date,
+      participation,
+      orders: entries.length,
+      food_credit: food_credit.toString(),
+      commission: commission.toString(),
+      net: MathBN.sub(food_credit, commission).toString(),
+    }
+  })
 }

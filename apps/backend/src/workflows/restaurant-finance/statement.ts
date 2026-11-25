@@ -29,8 +29,16 @@ import {
 } from "./calculation"
 import { FINANCE_PROBLEM_CODES } from "../../modules/restaurant-finance/models/finance-problem"
 import { unaccountedHandovers } from "./recognition"
+import { readParticipation } from "./service-fee-accrual"
+import {
+  serviceFeeEvidence,
+  serviceFeeStanding,
+  type ParticipationFacts,
+  type ServiceFeeEvidence,
+} from "./service-fee"
 import {
   assembleStatementHeader,
+  statementDays,
   statementEntry,
   statementMonths,
   type StatementHeader,
@@ -60,7 +68,7 @@ const statementNotFound = () =>
  * A booked amount as its stored exact decimal, never through a JS number
  * (spec #52 §10); the numeric value is only a fallback.
  */
-const exact = (entry: object, key: "food_credit" | "commission") => {
+const exact = (entry: object, key: "food_credit" | "commission" | "amount") => {
   const record = entry as Record<string, unknown>
   const raw = record[`raw_${key}`] as { value?: string } | undefined
   return raw?.value ?? MathBN.convert(record[key] as string).toString()
@@ -109,13 +117,98 @@ async function unaccountedHandoversIn(
   )
 }
 
+type AccruedFee = {
+  active_dates: unknown
+  amount: string
+  accrued_at: string
+}
+
+/** What every month's fee is read from: participation and obligations. */
+type FeeContext = {
+  restaurant: Restaurant
+  participation: ParticipationFacts
+  accrued: Map<string, AccruedFee>
+}
+
+async function readFeeContext(
+  container: MedusaContainer,
+  restaurant: Restaurant,
+): Promise<FeeContext> {
+  const [participation, fees] = await Promise.all([
+    readParticipation(container, [restaurant.id]),
+    resolveFinance(container).listFinanceServiceFees(
+      { restaurant_id: restaurant.id },
+      {
+        select: ["month", "active_dates", "amount", "raw_amount", "accrued_at"],
+        take: null,
+      },
+    ),
+  ])
+  return {
+    restaurant,
+    participation: participation.get(restaurant.id) ?? {
+      created_at: restaurant.created_at,
+      is_active: false,
+      changes: [],
+    },
+    accrued: new Map(
+      fees.map((fee) => [
+        fee.month,
+        {
+          active_dates: fee.active_dates,
+          amount: exact(fee, "amount"),
+          accrued_at: new Date(fee.accrued_at).toISOString(),
+        },
+      ]),
+    ),
+  }
+}
+
+/**
+ * The month's fee evidence as the statement shows it: the active dates and
+ * calculation from the history, and whether the obligation has accrued it.
+ */
+function feeOf(context: FeeContext, month: string, now: Date) {
+  const evidence = serviceFeeEvidence(context.participation, month, now)
+  const accrued = context.accrued.get(month)
+  return {
+    evidence,
+    accrued,
+    standing: serviceFeeStanding(evidence, accrued),
+  }
+}
+
+/** The service-fee evidence of a statement response (#228). */
+const serviceFeeEvidenceView = (
+  fee: ReturnType<typeof feeOf>,
+): ServiceFeeEvidence & {
+  accrual: { status: string; amount: string | null; accrued_at: string | null }
+} => ({
+  ...fee.evidence,
+  accrual: {
+    status: fee.standing.status,
+    amount: fee.standing.status === "accrued" ? fee.standing.amount : null,
+    accrued_at: fee.accrued?.accrued_at ?? null,
+  },
+})
+
+const participationProblem = (
+  code: StatementProblem["code"],
+  restaurant_id: string,
+): StatementProblem => ({
+  code,
+  count: 1,
+  sources: [{ kind: "restaurant_participation", id: restaurant_id }],
+})
+
 /** The month's header facts: booked amounts and visible problems. */
 async function readHeader(
   container: MedusaContainer,
-  restaurant_id: string,
+  context: FeeContext,
   month: string,
   now: Date,
 ): Promise<StatementHeader> {
+  const restaurant_id = context.restaurant.id
   const finance = resolveFinance(container)
   const period = copenhagenMonthPeriod(month)
   const isCurrent = month === copenhagenMonthOf(now)
@@ -177,12 +270,40 @@ async function readHeader(
       foodCredits.map(({ order_id }) => order_id),
     ),
   )
+  const { standing } = feeOf(context, month, now)
+  if (standing.status === "evidence_missing")
+    problems.push(
+      participationProblem("participation_evidence_missing", restaurant_id),
+    )
+  if (standing.status === "accrual_pending")
+    problems.push(
+      participationProblem("service_fee_accrual_pending", restaurant_id),
+    )
+  // Ended months whose verified fee never fully accrued: the difference
+  // will reach this month as an adjustment (#230).
+  const unaccruedMonths = isCurrent
+    ? statementMonths(context.restaurant.created_at, now)
+        .filter((earlier) => earlier !== month)
+        .filter(
+          (earlier) =>
+            feeOf(context, earlier, now).standing.status === "accrual_pending",
+        )
+    : []
+  problems.push({
+    code: "earlier_month_service_fee_pending",
+    count: unaccruedMonths.length,
+    sources: unaccruedMonths.map((id) => ({
+      kind: "service_fee_month" as const,
+      id,
+    })),
+  })
   return assembleStatementHeader({
     lifecycle: isCurrent ? "provisional" : "closed",
     booked: booked.map((entry) => ({
       food_credit: exact(entry, "food_credit"),
       commission: exact(entry, "commission"),
     })),
+    service_fee: standing.status === "accrued" ? standing.amount : null,
     problems,
   })
 }
@@ -213,8 +334,9 @@ export async function readStatement(
   const restaurant = await readRestaurant(container, input.restaurant_id)
   if (!statementMonths(restaurant.created_at, now).includes(input.month))
     throw statementNotFound()
-  const [header, [entries, count]] = await Promise.all([
-    readHeader(container, restaurant.id, input.month, now),
+  const context = await readFeeContext(container, restaurant)
+  const [header, [entries, count], monthBooked] = await Promise.all([
+    readHeader(container, context, input.month, now),
     resolveFinance(container).listAndCountFinanceJournalEntries(
       { restaurant_id: restaurant.id, posting_month: input.month },
       {
@@ -223,7 +345,22 @@ export async function readStatement(
         order: { posted_at: "DESC", id: "DESC" },
       },
     ),
+    // Every entry of the month, for the day-by-day view.
+    resolveFinance(container).listFinanceJournalEntries(
+      { restaurant_id: restaurant.id, posting_month: input.month },
+      {
+        select: [
+          "posted_at",
+          "food_credit",
+          "raw_food_credit",
+          "commission",
+          "raw_commission",
+        ],
+        take: null,
+      },
+    ),
   ])
+  const fee = feeOf(context, input.month, now)
   const receipts = entries.length
     ? await resolveFinance(container).listFinanceReceipts(
         { id: entries.map(({ receipt_id }) => receipt_id) },
@@ -253,10 +390,18 @@ export async function readStatement(
       ...header,
       currency_code: "dkk",
       amounts_exclude_vat: true,
-      service_fee_evidence: {
-        status: "unavailable",
-        reason: "not_yet_supported",
-      },
+      service_fee_evidence: serviceFeeEvidenceView(fee),
+      days: statementDays({
+        month: input.month,
+        counted_through: fee.evidence.counted_through,
+        active_dates: fee.evidence.active_dates,
+        unknown_dates: fee.evidence.unknown_dates,
+        booked: monthBooked.map((entry) => ({
+          posted_at: entry.posted_at,
+          food_credit: exact(entry, "food_credit"),
+          commission: exact(entry, "commission"),
+        })),
+      }),
       verified_at: now.toISOString(),
     },
     entries: entries.map((entry) =>
@@ -285,11 +430,12 @@ export async function listStatements(
   const restaurant = await readRestaurant(container, input.restaurant_id)
   const months = statementMonths(restaurant.created_at, now)
   const page = months.slice(input.offset, input.offset + input.limit)
+  const context = await readFeeContext(container, restaurant)
   const statements = await Promise.all(
     page.map(async (month) => ({
       month,
       timezone: FINANCE_TIMEZONE,
-      ...(await readHeader(container, restaurant.id, month, now)),
+      ...(await readHeader(container, context, month, now)),
       currency_code: "dkk",
       amounts_exclude_vat: true,
     })),
