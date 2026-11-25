@@ -113,15 +113,15 @@ database and Redis runtimes are not covered.
 
 `mtogo_menu_read_part_duration_seconds{part}` (`menu-read-timing.ts`, #202)
 times each part of the Customer menu read step `readRestaurantMenuStep`:
-`restaurant` (Restaurant, categories, dish ids), `dish_prices` (dishes with
-calculated prices), `photos` (dish photo records and the cover URL),
-`photo_urls` (signing the published dishes' photo URLs), `food_information`
+`restaurant` (Restaurant and categories), `dish_prices` (the Restaurant's
+linked dishes with calculated prices), `photos` (dish photo records and the
+cover URL), `photo_urls` (signing the published dishes' photo URLs), `food_information`
 (the kept allergen and label catalogue) and the `whole_read`, with the same
 buckets as the route histogram (`duration-buckets.ts`). `part` is the only
 label. Every part starts at zero. The histogram is process-wide and the step
 observes it whether or not the exporter runs; only the exporter's registry
-exposes it. `dish_prices` and `photos` run at the same time, so the parts can
-add up to more than the whole read. `whole_read` counts only reads that
+exposes it. `restaurant`, `dish_prices` and `photos` run at the same time
+(#206), so the parts can add up to more than the whole read. `whole_read` counts only reads that
 answer with a menu: a missing or inactive Restaurant, or a failed query, adds
 no `whole_read`, while the route histogram counts it. A whole read over one
 second also logs one `menu.read.slow` record (`@dtc/logging`, ADR-0019) with

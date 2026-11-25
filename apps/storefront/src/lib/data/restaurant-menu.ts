@@ -1,4 +1,5 @@
 import "server-only"
+import { cache } from "react"
 import { FetchError } from "@medusajs/js-sdk"
 import { sdk } from "@lib/config"
 import { logUpstreamFailure } from "@lib/logger"
@@ -62,23 +63,25 @@ export type RestaurantMenu = {
 }
 
 /**
- * The current menu of an active Restaurant, never from a cache, so a saved
- * change shows on the next visit. `null` when the Restaurant does not exist
- * or is not on MTOGO right now; any other failure is thrown.
+ * The current menu of an active Restaurant, never from a cross-request cache,
+ * so a saved change shows on the next visit (ADR-0012). `null` when the
+ * Restaurant does not exist or is not on MTOGO right now; any other failure
+ * is thrown. The page and its metadata both ask for it, so it is read once
+ * per server request and shared (#206).
  */
-export async function retrieveRestaurantMenu(
-  restaurantId: string,
-): Promise<RestaurantMenu | null> {
-  try {
-    return await sdk.client.fetch<RestaurantMenu>(
-      `/store/restaurants/${encodeURIComponent(restaurantId)}/menu`,
-      { method: "GET", cache: "no-store" },
-    )
-  } catch (error) {
-    if (error instanceof FetchError && error.status === 404) return null
-    logUpstreamFailure({
-      status: error instanceof FetchError ? error.status : undefined,
-    })
-    throw error
-  }
-}
+export const retrieveRestaurantMenu = cache(
+  async (restaurantId: string): Promise<RestaurantMenu | null> => {
+    try {
+      return await sdk.client.fetch<RestaurantMenu>(
+        `/store/restaurants/${encodeURIComponent(restaurantId)}/menu`,
+        { method: "GET", cache: "no-store" },
+      )
+    } catch (error) {
+      if (error instanceof FetchError && error.status === 404) return null
+      logUpstreamFailure({
+        status: error instanceof FetchError ? error.status : undefined,
+      })
+      throw error
+    }
+  },
+)

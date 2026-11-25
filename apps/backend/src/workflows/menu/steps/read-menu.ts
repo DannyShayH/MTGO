@@ -1,5 +1,5 @@
 import {
-  listDishPhotoAttachments,
+  listRestaurantDishPhotoAttachments,
   readDishPhotos,
   signDishPhotos,
 } from "../../photos/read-dish-photos"
@@ -31,10 +31,21 @@ type RestaurantMenuRecord = {
   is_open: boolean
   delivery_area_postal_codes?: { postal_code: string }[]
   menu_categories?: MenuCategoryRecord[]
-  products?: ({ id: string } | null)[]
 }
 
-/** The Restaurant with its categories and dish ids; nothing when it does not exist. */
+/**
+ * The Query entity of the Restaurant-product link (`src/links/restaurant-product.ts`).
+ * The link's own `entryPoint` is set only once the application has loaded its
+ * links, so the name is stated here.
+ */
+const RESTAURANT_PRODUCT_LINK = "restaurant_product"
+
+/** A product as Query returns it, before its dish's category becomes `menu_category`. */
+type MenuDishProductRecord = MenuProductRecord & {
+  menu_dish?: { category_id: string } | null
+}
+
+/** The Restaurant with its categories; nothing when it does not exist. */
 async function readRestaurantRecord(
   container: MedusaContainer,
   restaurant_id: string,
@@ -49,7 +60,6 @@ async function readRestaurantRecord(
       "is_open",
       "delivery_area_postal_codes.postal_code",
       "menu_categories.*",
-      "products.id",
     ],
     filters: { id: restaurant_id },
   })
@@ -58,58 +68,58 @@ async function readRestaurantRecord(
   return restaurant ?? null
 }
 
-/** The ids of the Restaurant's linked dishes, published or not. */
-const productIdsOf = (restaurant: RestaurantMenuRecord) =>
-  (restaurant.products ?? []).flatMap((product) =>
-    product ? [product.id] : [],
-  )
-
 /**
- * The valid published menu of a Restaurant record. The price is Medusa's
- * calculated DKK price, the amount a cart would charge, in display units.
+ * Every dish linked to the Restaurant, published or not, with its content and
+ * Medusa's calculated DKK price. It is read through the Restaurant's product
+ * link, so it needs only the Restaurant id and runs alongside the Restaurant
+ * read instead of after it (#206).
  */
-async function readPublishedMenuOf(
+async function readMenuProducts(
   container: MedusaContainer,
-  restaurant: RestaurantMenuRecord,
-): Promise<PublishedCategory[]> {
-  const productIds = productIdsOf(restaurant)
-  if (!productIds.length) return []
+  restaurant_id: string,
+): Promise<MenuProductRecord[]> {
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
-  const { data: products } = await query.graph({
-    entity: "product",
+  const { data: links } = await query.graph({
+    entity: RESTAURANT_PRODUCT_LINK,
     fields: [
-      "id",
-      "status",
-      "menu_dish.*",
-      "variants.id",
-      "variants.calculated_price.*",
+      "product.id",
+      "product.status",
+      "product.menu_dish.*",
+      "product.variants.id",
+      "product.variants.calculated_price.calculated_amount",
+      "product.variants.calculated_price.currency_code",
+      "product.variants.calculated_price.is_calculated_price_tax_inclusive",
     ],
-    filters: { id: productIds },
+    filters: { restaurant_id },
     context: {
-      variants: {
-        calculated_price: QueryContext({ currency_code: MENU_CURRENCY }),
+      product: {
+        variants: {
+          calculated_price: QueryContext({ currency_code: MENU_CURRENCY }),
+        },
       },
     },
   })
-  return publishedMenuOf(
-    restaurant.menu_categories ?? [],
-    (
-      products as unknown as (MenuProductRecord & {
-        menu_dish?: { category_id: string }
-      })[]
-    ).map((product) => ({
-      ...product,
-      menu_category: product.menu_dish
-        ? { id: product.menu_dish.category_id }
-        : null,
-    })),
+  return (
+    links as unknown as { product?: MenuDishProductRecord | null }[]
+  ).flatMap(({ product }) =>
+    product
+      ? [
+          {
+            ...product,
+            menu_category: product.menu_dish
+              ? { id: product.menu_dish.category_id }
+              : null,
+          },
+        ]
+      : [],
   )
 }
 
 /**
  * The Restaurant with its valid published menu, read fresh; nothing when the
- * Restaurant does not exist. The price is Medusa's calculated DKK price, the
- * amount a cart would charge, in display units.
+ * Restaurant does not exist. The Restaurant and its dish prices are read at
+ * the same time. The price is Medusa's calculated DKK price, the amount a
+ * cart would charge, in display units.
  */
 export async function readRestaurantWithMenu(
   container: MedusaContainer,
@@ -118,9 +128,15 @@ export async function readRestaurantWithMenu(
   restaurant: RestaurantMenuRecord
   menu: PublishedCategory[]
 } | null> {
-  const restaurant = await readRestaurantRecord(container, restaurant_id)
+  const [restaurant, products] = await Promise.all([
+    readRestaurantRecord(container, restaurant_id),
+    readMenuProducts(container, restaurant_id),
+  ])
   if (!restaurant) return null
-  return { restaurant, menu: await readPublishedMenuOf(container, restaurant) }
+  return {
+    restaurant,
+    menu: publishedMenuOf(restaurant.menu_categories ?? [], products),
+  }
 }
 
 /** Adds current owned photos only to views that expose images. */
@@ -168,74 +184,76 @@ async function readCover(container: MedusaContainer, restaurant_id: string) {
  * The public menu of an active Restaurant, open or closed. An inactive
  * Restaurant answers exactly like one that does not exist.
  *
- * After the Restaurant query, the dish prices and the photo records are read
- * at the same time; only the published dishes' photo URLs are signed. Each part is timed on the private exporter, and a read over one
- * second logs its breakdown (#202).
+ * The Restaurant, the dish prices, the dish photo records and the cover are
+ * read at the same time, so the read takes as long as the slowest of them,
+ * not their sum (#206). Only the published dishes' photo URLs are signed.
+ * Each part is timed on the private exporter, and a read over one second
+ * logs its breakdown (#202).
  */
+export async function readCustomerMenu(
+  container: MedusaContainer,
+  restaurant_id: string,
+) {
+  const timing = startMenuReadTiming()
+  const [restaurant, products, [attachments, cover]] = await Promise.all([
+    timing.time("restaurant", () =>
+      readRestaurantRecord(container, restaurant_id),
+    ),
+    timing.time("dish_prices", () =>
+      readMenuProducts(container, restaurant_id),
+    ),
+    // Listed for the whole Restaurant: which dishes are published is known only later.
+    timing.time("photos", () =>
+      Promise.all([
+        listRestaurantDishPhotoAttachments(container, restaurant_id),
+        readCover(container, restaurant_id),
+      ]),
+    ),
+  ])
+  if (!restaurant?.is_active) throw restaurantNotFound()
+  const menu = publishedMenuOf(restaurant.menu_categories ?? [], products)
+  const dishes = menu.flatMap((category) => category.dishes)
+  const published = new Set(dishes.map(({ id }) => id))
+  const photos = await timing.time("photo_urls", () =>
+    signDishPhotos(
+      container,
+      attachments.filter(({ resource_id }) => published.has(resource_id)),
+    ),
+  )
+  const translateFoodInformation = await timing.time("food_information", () =>
+    loadFoodInformationTranslator(container, dishes),
+  )
+  timing.finish(container.resolve(ContainerRegistrationKeys.LOGGER), {
+    dishes: dishes.length,
+    photos: dishes.filter(({ id }) => photos.get(id)).length,
+  })
+  return {
+    restaurant: {
+      id: restaurant.id,
+      name: restaurant.name,
+      cover,
+      is_open: restaurant.is_open,
+      ...evaluateNewOrderEligibility({
+        is_active: restaurant.is_active,
+        is_open: restaurant.is_open,
+        delivery_postal_codes: (
+          restaurant.delivery_area_postal_codes ?? []
+        ).map(({ postal_code }) => postal_code),
+      }),
+    },
+    categories: menu.map((category) => ({
+      ...category,
+      dishes: category.dishes.map(({ allergens, food_labels, ...dish }) => ({
+        ...dish,
+        photo: photos.get(dish.id) ?? null,
+        food_information: translateFoodInformation({ allergens, food_labels }),
+      })),
+    })),
+  }
+}
+
 export const readRestaurantMenuStep = createStep(
   "read-restaurant-menu",
-  async (input: { restaurant_id: string }, { container }) => {
-    const timing = startMenuReadTiming()
-    const restaurant = await timing.time("restaurant", () =>
-      readRestaurantRecord(container, input.restaurant_id),
-    )
-    if (!restaurant?.is_active) throw restaurantNotFound()
-    const [menu, [attachments, cover]] = await Promise.all([
-      timing.time("dish_prices", () =>
-        readPublishedMenuOf(container, restaurant),
-      ),
-      // Listed for every linked dish: which are published is known only later.
-      timing.time("photos", () =>
-        Promise.all([
-          listDishPhotoAttachments(
-            container,
-            input.restaurant_id,
-            productIdsOf(restaurant),
-          ),
-          readCover(container, input.restaurant_id),
-        ]),
-      ),
-    ])
-    const dishes = menu.flatMap((category) => category.dishes)
-    const published = new Set(dishes.map(({ id }) => id))
-    const photos = await timing.time("photo_urls", () =>
-      signDishPhotos(
-        container,
-        attachments.filter(({ resource_id }) => published.has(resource_id)),
-      ),
-    )
-    const translateFoodInformation = await timing.time("food_information", () =>
-      loadFoodInformationTranslator(container, dishes),
-    )
-    timing.finish(container.resolve(ContainerRegistrationKeys.LOGGER), {
-      dishes: dishes.length,
-      photos: dishes.filter(({ id }) => photos.get(id)).length,
-    })
-    return new StepResponse({
-      restaurant: {
-        id: restaurant.id,
-        name: restaurant.name,
-        cover,
-        is_open: restaurant.is_open,
-        ...evaluateNewOrderEligibility({
-          is_active: restaurant.is_active,
-          is_open: restaurant.is_open,
-          delivery_postal_codes: (
-            restaurant.delivery_area_postal_codes ?? []
-          ).map(({ postal_code }) => postal_code),
-        }),
-      },
-      categories: menu.map((category) => ({
-        ...category,
-        dishes: category.dishes.map(({ allergens, food_labels, ...dish }) => ({
-          ...dish,
-          photo: photos.get(dish.id) ?? null,
-          food_information: translateFoodInformation({
-            allergens,
-            food_labels,
-          }),
-        })),
-      })),
-    })
-  },
+  async (input: { restaurant_id: string }, { container }) =>
+    new StepResponse(await readCustomerMenu(container, input.restaurant_id)),
 )

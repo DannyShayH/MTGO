@@ -535,8 +535,21 @@ against the seeded catalogue on each read. Older dishes without declarations
 report `unknown`; food labels report the seeded halal, chili and garlic labels and
 default each to `unknown` when an older dish has no declaration. Photos remain `null`.
 
+The read is fresh on every request but starts all its database reads at once
+(#206): the Restaurant with its categories, the linked dishes with their
+calculated prices, the Restaurant's dish photo records and its cover. Dishes
+are read through the Restaurant-product link by Restaurant id, so they do not
+wait for the Restaurant read; an inactive Restaurant is refused after both
+finish. Only the published dishes' photo URLs are signed, and a photo that
+cannot be signed leaves the dish without a photo. `readRestaurantWithMenu`,
+used by basket review and the partner menu steps, reads the Restaurant and its
+dishes the same way. The storefront memoizes `retrieveRestaurantMenu` with
+React `cache()`, so the menu page and its metadata share one backend call per
+render and the next request reads again.
+
 Evidence: `src/workflows/menu/__tests__/published-menu.unit.spec.ts` (the
-validity decision table), `integration-tests/http/restaurant-menu.spec.ts`
+validity decision table), `src/workflows/menu/__tests__/read-menu.unit.spec.ts`
+(the reads start together), `integration-tests/http/restaurant-menu.spec.ts`
 (visible, closed and hidden states, the invalid single-title product, the
 shared count, the commerce configuration through Admin and store APIs,
 repeated setup and the workload) and `apps/storefront/e2e/restaurant-menu.spec.ts`

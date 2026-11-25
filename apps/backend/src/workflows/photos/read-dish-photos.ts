@@ -20,6 +20,19 @@ export async function listDishPhotoAttachments(
     )
 }
 
+/** Every registered owned dish photo of the Restaurant, without URLs yet. */
+export async function listRestaurantDishPhotoAttachments(
+  container: MedusaContainer,
+  restaurantId: string,
+): Promise<DishPhotoAttachment[]> {
+  return container
+    .resolve<RestaurantModuleService>(RESTAURANT_MODULE)
+    .listPhotoAttachments(
+      { restaurant_id: restaurantId, kind: "dish" },
+      { take: null },
+    )
+}
+
 /** Each dish's photo URL; a storage outage must not hide dish text. */
 export async function signDishPhotos(
   container: MedusaContainer,
