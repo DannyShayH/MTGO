@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
-type ThresholdStep = { color: string; value: number | null }
+export type ThresholdStep = { color: string; value: number | null }
 
 export type Panel = {
   title: string
@@ -12,6 +12,8 @@ export type Panel = {
   description?: string
   options?: { content?: string }
   targets?: { expr: string; legendFormat?: string; instant?: boolean }[]
+  links?: { title: string; url: string }[]
+  transformations?: { id: string; options: unknown }[]
   fieldConfig?: {
     defaults: {
       unit?: string
@@ -21,6 +23,7 @@ export type Panel = {
       color?: { mode: string; fixedColor?: string }
       custom?: { spanNulls?: boolean; thresholdsStyle?: { mode: string } }
       thresholds?: { steps: ThresholdStep[] }
+      mappings?: unknown[]
     }
   }
 }
@@ -32,6 +35,13 @@ type Dashboard = {
   annotations: { list: { name: string; expr: string }[] }
   templating: { list: { name: string; options?: { value: string }[] }[] }
   panels: Panel[]
+}
+
+/** Every panel: a collapsed row holds its panels, an expanded row's follow it. */
+export function flattenRows(panels: Panel[]): Panel[] {
+  return panels.flatMap((panel) =>
+    panel.type === "row" ? (panel.panels ?? []) : [panel],
+  )
 }
 
 /** The colour of a value that has no target, and of one that is Unavailable. */

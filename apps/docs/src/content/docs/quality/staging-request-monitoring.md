@@ -13,7 +13,10 @@ Loki and Alloy for approved application events are an opt-in on top of this
 (`STAGING_LOGS_ENABLED=1`, see
 [approved application events](/MTGO/quality/approved-application-events/#staging-opt-in)). The full four-component capacity gate and
 acceptance remain [#183](https://github.com/DannyShayH/MTGO/issues/183) and
-[#184](https://github.com/DannyShayH/MTGO/issues/184).
+[#184](https://github.com/DannyShayH/MTGO/issues/184). Which panel shows which
+non-functional requirement, and how the team accepts a deploy against the
+**Requirements** row, is in
+[non-functional requirements and their metrics](/MTGO/quality/monitoring-requirements/).
 
 **Status:** prepared in the repository. The repository admin performs every
 Droplet step below. Agents change repository files only and never connect to
@@ -773,3 +776,13 @@ lower value still within the lookback, down for the whole range, and a host
 without swap) have expected values worked out by hand: running promtool was
 declined by the sandbox. The week of readings, the capacity table and the
 decisions are the developer's Droplet steps.
+
+Agent verification for #184 on 26 November 2026:
+`requirements-strip.unit.spec.ts` and `dashboard-queries.unit.spec.ts` pass,
+each new expectation seen failing first. They check that every stat of the
+**Requirements** row reuses a query already in the promtool file and the
+colours of its target, and links to its row in
+[non-functional requirements and their metrics](/MTGO/quality/monitoring-requirements/).
+Grafana did not run here (no Docker), so the Order submission stat's
+route filter is first seen in the Viewer check on that page. `monitoring update`
+and the team's acceptance are the developer's steps.

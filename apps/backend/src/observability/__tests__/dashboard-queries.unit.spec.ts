@@ -1,15 +1,17 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
-import { NEUTRAL, readRequestDashboard, type Panel } from "./dashboard"
+import {
+  NEUTRAL,
+  flattenRows,
+  readRequestDashboard,
+  type Panel,
+} from "./dashboard"
 
 const monitoring = join(__dirname, "../../../../../deploy/monitoring")
 const read = (path: string) => readFileSync(join(monitoring, path), "utf8")
 
 const dashboard = readRequestDashboard()
-// A collapsed row holds its panels; an expanded row's panels follow it.
-const panels: Panel[] = dashboard.panels.flatMap((panel) =>
-  panel.type === "row" ? (panel.panels ?? []) : [panel],
-)
+const panels = flattenRows(dashboard.panels)
 const queries = panels.flatMap((panel) =>
   (panel.targets ?? []).map(({ expr }) => ({ title: panel.title, expr })),
 )
@@ -770,6 +772,7 @@ describe("provisioned backend dashboard queries", () => {
 
     it("groups the panels in rows, most used first, rarely used collapsed", () => {
       expect(rows.map(({ title, collapsed }) => [title, collapsed])).toEqual([
+        ["Requirements", false],
         ["Traffic and thresholds", false],
         ["Latency and errors", false],
         ["HTTP-serving process", false],

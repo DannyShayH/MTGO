@@ -23,6 +23,11 @@ runtime. It does not count Customers or Orders, and HTTP
 latency is not Order processing time. Business state, logging
 and request correlation retain their existing contracts.
 
+Which panel shows which non-functional requirement, and what monitoring
+cannot prove, is in
+[non-functional requirements and their metrics](/MTGO/quality/monitoring-requirements/)
+(#184).
+
 ## Scope and boundaries
 
 | Component                    | Pinned version                             | Local access                                |
@@ -517,6 +522,7 @@ _Unavailable_ meaning no current evidence. The panels sit in rows:
 
 | Row                                         | Open by default | Shows                                                                                                                     |
 | ------------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Requirements                                | Yes             | One stat per measured non-functional requirement (#184), see [the table](/MTGO/quality/monitoring-requirements/)          |
 | Traffic and thresholds                      | Yes             | Scrape and data state, counts, rate, the low- and high-traffic indications, responses by status class and by final status |
 | Latency and errors                          | Yes             | 5xx proportion, p95 and its observation count, their charts, and the ten slowest route patterns now                       |
 | HTTP-serving process                        | Yes             | CPU, memory against the container cap, event-loop delay                                                                   |
@@ -526,7 +532,9 @@ _Unavailable_ meaning no current evidence. The panels sit in rows:
 | Latency by route over time                  | No              | The p95 of every route pattern over the displayed range                                                                   |
 | How to read this dashboard                  | No              | The coverage, interpretation, threshold and process-scope texts                                                           |
 
-The first two rows fit on one 1080p screen. Headline values are coloured by
+The Requirements, Traffic and Latency rows fit on one 1080p screen; for that
+the five charts and bars of Traffic and Latency are four grid rows high instead
+of five (#184). Headline values are coloured by
 the agreed targets; a value with no current evidence reads _Unavailable_ in
 neutral grey, never green:
 

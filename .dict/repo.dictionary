@@ -133,3 +133,4 @@ mountpoint
 squashfs
 statfs
 tmpfs
+blackbox

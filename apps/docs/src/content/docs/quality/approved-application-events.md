@@ -17,6 +17,9 @@ Seven-day history and resume
 [health views](#pipeline-health-and-failures) of
 [#179](https://github.com/DannyShayH/MTGO/issues/179).
 Budgets are [#182](https://github.com/DannyShayH/MTGO/issues/182).
+**Collection state** is also the **Event collection** stat in the
+**Requirements** row of the request dashboard, see
+[non-functional requirements and their metrics](/MTGO/quality/monitoring-requirements/#event-collection).
 
 ## The data boundary
 

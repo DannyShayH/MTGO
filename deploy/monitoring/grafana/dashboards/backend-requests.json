@@ -129,6 +129,626 @@
       "transparent": true
     },
     {
+      "id": 71,
+      "title": "Requirements",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 2
+      },
+      "panels": []
+    },
+    {
+      "id": 63,
+      "title": "Browsing p95 within 2 s",
+      "type": "stat",
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 0,
+        "y": 3
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "ADR-0014: 95 % of ordinary browsing and status requests within 2 s. The p95 of all ordinary API routes, the query of the Ordinary API p95 stat below; Order submission is in it too, so amber can be submission alone (see the slowest route patterns). Green below 2 s, amber from 2 s, red from 5 s. Unavailable without duration observations.",
+      "links": [
+        {
+          "title": "This requirement in the docs table",
+          "url": "https://dannyshayh.github.io/MTGO/quality/monitoring-requirements/#browsing-p95",
+          "targetBlank": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "Unavailable",
+          "unit": "s",
+          "decimals": 3,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#B8BEC9",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "orange",
+                "value": 2
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(mtogo_http_request_duration_seconds_bucket{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))) and on() (sum(increase(mtogo_http_request_duration_seconds_count{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) > 0)",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 64,
+      "title": "Order submission p95 within 5 s",
+      "type": "stat",
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 3,
+        "y": 3
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "ADR-0014: Order submission within 5 s with the mock payment provider answering at once. The p95 of POST /store/carts/:id/complete only, from the per-route p95 query (Latency by route over time). Green below 5 s, red from 5 s. Unavailable when no Order was submitted in the last five minutes.",
+      "links": [
+        {
+          "title": "This requirement in the docs table",
+          "url": "https://dannyshayh.github.io/MTGO/quality/monitoring-requirements/#order-submission-p95",
+          "targetBlank": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "Unavailable",
+          "unit": "s",
+          "decimals": 3,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#B8BEC9",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, method, route) (rate(mtogo_http_request_duration_seconds_bucket{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1))) and on(method, route) (sum by (method, route) (increase(mtogo_http_request_duration_seconds_count{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) > 0)",
+          "legendFormat": "{{method}} {{route}}",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "names": ["POST /store/carts/:id/complete"]
+            }
+          }
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 65,
+      "title": "Server failures (5xx)",
+      "type": "stat",
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 6,
+        "y": 3
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Server failures as a share of completed responses, the query of the 5xx proportion stat below. Green at 0 %, amber above 0 %. Expected refusals (4xx) are not failures. Unavailable with no completed responses.",
+      "links": [
+        {
+          "title": "This requirement in the docs table",
+          "url": "https://dannyshayh.github.io/MTGO/quality/monitoring-requirements/#server-failures",
+          "targetBlank": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "Unavailable",
+          "unit": "percentunit",
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#B8BEC9",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "orange",
+                "value": 0.000001
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum(rate(mtogo_http_requests_total{job=\"mtogo-backend\",status=~\"5..\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) or (0 * sum(rate(mtogo_http_requests_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)))) / (sum(rate(mtogo_http_requests_total{job=\"mtogo-backend\"}[5m]) and on(job, instance) (up{job=\"mtogo-backend\"} == 1)) > 0)",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 66,
+      "title": "Event-loop delay p99",
+      "type": "stat",
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 9,
+        "y": 3
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Process saturation: how long requests wait behind blocking work in the HTTP-serving process, the query of the event-loop delay stat in the HTTP-serving process row. Green below 0.1 s, amber from 0.1 s, red from 1 s.",
+      "links": [
+        {
+          "title": "This requirement in the docs table",
+          "url": "https://dannyshayh.github.io/MTGO/quality/monitoring-requirements/#event-loop-delay",
+          "targetBlank": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "Unavailable",
+          "unit": "s",
+          "decimals": 3,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#B8BEC9",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "orange",
+                "value": 0.1
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "nodejs_eventloop_lag_p99_seconds{job=\"mtogo-backend\"} and on(job, instance) (up{job=\"mtogo-backend\"} == 1)",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 67,
+      "title": "Backend memory, 768 MiB cap",
+      "type": "stat",
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 12,
+        "y": 3
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Process saturation: resident memory of the HTTP-serving process against the 768 MiB staging container cap, the query of the memory bar in the HTTP-serving process row. Green below 80 %, amber from 80 %, red from 90 % of the cap.",
+      "links": [
+        {
+          "title": "This requirement in the docs table",
+          "url": "https://dannyshayh.github.io/MTGO/quality/monitoring-requirements/#backend-memory",
+          "targetBlank": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "Unavailable",
+          "unit": "bytes",
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#B8BEC9",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "orange",
+                "value": 644245094
+              },
+              {
+                "color": "red",
+                "value": 724775731
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "process_resident_memory_bytes{job=\"mtogo-backend\"} and on(job, instance) (up{job=\"mtogo-backend\"} == 1)",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 68,
+      "title": "Host memory headroom",
+      "type": "stat",
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 15,
+        "y": 3
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Host headroom (#182): memory the whole Droplet can still hand out (`available` in `free -m`), the query of Host memory available. Red below the agreed 200 MB floor.",
+      "links": [
+        {
+          "title": "This requirement in the docs table",
+          "url": "https://dannyshayh.github.io/MTGO/quality/monitoring-requirements/#host-memory",
+          "targetBlank": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "Unavailable",
+          "unit": "bytes",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#B8BEC9",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0
+              },
+              {
+                "color": "green",
+                "value": 209715200
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_memory_MemAvailable_bytes{job=\"mtogo-node\"} and on(job, instance) (up{job=\"mtogo-node\"} == 1)",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 69,
+      "title": "Host disk headroom",
+      "type": "stat",
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 18,
+        "y": 3
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Host headroom (#182): free space on the disk that holds the Docker volumes, the query of Host disk free — Docker volumes. Amber below 20 %, red below 10 %.",
+      "links": [
+        {
+          "title": "This requirement in the docs table",
+          "url": "https://dannyshayh.github.io/MTGO/quality/monitoring-requirements/#host-disk",
+          "targetBlank": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "noValue": "Unavailable",
+          "unit": "percentunit",
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "#B8BEC9",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0
+              },
+              {
+                "color": "orange",
+                "value": 0.1
+              },
+              {
+                "color": "green",
+                "value": 0.2
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "node_filesystem_avail_bytes{job=\"mtogo-node\",mountpoint=\"/host/docker-volumes\"} / node_filesystem_size_bytes{job=\"mtogo-node\",mountpoint=\"/host/docker-volumes\"} and on(job, instance) (up{job=\"mtogo-node\"} == 1)",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 70,
+      "title": "Event collection",
+      "type": "stat",
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 21,
+        "y": 3
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mtogo-prometheus"
+      },
+      "description": "Event collection health (#179): whether approved application events reach Loki now, the query and states of Collection state on the approved application events dashboard. Unavailable when Prometheus has no evidence, for example with staging logs off.",
+      "links": [
+        {
+          "title": "This requirement in the docs table",
+          "url": "https://dannyshayh.github.io/MTGO/quality/monitoring-requirements/#event-collection",
+          "targetBlank": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#B8BEC9"
+          },
+          "noValue": "Unavailable — no evidence from Prometheus",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Collection DOWN — Alloy not reachable",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "History DOWN — Loki not reachable",
+                  "color": "red"
+                },
+                "2": {
+                  "text": "Insufficient history — fewer than two scrapes",
+                  "color": "orange"
+                },
+                "3": {
+                  "text": "DROPPING — Alloy gave up on entries in the last 5 minutes",
+                  "color": "red"
+                },
+                "4": {
+                  "text": "Cannot list containers — Docker not reachable",
+                  "color": "red"
+                },
+                "5": {
+                  "text": "Retrying — delivery to Loki is failing or delayed",
+                  "color": "orange"
+                },
+                "6": {
+                  "text": "No line read in 5 minutes — quiet, or containers not read",
+                  "color": "#B8BEC9"
+                },
+                "7": {
+                  "text": "Collecting — lines read",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "((max(up{job=\"mtogo-alloy\"}) == 0) + 0) or ((max(up{job=\"mtogo-loki\"}) == 0) + 1) or (((max(up{job=\"mtogo-alloy\"}) == 1) + 1) unless (sum(sum_over_time(up{job=\"mtogo-alloy\"}[5m])) >= 2)) or ((sum(increase(loki_write_dropped_entries_total{job=\"mtogo-alloy\"}[5m])) > 0) * 0 + 3) or ((sum(increase(prometheus_sd_refresh_failures_total{job=\"mtogo-alloy\"}[5m])) > 0) * 0 + 4) or ((sum(increase(loki_write_batch_retries_total{job=\"mtogo-alloy\"}[5m])) > 0) * 0 + 5) or (((max(up{job=\"mtogo-alloy\"}) == 1) + 5) and (max(up{job=\"mtogo-loki\"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job=\"mtogo-alloy\"}[5m])) == 0)) or (((max(up{job=\"mtogo-alloy\"}) == 1) + 6) and (max(up{job=\"mtogo-loki\"}) == 1) and (sum(increase(loki_source_docker_target_entries_total{job=\"mtogo-alloy\"}[5m])) > 0))",
+          "legendFormat": "",
+          "range": false,
+          "instant": true
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
       "id": 40,
       "type": "row",
       "title": "Traffic and thresholds",
@@ -137,7 +757,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 2
+        "y": 6
       },
       "panels": []
     },
@@ -149,7 +769,7 @@
         "h": 3,
         "w": 3,
         "x": 0,
-        "y": 3
+        "y": 7
       },
       "datasource": {
         "type": "prometheus",
@@ -209,7 +829,7 @@
         "h": 3,
         "w": 4,
         "x": 3,
-        "y": 3
+        "y": 7
       },
       "datasource": {
         "type": "prometheus",
@@ -277,7 +897,7 @@
         "h": 3,
         "w": 3,
         "x": 7,
-        "y": 3
+        "y": 7
       },
       "datasource": {
         "type": "prometheus",
@@ -323,7 +943,7 @@
         "h": 3,
         "w": 3,
         "x": 10,
-        "y": 3
+        "y": 7
       },
       "datasource": {
         "type": "prometheus",
@@ -368,7 +988,7 @@
         "h": 3,
         "w": 3,
         "x": 13,
-        "y": 3
+        "y": 7
       },
       "datasource": {
         "type": "prometheus",
@@ -415,7 +1035,7 @@
         "h": 3,
         "w": 4,
         "x": 16,
-        "y": 3
+        "y": 7
       },
       "datasource": {
         "type": "prometheus",
@@ -497,7 +1117,7 @@
         "h": 3,
         "w": 4,
         "x": 20,
-        "y": 3
+        "y": 7
       },
       "datasource": {
         "type": "prometheus",
@@ -576,10 +1196,10 @@
       "title": "Completed responses by status class — rolling 5 minutes",
       "type": "timeseries",
       "gridPos": {
-        "h": 5,
+        "h": 4,
         "w": 12,
         "x": 0,
-        "y": 6
+        "y": 10
       },
       "datasource": {
         "type": "prometheus",
@@ -695,10 +1315,10 @@
       "title": "Completed responses by final status — since process start",
       "type": "timeseries",
       "gridPos": {
-        "h": 5,
+        "h": 4,
         "w": 12,
         "x": 12,
-        "y": 6
+        "y": 10
       },
       "datasource": {
         "type": "prometheus",
@@ -745,7 +1365,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 11
+        "y": 14
       },
       "panels": []
     },
@@ -757,7 +1377,7 @@
         "h": 3,
         "w": 8,
         "x": 0,
-        "y": 12
+        "y": 15
       },
       "datasource": {
         "type": "prometheus",
@@ -820,7 +1440,7 @@
         "h": 3,
         "w": 8,
         "x": 8,
-        "y": 12
+        "y": 15
       },
       "datasource": {
         "type": "prometheus",
@@ -887,7 +1507,7 @@
         "h": 3,
         "w": 8,
         "x": 16,
-        "y": 12
+        "y": 15
       },
       "datasource": {
         "type": "prometheus",
@@ -930,10 +1550,10 @@
       "title": "5xx proportion — rolling 5 minutes",
       "type": "timeseries",
       "gridPos": {
-        "h": 5,
+        "h": 4,
         "w": 8,
         "x": 0,
-        "y": 15
+        "y": 18
       },
       "datasource": {
         "type": "prometheus",
@@ -979,10 +1599,10 @@
       "title": "Ordinary API p95 — all routes, rolling 5 minutes",
       "type": "timeseries",
       "gridPos": {
-        "h": 5,
+        "h": 4,
         "w": 8,
         "x": 8,
-        "y": 15
+        "y": 18
       },
       "datasource": {
         "type": "prometheus",
@@ -1051,10 +1671,10 @@
         "uid": "mtogo-prometheus"
       },
       "gridPos": {
-        "h": 5,
+        "h": 4,
         "w": 8,
         "x": 16,
-        "y": 15
+        "y": 18
       },
       "targets": [
         {
@@ -1140,7 +1760,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 20
+        "y": 22
       },
       "panels": []
     },
@@ -1152,7 +1772,7 @@
         "h": 3,
         "w": 8,
         "x": 0,
-        "y": 21
+        "y": 23
       },
       "datasource": {
         "type": "prometheus",
@@ -1199,7 +1819,7 @@
         "h": 3,
         "w": 8,
         "x": 8,
-        "y": 21
+        "y": 23
       },
       "datasource": {
         "type": "prometheus",
@@ -1270,7 +1890,7 @@
         "h": 3,
         "w": 8,
         "x": 16,
-        "y": 21
+        "y": 23
       },
       "datasource": {
         "type": "prometheus",
@@ -1337,7 +1957,7 @@
         "h": 6,
         "w": 8,
         "x": 0,
-        "y": 24
+        "y": 26
       },
       "datasource": {
         "type": "prometheus",
@@ -1385,7 +2005,7 @@
         "h": 6,
         "w": 8,
         "x": 8,
-        "y": 24
+        "y": 26
       },
       "datasource": {
         "type": "prometheus",
@@ -1447,7 +2067,7 @@
         "h": 6,
         "w": 8,
         "x": 16,
-        "y": 24
+        "y": 26
       },
       "datasource": {
         "type": "prometheus",
@@ -1530,7 +2150,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 30
+        "y": 32
       },
       "panels": []
     },
@@ -1542,7 +2162,7 @@
         "h": 3,
         "w": 3,
         "x": 0,
-        "y": 31
+        "y": 33
       },
       "datasource": {
         "type": "prometheus",
@@ -1589,7 +2209,7 @@
         "h": 3,
         "w": 3,
         "x": 3,
-        "y": 31
+        "y": 33
       },
       "datasource": {
         "type": "prometheus",
@@ -1636,7 +2256,7 @@
         "h": 3,
         "w": 3,
         "x": 6,
-        "y": 31
+        "y": 33
       },
       "datasource": {
         "type": "prometheus",
@@ -1699,7 +2319,7 @@
         "h": 3,
         "w": 3,
         "x": 9,
-        "y": 31
+        "y": 33
       },
       "datasource": {
         "type": "prometheus",
@@ -1762,7 +2382,7 @@
         "h": 3,
         "w": 3,
         "x": 12,
-        "y": 31
+        "y": 33
       },
       "datasource": {
         "type": "prometheus",
@@ -1809,7 +2429,7 @@
         "h": 3,
         "w": 3,
         "x": 15,
-        "y": 31
+        "y": 33
       },
       "datasource": {
         "type": "prometheus",
@@ -1856,7 +2476,7 @@
         "h": 3,
         "w": 3,
         "x": 18,
-        "y": 31
+        "y": 33
       },
       "datasource": {
         "type": "prometheus",
@@ -1923,7 +2543,7 @@
         "h": 3,
         "w": 3,
         "x": 21,
-        "y": 31
+        "y": 33
       },
       "datasource": {
         "type": "prometheus",
@@ -1990,7 +2610,7 @@
         "h": 6,
         "w": 8,
         "x": 0,
-        "y": 34
+        "y": 36
       },
       "datasource": {
         "type": "prometheus",
@@ -2054,7 +2674,7 @@
         "h": 6,
         "w": 8,
         "x": 8,
-        "y": 34
+        "y": 36
       },
       "datasource": {
         "type": "prometheus",
@@ -2109,7 +2729,7 @@
         "h": 6,
         "w": 8,
         "x": 16,
-        "y": 34
+        "y": 36
       },
       "datasource": {
         "type": "prometheus",
@@ -2185,7 +2805,7 @@
         "h": 6,
         "w": 12,
         "x": 0,
-        "y": 40
+        "y": 42
       },
       "datasource": {
         "type": "prometheus",
@@ -2234,7 +2854,7 @@
         "h": 6,
         "w": 12,
         "x": 12,
-        "y": 40
+        "y": 42
       },
       "datasource": {
         "type": "prometheus",
@@ -2304,7 +2924,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 46
+        "y": 48
       },
       "panels": [
         {
@@ -2315,7 +2935,7 @@
             "h": 4,
             "w": 24,
             "x": 0,
-            "y": 47
+            "y": 49
           },
           "options": {
             "mode": "markdown",
@@ -2330,7 +2950,7 @@
             "h": 3,
             "w": 8,
             "x": 0,
-            "y": 51
+            "y": 53
           },
           "datasource": {
             "type": "prometheus",
@@ -2376,7 +2996,7 @@
             "h": 3,
             "w": 8,
             "x": 8,
-            "y": 51
+            "y": 53
           },
           "datasource": {
             "type": "prometheus",
@@ -2422,7 +3042,7 @@
             "h": 3,
             "w": 8,
             "x": 16,
-            "y": 51
+            "y": 53
           },
           "datasource": {
             "type": "prometheus",
@@ -2468,7 +3088,7 @@
             "h": 6,
             "w": 8,
             "x": 0,
-            "y": 54
+            "y": 56
           },
           "datasource": {
             "type": "prometheus",
@@ -2516,7 +3136,7 @@
             "h": 6,
             "w": 8,
             "x": 8,
-            "y": 54
+            "y": 56
           },
           "datasource": {
             "type": "prometheus",
@@ -2564,7 +3184,7 @@
             "h": 6,
             "w": 8,
             "x": 16,
-            "y": 54
+            "y": 56
           },
           "datasource": {
             "type": "prometheus",
@@ -2615,7 +3235,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 47
+        "y": 49
       },
       "panels": [
         {
@@ -2626,7 +3246,7 @@
             "h": 5,
             "w": 24,
             "x": 0,
-            "y": 48
+            "y": 50
           },
           "options": {
             "mode": "markdown",
@@ -2641,7 +3261,7 @@
             "h": 3,
             "w": 12,
             "x": 0,
-            "y": 53
+            "y": 55
           },
           "datasource": {
             "type": "prometheus",
@@ -2690,7 +3310,7 @@
             "h": 3,
             "w": 12,
             "x": 12,
-            "y": 53
+            "y": 55
           },
           "datasource": {
             "type": "prometheus",
@@ -2750,7 +3370,7 @@
             "h": 7,
             "w": 12,
             "x": 0,
-            "y": 56
+            "y": 58
           },
           "datasource": {
             "type": "prometheus",
@@ -2804,7 +3424,7 @@
             "h": 7,
             "w": 12,
             "x": 12,
-            "y": 56
+            "y": 58
           },
           "datasource": {
             "type": "prometheus",
@@ -2851,7 +3471,7 @@
             "h": 6,
             "w": 24,
             "x": 0,
-            "y": 63
+            "y": 65
           },
           "datasource": {
             "type": "prometheus",
@@ -2902,7 +3522,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 48
+        "y": 50
       },
       "panels": [
         {
@@ -2913,7 +3533,7 @@
             "h": 8,
             "w": 24,
             "x": 0,
-            "y": 49
+            "y": 51
           },
           "datasource": {
             "type": "prometheus",
@@ -2983,7 +3603,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 49
+        "y": 51
       },
       "panels": [
         {
@@ -2994,7 +3614,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 50
+            "y": 52
           },
           "options": {
             "mode": "markdown",
@@ -3009,7 +3629,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 50
+            "y": 52
           },
           "options": {
             "mode": "markdown",
@@ -3024,7 +3644,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 58
+            "y": 60
           },
           "options": {
             "mode": "markdown",
@@ -3039,7 +3659,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 58
+            "y": 60
           },
           "options": {
             "mode": "markdown",
@@ -3054,7 +3674,7 @@
             "h": 6,
             "w": 24,
             "x": 0,
-            "y": 66
+            "y": 68
           },
           "options": {
             "mode": "markdown",

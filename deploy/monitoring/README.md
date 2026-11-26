@@ -4,6 +4,17 @@ The runbook, coverage limits, acceptance record and troubleshooting are in
 [Local backend request monitoring](../../apps/docs/src/content/docs/quality/local-request-monitoring.md)
 and, for the Droplet,
 [Staging request monitoring](../../apps/docs/src/content/docs/quality/staging-request-monitoring.md).
+Which panel shows which non-functional requirement is in
+[Non-functional requirements and their metrics](../../apps/docs/src/content/docs/quality/monitoring-requirements.md).
+
+## Requirements strip (#184)
+
+The **Requirements** row at the top of the request dashboard has one stat per
+measured requirement. Each reuses the query and colours of an existing panel
+(the events one from `application-events.json`), so it needs no promtool case
+of its own, and links to its row in that table.
+`requirements-strip.unit.spec.ts` in the backend fails when a stat's query is
+not another panel's promtool-tested query, or its link has no table row.
 
 ## Local
 
