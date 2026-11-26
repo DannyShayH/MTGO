@@ -386,14 +386,16 @@ request dashboard shows the Droplet that monitoring shares with the
 applications, read by Node Exporter every 15 seconds. All values are the whole
 host's: MTOGO, monitoring and the non-MTOGO containers.
 
-| Panel                             | Meaning                                                                                                                                                                                                                                     | Colour                               |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
-| Host CPU used                     | Share of all cores' time over five minutes, without idle and waiting for the disk; includes time the hypervisor took (steal). High for minutes outside a deploy means the Droplet is too busy                                               | Neutral: no limit is agreed          |
-| Host load per core                | Five-minute load average divided by the cores: tasks that run, or wait for a core or the disk. Staying above 1 means work queues; with a low CPU value it queues at the disk. The chart shows the 1, 5 and 15 minute load next to the cores | Neutral: no limit is agreed          |
-| Host memory available             | Memory the kernel can hand out without swapping; `available` in `free -m`                                                                                                                                                                   | Green from 200 MB, red below (floor) |
-| Host swap used                    | Swap total minus swap free. Growing while memory is low means the Droplet is too small                                                                                                                                                      | Neutral: no limit is agreed          |
-| Host disk free — root file system | Space an ordinary process can still use, as a share of the disk's size (`Avail` in `df`)                                                                                                                                                    | Amber below 20 %, red below 10 %     |
-| Host disk free — Docker volumes   | The same for the disk with the Docker volumes. On the Droplet it is the root file system, so both are equal                                                                                                                                 | Amber below 20 %, red below 10 %     |
+| Panel                                                 | Meaning                                                                                                                                                                                                                                     | Colour                               |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| Host CPU used                                         | Share of all cores' time over five minutes, without idle and waiting for the disk; includes time the hypervisor took (steal). High for minutes outside a deploy means the Droplet is too busy                                               | Neutral: no limit is agreed          |
+| Host load per core                                    | Five-minute load average divided by the cores: tasks that run, or wait for a core or the disk. Staying above 1 means work queues; with a low CPU value it queues at the disk. The chart shows the 1, 5 and 15 minute load next to the cores | Neutral: no limit is agreed          |
+| Host memory available                                 | Memory the kernel can hand out without swapping; `available` in `free -m`                                                                                                                                                                   | Green from 200 MB, red below (floor) |
+| Host memory available — lowest in the displayed range | The lowest `available` of every scrape in the displayed range (#183); a capacity reading as one number                                                                                                                                      | Green from 200 MB, red below (floor) |
+| Host swap used                                        | Swap total minus swap free. Growing while memory is low means the Droplet is too small                                                                                                                                                      | Neutral: no limit is agreed          |
+| Host swap used — most in the displayed range          | The most swap in use at any scrape in the displayed range (#183)                                                                                                                                                                            | Neutral: no limit is agreed          |
+| Host disk free — root file system                     | Space an ordinary process can still use, as a share of the disk's size (`Avail` in `df`)                                                                                                                                                    | Amber below 20 %, red below 10 %     |
+| Host disk free — Docker volumes                       | The same for the disk with the Docker volumes. On the Droplet it is the root file system, so both are equal                                                                                                                                 | Amber below 20 %, red below 10 %     |
 
 The charts show the same over time, with the limits as dashed lines. `free -m`
 counts MiB, so the 200 MB floor is 200 MiB in the panel. _Unavailable_ in grey
@@ -401,6 +403,14 @@ means Node Exporter is not being scraped (or cannot read that disk), never
 zero. A dip shorter than 15 seconds can fall between two scrapes. The row is
 not per container: use `docker stats` for that. To read one deploy, choose the
 time range around its purple restart marker.
+
+The two range stats are the agreed exception to the five-minute rule: their
+window is the displayed time range (`$__range`), and they count every
+15-second scrape in it. Zoom to one deploy, between its restart markers, and
+the lowest-available stat is that deploy's minimum, the lowest point of the
+memory chart. Scrapes while Node Exporter was down do not count, so a value
+from before the range never stands in for it. Down for the whole range, both
+read _Unavailable_, never 0.
 
 Node Exporter sees no host folder. It runs without privileges on a network it
 shares with Prometheus only, and mounts two things read-only: the file
@@ -445,6 +455,91 @@ volumes deletes history and accounts ([rollback](#rollback), step 4). Never
 fill the disk of staging to test the colours; the
 [local check](/MTGO/quality/local-request-monitoring/#host-cpu-memory-and-disk-182)
 uses a disposable volume.
+
+## Capacity across deploys
+
+Issue [#183](https://github.com/DannyShayH/MTGO/issues/183). The caps in
+[Memory budget](#memory-budget) were set from estimates and two hand samples
+on 25 November 2026 (288 MB available and 452 MB swap during a deploy, 540 MB
+available at rest). This section turns a week of staging into the evidence for
+keeping or changing them, with the full stack running
+(`STAGING_LOGS_ENABLED=1`).
+
+### Taking a reading
+
+For each moment in the table below:
+
+1. Start the container log in a second SSH session before the moment begins,
+   and stop it with Ctrl+C when it is over:
+
+   ```bash
+   while sleep 5; do
+     printf '%s available=%s MB\n' "$(date -u +%T)" "$(free -m | awk '/^Mem:/ {print $7}')"
+     sudo docker stats --no-stream --format '{{.Name}} {{.MemUsage}}' | grep mtogo
+   done | tee ~/mtogo-capacity-<moment>.log
+   ```
+
+2. Print each container's peak from that log:
+
+   ```bash
+   awk '$2 ~ /iB$/ {
+     v = $2; u = v; sub(/[0-9.]+/, "", u); sub(/[A-Za-z]+$/, "", v)
+     if (u == "GiB") v *= 1024; else if (u == "KiB") v /= 1024
+     if (v > peak[$1]) peak[$1] = v
+   } END { for (c in peak) printf "%s %.0f MiB\n", c, peak[c] }' ~/mtogo-capacity-<moment>.log
+   ```
+
+3. On the **Host** row, set the time range to the moment (for a deploy,
+   between its two restart markers) and read **Host memory available — lowest
+   in the displayed range**, **Host swap used — most in the displayed range**
+   and the lowest point of the **Host disk free** chart.
+
+The moments:
+
+- **Idle:** an hour without a deploy, a restart or test traffic.
+- **Deploy:** a delivery from the Deploy workflow, from before the migration
+  container starts until the new backend is healthy. Record at least two.
+- **Loki compaction:** the compactor runs every 10 minutes. Take the log over
+  20 minutes, and find the run in
+  `sudo docker logs --since 20m mtogo-staging-monitoring-loki-1 2>&1 | grep -i compact`.
+  After seven days of logs it also deletes, which is the heavier run.
+- **Monitoring restart:** `sudo mtogo-deploy.sh monitoring update`, until
+  Grafana answers again; Prometheus replays its write-ahead log on start.
+
+### Capacity table
+
+To be filled in by the repository admin. Memory in MiB as `free -m` and
+`docker stats` print it; disk as the lowest free share.
+
+| Moment (date, UTC time range) | Lowest available | Most swap | Disk free | prometheus | grafana | loki | alloy | node-exporter |
+| ----------------------------- | ---------------- | --------- | --------- | ---------- | ------- | ---- | ----- | ------------- |
+| Idle                          |                  |           |           |            |         |      |       |               |
+| Deploy 1                      |                  |           |           |            |         |      |       |               |
+| Deploy 2                      |                  |           |           |            |         |      |       |               |
+| Loki compaction               |                  |           |           |            |         |      |       |               |
+| Monitoring restart            |                  |           |           |            |         |      |       |               |
+
+### Caps and floor
+
+Decided from the table, not estimated. A cap stays when its container's peak
+leaves headroom for garbage collection (its Go memory limit plus what it uses
+outside the Go heap, about 100 MiB for Grafana). It is lowered when the peak
+is far below it, which gives the host the difference. It is raised only when
+the lowest available still stays at or above the floor with the higher cap. A
+change goes to `deploy/monitoring/compose.staging.yaml` and the
+[Memory budget](#memory-budget) in one commit.
+
+| Limit                               | Now    | Measured peak | Decision | Reason |
+| ----------------------------------- | ------ | ------------- | -------- | ------ |
+| prometheus cap                      | 192 MB |               |          |        |
+| grafana cap                         | 448 MB |               |          |        |
+| loki cap                            | 256 MB |               |          |        |
+| alloy cap                           | 160 MB |               |          |        |
+| node-exporter cap                   | 48 MB  |               |          |        |
+| Host floor (`available`, `free -m`) | 200 MB |               |          |        |
+
+If any reading crossed the floor, record it and the team's hosting decision on
+[#167](https://github.com/DannyShayH/MTGO/issues/167) before adding cost.
 
 ## Customer menu read and restaurant menu page
 
@@ -669,3 +764,12 @@ spec sources the script with Grafana's API replaced by a recorded
 deliberately broken script. It does not show that staging Grafana answers;
 the admin's check 4 above does. The accounts and the members' acceptance are
 the developer's Droplet steps.
+
+Agent verification for #183 on 26 November 2026: `host-metrics.unit.spec.ts`
+and `dashboard-queries.unit.spec.ts` pass, each new expectation seen failing
+first. The promtool cases for the two range stats (a deploy inside and an
+earlier dip outside the range, Node Exporter down for part of the range with a
+lower value still within the lookback, down for the whole range, and a host
+without swap) have expected values worked out by hand: running promtool was
+declined by the sandbox. The week of readings, the capacity table and the
+decisions are the developer's Droplet steps.

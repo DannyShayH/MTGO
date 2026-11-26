@@ -3615,3 +3615,112 @@ tests:
         exp_samples:
           - labels: '{instance="node-exporter:9100", job="mtogo-node"}'
             value: 0.3
+  # host over the displayed range (#183): a 5m range zoomed to one deploy reads its dip (250 MiB, 452 MiB swap); a 10m range also holds an earlier, deeper one (150 MiB, 500 MiB swap)
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "1x40"
+      - series: 'node_memory_MemAvailable_bytes{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "629145600x3 157286400x1 629145600x23 262144000x1 629145600x8"
+      - series: 'node_memory_SwapTotal_bytes{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "2147483648x40"
+      - series: 'node_memory_SwapFree_bytes{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "2042626048x3 1623195648x1 2042626048x23 1673527296x1 2042626048x8"
+    promql_expr_test:
+      - expr: 'min_over_time((node_memory_MemAvailable_bytes{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1))[5m:15s])'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 262144000
+      - expr: 'min_over_time((node_memory_MemAvailable_bytes{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1))[10m:15s])'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 157286400
+      - expr: 'max_over_time((node_memory_SwapTotal_bytes{job="mtogo-node"} - node_memory_SwapFree_bytes{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1))[5m:15s])'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 473956352
+      - expr: 'max_over_time((node_memory_SwapTotal_bytes{job="mtogo-node"} - node_memory_SwapFree_bytes{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1))[10m:15s])'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 524288000
+  # host over the displayed range, DOWN in part of it: a lower reading from before a 5m range, still within the lookback while DOWN, does not count
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "1x19 0x7 1x12"
+      - series: 'node_memory_MemAvailable_bytes{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "629145600x17 125829120x1 _x8 314572800x12"
+      - series: 'node_memory_SwapTotal_bytes{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "2147483648x19 _x8 2147483648x12"
+      - series: 'node_memory_SwapFree_bytes{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "2042626048x17 1518338048x1 _x8 1937768448x12"
+    promql_expr_test:
+      - expr: 'min_over_time((node_memory_MemAvailable_bytes{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1))[5m:15s])'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 314572800
+      - expr: 'min_over_time((node_memory_MemAvailable_bytes{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1))[10m:15s])'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 125829120
+      - expr: 'max_over_time((node_memory_SwapTotal_bytes{job="mtogo-node"} - node_memory_SwapFree_bytes{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1))[5m:15s])'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 209715200
+      - expr: 'max_over_time((node_memory_SwapTotal_bytes{job="mtogo-node"} - node_memory_SwapFree_bytes{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1))[10m:15s])'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 629145600
+  # host over the displayed range, DOWN for all of a 5m range: Unavailable, not the stale value or 0
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "1x19 0x20"
+      - series: 'node_memory_MemAvailable_bytes{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "629145600x19 _x20"
+      - series: 'node_memory_SwapTotal_bytes{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "2147483648x19 _x20"
+      - series: 'node_memory_SwapFree_bytes{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "2042626048x19 _x20"
+    promql_expr_test:
+      - expr: 'min_over_time((node_memory_MemAvailable_bytes{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1))[5m:15s])'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'max_over_time((node_memory_SwapTotal_bytes{job="mtogo-node"} - node_memory_SwapFree_bytes{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1))[5m:15s])'
+        eval_time: 10m
+        exp_samples: []
+      - expr: 'min_over_time((node_memory_MemAvailable_bytes{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1))[10m:15s])'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 629145600
+      - expr: 'max_over_time((node_memory_SwapTotal_bytes{job="mtogo-node"} - node_memory_SwapFree_bytes{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1))[10m:15s])'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 104857600
+  # host over the displayed range without swap: 0, not Unavailable
+  - interval: 15s
+    input_series:
+      - series: 'up{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "1x40"
+      - series: 'node_memory_MemAvailable_bytes{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "629145600x40"
+      - series: 'node_memory_SwapTotal_bytes{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "0x40"
+      - series: 'node_memory_SwapFree_bytes{job="mtogo-node",instance="node-exporter:9100"}'
+        values: "0x40"
+    promql_expr_test:
+      - expr: 'max_over_time((node_memory_SwapTotal_bytes{job="mtogo-node"} - node_memory_SwapFree_bytes{job="mtogo-node"} and on(job, instance) (up{job="mtogo-node"} == 1))[5m:15s])'
+        eval_time: 10m
+        exp_samples:
+          - labels: '{instance="node-exporter:9100", job="mtogo-node"}'
+            value: 0

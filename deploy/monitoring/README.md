@@ -82,7 +82,9 @@ storefront DOWN), and the log pipeline panels of #179 (collecting, quiet, Alloy
 or Loki DOWN, dropping, retrying, Docker unreachable, read errors, one scrape, missing
 scrapes, recovered and absent), and the Host row of #182 (CPU and load, healthy, at each
 threshold, DOWN, absent, one scrape, no swap, a full disk and an unreadable
-disk). The backend unit
+disk), and its two range stats of #183 (a dip inside and a deeper one outside
+the displayed range, DOWN for part of it with an older value still within the
+lookback, DOWN for all of it, and no swap). The backend unit
 tests `dashboard-queries.unit.spec.ts` and `log-pipeline-health.unit.spec.ts` in
 `src/observability/__tests__/` fail when a dashboard query is not in that file. Change both together.
 

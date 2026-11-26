@@ -14,6 +14,12 @@ const queries = panels.flatMap((panel) =>
   (panel.targets ?? []).map(({ expr }) => ({ title: panel.title, expr })),
 )
 const promtoolTests = read("tests/dashboard-queries.test.yaml")
+// Stats over the displayed range (#183), and the ranges promtool fills in.
+const RANGE_STATS = [
+  "Host memory available — lowest in the displayed range",
+  "Host swap used — most in the displayed range",
+]
+const PROMTOOL_RANGES = ["5m", "10m"]
 // A Viewer control in a query; label_replace's "${1}" is PromQL, not Grafana.
 const usesControl = (expr: string) =>
   /\$\{(low_traffic_threshold|high_traffic_warning|high_traffic_threshold)\b/.test(
@@ -48,21 +54,59 @@ describe("provisioned backend dashboard queries", () => {
   })
 
   // String literals are skipped: a validation regex's [0-9] is not a range.
-  it.each(queries)("$title uses five-minute windows only", ({ expr }) => {
-    const outsideStrings = expr.replace(/"(?:[^"\\]|\\.)*"/g, '""')
-    for (const [range] of outsideStrings.matchAll(/\[[^\]]+\]/g))
-      expect(range).toBe("[5m]")
-  })
+  const listRanges = (expr: string) =>
+    [...expr.replace(/"(?:[^"\\]|\\.)*"/g, '""').matchAll(/\[[^\]]+\]/g)].map(
+      ([range]) => range,
+    )
+
+  it.each(queries.filter(({ title }) => !RANGE_STATS.includes(title)))(
+    "$title uses five-minute windows only",
+    ({ expr }) => {
+      for (const range of listRanges(expr)) expect(range).toBe("[5m]")
+    },
+  )
+
+  // The agreed exception (#183): a capacity reading covers the displayed
+  // range, at every 15-second scrape, so zooming to one deploy reads that deploy.
+  it.each(RANGE_STATS)(
+    "%s is the agreed exception: it reads the displayed range at every scrape",
+    (title) => {
+      const panel = panels.find((candidate) => candidate.title === title)!
+      expect(panel.type).toBe("stat")
+      expect(panel.targets).toHaveLength(1)
+      expect(listRanges(panel.targets![0].expr)).toEqual(["[$__range:15s]"])
+      expect(read("prometheus.yaml")).toMatch(/^\s+scrape_interval: 15s$/m)
+      expect(panel.description).toContain("`$__range`")
+      expect(panel.description).toContain("exception to the five-minute rule")
+    },
+  )
 
   const promtoolCase = (expr: string) => `- expr: '${expr.replace(/'/g, "''")}'`
 
   // The promtool file carries the semantic oracle (zero denominators, DOWN,
   // absent targets, insufficient history, resets); it must test these exact
   // expressions, not a drifted copy.
-  it.each(queries.filter(({ expr }) => !usesControl(expr)))(
-    "$title is exercised verbatim by the promtool query tests",
-    ({ expr }) => {
-      expect(promtoolTests).toContain(promtoolCase(expr))
+  it.each(
+    queries.filter(
+      ({ title, expr }) => !usesControl(expr) && !RANGE_STATS.includes(title),
+    ),
+  )("$title is exercised verbatim by the promtool query tests", ({ expr }) => {
+    expect(promtoolTests).toContain(promtoolCase(expr))
+  })
+
+  // promtool has no displayed range; the cases fill one in as Grafana would.
+  it.each(
+    queries
+      .filter(({ title }) => RANGE_STATS.includes(title))
+      .flatMap(({ title, expr }) =>
+        PROMTOOL_RANGES.map((range) => ({ title, range, expr })),
+      ),
+  )(
+    "$title is exercised by promtool with a $range range",
+    ({ expr, range }) => {
+      expect(promtoolTests).toContain(
+        promtoolCase(expr.replaceAll("$__range", range)),
+      )
     },
   )
 

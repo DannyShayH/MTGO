@@ -156,7 +156,9 @@ describe("Host row", () => {
       ["stat", "Host CPU used — rolling 5 minutes"],
       ["stat", "Host load per core — 5 minutes"],
       ["stat", "Host memory available"],
+      ["stat", "Host memory available — lowest in the displayed range"],
       ["stat", "Host swap used"],
+      ["stat", "Host swap used — most in the displayed range"],
       ["stat", "Host disk free — root file system"],
       ["stat", "Host disk free — Docker volumes"],
       ["timeseries", "Host memory available"],
@@ -195,36 +197,34 @@ describe("Host row", () => {
   ]
 
   it.each([
-    {
-      title: "Host memory available",
-      value: null,
-      color: NEUTRAL,
-      reason: "EP invalid: no current value",
-    },
-    {
-      title: "Host memory available",
-      value: 0,
-      color: "red",
-      reason: "BVA: the minimum",
-    },
-    {
-      title: "Host memory available",
-      value: FLOOR - 1,
-      color: "red",
-      reason: "BVA: one byte below the 200 MB floor",
-    },
-    {
-      title: "Host memory available",
-      value: FLOOR,
-      color: "green",
-      reason: "BVA: on the 200 MB floor",
-    },
-    {
-      title: "Host memory available",
-      value: FLOOR + 1,
-      color: "green",
-      reason: "BVA: one byte above the 200 MB floor",
-    },
+    ...[
+      ["Host memory available", "no current value"],
+      [
+        "Host memory available — lowest in the displayed range",
+        "no scrape in the range",
+      ],
+    ].flatMap(([title, missing]) => [
+      { title, value: null, color: NEUTRAL, reason: `EP invalid: ${missing}` },
+      { title, value: 0, color: "red", reason: "BVA: the minimum" },
+      {
+        title,
+        value: FLOOR - 1,
+        color: "red",
+        reason: "BVA: one byte below the 200 MB floor",
+      },
+      {
+        title,
+        value: FLOOR,
+        color: "green",
+        reason: "BVA: on the 200 MB floor",
+      },
+      {
+        title,
+        value: FLOOR + 1,
+        color: "green",
+        reason: "BVA: one byte above the 200 MB floor",
+      },
+    ]),
     ...diskTitles.flatMap((title) => [
       {
         title,
@@ -283,6 +283,11 @@ describe("Host row", () => {
       unit: "bytes",
       reason: "EP: an amount of memory",
     },
+    {
+      title: "Host memory available — lowest in the displayed range",
+      unit: "bytes",
+      reason: "EP: an amount of memory",
+    },
     ...diskTitles.map((title) => ({
       title,
       unit: "percentunit",
@@ -295,6 +300,11 @@ describe("Host row", () => {
   it.each([
     {
       title: "Host swap used",
+      unit: "bytes",
+      reason: "EP: an amount of memory without an agreed limit",
+    },
+    {
+      title: "Host swap used — most in the displayed range",
       unit: "bytes",
       reason: "EP: an amount of memory without an agreed limit",
     },
@@ -405,15 +415,31 @@ describe("Host row", () => {
     )
   })
 
+  const GATE = ' and on(job, instance) (up{job="mtogo-node"} == 1)'
+  const RANGE_TITLES = [
+    "Host memory available — lowest in the displayed range",
+    "Host swap used — most in the displayed range",
+  ]
+  const listExprs = (inRange: boolean) =>
+    listHostPanels()
+      .filter(({ title }) => RANGE_TITLES.includes(title) === inRange)
+      .flatMap(({ targets }) => targets!.map(({ expr }) => expr))
+
   it("only shows a currently scraped host", () => {
-    const exprs = listHostPanels().flatMap(({ targets }) =>
-      targets!.map(({ expr }) => expr),
-    )
+    const exprs = listExprs(false)
     expect(exprs).toHaveLength(16)
-    for (const expr of exprs)
-      expect(expr).toMatch(
-        / and on\(job, instance\) \(up\{job="mtogo-node"\} == 1\)$/,
-      )
+    for (const expr of exprs) expect(expr.slice(-GATE.length)).toBe(GATE)
+  })
+
+  // The gate sits inside the range, so a scrape while Node Exporter was down,
+  // or a stale value still within the lookback, never counts.
+  it("counts only scraped moments in the displayed range", () => {
+    const exprs = listExprs(true)
+    expect(exprs).toEqual([
+      `min_over_time((${findPanel("Host memory available", "stat").targets![0].expr})[$__range:15s])`,
+      `max_over_time((${findPanel("Host swap used", "stat").targets![0].expr})[$__range:15s])`,
+    ])
+    for (const expr of exprs) expect(expr).toContain(`${GATE})[$__range:15s]`)
   })
 
   it("says in the dashboard which host it is", () => {

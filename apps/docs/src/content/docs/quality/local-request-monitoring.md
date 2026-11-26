@@ -530,14 +530,14 @@ The first two rows fit on one 1080p screen. Headline values are coloured by
 the agreed targets; a value with no current evidence reads _Unavailable_ in
 neutral grey, never green:
 
-| Value                  | Green           | Amber        | Red          | Source of the target                         |
-| ---------------------- | --------------- | ------------ | ------------ | -------------------------------------------- |
-| Ordinary API p95       | below 2 s       | 2 s to 5 s   | 5 s and over | ADR-0014: browsing 2 s, Order submission 5 s |
-| 5xx proportion         | 0 %             | above 0 %    |              | Any server failure is worth a look           |
-| Event-loop delay (p99) | below 0.1 s     | 0.1 s to 1 s | 1 s and over | Requests wait behind blocking work           |
-| Host memory available  | 200 MB and over |              | below 200 MB | The agreed floor, `available` in `free -m`   |
-| Host disk free         | 20 % and over   | 10 % to 20 % | below 10 %   | Agreed in #182                               |
-| Resident memory        | below 80 %      | 80 % to 90 % | 90 % of cap  | The 768 MiB staging backend memory cap       |
+| Value                                                        | Green           | Amber        | Red          | Source of the target                         |
+| ------------------------------------------------------------ | --------------- | ------------ | ------------ | -------------------------------------------- |
+| Ordinary API p95                                             | below 2 s       | 2 s to 5 s   | 5 s and over | ADR-0014: browsing 2 s, Order submission 5 s |
+| 5xx proportion                                               | 0 %             | above 0 %    |              | Any server failure is worth a look           |
+| Event-loop delay (p99)                                       | below 0.1 s     | 0.1 s to 1 s | 1 s and over | Requests wait behind blocking work           |
+| Host memory available, now and lowest in the displayed range | 200 MB and over |              | below 200 MB | The agreed floor, `available` in `free -m`   |
+| Host disk free                                               | 20 % and over   | 10 % to 20 % | below 10 %   | Agreed in #182                               |
+| Resident memory                                              | below 80 %      | 80 % to 90 % | 90 % of cap  | The 768 MiB staging backend memory cap       |
 
 The p95, event-loop, host memory and host disk charts draw the same targets as
 dashed lines. The process memory bar ends at 768 MiB, the staging cap; the local
@@ -546,7 +546,7 @@ on a shared Droplet. Host CPU, load and swap have none either, because no limit
 is agreed. The counts, rates and streams stay neutral because they have no
 target.
 
-Stats show the current instant value only. They have no sparkline: a stat
+Stats show the current instant value only, except the two capacity stats on the Host row (#183): the lowest memory available and the most swap used over the displayed range, the agreed exception to the five-minute rule. They have no sparkline: a stat
 drawn from a range query would keep its last value after the target goes
 down, and would no longer read _Unavailable_. The charts next to them show the
 history.
