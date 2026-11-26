@@ -5,6 +5,7 @@ import {
   applyCartChange,
   cartLoaded,
   loadToken,
+  removedLines,
   withPending,
   type PendingCart,
 } from "../pending-cart.ts"
@@ -86,5 +87,47 @@ describe("basket counts at the tap (#203)", () => {
       applyCartChange(NO_PENDING, { type: "settle", id: "missing" }),
       NO_PENDING,
     )
+  })
+})
+
+describe("removing a dish at the tap (#252)", () => {
+  const remove = (state: PendingCart) =>
+    applyCartChange(state, {
+      type: "begin",
+      id: "r",
+      delta: { count: -2, total: -190 },
+      removesLine: "line_1",
+    })
+
+  it("EP: the tapped line is hidden and leaves the count and total at once", () => {
+    const state = remove(NO_PENDING)
+    assert.deepEqual([...removedLines(state)], ["line_1"])
+    assert.deepEqual(withPending({ count: 3, total: 285 }, state), {
+      count: 1,
+      total: 95,
+    })
+  })
+
+  it("EP: a refused removal puts the line, count and total back", () => {
+    const failed = applyCartChange(remove(NO_PENDING), {
+      type: "fail",
+      id: "r",
+    })
+    assert.equal(removedLines(failed).size, 0)
+    assert.deepEqual(withPending(loaded, failed), loaded)
+  })
+
+  it("BVA: a confirmed removal stays hidden until a cart read made after it arrives", () => {
+    const settled = applyCartChange(remove(NO_PENDING), {
+      type: "settle",
+      id: "r",
+    })
+    const early = cartLoaded(settled, loadToken(remove(NO_PENDING)))
+    assert.deepEqual([...removedLines(early)], ["line_1"])
+    assert.equal(removedLines(cartLoaded(settled, loadToken(settled))).size, 0)
+  })
+
+  it("EP: a quantity change hides no line", () => {
+    assert.equal(removedLines(begin(NO_PENDING, "a")).size, 0)
   })
 })

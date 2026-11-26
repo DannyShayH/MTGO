@@ -16,9 +16,15 @@ import {
   clx,
 } from "@modules/common/components/ui"
 import { HttpTypes } from "@medusajs/types"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { useCallback, useEffect, useState } from "react"
-import { CUSTOMER_CHECKOUT_TEXT, type Locale } from "@dtc/i18n"
+import { showCheckoutStep } from "@lib/util/show-checkout-step"
+import { useEffect, useState } from "react"
+import {
+  CUSTOMER_CHECKOUT_TEXT,
+  cartRefusalToast,
+  type CartRefusalCode,
+  type Locale,
+} from "@dtc/i18n"
+import { toast } from "@medusajs/ui"
 import { useCheckoutStep } from "@lib/hooks/use-checkout-step"
 import StepEditButton from "../step-edit-button"
 
@@ -49,19 +55,23 @@ const Payment = ({
         : ""),
   )
 
-  const searchParams = useSearchParams()
-  const router = useRouter()
-  const pathname = usePathname()
-
   const isOpen = useCheckoutStep(cart) === "payment"
+
+  /** A toast with what to do next, and the same words inline (#252). */
+  const explainRefusal = (code: CartRefusalCode) => {
+    const { title, description } = cartRefusalToast(code, locale)
+    toast.error(title, { id: "payment-refused", description })
+    setError(`${title}. ${description}`)
+  }
 
   const setPaymentMethod = async (method: string) => {
     setError(null)
     setSelectedPaymentMethod(method)
     if (isStripeLike(method)) {
-      await initiatePaymentSession(cart, {
+      const refused = await initiatePaymentSession(cart, {
         provider_id: method,
       })
+      if (refused) explainRefusal(refused.error.code)
     }
   }
 
@@ -76,20 +86,8 @@ const Payment = ({
     (activeSession && (cart?.shipping_methods?.length ?? 0) !== 0) ||
     paidByGiftcard
 
-  const createQueryString = useCallback(
-    (name: string, value: string) => {
-      const params = new URLSearchParams(searchParams)
-      params.set(name, value)
-
-      return params.toString()
-    },
-    [searchParams],
-  )
-
   const handleEdit = () => {
-    router.push(pathname + "?" + createQueryString("step", "payment"), {
-      scroll: false,
-    })
+    showCheckoutStep("payment")
   }
 
   const handleSubmit = async () => {
@@ -131,26 +129,23 @@ const Payment = ({
         activeSession?.provider_id === selectedPaymentMethod
 
       if (!checkActiveSession) {
-        await initiatePaymentSession(cart, {
+        const refused = await initiatePaymentSession(cart, {
           provider_id: selectedPaymentMethod,
         })
+        if (refused) {
+          explainRefusal(refused.error.code)
+          return
+        }
       }
 
       if (!shouldInputPaymentDetails) {
         setTestCard("")
         setTestExpiry("")
         setTestCode("")
-        return router.push(
-          pathname + "?" + createQueryString("step", "review"),
-          {
-            scroll: false,
-          },
-        )
+        return showCheckoutStep("review")
       }
-    } catch (err) {
-      setError(
-        err instanceof Error && err.message ? err.message : text.orderNotPlaced,
-      )
+    } catch {
+      setError(text.orderNotPlaced)
     } finally {
       setIsLoading(false)
     }
@@ -186,7 +181,9 @@ const Payment = ({
         )}
       </div>
       <div>
-        <div className={isOpen ? "block" : "hidden"}>
+        <div
+          className={isOpen ? "block motion-safe:animate-fade-up" : "hidden"}
+        >
           {!paidByGiftcard && !!availablePaymentMethods?.length && (
             <>
               {!(

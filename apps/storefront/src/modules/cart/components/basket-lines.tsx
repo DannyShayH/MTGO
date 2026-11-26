@@ -1,23 +1,56 @@
 "use client"
 
-import { CUSTOMER_CART, formatDkk, type Locale } from "@dtc/i18n"
+import {
+  CUSTOMER_CART,
+  cartRefusalToast,
+  formatDkk,
+  type Locale,
+} from "@dtc/i18n"
 import {
   retrieveBasketDishes,
   type BasketDishes,
 } from "@lib/data/basket-dishes"
 import { deleteLineItem } from "@lib/data/cart"
 import { restaurantIdOfCart } from "@lib/util/basket"
-import { notifyCartUpdated } from "@lib/util/cart-events"
-import { Spinner, Trash } from "@medusajs/icons"
+import { beginCartChange, notifyCartUpdated } from "@lib/util/cart-events"
+import { Trash } from "@medusajs/icons"
 import { HttpTypes } from "@medusajs/types"
 import { toast } from "@medusajs/ui"
 import { clx, focusRing } from "@modules/common/components/ui"
 import BasketStepper from "@modules/cart/components/basket-stepper"
+import { usePendingCart } from "@lib/hooks/use-pending-cart"
+import { removedLines } from "@lib/util/pending-cart"
 import { useEffect, useState } from "react"
+
+/** How long the browser reuses a Restaurant's dish names and photos. */
+const DISHES_FRESH_MS = 60_000
+
+/**
+ * One read per Restaurant for every basket display in this tab (#252): the
+ * header dropdown and its remounts share it, instead of each reading the
+ * whole menu again. Kept briefly, so a changed menu shows soon (ADR-0012).
+ */
+const dishReads = new Map<
+  string,
+  { read: Promise<BasketDishes | null>; at: number }
+>()
+
+function readDishes(restaurantId: string) {
+  const cached = dishReads.get(restaurantId)
+  if (cached && Date.now() - cached.at < DISHES_FRESH_MS) return cached.read
+  const read = retrieveBasketDishes(restaurantId).catch(() => null)
+  // A failed read is not kept, so the next display tries again.
+  void read.then((found) => {
+    if (!found) dishReads.delete(restaurantId)
+  })
+  dishReads.set(restaurantId, { read, at: Date.now() })
+  return read
+}
 
 /**
  * The names and photos of the basket's dishes from their Restaurant's current
- * menu, read again when the basket moves to another Restaurant.
+ * menu. The read starts when the page loads, long before the dropdown opens,
+ * and is shared; it is read again when the basket moves to another Restaurant.
  */
 export function useBasketDishes(cart?: HttpTypes.StoreCart | null) {
   const restaurantId = restaurantIdOfCart(cart)
@@ -25,11 +58,9 @@ export function useBasketDishes(cart?: HttpTypes.StoreCart | null) {
   useEffect(() => {
     if (!restaurantId) return
     let isCurrent = true
-    retrieveBasketDishes(restaurantId)
-      .then((dishes) => {
-        if (isCurrent) setFound(dishes)
-      })
-      .catch(() => {})
+    void readDishes(restaurantId).then((dishes) => {
+      if (isCurrent && dishes) setFound(dishes)
+    })
     return () => {
       isCurrent = false
     }
@@ -58,7 +89,10 @@ function DishThumbnail({
       <img
         src={url}
         alt=""
-        loading="lazy"
+        // The basket shows only a few lines, so every photo comes with its
+        // line rather than one by one as it scrolls into view (#252).
+        loading="eager"
+        decoding="async"
         onError={() => setHasFailed(true)}
         className={clx("shrink-0 object-cover", size)}
       />
@@ -78,39 +112,53 @@ function DishThumbnail({
   )
 }
 
+/**
+ * The bin hides its line and takes its count and total off the badge and
+ * the basket's total at the tap, as the stepper does (#252). The server
+ * settles it; a refusal puts the line back and says why in a toast.
+ */
 function RemoveLine({
   lineId,
+  quantity,
+  lineTotal,
   label,
-  failedText,
+  locale,
 }: {
   lineId: string
+  quantity: number
+  lineTotal: number
   label: string
-  failedText: string
+  locale: Locale
 }) {
-  const [isRemoving, setIsRemoving] = useState(false)
   const remove = async () => {
-    setIsRemoving(true)
-    try {
-      await deleteLineItem(lineId)
+    const pending = beginCartChange(
+      { count: -quantity, total: -lineTotal },
+      { removesLine: lineId },
+    )
+    const refused = await deleteLineItem(lineId).catch(() => ({
+      error: { code: "line_not_removed" as const },
+    }))
+    if (!refused) {
+      pending.settle()
       notifyCartUpdated()
-    } catch {
-      setIsRemoving(false)
-      toast.error(failedText)
+      return
     }
+    pending.fail()
+    const { title, description } = cartRefusalToast(refused.error.code, locale)
+    toast.error(title, { description })
   }
   return (
     <button
       type="button"
       aria-label={label}
-      disabled={isRemoving}
       onClick={() => void remove()}
       className={clx(
-        "inline-flex size-11 shrink-0 items-center justify-center rounded-full text-mtogo-text-secondary transition-[background-color,color,transform] duration-150 ease-out-strong active:scale-[0.97] motion-reduce:transition-none [@media(hover:hover)_and_(pointer:fine)]:hover:bg-mtogo-surface-selected [@media(hover:hover)_and_(pointer:fine)]:hover:text-mtogo-text-primary disabled:opacity-60",
+        "inline-flex size-11 shrink-0 items-center justify-center rounded-full text-mtogo-text-secondary transition-[background-color,color,transform] duration-150 ease-out-strong active:scale-[0.97] motion-reduce:transition-none [@media(hover:hover)_and_(pointer:fine)]:hover:bg-mtogo-surface-selected [@media(hover:hover)_and_(pointer:fine)]:hover:text-mtogo-text-primary",
         focusRing,
       )}
       data-testid="cart-item-remove-button"
     >
-      {isRemoving ? <Spinner className="animate-spin" /> : <Trash />}
+      <Trash />
     </button>
   )
 }
@@ -132,7 +180,11 @@ export default function BasketLines({
   isEditable?: boolean
 }) {
   const text = CUSTOMER_CART[locale]
-  const sorted = [...items].sort((a, b) =>
+  // A line whose removal is on its way is hidden at the tap, in the header
+  // dropdown and on the basket page alike (#252).
+  const hiddenLines = removedLines(usePendingCart().pending)
+  const shown = items.filter(({ id }) => !hiddenLines.has(id))
+  const sorted = [...shown].sort((a, b) =>
     (a.created_at ?? "") > (b.created_at ?? "") ? -1 : 1,
   )
   return (
@@ -141,12 +193,13 @@ export default function BasketLines({
         const dish = item.variant_id ? dishes?.dishes[item.variant_id] : null
         const name = dish?.name[locale] ?? item.product_title ?? item.title
         const unitPrice = formatDkk(item.unit_price ?? 0, locale)
+        const lineAmount = item.total ?? item.unit_price * item.quantity
         const lineTotal = (
           <span
             className="shrink-0 text-base font-semibold tabular-nums"
             data-testid="cart-item-total"
           >
-            {formatDkk(item.total ?? item.unit_price * item.quantity, locale)}
+            {formatDkk(lineAmount, locale)}
           </span>
         )
         return (
@@ -200,8 +253,10 @@ export default function BasketLines({
                 {lineTotal}
                 <RemoveLine
                   lineId={item.id}
+                  quantity={item.quantity}
+                  lineTotal={lineAmount}
                   label={text.removeDish.replace("{dish}", name)}
-                  failedText={text.removeFailed}
+                  locale={locale}
                 />
               </>
             )}

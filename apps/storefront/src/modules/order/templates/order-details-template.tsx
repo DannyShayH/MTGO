@@ -1,6 +1,10 @@
 import Thumbnail from "@modules/common/components/thumbnail"
 import { accountText } from "@lib/util/account-text"
-import { CUSTOMER_ORDER_DETAIL_TEXT, type Locale } from "@dtc/i18n"
+import {
+  CUSTOMER_ORDER_DETAIL_TEXT,
+  formatPhoneNumber,
+  type Locale,
+} from "@dtc/i18n"
 import { ArrowLeft, Calendar, MapPin, ShoppingBag } from "@medusajs/icons"
 import { HttpTypes } from "@medusajs/types"
 import { convertToLocale } from "@lib/util/money"
@@ -167,7 +171,13 @@ export default function OrderDetailsTemplate({
           ))}
         </ul>
         <div className="flex items-baseline justify-between gap-4 pt-5">
-          <span className="font-semibold">{text.total}</span>
+          <span>
+            <span className="block font-semibold">{text.total}</span>
+            {/* The same price story as the basket and checkout (#252). */}
+            <span className="block text-sm text-mtogo-text-secondary">
+              {text.delivery_included}
+            </span>
+          </span>
           <span className="text-xl font-semibold tabular-nums">{total}</span>
         </div>
       </section>
@@ -196,11 +206,11 @@ export default function OrderDetailsTemplate({
             <p>
               {address?.postal_code} {address?.city}
             </p>
-            <p>{address?.country_code?.toUpperCase()}</p>
+            {/* MTOGO delivers in Denmark only, so no country is shown. */}
           </div>
           <div className="min-w-0 break-words [overflow-wrap:anywhere]">
             <h3 className="font-semibold">{text.contact}</h3>
-            <p>{address?.phone}</p>
+            <p className="tabular-nums">{formatPhoneNumber(address?.phone)}</p>
             <p>{order.email}</p>
           </div>
         </div>

@@ -563,19 +563,23 @@ function Timeline({
             ) : null}
           </div>
         </div>
-        <button
-          type="button"
-          onClick={onRefresh}
-          disabled={isBusy}
-          className={REFRESH_BUTTON}
-          data-testid="order-progress-refresh"
-        >
-          <ArrowPath
-            aria-hidden="true"
-            className={isBusy ? "motion-safe:animate-spin" : undefined}
-          />
-          {text.progress_refresh}
-        </button>
+        {/* While the page updates live, a manual refresh would suggest it
+            does not; it returns once live updates stop or a read failed. */}
+        {(connection !== "live" || freshness !== "current" || !confirmed) && (
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={isBusy}
+            className={`${REFRESH_BUTTON} motion-safe:animate-fade-in`}
+            data-testid="order-progress-refresh"
+          >
+            <ArrowPath
+              aria-hidden="true"
+              className={isBusy ? "motion-safe:animate-spin" : undefined}
+            />
+            {text.progress_refresh}
+          </button>
+        )}
       </div>
     </section>
   )
@@ -785,13 +789,9 @@ function StepItem({
             }).format(new Date(step.at))}{" "}
             {formatOrderTime(step.at, locale)}
           </time>
-        ) : (
-          step.status === "upcoming" && (
-            <p aria-hidden="true" className="text-sm text-mtogo-text-secondary">
-              {text.step_upcoming}
-            </p>
-          )
-        )}
+        ) : null}
+        {/* An upcoming step says so through its dashed marker and, for
+            screen readers, the hidden status before its name (#252). */}
       </div>
     </li>
   )

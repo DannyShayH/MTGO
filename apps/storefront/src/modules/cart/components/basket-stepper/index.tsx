@@ -1,6 +1,6 @@
 "use client"
 
-import { CUSTOMER_MENU_TEXT, type Locale } from "@dtc/i18n"
+import { CUSTOMER_MENU_TEXT, cartRefusalToast, type Locale } from "@dtc/i18n"
 import { deleteLineItem, updateLineItem } from "@lib/data/cart"
 import { beginCartChange, notifyCartUpdated } from "@lib/util/cart-events"
 import { Minus, Plus, Trash } from "@medusajs/icons"
@@ -61,20 +61,34 @@ export default function BasketStepper({
     if (!lineId) return
     const step = next - shown
     setShown(next)
-    const pending = beginCartChange({ count: step, total: step * unitPrice })
-    try {
-      if (next === 0) await deleteLineItem(lineId)
-      else await updateLineItem({ lineId, quantity: next })
+    const pending = beginCartChange(
+      { count: step, total: step * unitPrice },
+      // At zero the line goes, so the basket hides it at the tap (#252).
+      { removesLine: next === 0 ? lineId : undefined },
+    )
+    const refused = await (
+      next === 0
+        ? deleteLineItem(lineId)
+        : updateLineItem({ lineId, quantity: next })
+    ).catch(() => ({ error: { code: "order_not_placed" as const } }))
+    if (!refused) {
       onSettled?.(next)
       pending.settle()
       notifyCartUpdated()
-    } catch {
-      pending.fail()
-      setShown(saved)
-      toast.error(text.basket_update_error_title, {
-        description: text.basket_update_error_note,
-      })
+      return
     }
+    pending.fail()
+    setShown(saved)
+    // A basket held by another change says so; anything else keeps the
+    // stepper's own explanation (#252).
+    const { title, description } =
+      refused.error.code === "cart_busy"
+        ? cartRefusalToast("cart_busy", locale)
+        : {
+            title: text.basket_update_error_title,
+            description: text.basket_update_error_note,
+          }
+    toast.error(title, { description })
   }
 
   return (

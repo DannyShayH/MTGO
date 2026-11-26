@@ -61,7 +61,7 @@ const AddressSelect = ({
         </Listbox.Button>
         <Transition
           as={Fragment}
-          leave="transition ease-in duration-100"
+          leave="transition-opacity ease-out-strong duration-100"
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >

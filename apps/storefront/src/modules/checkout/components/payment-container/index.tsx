@@ -78,7 +78,7 @@ export const StripePaymentContainer = ({
     >
       {selectedPaymentOptionId === paymentProviderId &&
         (stripeReady ? (
-          <div className="my-4 transition-all duration-150 ease-in-out">
+          <div className="my-4">
             <Text className="txt-medium-plus text-ui-fg-base mb-1">
               Enter your payment details:
             </Text>

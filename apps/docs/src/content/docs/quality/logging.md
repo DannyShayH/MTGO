@@ -50,6 +50,9 @@ Customer's `actor_id`.
 `dishes` and `photos`:
 whole numbers from 0 up to a day's milliseconds, anything else is discarded.
 Raw error messages, stacks, causes and attached data are deliberately discarded.
+`input.rejected` also keeps the refusal's stable `code`, such
+as `checkout_review_incomplete` or `basket_review_required` (#252): only lower-case
+words joined by underscores fit, so free text never reaches the log.
 
 | Event                             | Level                                  | Current use                                                          |
 | --------------------------------- | -------------------------------------- | -------------------------------------------------------------------- |

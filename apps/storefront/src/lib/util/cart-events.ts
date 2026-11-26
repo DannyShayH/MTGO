@@ -18,10 +18,14 @@ let lastId = 0
 /**
  * Counts a change on the badge and the basket bar now. Call `settle` once the
  * server confirmed it (then `notifyCartUpdated`), or `fail` to take it back.
+ * A removal names its line, so the basket hides it at the tap too (#252).
  */
-export function beginCartChange(delta: CartDelta) {
+export function beginCartChange(
+  delta: CartDelta,
+  options: { removesLine?: string } = {},
+) {
   const id = `change_${++lastId}`
-  announce({ type: "begin", id, delta })
+  announce({ type: "begin", id, delta, removesLine: options.removesLine })
   return {
     settle: () => announce({ type: "settle", id }),
     fail: () => announce({ type: "fail", id }),

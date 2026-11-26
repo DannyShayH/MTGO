@@ -11,11 +11,22 @@
 export type CartDelta = { count: number; total: number }
 
 export type CartChange =
-  | { type: "begin"; id: string; delta: CartDelta }
+  | {
+      type: "begin"
+      id: string
+      delta: CartDelta
+      /** A removal hides its line at the tap (#252). */
+      removesLine?: string
+    }
   | { type: "settle"; id: string }
   | { type: "fail"; id: string }
 
-type Pending = { id: string; delta: CartDelta; settledAt: number | null }
+type Pending = {
+  id: string
+  delta: CartDelta
+  removesLine?: string
+  settledAt: number | null
+}
 
 export type PendingCart = { changes: Pending[]; clock: number }
 
@@ -30,7 +41,12 @@ export function applyCartChange(
       ...state,
       changes: [
         ...state.changes,
-        { id: change.id, delta: change.delta, settledAt: null },
+        {
+          id: change.id,
+          delta: change.delta,
+          removesLine: change.removesLine,
+          settledAt: null,
+        },
       ],
     }
   if (!state.changes.some(({ id }) => id === change.id)) return state
@@ -58,6 +74,13 @@ export function cartLoaded(state: PendingCart, token: number): PendingCart {
   )
   return changes.length === state.changes.length ? state : { ...state, changes }
 }
+
+/**
+ * The basket lines a removal on its way hides: from the tap until a cart read
+ * that no longer holds them, or until the server refused the removal.
+ */
+export const removedLines = (state: PendingCart): Set<string> =>
+  new Set(state.changes.flatMap(({ removesLine }) => removesLine ?? []))
 
 /** Kroner to whole øre: amounts are summed as integers, never as floats. */
 const toOre = (kroner: number) => Math.round(kroner * 100)

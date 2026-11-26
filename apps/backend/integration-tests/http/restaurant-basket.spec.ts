@@ -658,6 +658,259 @@ medusaIntegrationTestRunner({
         ).toEqual(address)
       })
 
+      describe("a second Order at another Restaurant (#252)", () => {
+        /** One delivery option that serves Denmark, as staging has. */
+        const setUpDelivery = async () => {
+          const container = getContainer()
+          const {
+            result: [location],
+          } = await createStockLocationsWorkflow(container).run({
+            input: {
+              locations: [
+                {
+                  name: "Restaurant delivery test",
+                  address: {
+                    city: "København",
+                    country_code: "DK",
+                    address_1: "",
+                  },
+                },
+              ],
+            },
+          })
+          const set = await container
+            .resolve(Modules.FULFILLMENT)
+            .createFulfillmentSets({
+              name: "Restaurant delivery test",
+              type: "shipping",
+              service_zones: [
+                {
+                  name: "Denmark",
+                  geo_zones: [{ country_code: "dk", type: "country" }],
+                },
+              ],
+            })
+          const link = container.resolve(ContainerRegistrationKeys.LINK)
+          await link.create({
+            [Modules.STOCK_LOCATION]: { stock_location_id: location.id },
+            [Modules.FULFILLMENT]: { fulfillment_set_id: set.id },
+          })
+          await link.create({
+            [Modules.STOCK_LOCATION]: { stock_location_id: location.id },
+            [Modules.FULFILLMENT]: { fulfillment_provider_id: "manual_manual" },
+          })
+          await menuDelivery({ container })
+        }
+        /** A registered, verified Customer signed in as the storefront signs in. */
+        const signedInCustomer = async (email: string) => {
+          const password = "second-order-password"
+          const registration = await api.post(
+            "/auth/customer/customer-emailpass/register",
+            { email, password },
+          )
+          const auth = getContainer().resolve(Modules.AUTH)
+          const verification = await auth.requestAuthVerification({
+            auth_identity_id: JSON.parse(
+              Buffer.from(
+                registration.data.token.split(".")[1],
+                "base64url",
+              ).toString(),
+            ).auth_identity_id,
+            entity_id: email,
+            entity_type: "email",
+            code_provider: "token",
+          })
+          await auth.confirmAuthVerification({
+            code: verification.code!,
+            code_provider: "token",
+          })
+          const created = await api.post(
+            "/store/customers",
+            { email },
+            {
+              headers: {
+                ...store,
+                authorization: `Bearer ${registration.data.token}`,
+              },
+            },
+          )
+          const login = await api.post("/auth/customer/customer-emailpass", {
+            email,
+            password,
+          })
+          return {
+            id: created.data.customer.id as string,
+            email,
+            headers: { ...store, authorization: `Bearer ${login.data.token}` },
+          }
+        }
+        const address = {
+          first_name: "Ada",
+          last_name: "Lovelace",
+          address_1: "Testvej 1",
+          address_2: "",
+          company: "",
+          postal_code: "2200",
+          city: "København N",
+          province: "",
+          country_code: "dk",
+          phone: "+45 12 34 56 78",
+        }
+        type Customer = Awaited<ReturnType<typeof signedInCustomer>>
+        /** Adds one dish as the menu does (`lib/data/basket.ts`). */
+        const addDish = async (
+          { headers }: Customer,
+          cartId: string,
+          restaurantId: string,
+          variantId: string,
+        ) => {
+          const dish = await dishOf(restaurantId)
+          await api.post(
+            `/store/carts/${cartId}/line-items`,
+            {
+              variant_id: variantId,
+              quantity: 1,
+              metadata: {
+                mtogo_dish: {
+                  revision: dish.revision,
+                  price: dish.price.amount,
+                },
+                mtogo_restaurant_id: restaurantId,
+              },
+            },
+            { headers },
+          )
+        }
+        /**
+         * Walks address, delivery and payment the way the storefront does
+         * (`lib/data/cart.ts`), up to the pay button.
+         */
+        const reachPayment = async (customer: Customer, cartId: string) => {
+          const { headers } = customer
+          const { cart } = (
+            await api.get(`/store/carts/${cartId}`, { headers })
+          ).data
+          await api.post(
+            `/store/carts/${cartId}`,
+            {
+              email: customer.email,
+              shipping_address: address,
+              billing_address: address,
+              locale: "da",
+              metadata: {
+                ...(cart.metadata ?? {}),
+                mtogo_checkout_review: {
+                  version: 1,
+                  customer_id: customer.id,
+                  destination: address,
+                  contact: {
+                    first_name: address.first_name,
+                    last_name: address.last_name,
+                    phone: address.phone,
+                    email: customer.email,
+                  },
+                  order_language: "da",
+                  reviewed_at: "2026-11-26T12:00:00.000Z",
+                },
+              },
+            },
+            { headers },
+          )
+          const { data: options } = await api.get(
+            `/store/shipping-options?cart_id=${cartId}`,
+            { headers },
+          )
+          const delivery = options.shipping_options.find(
+            ({ name }: { name: string }) => name === "MTOGO delivery included",
+          )
+          await api.post(
+            `/store/carts/${cartId}/shipping-methods`,
+            { option_id: delivery.id },
+            { headers },
+          )
+          await startPayment(customer, cartId)
+        }
+        /** The payment step: a session for the cart's current total. */
+        const startPayment = async ({ headers }: Customer, cartId: string) => {
+          const collection = await api.post(
+            "/store/payment-collections",
+            { cart_id: cartId },
+            { headers },
+          )
+          await api.post(
+            `/store/payment-collections/${collection.data.payment_collection.id}/payment-sessions`,
+            { provider_id: "pp_system_default" },
+            { headers },
+          )
+        }
+        const newOwnedCart = async ({ headers }: Customer) =>
+          (await api.post("/store/carts", { region_id: regionId }, { headers }))
+            .data.cart.id as string
+        const complete = ({ headers }: Customer, cartId: string) =>
+          api.post(
+            `/store/carts/${cartId}/complete`,
+            {},
+            { headers, validateStatus: () => true },
+          )
+
+        it("places the next Order at another Restaurant after a completed one", async () => {
+          await activateAndOpen(pizzeriaId)
+          await activateAndOpen(burgerId)
+          await setUpDelivery()
+          const customer = await signedInCustomer("second-order@example.test")
+
+          const firstCart = await newOwnedCart(customer)
+          await addDish(customer, firstCart, pizzeriaId, pizzaVariant)
+          await reachPayment(customer, firstCart)
+          expect((await complete(customer, firstCart)).data.type).toBe("order")
+          const secondCart = await newOwnedCart(customer)
+          await addDish(customer, secondCart, burgerId, burgerVariant)
+          await reachPayment(customer, secondCart)
+          const second = await complete(customer, secondCart)
+
+          expect(second.data).toMatchObject({ type: "order" })
+          expect(second.data.order.restaurant.id).toBe(burgerId)
+        })
+
+        it("pays for a basket switched to another Restaurant after reaching payment", async () => {
+          await activateAndOpen(pizzeriaId)
+          await activateAndOpen(burgerId)
+          await setUpDelivery()
+          const customer = await signedInCustomer("switched@example.test")
+          const cartId = await newOwnedCart(customer)
+          await addDish(customer, cartId, pizzeriaId, pizzaVariant)
+          await reachPayment(customer, cartId)
+
+          // The Customer clears the basket for another Restaurant's dish.
+          const { cart } = (
+            await api.get(`/store/carts/${cartId}`, {
+              headers: customer.headers,
+            })
+          ).data
+          for (const item of cart.items)
+            await api.delete(`/store/carts/${cartId}/line-items/${item.id}`, {
+              headers: customer.headers,
+            })
+          await addDish(customer, cartId, burgerId, burgerVariant)
+          const switched = (
+            await api.get(`/store/carts/${cartId}`, {
+              headers: customer.headers,
+              params: {
+                fields:
+                  "+total,*shipping_methods,*payment_collection.payment_sessions",
+              },
+            })
+          ).data.cart
+          // The checkout opens at the step the cart reached.
+          if (!switched.payment_collection?.payment_sessions?.length)
+            await startPayment(customer, cartId)
+          const paid = await complete(customer, cartId)
+
+          expect(paid.data).toMatchObject({ type: "order" })
+          expect(paid.data.order.restaurant.id).toBe(burgerId)
+        })
+      })
+
       describe("GET /store/carts/:id/basket-review", () => {
         const customerHeaders = async (email: string) => {
           const container = getContainer()

@@ -212,3 +212,31 @@ test("refund.attempted still names the Customer who attempted it", () => {
     "cus_01",
   )
 })
+
+// #252: a refusal names its stable code, so Grafana shows why it was refused.
+test("input.rejected keeps a stable refusal code and drops free text", () => {
+  const record = (code) =>
+    createLogRecord(
+      "backend",
+      "input.rejected",
+      { status: 400, route: "/store/carts/:id/complete", code },
+      "production",
+    ).code
+  assert.equal(
+    record("checkout_review_incomplete"),
+    "checkout_review_incomplete",
+  )
+  assert.equal(record("Invalid email secret@example.test"), undefined)
+  assert.equal(record("x".repeat(65)), undefined)
+  assert.equal(record(42), undefined)
+})
+
+test("only refusals carry a code", () => {
+  const record = createLogRecord(
+    "backend",
+    "request.failed",
+    { status: 500, code: "checkout_review_incomplete" },
+    "production",
+  )
+  assert.equal(record.code, undefined)
+})

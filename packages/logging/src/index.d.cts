@@ -39,6 +39,8 @@ export type LogFields = {
     | "customer_cancelled"
     | "unassigned_timeout"
     | "operator_cancelled"
+  /** `input.rejected` only: a snake_case refusal code (#252). */
+  code?: string
   err?: unknown
   /** `menu.read.slow` only: whole milliseconds and counts, 0 up to a day. */
   whole_read_ms?: number

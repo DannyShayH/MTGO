@@ -80,6 +80,8 @@ function initializeRequestCorrelation(req: HttpRequest, res: HttpResponse) {
       method,
       status,
       err: locals.loggingError,
+      code:
+        typeof locals.loggingCode === "string" ? locals.loggingCode : undefined,
     })
     writeRecord(req.scope, record)
   })
@@ -88,16 +90,20 @@ function initializeRequestCorrelation(req: HttpRequest, res: HttpResponse) {
 /**
  * Correlates a request that failed, possibly in Medusa's body parser, before
  * the correlation middleware. Only the safe class of an unexpected error is
- * logged, once, when the response ends.
+ * logged, once, when the response ends. A refusal also records its code, so
+ * Grafana shows why it was refused (#252); the record builder drops anything
+ * that is not a snake_case code.
  */
 export function correlateError(
   error: unknown,
   statusCode: number,
   req: MedusaRequest,
   res: MedusaResponse,
+  code?: string,
 ) {
   initializeRequestCorrelation(req, res)
   if (statusCode >= 500) res.locals.loggingError = error
+  else res.locals.loggingCode = code
 }
 
 /**

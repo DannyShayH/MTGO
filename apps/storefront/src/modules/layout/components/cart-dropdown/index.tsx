@@ -7,10 +7,10 @@ import {
   Transition,
 } from "@headlessui/react"
 import { CUSTOMER_CART, formatDkk, type Locale } from "@dtc/i18n"
-import { retrieveCart } from "@lib/data/cart"
+import { readBasketCart } from "@lib/util/read-basket-cart"
 import { CART_UPDATED_EVENT } from "@lib/util/cart-events"
 import { countBasketItems } from "@lib/util/basket"
-import { withPending } from "@lib/util/pending-cart"
+import { removedLines, withPending } from "@lib/util/pending-cart"
 import { usePendingCart } from "@lib/hooks/use-pending-cart"
 import { ShoppingCart } from "@medusajs/icons"
 import { HttpTypes } from "@medusajs/types"
@@ -60,15 +60,21 @@ const CartDropdown = ({
   const close = () => setIsOpen(false)
 
   const totalItems = countBasketItems(cartState)
-  // The badge counts a tap at once; opening by itself waits for the read.
-  const shownItems = withPending({ count: totalItems, total: 0 }, pending).count
+  // The badge, the total and a removed line follow a tap at once; opening
+  // by itself waits for the read.
+  const shown = withPending(
+    { count: totalItems, total: cartState?.total ?? 0 },
+    pending,
+  )
+  const shownItems = shown.count
+  const hiddenLines = removedLines(pending)
   const itemRef = useRef<number>(totalItems || 0)
   const hasServerCart = !!serverCart
 
   useEffect(() => {
     let isInitialLoad = !hasServerCart
     const load = () =>
-      track(retrieveCart, (cart) => {
+      track(readBasketCart, (cart) => {
         if (isInitialLoad) {
           // Don't auto-open the dropdown for items that were already in the cart.
           itemRef.current = countBasketItems(cart)
@@ -114,7 +120,9 @@ const CartDropdown = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [totalItems])
 
-  const items = cartState?.items ?? []
+  const items = (cartState?.items ?? []).filter(
+    ({ id }) => !hiddenLines.has(id),
+  )
 
   return (
     <div
@@ -185,9 +193,9 @@ const CartDropdown = ({
                       <span
                         className="text-large-semi tabular-nums"
                         data-testid="cart-subtotal"
-                        data-value={cartState.total ?? 0}
+                        data-value={shown.total}
                       >
-                        {formatDkk(cartState.total ?? 0, locale)}
+                        {formatDkk(shown.total, locale)}
                       </span>
                     </div>
                     <LocalizedClientLink href="/cart" passHref>

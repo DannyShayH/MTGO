@@ -35,6 +35,8 @@ type CurrentAgent = {
   postal_codes: string[]
   /** The approved codes with their register town names. */
   areas: { postal_code: string; name: string | null }[]
+  /** Backend-owned Features the workspace shows navigation for (ADR-0022). */
+  features?: { agent_bonus?: boolean }
 }
 type Invite = { id: string; name: string; email: string }
 export type AgentActionState = {

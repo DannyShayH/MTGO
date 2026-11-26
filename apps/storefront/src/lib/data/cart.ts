@@ -2,6 +2,7 @@
 
 import { sdk } from "@lib/config"
 import medusaError from "@lib/util/medusa-error"
+import { refusalOf, type CartRefusal } from "./cart-refusal"
 import { HttpTypes } from "@medusajs/types"
 import { revalidateTag } from "next/cache"
 import { redirect } from "next/navigation"
@@ -20,7 +21,6 @@ import { getLocale } from "./locale-actions"
 import { retrieveCustomer } from "./current-customer"
 import {
   CHECKOUT_REVIEW_METADATA_KEY,
-  CUSTOMER_CHECKOUT_TEXT,
   createReviewedCheckout,
   isLocale,
   reviewedCheckoutIsComplete,
@@ -170,64 +170,61 @@ export async function addToCart({
     .catch(medusaError)
 }
 
+/** Expires the cached basket after a change to its lines. */
+async function expireBasket() {
+  revalidateTag(await getCacheTag("carts"), { expire: 0 })
+}
+
+/**
+ * Sets a basket line's quantity. A refusal is returned, not thrown, so the
+ * stepper can explain it in a production build too (#252).
+ */
 export async function updateLineItem({
   lineId,
   quantity,
 }: {
   lineId: string
   quantity: number
-}) {
-  if (!lineId) {
-    throw new Error("Missing lineItem ID when updating line item")
-  }
-
+}): Promise<CartRefusal | undefined> {
   const cartId = await getCartId()
+  if (!lineId || !cartId) return { error: { code: "order_not_placed" } }
 
-  if (!cartId) {
-    throw new Error("Missing cart ID when updating line item")
+  try {
+    await sdk.store.cart.updateLineItem(
+      cartId,
+      lineId,
+      { quantity },
+      {},
+      await getAuthHeaders(),
+    )
+  } catch (error) {
+    return refusalOf(error, "order_not_placed")
   }
-
-  const headers = {
-    ...(await getAuthHeaders()),
-  }
-
-  await sdk.store.cart
-    .updateLineItem(cartId, lineId, { quantity }, {}, headers)
-    .then(async () => {
-      const cartCacheTag = await getCacheTag("carts")
-      revalidateTag(cartCacheTag, { expire: 0 })
-
-      const fulfillmentCacheTag = await getCacheTag("fulfillment")
-      revalidateTag(fulfillmentCacheTag, { expire: 0 })
-    })
-    .catch(medusaError)
+  await expireBasket()
 }
 
-export async function deleteLineItem(lineId: string) {
-  if (!lineId) {
-    throw new Error("Missing lineItem ID when deleting line item")
-  }
-
+/**
+ * Removes a basket line. Delivery is always included at one price, so the
+ * shipping options need no expiry here; only the cart does (#252). A refusal
+ * is returned, not thrown.
+ */
+export async function deleteLineItem(
+  lineId: string,
+): Promise<CartRefusal | undefined> {
   const cartId = await getCartId()
+  if (!lineId || !cartId) return { error: { code: "line_not_removed" } }
 
-  if (!cartId) {
-    throw new Error("Missing cart ID when deleting line item")
+  try {
+    await sdk.store.cart.deleteLineItem(
+      cartId,
+      lineId,
+      {},
+      await getAuthHeaders(),
+    )
+  } catch (error) {
+    return refusalOf(error, "line_not_removed")
   }
-
-  const headers = {
-    ...(await getAuthHeaders()),
-  }
-
-  await sdk.store.cart
-    .deleteLineItem(cartId, lineId, {}, headers)
-    .then(async () => {
-      const cartCacheTag = await getCacheTag("carts")
-      revalidateTag(cartCacheTag, { expire: 0 })
-
-      const fulfillmentCacheTag = await getCacheTag("fulfillment")
-      revalidateTag(fulfillmentCacheTag, { expire: 0 })
-    })
-    .catch(medusaError)
+  await expireBasket()
 }
 
 export async function setShippingMethod({
@@ -250,22 +247,25 @@ export async function setShippingMethod({
     .catch(medusaError)
 }
 
+/**
+ * Starts the payment for the cart's current total. A refusal is returned, not
+ * thrown, so the payment step can explain it in a production build (#252).
+ */
 export async function initiatePaymentSession(
   cart: HttpTypes.StoreCart,
   data: HttpTypes.StoreInitializePaymentSession,
-) {
-  const headers = {
-    ...(await getAuthHeaders()),
+): Promise<CartRefusal | undefined> {
+  try {
+    await sdk.store.payment.initiatePaymentSession(
+      cart,
+      data,
+      {},
+      await getAuthHeaders(),
+    )
+  } catch (error) {
+    return refusalOf(error, "order_not_placed")
   }
-
-  return sdk.store.payment
-    .initiatePaymentSession(cart, data, {}, headers)
-    .then(async (resp) => {
-      const cartCacheTag = await getCacheTag("carts")
-      revalidateTag(cartCacheTag, { expire: 0 })
-      return resp
-    })
-    .catch(medusaError)
+  await expireBasket()
 }
 
 export async function applyPromotions(codes: string[]) {
@@ -414,51 +414,36 @@ export async function setAddresses(currentState: unknown, formData: FormData) {
 }
 
 /**
- * Places an order for a cart. If no cart ID is provided, it will use the cart ID from the cookies.
- * @param cartId - optional - The ID of the cart to place an order for.
- * @returns The cart object if the order was successful, or null if not.
+ * Places the Order for the cart (by default the cookie's) and goes to its
+ * confirmation. A refusal is returned, not thrown, because a production build
+ * replaces a thrown server-action message with "Minified React error #441"
+ * (#252). A basket review carries the explanation naming the changed dishes.
  */
-export async function placeOrder(cartId?: string) {
+export async function placeOrder(
+  cartId?: string,
+): Promise<CartRefusal | undefined> {
   const id = cartId || (await getCartId())
+  if (!id) return { error: { code: "order_not_placed" } }
 
-  if (!id) {
-    throw new Error("No existing cart found when placing an order")
+  let completion: HttpTypes.StoreCompleteCartResponse
+  try {
+    completion = await sdk.store.cart.complete(id, {}, await getAuthHeaders())
+  } catch (error) {
+    const refusal = refusalOf(error, "order_not_placed")
+    // A basket review names the changed dishes in the Customer's language.
+    if (refusal.error.code === "basket_review_required")
+      refusal.error.detail = await explainBasketReview(id)
+    return refusal
   }
+  await expireBasket()
+  if (completion.type !== "order")
+    return { error: { code: "order_not_placed" } }
 
-  const headers = {
-    ...(await getAuthHeaders()),
-  }
-
-  const cartRes = await sdk.store.cart
-    .complete(id, {}, headers)
-    .then(async (cartRes) => {
-      const cartCacheTag = await getCacheTag("carts")
-      revalidateTag(cartCacheTag, { expire: 0 })
-      return cartRes
-    })
-    .catch(async (error) => {
-      if (error?.message === "basket_review_required")
-        throw Object.assign(new Error(await explainBasketReview(id)), {
-          status: 400,
-        })
-      return medusaError(error)
-    })
-
-  if (cartRes?.type === "order") {
-    const countryCode =
-      cartRes.order.shipping_address?.country_code?.toLowerCase()
-
-    const orderCacheTag = await getCacheTag("orders")
-    revalidateTag(orderCacheTag, { expire: 0 })
-
-    await removeCartId()
-    redirect(`/${countryCode}/order/${cartRes?.order.id}/confirmed`)
-  }
-
-  const locale = await getLocale()
-  throw new Error(
-    CUSTOMER_CHECKOUT_TEXT[isLocale(locale) ? locale : "en"].orderNotPlaced,
-  )
+  revalidateTag(await getCacheTag("orders"), { expire: 0 })
+  await removeCartId()
+  const countryCode =
+    completion.order.shipping_address?.country_code?.toLowerCase()
+  redirect(`/${countryCode}/order/${completion.order.id}/confirmed`)
 }
 
 /**

@@ -472,7 +472,9 @@ status and each delivery's reference, milestone times, exact food value and
 points, and time/rating multiplier flags. If the purchase basis or pickup is
 unavailable, the calculation is null. No Customer data, ratings or other agents'
 figures are returned. Flag off returns 404; signed-out and other roles are
-refused, and revoked agents receive 403. No points or provisional results are
+refused, and revoked agents receive 403. `GET /partner/delivery-agent/me`
+answers `features.agent_bonus`, so the partner workspace shows the Bonus link
+without asking this route on every render (#252). No points or provisional results are
 persisted, and cancellation after pickup never earns points.
 
 **Actor:** authorized Delivery agent. No request parameters are required.

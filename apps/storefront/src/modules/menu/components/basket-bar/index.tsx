@@ -1,7 +1,7 @@
 "use client"
 
 import { CUSTOMER_CART, formatDkk, type Locale } from "@dtc/i18n"
-import { retrieveCart } from "@lib/data/cart"
+import { readBasketCart } from "@lib/util/read-basket-cart"
 import { countBasketItems } from "@lib/util/basket"
 import { CART_UPDATED_EVENT } from "@lib/util/cart-events"
 import { withPending } from "@lib/util/pending-cart"
@@ -33,7 +33,7 @@ export default function BasketBar({
 
   useEffect(() => {
     const load = () =>
-      track(retrieveCart, (cart) =>
+      track(readBasketCart, (cart) =>
         setLoaded({
           count: countBasketItems(cart),
           total: Number(cart?.total ?? 0),

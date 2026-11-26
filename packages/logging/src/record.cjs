@@ -58,6 +58,12 @@ const MENU_READ_FIELDS = [
 ]
 const MAX_MENU_READ_VALUE = 86_400_000
 
+/**
+ * A refusal's stable code (#252), such as `checkout_review_incomplete`:
+ * lower-case words joined by underscores, so free text never fits.
+ */
+const REFUSAL_CODE = /^[a-z][a-z0-9_]{1,63}$/
+
 /** A refund attempt's outcome class, never the provider's own words. */
 const REFUND_ATTEMPT_OUTCOMES = ["succeeded", "failed", "in_progress"]
 
@@ -145,6 +151,12 @@ function createLogRecord(
         fields[field] <= MAX_MENU_READ_VALUE
       )
         record[field] = fields[field]
+  if (
+    event === "input.rejected" &&
+    typeof fields.code === "string" &&
+    REFUSAL_CODE.test(fields.code)
+  )
+    record.code = fields.code
   if (event === "request.failed") record.err = safeError(fields.err)
   return record
 }

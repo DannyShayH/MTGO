@@ -91,6 +91,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    // A refusal is returned; only a placed Order redirects from inside.
     await placeOrder(cartId)
   } catch (error) {
     unstable_rethrow(error)

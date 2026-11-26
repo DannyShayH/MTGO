@@ -5,7 +5,6 @@ import { DELIVERY_AGENT_TEXT } from "@dtc/i18n"
 import { getMessages } from "@lib/i18n"
 import {
   getCompletedDeliveries,
-  getAgentBonus,
   requireDeliveryAgent,
   signOutDeliveryAgent,
 } from "@lib/data/delivery-agent"
@@ -33,10 +32,8 @@ export default async function DeliveryHistory({
   const agent = await requireDeliveryAgent()
   const { locale } = await getMessages()
   const copy = DELIVERY_AGENT_TEXT[locale]
-  const bonus = await getAgentBonus().catch((error) => {
-    unstable_rethrow(error)
-    return undefined
-  })
+  // From the session, so the hidden Bonus route is not asked on every render (#252).
+  const hasBonus = agent.features?.agent_bonus === true
   const rawPage = Number((await searchParams).page ?? "1")
   const page = Number.isSafeInteger(rawPage) && rawPage > 0 ? rawPage : 1
   const history = await getCompletedDeliveries(
@@ -71,7 +68,7 @@ export default async function DeliveryHistory({
         {copy.history}
       </h1>
       <p className="text-mtogo-text-secondary text-sm">{copy.historyPrivacy}</p>
-      {bonus !== null && (
+      {hasBonus && (
         <Link href="/delivery/bonus" className={LINK}>
           {copy.bonus}
         </Link>

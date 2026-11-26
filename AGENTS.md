@@ -368,6 +368,7 @@ The team's [coding standard](apps/docs/src/content/docs/way-of-working/coding-st
 - Removing `pinOwnReact` from a Next.js app's config. React 18 (Medusa Admin) sits at the root, where `next` is hoisted, so Next.js error pages crash with "Objects are not valid as a React child" (#82). `<pm> run check:react` catches it.
 - Running the test task without a reachable PostgreSQL — integration suites need a live DB.
 - Silencing `@medusajs/*` ESLint rules instead of fixing the underlying pattern.
+- Throwing an expected refusal from a Next.js server action. A production build shows "Minified React error #441" instead of the message, so return `{ error: { code } }` and keep `redirect` for success (#252).
 
 ## Off-Limits
 

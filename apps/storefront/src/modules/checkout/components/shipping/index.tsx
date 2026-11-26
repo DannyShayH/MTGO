@@ -8,7 +8,7 @@ import { HttpTypes } from "@medusajs/types"
 import ErrorMessage from "@modules/checkout/components/error-message"
 import Divider from "@modules/common/components/divider"
 import { Button, Heading, Text } from "@modules/common/components/ui"
-import { usePathname, useRouter } from "next/navigation"
+import { showCheckoutStep } from "@lib/util/show-checkout-step"
 import { useState } from "react"
 import StepEditButton from "../step-edit-button"
 
@@ -84,8 +84,6 @@ export default function Shipping({
   locale,
 }: ShippingProps) {
   const text = CUSTOMER_CHECKOUT_TEXT[locale]
-  const router = useRouter()
-  const pathname = usePathname()
   const isOpen = useCheckoutStep(cart) === "delivery"
   const selectedId = cart.shipping_methods?.at(-1)?.shipping_option_id ?? null
   const [isLoading, setIsLoading] = useState(false)
@@ -125,15 +123,13 @@ export default function Shipping({
           <StepEditButton
             step={text.delivery}
             locale={locale}
-            onClick={() =>
-              router.push(`${pathname}?step=delivery`, { scroll: false })
-            }
+            onClick={() => showCheckoutStep("delivery")}
             data-testid="edit-delivery-button"
           />
         )}
       </div>
       {isOpen ? (
-        <div className="space-y-4">
+        <div className="space-y-4 motion-safe:animate-fade-up">
           {option ? (
             <DeliveryCard
               cart={cart}
@@ -154,7 +150,7 @@ export default function Shipping({
             size="large"
             onClick={async () => {
               if (selectedId === option?.id || (await selectDelivery()))
-                router.push(`${pathname}?step=payment`, { scroll: false })
+                showCheckoutStep("payment")
             }}
             disabled={!option || isLoading}
             isLoading={isLoading}

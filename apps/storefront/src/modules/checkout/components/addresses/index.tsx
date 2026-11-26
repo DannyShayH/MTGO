@@ -19,7 +19,7 @@ import {
 import Divider from "@modules/common/components/divider"
 import { Heading, Text } from "@modules/common/components/ui"
 import Spinner from "@modules/common/icons/spinner"
-import { usePathname, useRouter } from "next/navigation"
+import { showCheckoutStep } from "@lib/util/show-checkout-step"
 import { toast } from "@medusajs/ui"
 import { useActionState, useState } from "react"
 import BillingAddress from "../billing_address"
@@ -67,8 +67,6 @@ const Addresses = ({
 }) => {
   const text = CUSTOMER_CHECKOUT_TEXT[locale]
   const reviewedLanguage = reviewedCheckoutLanguage(cart?.metadata)
-  const router = useRouter()
-  const pathname = usePathname()
 
   // Open until a delivery address is entered: a new cart's address holds
   // only the country, which must not read as a finished step.
@@ -81,7 +79,7 @@ const Addresses = ({
   )
 
   const handleEdit = () => {
-    router.push(pathname + "?step=address")
+    showCheckoutStep("address")
   }
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -122,6 +120,7 @@ const Addresses = ({
       </div>
       {isOpen ? (
         <form
+          className="motion-safe:animate-fade-up"
           action={formAction}
           onInput={(event) => {
             const target = event.target

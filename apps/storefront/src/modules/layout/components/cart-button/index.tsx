@@ -1,5 +1,5 @@
 import type { Locale } from "@dtc/i18n"
-import { retrieveCart } from "@lib/data/cart"
+import { retrieveCurrentCart } from "@lib/data/current-cart"
 import CartDropdown from "../cart-dropdown"
 
 export default async function CartButton({
@@ -9,7 +9,8 @@ export default async function CartButton({
   label: string
   locale: Locale
 }) {
-  const cart = await retrieveCart().catch(() => null)
+  // Shared with the layout and the basket page in this request (#252).
+  const cart = await retrieveCurrentCart()
 
   return <CartDropdown cart={cart} label={label} locale={locale} />
 }

@@ -5,7 +5,7 @@ sidebar:
   order: 3
 ---
 
-Version 1.3, 25 November 2026. Introduced in [issue #9](https://github.com/DannyShayH/MTGO/issues/9), with the SonarQube review requirement added in [issue #80](https://github.com/DannyShayH/MTGO/issues/80). The logging baseline in section 7 was agreed in [issue #28](https://github.com/DannyShayH/MTGO/issues/28) and widened in [issue #247](https://github.com/DannyShayH/MTGO/issues/247).
+Version 1.4, 26 November 2026. Introduced in [issue #9](https://github.com/DannyShayH/MTGO/issues/9), with the SonarQube review requirement added in [issue #80](https://github.com/DannyShayH/MTGO/issues/80). The logging baseline in section 7 was agreed in [issue #28](https://github.com/DannyShayH/MTGO/issues/28) and widened in [issue #247](https://github.com/DannyShayH/MTGO/issues/247). The rule that server actions return expected refusals came with [issue #252](https://github.com/DannyShayH/MTGO/issues/252).
 
 ## 1. Overview
 
@@ -198,6 +198,7 @@ Rules:
 - Only `src/lib/data` interprets error responses from the API.
 - Branch on the status code or `type`, never on the text of `message`.
 - Show users a friendly message in their language, not technical details. Log the technical details on the server.
+- **Server actions return expected refusals; they do not throw them.** A production build replaces a thrown server-action message with "Minified React error #441", so return a result such as `{ error: { code } }` and keep `redirect` for success (#252). The basket and checkout map codes to toasts with `cartRefusalToast` from `@dtc/i18n`.
 - Do not log full responses, headers or request bodies. They can contain personal data and tokens.
 
 ### 7.3 Application log records
@@ -210,7 +211,7 @@ Medusa retains its formatter. No file transport or `LOG_FILE`.
 Records contain `time`, `level`, `service`, `env`, `event`, `msg`, optionally
 `request_id`, `route`, `method`, `status`, opaque `actor_type`/`actor_id`,
 `restaurant_id`, `order_id` and `err`, plus fields one event alone allows
-(`outcome`, `category` and the menu timings; see the logging guide). Messages are constant sentences selected by
+(`outcome`, `category`, the menu timings and the `input.rejected` refusal `code`; see the logging guide). Messages are constant sentences selected by
 the event vocabulary; variable data belongs in allowed fields. Routes are
 constant patterns without query strings. Unexpected `request.failed` errors
 carry only a safe built-in type classification in `err`, never raw error text,

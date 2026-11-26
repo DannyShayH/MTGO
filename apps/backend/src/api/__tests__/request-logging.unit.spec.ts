@@ -35,6 +35,9 @@ describe("safe correlated HTTP failures", () => {
     app.use(express.json())
     app.use(correlateRequest)
     app.get("/partner/me", (req, res, next) => {
+      const code = req.headers["test-code"]
+      if (typeof code === "string")
+        return next(new MedusaError(MedusaError.Types.NOT_ALLOWED, code))
       const status = Number(req.headers["test-status"])
       if (status === 401)
         return res.status(401).json({ message: "Unauthorized" })
@@ -166,6 +169,30 @@ describe("safe correlated HTTP failures", () => {
       }),
     ])
     expect(output + (await response.text())).not.toContain("secret-password")
+  })
+  it.each([
+    {
+      code: "checkout_review_incomplete",
+      logged: "checkout_review_incomplete",
+      reason: "EP: a stable refusal code is recorded (#252)",
+    },
+    {
+      code: "Cart secret@example.test is locked",
+      logged: undefined,
+      reason: "EP: free refusal text is never recorded",
+    },
+  ])("$reason", async ({ code, logged }) => {
+    const response = await fetch(`${origin}/partner/me`, {
+      headers: { "test-code": code },
+    })
+    expect(response.status).toBe(400)
+    const [record] = output
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line))
+    expect(record).toMatchObject({ event: "input.rejected", status: 400 })
+    expect(record.code).toBe(logged)
+    expect(output).not.toContain("secret")
   })
   it("replaces an invalid incoming request ID before writing or echoing it", async () => {
     const response = await fetch(`${origin}/partner/me`, {

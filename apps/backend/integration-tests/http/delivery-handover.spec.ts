@@ -403,10 +403,16 @@ medusaIntegrationTestRunner({
         const other = await agentFor()
         const request = (headers: Record<string, string>) =>
           get("/partner/delivery-agent/bonus", headers)
+        // The workspace shows the Bonus link from the session, so it never
+        // asks the hidden route on every render (#252).
+        const bonusFeature = async () =>
+          (await get("/partner/delivery-agent/me", agent.headers)).data.features
         flags.setFlag("agent_bonus", false)
         expect((await request(agent.headers)).status).toBe(404)
+        expect(await bonusFeature()).toEqual({ agent_bonus: false })
         flags.setFlag("agent_bonus", true)
         try {
+          expect(await bonusFeature()).toEqual({ agent_bonus: true })
           expect((await request(agent.headers)).data.deliveries).toEqual([])
           const first = await collectedOrder(agent)
           expect((await deliver(agent.headers, first.order.id)).status).toBe(

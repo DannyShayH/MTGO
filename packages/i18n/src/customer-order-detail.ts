@@ -7,6 +7,7 @@ export const CUSTOMER_ORDER_DETAIL_TEXT = {
     delivery: "Levering",
     contact: "Kontakt",
     total: "I alt",
+    delivery_included: "Levering er inkluderet",
     cancellation: "Annulleret ordre",
     refund_heading: "Refusion",
     cancelled_restaurant_rejected:
@@ -118,6 +119,7 @@ export const CUSTOMER_ORDER_DETAIL_TEXT = {
     delivery: "Delivery",
     contact: "Contact",
     total: "Total",
+    delivery_included: "Delivery included",
     cancellation: "Cancelled Order",
     refund_heading: "Refund",
     cancelled_restaurant_rejected:

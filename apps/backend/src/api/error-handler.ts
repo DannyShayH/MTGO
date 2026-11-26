@@ -328,7 +328,7 @@ export function mtogoErrorHandler(): MedusaErrorHandlerFunction {
       ? error.message
       : undefined
     if (stableErrorCode) body.code = stableErrorCode
-    correlateError(error, statusCode, req, res)
+    correlateError(error, statusCode, req, res, stableErrorCode ?? error.code)
     const categoryBody =
       feedbackRatingsRefusalBody(
         req.originalUrl,

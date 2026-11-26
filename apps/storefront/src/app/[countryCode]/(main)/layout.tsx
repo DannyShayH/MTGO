@@ -1,5 +1,6 @@
 import { Metadata } from "next"
-import { listCartOptions, retrieveCart } from "@lib/data/cart"
+import { listCartOptions } from "@lib/data/cart"
+import { retrieveCurrentCart } from "@lib/data/current-cart"
 import { retrieveCustomer } from "@lib/data/current-customer"
 import { getCustomerLocale } from "@lib/data/customer-locale"
 import { getBaseURL } from "@lib/util/env"
@@ -15,7 +16,7 @@ export const metadata: Metadata = {
 
 export default async function PageLayout(props: { children: React.ReactNode }) {
   const customer = await retrieveCustomer()
-  const cart = await retrieveCart()
+  const cart = await retrieveCurrentCart()
   const locale = await getCustomerLocale(customer)
   let shippingOptions: StoreCartShippingOption[] = []
 

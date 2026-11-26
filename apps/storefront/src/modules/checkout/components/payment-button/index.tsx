@@ -12,7 +12,38 @@ import React, { useState } from "react"
 import ErrorMessage from "../error-message"
 import { getPaymentErrorMessage } from "@lib/util/payment-error"
 import AdyenPaymentButton from "./adyen-payment-button"
-import { CUSTOMER_CHECKOUT_TEXT, formatDkk, type Locale } from "@dtc/i18n"
+import { toast } from "@medusajs/ui"
+import {
+  CUSTOMER_CHECKOUT_TEXT,
+  cartRefusalToast,
+  formatDkk,
+  type Locale,
+} from "@dtc/i18n"
+
+/**
+ * Places the Order, which goes to its confirmation when it succeeds. A
+ * refusal shows a toast with what to do next and returns the same words for
+ * the inline message by the pay button, which screen readers read (#252).
+ * `placeOrder` returns refusals, so a production build never shows a React
+ * error number; only the redirect to the confirmation is thrown on.
+ */
+async function placeOrderOrExplain(locale: Locale): Promise<string | null> {
+  let refusal: Awaited<ReturnType<typeof placeOrder>>
+  try {
+    refusal = await placeOrder()
+  } catch (error) {
+    unstable_rethrow(error)
+    refusal = { error: { code: "order_not_placed" } }
+  }
+  if (!refusal) return null
+  const { title, description } = cartRefusalToast(
+    refusal.error.code,
+    locale,
+    refusal.error.detail,
+  )
+  toast.error(title, { id: "order-refused", description })
+  return `${title}. ${description}`
+}
 
 type PaymentButtonProps = {
   cart: HttpTypes.StoreCart
@@ -40,6 +71,7 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
         <StripePaymentButton
           notReady={notReady}
           cart={cart}
+          locale={locale}
           data-testid={dataTestId}
         />
       )
@@ -70,23 +102,20 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
 const StripePaymentButton = ({
   cart,
   notReady,
+  locale,
   "data-testid": dataTestId,
 }: {
   cart: HttpTypes.StoreCart
   notReady: boolean
+  locale: Locale
   "data-testid"?: string
 }) => {
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const onPaymentCompleted = async () => {
-    await placeOrder()
-      .catch((err) => {
-        setErrorMessage(err.message)
-      })
-      .finally(() => {
-        setSubmitting(false)
-      })
+    setErrorMessage(await placeOrderOrExplain(locale))
+    setSubmitting(false)
   }
 
   const stripe = useStripe()
@@ -222,19 +251,8 @@ const ManualTestPaymentButton = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const onPaymentCompleted = async () => {
-    await placeOrder()
-      .catch((err) => {
-        unstable_rethrow(err)
-        // The data layer already worded the refusal in the Customer's language.
-        setErrorMessage(
-          err instanceof Error && err.message
-            ? err.message
-            : CUSTOMER_CHECKOUT_TEXT[locale].orderNotPlaced,
-        )
-      })
-      .finally(() => {
-        setSubmitting(false)
-      })
+    setErrorMessage(await placeOrderOrExplain(locale))
+    setSubmitting(false)
   }
 
   const handlePayment = () => {

@@ -46,7 +46,7 @@ const Review = ({
       </div>
       {isOpen && previousStepsCompleted && (
         <>
-          <div className="flex items-start gap-x-1 w-full mb-6">
+          <div className="flex items-start gap-x-1 w-full mb-6 motion-safe:animate-fade-up">
             <div className="w-full">
               <Text className="txt-medium-plus text-ui-fg-base mb-1">
                 {text.reviewNote}
@@ -58,6 +58,13 @@ const Review = ({
             locale={locale}
             data-testid="submit-order-button"
           />
+          {/* Reassurance by the decision, kept to what is true (#252). */}
+          <p
+            className="mt-3 text-sm text-mtogo-text-secondary"
+            data-testid="pay-amount-note"
+          >
+            {text.payAmountNote}
+          </p>
         </>
       )}
     </div>

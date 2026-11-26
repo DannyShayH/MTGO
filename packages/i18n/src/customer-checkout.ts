@@ -36,6 +36,8 @@ export const CUSTOMER_CHECKOUT_TEXT: Record<
     continueToReview: string
     review: string
     reviewNote: string
+    /** Under the pay button: the amount is final (#252). */
+    payAmountNote: string
     placeOrder: string
     selectPayment: string
     delivery: string
@@ -95,6 +97,7 @@ export const CUSTOMER_CHECKOUT_TEXT: Record<
     review: "Gennemse bestilling",
     reviewNote:
       "Kontrollér mad, leveringsadresse og samlet pris, før du betaler.",
+    payAmountNote: "Du betaler kun beløbet på knappen. Levering er inkluderet.",
     placeOrder: "Betal og bestil",
     selectPayment: "Vælg en betalingsmåde",
     delivery: "Levering",
@@ -162,6 +165,8 @@ export const CUSTOMER_CHECKOUT_TEXT: Record<
     continueToReview: "Continue to review",
     review: "Review Order",
     reviewNote: "Check the food, delivery address and total before paying.",
+    payAmountNote:
+      "You pay only the amount on the button. Delivery is included.",
     placeOrder: "Pay and place Order",
     selectPayment: "Select a payment method",
     delivery: "Delivery",

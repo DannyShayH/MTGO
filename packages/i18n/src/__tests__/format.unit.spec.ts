@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
-import { formatText } from "../format.ts"
+import { formatPhoneNumber, formatText } from "../format.ts"
 
 describe("formatText", () => {
   const cases = [
@@ -39,4 +39,32 @@ describe("formatText", () => {
     it(`fills placeholders: ${reason}`, () => {
       assert.equal(formatText(template, values), expected)
     })
+})
+
+describe("formatPhoneNumber (#252)", () => {
+  const cases = [
+    {
+      reason: "EP: a Danish mobile number reads in pairs",
+      phone: "+4522949411",
+      expected: "+45 22 94 94 11",
+    },
+    {
+      reason: "EP: spaces already typed are normalised",
+      phone: " +45 2294 9411 ",
+      expected: "+45 22 94 94 11",
+    },
+    {
+      reason: "EP: a foreign number is shown as entered",
+      phone: "+46701234567",
+      expected: "+46701234567",
+    },
+    {
+      reason: "BVA: a Danish number with seven digits is shown as entered",
+      phone: "+452294941",
+      expected: "+452294941",
+    },
+    { reason: "BVA: no number shows nothing", phone: null, expected: "" },
+  ]
+  for (const { reason, phone, expected } of cases)
+    it(reason, () => assert.equal(formatPhoneNumber(phone), expected))
 })
