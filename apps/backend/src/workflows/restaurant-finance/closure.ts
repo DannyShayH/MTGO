@@ -19,6 +19,7 @@ import {
 import { restaurantFinanceLock } from "./locks"
 import { readLiveStatement } from "./statement-read"
 import { statementMonths } from "./statement-rules"
+import { statementSummary } from "./earnings-rules"
 import { readParticipation } from "./participation"
 import { serviceFeeEvidence, serviceFeeDifference } from "./service-fee"
 
@@ -66,6 +67,14 @@ export async function closeRestaurantStatements(
           month,
           ...period,
           snapshot: JSON.parse(JSON.stringify(snapshot)),
+          // What Earnings adds up, from this very snapshot (#256).
+          summary: JSON.parse(
+            JSON.stringify(
+              statementSummary(
+                snapshot.statement as Parameters<typeof statementSummary>[0],
+              ),
+            ),
+          ),
         })
       }
     },

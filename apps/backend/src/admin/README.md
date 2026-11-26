@@ -336,3 +336,91 @@ credit, DKK 0.00 commission and time as the partner app. The Order cancelled
 before preparation counts once under Orders without food credit. At 390px
 the entries table scrolls in its own region, as #232 found. The operator's
 reason does not appear on the page, and no browser runtime errors were seen.
+
+## Earnings (#256)
+
+`routes/earnings/page.tsx` is the **Earnings** sidebar entry: what MTOGO earned
+across all Restaurants per Copenhagen month, in DKK excluding VAT. It reads
+`GET /admin/earnings` (the last 12 months for the trend) and
+`GET /admin/earnings/{month}` (summary and per-Restaurant breakdown), which add
+up the same statements as the Statements page, so every figure traces back to a
+Restaurant's statement. `lib/earnings-api.ts` holds the response types and
+labels; amounts use the exact-decimal formatting of `lib/statement-api.ts` and
+are never divided by 100.
+
+The month lives in the URL (`?month=YYYY-MM`, the current Copenhagen month by
+default). Choosing a month in the picker or selecting a bar adds a history
+entry, so the browser's Back button returns to the earlier month, also after
+following a link to a Restaurant or its statement. The page shows:
+
+- **Monthly trend**: one stacked bar per month, commission and service fee
+  stacked from a zero line (a negative segment hangs below it), with a legend
+  and ticks at the top, middle, zero and any negative bottom, built from Medusa
+  UI and plain markup (no chart library). The bars are one radio group with a
+  single Tab stop: arrow keys, Home and End move between months and select
+  them, and each names its amounts and state for screen readers. Hover shows
+  only on devices with a fine pointer. A provisional month
+  is lighter with a clock mark; a month with a withheld total has a dashed
+  outline, a warning mark and only its known segments. **Show the trend as a
+  table** is the text alternative.
+- **Summary**: MTOGO earnings, commission and service fee, plus MTOGO-funded
+  food credits as a separate cost. The number of Restaurants with a
+  statement that month is its own figure. What earnings, MTOGO-funded credits
+  and that count mean sits behind an info icon (a `Tooltip` on a focusable
+  button whose accessible name carries the explanation). A withheld total says so with its reason and
+  never shows zero. Lifecycle and completeness are `StatusBadge`s with text. A
+  warning names up to five Restaurants whose statement is not complete, linking
+  to that statement, and "Show all N in the table" filters the table to them.
+- **Restaurants**: a `DataTable` whose sorting, search, completeness filter
+  and pages of 20 all run in `GET /admin/earnings/{month}`, so 500 Restaurants
+  load one page at a time. It starts with the most earning Restaurant; a
+  withheld amount sorts last in either direction. Clearing a column's sort
+  (its third click) returns to that default. The name links to
+  `/restaurants/{id}` and **View statement** to
+  `/restaurants/{id}/statements?month={month}`, both react-router `Link`s.
+
+The trend, the summary and the table are separate cards. Choosing another
+month, page or sort keeps the shown data, dimmed, until the next arrives,
+instead of replacing it with a spinner.
+
+Loading shows a `Spinner`; each read has its own error with **Try again**.
+
+The `sync-statement-navigation` job runs every minute and keeps
+`core:nav:/earnings` hidden in Medusa's shared default `sidebar` layout while
+`restaurant_statements` is off, and visible once it is on. It writes only on a
+change, preserves other sidebar preferences, and the first tick after a restart
+applies the flag Medusa loaded at boot. A personal layout can still override
+the shared default. This is navigation only: the direct URL says statements are
+not released and both API routes answer `404`.
+Inspection evidence (26 November 2026): checked in the running Admin
+(`medusa develop` on the dev database) in headless Chromium at 1280px, 400px
+and 320px. With the flag on, the sidebar shows Earnings with its icon, and
+November 2026 summed 12 Restaurant statements: commission DKK 879.47, service
+fee DKK 413.37, earnings DKK 1,292.84, provisional and complete. Tab reached the
+month's bar, whose accessible name reads its month, amounts and state; Enter
+selected it (`?month=2026-11`). **View statement** opened
+`/restaurants/{id}/statements?month=2026-11`, and Back returned to the same
+Earnings month. A second pass rewrote the live responses to 12 months (one
+withheld, the current one provisional), a 104-character Restaurant name, 23 rows
+over two pages, seven-digit and negative amounts and withheld totals. The
+withheld month had its dashed outline and warning mark, the provisional month
+its lighter bar and clock mark, withheld totals showed their reasons and never
+zero, and long names wrapped. Nothing overflowed the page at any width; the
+table scrolls in its own region at 320px. Showing both lifecycle and
+completeness badges on each row overflowed the row, so rows show completeness
+only (the month's lifecycle is in the summary). With the flag off, the
+sidebar job hid Earnings from the shared layout, the direct URL said statements
+are not released and `GET /admin/earnings` answered `404`. No runtime errors
+came from the page. After the code review the chart draws a
+negative segment (reversals beyond commission) below a zero line, so every bar
+matches its signed totals, and labels the middle gridline; rechecked with a
+DKK −2,500 commission month, with no overflow at any width. A third pass (26
+November 2026) served 500 Restaurants through a rewritten month response that
+applied the query: the table showed "20 of 500 results" with the most earning
+Restaurant first, the warning named five and "Show all 39 in the table"
+requested `completeness=incomplete,processing_pending`, search combined with
+that filter, and the arrow keys moved the selected month. Nothing overflowed at
+400px or 320px and no runtime errors appeared. With the real 12 Restaurants,
+Pizzeria Nørrebro (DKK 540.27) came first.
+`integration-tests/http/admin-earnings.spec.ts` proves the API and the sidebar
+job; `earnings-rules.unit.spec.ts` covers adding up and withholding.

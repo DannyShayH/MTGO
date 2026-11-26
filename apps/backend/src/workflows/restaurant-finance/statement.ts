@@ -19,7 +19,11 @@ import {
   isCalendarMonth,
 } from "./calculation"
 import { restaurantFinanceLock } from "./locks"
-import { statementMonths } from "./statement-rules"
+import {
+  mtogoFundedFoodCredits,
+  statementMonths,
+  type Total,
+} from "./statement-rules"
 import { readLiveStatement, type StatementReadInput } from "./statement-read"
 export type { StatementReadInput } from "./statement-read"
 import type { StatementSnapshot } from "../../types/restaurant-statement"
@@ -78,6 +82,21 @@ async function readGuardedStatement(
     const snapshot = closure.snapshot as unknown as StatementSnapshot
     return {
       ...snapshot,
+      statement: {
+        ...snapshot.statement,
+        // A closure stored before #256 holds every entry, so its MTOGO-funded
+        // credits are derived from them by the same rule.
+        mtogo_funded_food_credits:
+          snapshot.statement.mtogo_funded_food_credits ??
+          mtogoFundedFoodCredits(
+            snapshot.statement.totals.food_credits as Total,
+            snapshot.entries.map((entry) => ({
+              food_credit: entry.amounts.food_credit,
+              funded_by: entry.funded_by,
+              is_adjustment: entry.original_month !== entry.posting_month,
+            })),
+          ),
+      },
       entries: snapshot.entries.slice(input.offset, input.offset + input.limit),
       limit: input.limit,
       offset: input.offset,
@@ -131,6 +150,7 @@ export async function listStatements(
       lifecycle,
       completeness,
       totals,
+      mtogo_funded_food_credits,
       problems,
       timezone,
       currency_code,
@@ -141,6 +161,7 @@ export async function listStatements(
       lifecycle,
       completeness,
       totals,
+      mtogo_funded_food_credits,
       problems,
       timezone,
       currency_code,

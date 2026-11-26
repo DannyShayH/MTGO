@@ -82,6 +82,10 @@ import { requireFeatureFlag, requireFeatureFlagFor } from "./feature-flag"
 import AgentBonusFeatureFlag from "../feature-flags/agent-bonus"
 import { GetFeedbackStatisticsSchema } from "./admin/feedback/statistics/validators"
 import RestaurantStatementsFeatureFlag from "../feature-flags/restaurant-statements"
+import {
+  GetAdminEarningsMonthSchema,
+  GetAdminEarningsSchema,
+} from "./admin/earnings/validators"
 import { PostCustomerVerificationRequestSchema } from "./auth/customer-verification/validators"
 import {
   PostCustomerEmailChangeConfirmSchema,
@@ -758,6 +762,21 @@ export default defineMiddlewares({
           /^\/admin\/restaurants\/[^/]+\/statements(\/|$)/,
         ),
       ],
+    },
+    {
+      // MTOGO's earnings (#256) follow the statements they add up.
+      matcher: "/admin/earnings*",
+      middlewares: [requireFeatureFlag(RestaurantStatementsFeatureFlag.key)],
+    },
+    {
+      matcher: "/admin/earnings",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(GetAdminEarningsSchema, {})],
+    },
+    {
+      matcher: "/admin/earnings/:month",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(GetAdminEarningsMonthSchema, {})],
     },
     {
       matcher: "/admin/restaurants/:id/statements",

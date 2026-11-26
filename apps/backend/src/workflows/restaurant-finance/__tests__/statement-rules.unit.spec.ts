@@ -1,6 +1,7 @@
 import {
   assembleStatementHeader,
   completenessOf,
+  mtogoFundedFoodCredits,
   outcomesWithoutEntitlement,
   explainReceipt,
   statementEntry,
@@ -647,5 +648,50 @@ describe("Unsuccessful Orders processed with no entitlement (#229)", () => {
 
   it("shows none for a month without unsuccessful Orders", () => {
     expect(outcomesWithoutEntitlement([])).toEqual([])
+  })
+})
+
+describe("What MTOGO funded in a month's food credits (#256)", () => {
+  const compensation = { food_credit: "76", funded_by: "mtogo" }
+  const purchase = { food_credit: "76", funded_by: "customer" }
+
+  it.each([
+    {
+      reason: "EP: only MTOGO-funded credits count, Customer purchases do not",
+      foodCredits: sum("190.5"),
+      booked: [
+        purchase,
+        compensation,
+        { ...compensation, food_credit: "38.5" },
+      ],
+      expected: sum("114.5"),
+    },
+    {
+      reason:
+        "EP: an earlier month's compensation booked as an adjustment stays on the adjustments",
+      foodCredits: sum("76"),
+      booked: [compensation, { ...compensation, is_adjustment: true }],
+      expected: sum("76"),
+    },
+    {
+      reason: "BVA: a month without compensation is a known zero",
+      foodCredits: sum("76"),
+      booked: [purchase],
+      expected: sum("0"),
+    },
+    {
+      reason: "EP: withheld with the food credits' missing evidence",
+      foodCredits: withheld("evidence_missing"),
+      booked: [compensation],
+      expected: withheld("evidence_missing"),
+    },
+    {
+      reason: "EP: withheld while the food credits are still processing",
+      foodCredits: withheld("processing_pending"),
+      booked: [compensation],
+      expected: withheld("processing_pending"),
+    },
+  ])("$reason", ({ foodCredits, booked, expected }) => {
+    expect(mtogoFundedFoodCredits(foodCredits, booked)).toEqual(expected)
   })
 })

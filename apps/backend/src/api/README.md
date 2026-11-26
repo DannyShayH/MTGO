@@ -1771,6 +1771,107 @@ curl "http://localhost:9000/admin/restaurants/$RESTAURANT_ID/statements/2026-11?
 | `404`  | `code: "statement_not_found"`: unknown Restaurant, a future month or one before the Restaurant existed                                                                      |
 | `404`  | The `restaurant_statements` flag is off. A signed-in operator gets `404` as for a path that never existed (ADR-0022); a signed-out caller gets `401` as on every Admin path |
 
+### GET /admin/earnings and GET /admin/earnings/{month}
+
+**Actor:** MTOGO operator (`user`, session or bearer). What MTOGO earned across
+all Restaurants per Copenhagen month (#256). Both routes add up the statement
+summaries of the shared read behind
+`GET /admin/restaurants/{id}/statements/{month}`, one per Restaurant that
+existed in the month (removed Restaurants included), so the figures always
+equal the sum of the statements staff see. Nothing is summed from journal rows
+and no second calculation exists. Amounts are exact decimal strings, DKK
+excluding VAT, as stored.
+
+Each month has `totals` with `commission` (net of reversals), `service_fee`,
+`earnings` (commission plus service fee) and `mtogo_funded_food_credits`
+(prepared-food compensation MTOGO pays, a cost kept outside earnings).
+Adjustments of earlier months stay on each statement and are not part of these
+totals. A total any Restaurant's statement withholds is withheld for the month
+with the most serious reason (`evidence_missing` before `processing_pending`),
+never shown as a partial sum. `earnings` needs both of its components.
+`completeness` is the least complete Restaurant's, and `withheld_restaurants`
+names every Restaurant whose statement is not complete. `lifecycle` is
+`provisional` for the current month and `closed` for earlier months.
+
+`GET /admin/earnings` lists the months, newest first, from the first
+Restaurant's creation month to the current one. Query: `limit` (1–24, default 12) and `offset` (default 0). **Success:** `200` with
+`{ months, count, limit, offset, timezone, currency_code, amounts_exclude_vat,
+verified_at }`. Each item of `months` is
+`{ month, lifecycle, completeness, restaurant_count, totals,
+withheld_restaurants }`.
+
+`GET /admin/earnings/{month}` returns the month's summary with one page of its
+Restaurants. Query: `order` (`earnings`, `commission`, `service_fee`,
+`mtogo_funded_food_credits` or `name`, descending with a leading `-`; default
+`-earnings`, the most earning first), `q` (part of the name, any case),
+`completeness` (comma-separated `complete`, `incomplete`,
+`processing_pending`), `limit` (1–100, default 20) and `offset` (default 0). A
+withheld amount is never ranked as a number: those Restaurants come last in
+either direction, and ties keep name order. **Success:** `200` with
+`{ earnings, restaurants, count, limit, offset, timezone, currency_code,
+amounts_exclude_vat, verified_at }`. `earnings` is the month's summary as above
+and always covers every Restaurant, whatever the query. `restaurants` is the
+page, each row `{ restaurant: { id, name }, lifecycle, completeness, totals }`
+from that Restaurant's own statement, and `count` is the number of matching
+Restaurants.
+
+A closed month is read from the summary each Restaurant's closure stored when
+it closed (`finance_closure.summary`), one query for all Restaurants and without
+their entries. A Restaurant without one (the current month, whose service fee
+is live; an ended month not closed yet; or a closure stored before #256) is
+read through the statement read, ten at a time.
+
+```bash
+curl "http://localhost:9000/admin/earnings/2026-11?order=-earnings&completeness=incomplete,processing_pending&limit=20" \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+```
+
+```json
+{
+  "earnings": {
+    "month": "2026-11",
+    "lifecycle": "provisional",
+    "completeness": "incomplete",
+    "restaurant_count": 2,
+    "totals": {
+      "commission": { "status": "available", "amount": "34.56" },
+      "service_fee": { "status": "unavailable", "reason": "evidence_missing" },
+      "earnings": {
+        "status": "unavailable",
+        "reason": "depends_on_unavailable"
+      },
+      "mtogo_funded_food_credits": { "status": "available", "amount": "76" }
+    },
+    "withheld_restaurants": [
+      {
+        "restaurant": { "id": "rest_01", "name": "Burger Bar" },
+        "completeness": "incomplete"
+      }
+    ]
+  },
+  "restaurants": ["..."],
+  "count": 1,
+  "limit": 20,
+  "offset": 0,
+  "timezone": "Europe/Copenhagen",
+  "currency_code": "dkk",
+  "amounts_exclude_vat": true,
+  "verified_at": "2026-11-26T12:00:00.000Z"
+}
+```
+
+| Status | When                                                                                                                                                                        |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `400`  | `{month}` is not a real `YYYY-MM` month (`earnings_month_invalid`), `limit`/`offset` is outside 1–24 (list) or 1–100 (month) / 0+, or an unknown `order` or `completeness`  |
+| `401`  | Signed out, or a Customer, Restaurant staff or Delivery agent token                                                                                                         |
+| `404`  | `code: "earnings_not_found"`: a future month, or one before any Restaurant existed                                                                                          |
+| `404`  | The `restaurant_statements` flag is off. A signed-in operator gets `404` as for a path that never existed (ADR-0022); a signed-out caller gets `401` as on every Admin path |
+
+Every statement response (staff and operator) now also carries
+`statement.mtogo_funded_food_credits`: the part of `food_credits` MTOGO funds,
+withheld exactly when `food_credits` is. Closures stored before #256 derive it
+from their stored entries on read.
+
 ## Partner app: Restaurant staff
 
 `/partner/*` is the namespace for the partner app (ADR-0017). Medusa gives it no

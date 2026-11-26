@@ -36,6 +36,7 @@ import {
 } from "./service-fee"
 import {
   assembleStatementHeader,
+  mtogoFundedFoodCredits,
   outcomesWithoutEntitlement,
   statementDays,
   statementEntry,
@@ -556,6 +557,9 @@ export async function readLiveStatement(
         select: [
           "posted_at",
           "kind",
+          "funded_by",
+          "original_month",
+          "posting_month",
           "food_credit",
           "raw_food_credit",
           "commission",
@@ -607,6 +611,14 @@ export async function readLiveStatement(
       ...header,
       currency_code: "dkk",
       amounts_exclude_vat: true,
+      mtogo_funded_food_credits: mtogoFundedFoodCredits(
+        header.totals.food_credits,
+        monthBooked.map((entry) => ({
+          food_credit: exact(entry, "food_credit"),
+          funded_by: entry.funded_by,
+          is_adjustment: entry.original_month !== entry.posting_month,
+        })),
+      ),
       service_fee_evidence: serviceFeeEvidenceView(fee),
       days: statementDays({
         month: input.month,

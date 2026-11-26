@@ -17,6 +17,11 @@ export type StatementSnapshot = {
       "food_credits" | "commission" | "service_fee" | "adjustments" | "balance",
       StatementTotal
     >
+    /**
+     * The part of `food_credits` MTOGO funds: prepared-food compensation
+     * (#256). Closures stored before it existed derive it on read.
+     */
+    mtogo_funded_food_credits: StatementTotal
     problems: {
       code: string
       count: number

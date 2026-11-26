@@ -162,7 +162,7 @@ export type StatementHeader = {
   problems: StatementProblem[]
 }
 
-const available = (amount: MathBN | string | number): Total => ({
+export const available = (amount: MathBN | string | number): Total => ({
   status: "available",
   amount: MathBN.convert(amount as string).toString(),
 })
@@ -284,6 +284,27 @@ export function assembleStatementHeader(
     totals,
     problems,
   }
+}
+
+/**
+ * The part of the month's food credits that MTOGO funds (#256): existing
+ * prepared-food compensation (#229), a cost to MTOGO with zero commission.
+ * It is part of the food-credits total, so it is known exactly when that
+ * total is, and like it excludes adjustments of earlier months.
+ */
+export function mtogoFundedFoodCredits(
+  foodCredits: Total,
+  booked: { food_credit: string; funded_by: string; is_adjustment?: boolean }[],
+): Total {
+  if (foodCredits.status === "unavailable") return foodCredits
+  return available(
+    booked
+      .filter((entry) => entry.funded_by === "mtogo" && !entry.is_adjustment)
+      .reduce(
+        (total, entry) => MathBN.add(total, entry.food_credit),
+        MathBN.convert(0),
+      ),
+  )
 }
 
 /**

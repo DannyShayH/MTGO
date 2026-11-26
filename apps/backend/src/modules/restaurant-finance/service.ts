@@ -234,6 +234,7 @@ class RestaurantFinanceModuleService extends MedusaService({
       starts_at: Date
       ends_at: Date
       snapshot: Record<string, unknown>
+      summary: Record<string, unknown>
     },
     @MedusaContext() context?: Context,
   ): Promise<void> {

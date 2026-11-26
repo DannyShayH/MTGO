@@ -136,6 +136,16 @@ names the purchase or terms evidence that is missing
   active dates and obligation reference in a separate `service_fee_difference`
   receipt/entry. A replay recognizes no new difference; negative differences
   restore an overcharge. No daily monetary charges are rounded and summed.
+- `earnings.ts` and `earnings-rules.ts`: MTOGO's earnings across all
+  Restaurants (`GET /admin/earnings[/{month}]`, #256). They read each
+  Restaurant's month through `readStatement` and only add the summaries up, so
+  Admin earnings equal the sum of the statements. A total any Restaurant
+  withholds is withheld for the month and the Restaurant is named. Closing a
+  month also stores `finance_closure.summary` (`statementSummary` of the same
+  snapshot: lifecycle, completeness, commission, service fee and MTOGO-funded
+  credits), so Earnings reads a closed month in one query without its entries.
+  Closures stored before #256 have no summary and are read through
+  `readStatement` instead; the current month is always read live.
 - `pending-handovers.ts`, `cancellation-sources.ts` and `participation.ts`
   collect durable source evidence for recovery and boundary reads.
 - `statement.ts`, `statement-read.ts` and `statement-rules.ts`: the shared

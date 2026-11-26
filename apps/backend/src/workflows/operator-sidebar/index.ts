@@ -1,5 +1,11 @@
+import type { SettingsTypes } from "@medusajs/framework/types"
+import { Modules } from "@medusajs/framework/utils"
 import {
+  createStep,
   createWorkflow,
+  StepResponse,
+  transform,
+  when,
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk"
 import { configureDefaultAdminLayoutStep } from "../admin-layouts"
@@ -40,5 +46,45 @@ export const configureOperatorProductLayoutWorkflow = createWorkflow(
         },
       }),
     )
+  },
+)
+
+/** Custom Admin routes the `restaurant_statements` flag releases (#256). */
+export const STATEMENT_NAVIGATION = ["core:nav:/earnings"] as const
+
+const readSidebarStep = createStep(
+  "read-sidebar",
+  async (_input: void, { container }) => {
+    const existing = await container
+      .resolve<SettingsTypes.ISettingsModuleService>(Modules.SETTINGS)
+      .getSystemDefaultLayoutConfiguration("sidebar")
+    return new StepResponse(existing?.configuration.widgets ?? {})
+  },
+)
+
+/**
+ * Hides flagged navigation in the shared default sidebar while its Feature
+ * is off and shows it once released (ADR-0022). Writes only on a change, so
+ * the job can run it every minute; Medusa reads flags at boot, so the first
+ * tick after a restart applies a new value. Navigation only: the routes
+ * themselves answer 404 while the flag is off.
+ */
+export const syncStatementNavigationWorkflow = createWorkflow(
+  "sync-statement-navigation",
+  function (input: { isReleased: boolean }) {
+    const widgets = readSidebarStep()
+    const changes = transform({ input, widgets }, ({ input, widgets }) =>
+      Object.fromEntries(
+        STATEMENT_NAVIGATION.filter(
+          (id) => (widgets[id]?.hidden ?? false) === input.isReleased,
+        ).map((id) => [id, { hidden: !input.isReleased }]),
+      ),
+    )
+    when({ changes }, ({ changes }) => Object.keys(changes).length > 0).then(
+      () => {
+        configureDefaultAdminLayoutStep({ zone: "sidebar", widgets: changes })
+      },
+    )
+    return new WorkflowResponse(changes)
   },
 )
