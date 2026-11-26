@@ -1418,6 +1418,25 @@ class DeliveryModuleService extends MedusaService({
     )
   }
 
+  /** Marks a pickup as recorded on the Order's kitchen record (#254). */
+  @InjectManager()
+  async markOrderPickupRecorded(
+    input: { order_id: string; now: Date },
+    @MedusaContext() context: Context = {},
+  ) {
+    await this.updateIntendedDeliveries(
+      {
+        selector: {
+          order_id: input.order_id,
+          picked_up_at: { $ne: null },
+          order_pickup_recorded_at: null,
+        },
+        data: { order_pickup_recorded_at: input.now },
+      },
+      context,
+    )
+  }
+
   /** Records the native fulfillment once; a later write never replaces it. */
   @InjectManager()
   async recordNativePickup(

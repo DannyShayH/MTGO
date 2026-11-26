@@ -132,6 +132,11 @@ keeps the obligation and the `recover-delivery-fulfillments` job finishes it
 from that same Restaurant location. An existing fulfillment keeps its original
 location.
 
+The pickup time is then recorded on the Order's kitchen record (#254), so the
+Restaurant's `/partner/orders` reads show `delivery.picked_up_at`; a failure
+there never fails the request, and the `recover-order-delivery-pickups` job
+finishes it.
+
 ## Arrival and contact attempts (#164)
 
 ### POST /partner/deliveries/{order_id}/arrive
@@ -2258,10 +2263,13 @@ recorded milestone times, `null` until recorded; the actors stay in the record.
 `available_actions` lists what staff may do at `server_time`: `["accept",
 "reject"]` while awaiting and the window is open, `["start_preparation"]` once
 accepted, `["ready"]` while preparing, otherwise `[]`. The action routes decide
-again when they receive the request. `delivery` is `null` until the Order's
-delivery ends, then `{ "outcome": "delivered" | "not_delivered", "ended_at":
-"..." }` (#204): the handover, or a delivery that ended without it
-(cancelled or failed), at the delivery's own terminal time. `state` stays
+again when they receive the request. `delivery` is `null` until the agent
+collects the food or the delivery ends, then `{ "picked_up_at": "..." | null,
+"outcome": "delivered" | "not_delivered" | null, "ended_at": "..." | null }`.
+`picked_up_at` is the agent's pickup time (#254); the agent's name and
+position are never included (ADR-0008). `outcome` and `ended_at` stay `null`
+until the delivery ends (#204): the handover, or a delivery that ended without
+it (cancelled or failed), at the delivery's own terminal time. `state` stays
 `ready`, the kitchen's last step. A cancelled Order keeps its `cancellation`
 as the reason it ended, and the `delivery_outcome` filter leaves it out. Amounts include VAT, as menu prices do (ADR-0012). Item
 `name`, quantities and prices are Medusa's purchase snapshot (`name` is the

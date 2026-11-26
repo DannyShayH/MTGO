@@ -8,13 +8,16 @@ import type DeliveryModuleService from "../../src/modules/delivery/service"
 import { endDeliveryWorkflow } from "../../src/workflows/delivery/terminal"
 import { recoverOrderDeliveryOutcomesWorkflow } from "../../src/workflows/delivery/order-outcome"
 import backfillOrderDeliveryOutcomes from "../../src/migration-scripts/order-delivery-outcomes"
+import { recoverOrderDeliveryPickupsWorkflow } from "../../src/workflows/delivery/order-pickup"
+import backfillOrderDeliveryPickups from "../../src/migration-scripts/order-delivery-pickups"
 import { restaurantOrdersHarness } from "../helpers/restaurant-orders"
 
 jest.setTimeout(240000)
 
 /**
  * #204: the end of an Order's delivery moves it from the kitchen's In
- * progress view to History, with how and when the delivery ended.
+ * progress view to History, with how and when the delivery ended. #254: the
+ * agent's pickup reaches the kitchen before that, with its time only.
  */
 medusaIntegrationTestRunner({
   dbName: "medusa_ci_partner_order_delivery_outcome_http",
@@ -78,8 +81,8 @@ medusaIntegrationTestRunner({
         { headers, validateStatus: () => true },
       )
 
-    /** A ready Order collected by its agent, still in the kitchen's In progress. */
-    const collectedOrder = async () => {
+    /** A ready Order claimed by an agent who has not collected it yet. */
+    const readyOrder = async () => {
       const order = await placePaidOrder(pizzeriaId)
       expect((await accept(staff, order.id)).status).toBe(200)
       const agent = await agentFor()
@@ -90,9 +93,14 @@ medusaIntegrationTestRunner({
       expect(claimed.status).toBe(200)
       expect((await startPreparation(staff, order.id)).status).toBe(200)
       expect((await markReady(staff, order.id)).status).toBe(200)
-      expect(
-        (await post(`/partner/deliveries/${order.id}/pickup`, agent)).status,
-      ).toBe(200)
+      return { order, agent }
+    }
+    const pickUp = (agent: Record<string, string>, orderId: string) =>
+      post(`/partner/deliveries/${orderId}/pickup`, agent)
+    /** A ready Order collected by its agent, still in the kitchen's In progress. */
+    const collectedOrder = async () => {
+      const { order, agent } = await readyOrder()
+      expect((await pickUp(agent, order.id)).status).toBe(200)
       return { order, agent }
     }
     const deliver = (agent: Record<string, string>, orderId: string) =>
@@ -117,6 +125,111 @@ medusaIntegrationTestRunner({
     }
     const terminalAtOf = async (order_id: string) =>
       (await delivery().listIntendedDeliveries({ order_id }))[0].terminal_at
+    const pickedUpAtOf = async (order_id: string) =>
+      new Date(
+        (await delivery().listIntendedDeliveries({ order_id }))[0]
+          .picked_up_at as Date,
+      ).toISOString()
+    /** The pickup as if the process stopped before the Order heard of it. */
+    const interruptBeforePickupRecord = async (order_id: string) => {
+      const record = await recordOf(order_id)
+      await operations().updateOrderOperations({
+        id: record.id,
+        delivery_picked_up_at: null,
+      })
+      await delivery().updateIntendedDeliveries({
+        selector: { order_id },
+        data: { order_pickup_recorded_at: null },
+      })
+    }
+
+    describe("after the agent confirms pickup", () => {
+      it("shows the pickup time in In progress and the Order, once, under a newer revision", async () => {
+        const { order, agent } = await readyOrder()
+        const before = await recordOf(order.id)
+
+        expect((await pickUp(agent, order.id)).status).toBe(200)
+
+        const pickedUpAt = await pickedUpAtOf(order.id)
+        const expected = {
+          picked_up_at: pickedUpAt,
+          outcome: null,
+          ended_at: null,
+        }
+        const active = await queue(staff, "?view=active")
+        const row = active.data.orders.find(
+          ({ id }: { id: string }) => id === order.id,
+        )
+        expect(row).toMatchObject({ state: "ready", delivery: expected })
+        const read = await detail(staff, order.id)
+        expect(read.data.order.delivery).toEqual(expected)
+        // The kitchen feed announces the pickup through a newer revision.
+        const after = await recordOf(order.id)
+        expect(after.revision).toBe(before.revision + 1)
+
+        // A retry of the pickup keeps the one time and announces nothing new.
+        expect((await pickUp(agent, order.id)).status).toBe(200)
+        expect((await recordOf(order.id)).revision).toBe(after.revision)
+        expect((await detail(staff, order.id)).data.order.delivery).toEqual(
+          expected,
+        )
+      })
+
+      it("never shows the agent's name or position to the Restaurant", async () => {
+        const { order } = await collectedOrder()
+        const read = JSON.stringify((await detail(staff, order.id)).data)
+        expect(read).not.toContain("Outcome agent")
+        expect(read).not.toContain("outcome-agent-")
+        expect(read).not.toMatch(/latitude|longitude|agent_id|picked_up_by/)
+      })
+
+      it("keeps the pickup time once the delivery ends", async () => {
+        const { order, agent } = await collectedOrder()
+        expect((await deliver(agent, order.id)).status).toBe(200)
+
+        expect((await detail(staff, order.id)).data.order.delivery).toEqual({
+          picked_up_at: await pickedUpAtOf(order.id),
+          outcome: "delivered",
+          ended_at: new Date(
+            (await terminalAtOf(order.id)) as Date,
+          ).toISOString(),
+        })
+      })
+    })
+
+    describe("recovery of the pickup owed to the Order", () => {
+      it("records a pickup the Order never heard of, once, at the pickup's own time", async () => {
+        const { order } = await collectedOrder()
+        await interruptBeforePickupRecord(order.id)
+        expect((await detail(staff, order.id)).data.order.delivery).toBeNull()
+
+        const { result } = await recoverOrderDeliveryPickupsWorkflow(
+          getContainer(),
+        ).run({ input: {} })
+        expect(result.recorded).toEqual([order.id])
+        const record = await recordOf(order.id)
+        expect(
+          (await detail(staff, order.id)).data.order.delivery.picked_up_at,
+        ).toBe(await pickedUpAtOf(order.id))
+
+        const repeat = await recoverOrderDeliveryPickupsWorkflow(
+          getContainer(),
+        ).run({ input: {} })
+        expect(repeat.result.recorded).toEqual([])
+        expect((await recordOf(order.id)).revision).toBe(record.revision)
+      })
+
+      it("backfills pickups made before the Order recorded them when migrations run", async () => {
+        const { order } = await collectedOrder()
+        await interruptBeforePickupRecord(order.id)
+
+        await backfillOrderDeliveryPickups({ container: getContainer() })
+
+        expect(
+          (await detail(staff, order.id)).data.order.delivery.picked_up_at,
+        ).toBe(await pickedUpAtOf(order.id))
+      })
+    })
 
     describe("after the agent confirms handover", () => {
       it("moves the Order from In progress to History as delivered, with the handover time, under a newer revision", async () => {
@@ -212,6 +325,7 @@ medusaIntegrationTestRunner({
         ).toEqual([order.id])
         const read = await detail(staff, order.id)
         expect(read.data.order.delivery).toEqual({
+          picked_up_at: await pickedUpAtOf(order.id),
           outcome: "not_delivered",
           ended_at: new Date(
             (await terminalAtOf(order.id)) as Date,

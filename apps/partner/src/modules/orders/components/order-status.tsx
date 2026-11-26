@@ -29,10 +29,13 @@ export const DELIVERY_OUTCOME_COLORS = {
   not_delivered: "orange",
 } as const
 
+/** Collected food (#254) keeps Ready's colour: the kitchen's part is done. */
+const PICKED_UP_COLOR = STATE_COLORS.ready
+
 /**
  * Where the Order stands for staff: how its delivery ended once it has
- * (#204), otherwise the kitchen state. A cancellation stays the outcome of a
- * cancelled Order.
+ * (#204), collected once the agent picked it up (#254), otherwise the
+ * kitchen state. A cancellation stays the outcome of a cancelled Order.
  */
 export function OrderStatusBadge({
   order,
@@ -44,6 +47,12 @@ export function OrderStatusBadge({
   if (!order.delivery || order.cancellation)
     return <OrderStateBadge state={order.state} locale={locale} />
   const { outcome } = order.delivery
+  if (!outcome)
+    return (
+      <Badge size="small" color={PICKED_UP_COLOR}>
+        {ORDER_TEXT[locale].status_picked_up}
+      </Badge>
+    )
   return (
     <Badge size="small" color={DELIVERY_OUTCOME_COLORS[outcome]}>
       {ORDER_TEXT[locale][`outcome_${outcome}`]}
@@ -70,10 +79,11 @@ export function AcceptanceDeadline({
 }) {
   const size = prominent ? "base" : "small"
   const text = ORDER_TEXT[locale]
-  // After acceptance or cancellation the deadline is history: shown in the
-  // details only, as a plain fact rather than an instruction.
+  // Once accepted the deadline no longer matters (#254). An Order cancelled
+  // before acceptance keeps it in the details, as a plain fact rather than
+  // an instruction.
   if (order.state !== "awaiting_acceptance")
-    return detailed && order.acceptance_deadline ? (
+    return detailed && order.acceptance_deadline && !order.accepted_at ? (
       <Text size="small" className="text-ui-fg-subtle">
         {formatText(text.deadline_was, {
           time: formatOrderTime(order.acceptance_deadline, locale),

@@ -141,6 +141,9 @@ type OrderText = Record<
   | "timeline"
   | "cancelled_on"
   | "next_pickup"
+  | "next_on_its_way"
+  | "status_picked_up"
+  | "picked_up_at"
   | "outcome_delivered"
   | "outcome_not_delivered"
   | "delivered_at"
@@ -310,6 +313,9 @@ export const ORDER_TEXT: Record<Locale, OrderText> = {
     timeline: "Forløb",
     cancelled_on: "Annulleret {time}",
     next_pickup: "Næste skridt: buddet henter maden",
+    next_on_its_way: "På vej til kunden",
+    status_picked_up: "Hentet af buddet",
+    picked_up_at: "Hentet af buddet {time}",
     outcome_delivered: "Leveret",
     outcome_not_delivered: "Ikke leveret",
     delivered_at: "Leveret {time}",
@@ -476,6 +482,9 @@ export const ORDER_TEXT: Record<Locale, OrderText> = {
     timeline: "Timeline",
     cancelled_on: "Cancelled {time}",
     next_pickup: "Next: the Delivery agent collects the food",
+    next_on_its_way: "On its way to the Customer",
+    status_picked_up: "Collected by the agent",
+    picked_up_at: "Collected by the agent {time}",
     outcome_delivered: "Delivered",
     outcome_not_delivered: "Not delivered",
     delivered_at: "Delivered {time}",

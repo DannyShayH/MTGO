@@ -131,10 +131,15 @@ export type RestaurantOrder = {
     note: string | null
   } | null
   /**
-   * How and when the delivery ended (#204); null while it has not. A
-   * cancelled Order's cancellation stays the reason it ended.
+   * When the agent collected the food (#254), and how and when the delivery
+   * ended (#204); null until either happened. Only times, never the agent.
+   * A cancelled Order's cancellation stays the reason it ended.
    */
-  delivery: { outcome: DeliveryOutcome; ended_at: string } | null
+  delivery: {
+    picked_up_at: string | null
+    outcome: DeliveryOutcome | null
+    ended_at: string | null
+  } | null
   /** The owed full refund; `failed` means still owed, never money returned. */
   refund: {
     status: "pending" | "failed" | "succeeded"

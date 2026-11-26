@@ -9,6 +9,7 @@ import {
 import { Text, clx } from "@medusajs/ui"
 import { CheckMini } from "@medusajs/icons"
 import type { RestaurantOrder } from "@lib/data/orders"
+import { orderTimelineSteps } from "../timeline-steps"
 
 /**
  * The kitchen milestones the backend recorded, oldest first, as a vertical
@@ -17,8 +18,9 @@ import type { RestaurantOrder } from "@lib/data/orders"
  * completed steps with a check, never by colour alone). `next` is the step
  * staff take now, such as Accept and Reject or Start preparing: it closes the
  * line as the current step, a teal ring, so the action sits where it will be
- * recorded. Without one, the newest step is a filled dot. Once the delivery
- * has ended (#204), that end closes the line.
+ * recorded. Without one, the newest step is a filled dot. The agent's
+ * pickup (#254) follows Ready, and once the delivery has ended (#204), that
+ * end closes the line.
  */
 export function OrderTimeline({
   order,
@@ -34,38 +36,23 @@ export function OrderTimeline({
     order.placed_at && isSameOrderDay(time, order.placed_at)
       ? formatOrderTime(time, locale)
       : formatOrderDateTime(time, locale)
-  const steps = (
-    [
-      order.placed_at && {
-        key: "placed",
-        label: formatText(text.placed, {
-          time: formatOrderDateTime(order.placed_at, locale),
-        }),
-      },
-      order.accepted_at && {
-        key: "accepted",
-        label: formatText(text.accepted_at, {
-          time: stepTime(order.accepted_at),
-        }),
-      },
-      order.preparation_started_at && {
-        key: "preparation",
-        label: formatText(text.preparation_started_at, {
-          time: stepTime(order.preparation_started_at),
-        }),
-      },
-      order.ready_at && {
-        key: "ready",
-        label: formatText(text.ready_at, { time: stepTime(order.ready_at) }),
-      },
-      order.delivery && {
-        key: "delivery",
-        label: formatText(text[`${order.delivery.outcome}_at`], {
-          time: stepTime(order.delivery.ended_at),
-        }),
-      },
-    ] as const
-  ).filter((step) => !!step)
+  const labels = {
+    placed: text.placed,
+    accepted: text.accepted_at,
+    preparation: text.preparation_started_at,
+    ready: text.ready_at,
+    picked_up: text.picked_up_at,
+    delivered: text.delivered_at,
+    not_delivered: text.not_delivered_at,
+  }
+  const steps = orderTimelineSteps(order).map(({ key, time }) => ({
+    key,
+    label: formatText(labels[key], {
+      // Placement carries its date; later steps only on another day.
+      time:
+        key === "placed" ? formatOrderDateTime(time, locale) : stepTime(time),
+    }),
+  }))
   if (!steps.length && !next) return null
   return (
     <ol aria-label={text.timeline} className="flex flex-col">

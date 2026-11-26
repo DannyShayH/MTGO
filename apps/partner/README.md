@@ -321,8 +321,9 @@ container, with a divider between rows. Each row is one link to
 on hover where hover exists) with the Order reference (`#display_id`). An
 Awaiting row leads with the deadline line in larger type, since every Order in
 that view awaits acceptance, then the placement time and each purchased dish
-with its quantity on its own line. In progress rows show the state badge and
-the dishes on one wrapping line next to the placement time. An Order leaves
+with its quantity on its own line. In progress rows show the state badge (**Collected by the agent** once the
+agent picked the food up, #254) and the dishes on one wrapping line next to
+the placement time. An Order leaves
 In progress once its delivery ends (#204), on the next live update. History
 holds cancelled Orders and Orders whose delivery ended. Its rows show the date
 and time of placement (or of cancellation for an Order placed before
@@ -332,8 +333,12 @@ why it was cancelled), the refund badge, the Order total and the dishes. In the 
 date when it was not today on the backend's clock. The Awaiting tab carries the
 number of Orders awaiting acceptance, and the footer says "1–20 of 50" with
 "Page 1 of 3" and Previous/Next. The detail page shows the recorded milestones
-as a timeline (placement with its date, then Accepted, Preparation started and
-Ready, with the newest filled). Once the delivery has ended the timeline ends
+as a timeline (placement with its date, then Accepted, Preparation started,
+Ready and **Collected by the agent {time}**, with the newest filled). After
+Ready the next step reads "Next: the Delivery agent collects the food", and
+after pickup "On its way to the Customer"; the live feed updates both without
+a reload. Only the pickup time is shown, never the agent (ADR-0008). The
+acceptance deadline is shown only until the Order is accepted. Once the delivery has ended the timeline ends
 with **Delivered {time}** or **Not delivered {time}** instead of the next-step
 line, and the header badge shows that outcome and adds unit prices, line totals and the
 Order total including VAT.

@@ -80,7 +80,14 @@ export default async function OrderPage({
   )
   // After handover, or a delivery that ended without it, nothing is left
   // for the kitchen or the agent (#204): the timeline ends with that outcome.
-  const awaitsPickup = order.state === "ready" && !order.delivery
+  const isDeliveryEnded = !!order.delivery?.outcome
+  const isAwaitingPickup =
+    order.state === "ready" && !order.delivery?.picked_up_at && !isDeliveryEnded
+  // After pickup (#254) the food has left; only the agent's handover is left.
+  // A cancellation recorded before the delivery's end reached the Order
+  // (owed work, #204) must not still say the food is on its way.
+  const isOnItsWay =
+    !!order.delivery?.picked_up_at && !isDeliveryEnded && !order.cancellation
   return (
     <div className="flex max-w-4xl flex-col gap-4">
       <BackLink locale={locale} />
@@ -111,7 +118,7 @@ export default async function OrderPage({
             order={order}
             locale={locale}
             next={
-              isAwaiting || hasNextStep || awaitsPickup ? (
+              isAwaiting || hasNextStep || isAwaitingPickup || isOnItsWay ? (
                 <div className="flex flex-col gap-y-3">
                   {isAwaiting && (
                     <AcceptanceDeadline
@@ -121,9 +128,14 @@ export default async function OrderPage({
                     />
                   )}
                   {/* After Ready the next step is the Delivery agent's. */}
-                  {awaitsPickup && (
+                  {isAwaitingPickup && (
                     <Text size="small" weight="plus">
                       {text.next_pickup}
+                    </Text>
+                  )}
+                  {isOnItsWay && (
+                    <Text size="small" weight="plus">
+                      {text.next_on_its_way}
                     </Text>
                   )}
                   <OrderProgressAction
@@ -145,7 +157,7 @@ export default async function OrderPage({
           {!isAwaiting && (
             <div className="flex flex-col gap-y-1 empty:hidden">
               <AcceptanceDeadline order={order} locale={locale} detailed />
-              {ACCEPTED_STATES.has(order.state) && !order.delivery && (
+              {ACCEPTED_STATES.has(order.state) && !isDeliveryEnded && (
                 <Text size="small" className="text-ui-fg-subtle max-w-prose">
                   {formatText(text.operator_boundary, {
                     number: order.display_id,

@@ -372,6 +372,15 @@ minute, 50 per sweep, oldest `terminal_at` first). The
 is owed, so work that ended before #204 leaves the kitchen's In progress view
 on deploy. Neither module imports the other: the workflow writes to both.
 
+The pickup is recorded on the kitchen record the same way (#254):
+`recordPickupOnOrder` (`src/workflows/delivery/order-pickup.ts`) copies
+`picked_up_at`, only the time, onto the Order Operations record under the
+Order's guard with a newer revision, then sets `order_pickup_recorded_at`.
+`confirmPickupWorkflow` runs it right after the pickup commits, as owed work
+without compensation. The `recover-order-delivery-pickups` job (every minute,
+50 per sweep, oldest `picked_up_at` first) records pickups still owed, and the
+`order-delivery-pickups` migration script backfills pickups made before #254.
+
 A delivered handover is also the authoritative source of the Restaurant's
 delivered food credit and commission (#227): `terminal_at` dates the
 recognition, never a later synchronization. Restaurant finance reads delivered

@@ -91,6 +91,12 @@ const OrderOperation = model
      */
     delivery_outcome: model.enum([...DELIVERY_OUTCOMES]).nullable(),
     delivery_ended_at: model.dateTime().nullable(),
+    /**
+     * The Delivery agent's pickup (#254), copied once from the delivery's
+     * `picked_up_at` and never moved. Only the time: who collected the food
+     * stays with the delivery (ADR-0008).
+     */
+    delivery_picked_up_at: model.dateTime().nullable(),
   })
   .indexes([
     { on: ["order_id"], unique: true },

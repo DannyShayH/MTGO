@@ -13,7 +13,7 @@ import type { OrderView, RestaurantOrder } from "@lib/data/orders"
 import {
   AcceptanceDeadline,
   DELIVERY_OUTCOME_COLORS,
-  OrderStateBadge,
+  OrderStatusBadge,
 } from "./order-status"
 import { pickPurchasedName } from "./purchased-food"
 import { REFUND_COLORS } from "./cancellation-outcome"
@@ -93,7 +93,10 @@ export function OrderCard({
         })
       : null
   // A cancellation is why a cancelled Order ended, whatever its delivery did.
-  const delivery = !order.cancellation && order.delivery
+  const { outcome, ended_at } = order.delivery ?? {}
+  const endedDelivery = !order.cancellation &&
+    outcome &&
+    ended_at && { outcome, ended_at }
   const placed = when && (
     <Text size="small" className="text-ui-fg-subtle tabular-nums">
       {when}
@@ -118,7 +121,7 @@ export function OrderCard({
               <AcceptanceDeadline order={order} locale={locale} prominent />
             )}
             {view === "active" && (
-              <OrderStateBadge state={order.state} locale={locale} />
+              <OrderStatusBadge order={order} locale={locale} />
             )}
             {view === "history" && (
               <Text size="small" weight="plus" className="tabular-nums">
@@ -160,18 +163,18 @@ export function OrderCard({
                     {text[`reason_${order.cancellation.category}`]}
                   </Badge>
                 )}
-                {delivery && (
+                {endedDelivery && (
                   <Badge
                     size="small"
-                    color={DELIVERY_OUTCOME_COLORS[delivery.outcome]}
+                    color={DELIVERY_OUTCOME_COLORS[endedDelivery.outcome]}
                     className="tabular-nums"
                   >
-                    {formatText(text[`${delivery.outcome}_at`], {
+                    {formatText(text[`${endedDelivery.outcome}_at`], {
                       time:
                         order.placed_at &&
-                        isSameOrderDay(delivery.ended_at, order.placed_at)
-                          ? formatOrderTime(delivery.ended_at, locale)
-                          : formatOrderDateTime(delivery.ended_at, locale),
+                        isSameOrderDay(endedDelivery.ended_at, order.placed_at)
+                          ? formatOrderTime(endedDelivery.ended_at, locale)
+                          : formatOrderDateTime(endedDelivery.ended_at, locale),
                     })}
                   </Badge>
                 )}

@@ -47,6 +47,7 @@ type OperationRow = {
   cancellation_note: string | null
   delivery_outcome: DeliveryOutcome | null
   delivery_ended_at: Date | string | null
+  delivery_picked_up_at: Date | string | null
 }
 
 type OrderRow = {
@@ -92,10 +93,16 @@ export type RestaurantOrder = {
       })
     | null
   /**
-   * How and when the Order's delivery ended (#204); null while it has not.
-   * A cancelled Order's cancellation stays the reason it ended.
+   * The Order's delivery as the kitchen sees it: when the agent collected
+   * the food (#254), and how and when the delivery ended (#204). Null until
+   * either happened. Only times, never the agent (ADR-0008). A cancelled
+   * Order's cancellation stays the reason it ended.
    */
-  delivery: { outcome: DeliveryOutcome; ended_at: string } | null
+  delivery: {
+    picked_up_at: string | null
+    outcome: DeliveryOutcome | null
+    ended_at: string | null
+  } | null
   /** The owed full refund's outcome, independent of the provider's refund rows. */
   refund: RefundOutcomeView
   /** The MTOGO-funded prepared-food credit this Order owes the Restaurant (#162). */
@@ -128,6 +135,7 @@ const OPERATION_FIELDS = [
   "cancellation_note",
   "delivery_outcome",
   "delivery_ended_at",
+  "delivery_picked_up_at",
 ] as const
 
 const ORDER_FIELDS = [
@@ -177,12 +185,14 @@ function toRestaurantOrder(
           ? operation.cancellation_note
           : null,
     },
-    delivery: operation.delivery_outcome
-      ? {
-          outcome: operation.delivery_outcome,
-          ended_at: iso(operation.delivery_ended_at)!,
-        }
-      : null,
+    delivery:
+      operation.delivery_outcome || operation.delivery_picked_up_at
+        ? {
+            picked_up_at: iso(operation.delivery_picked_up_at),
+            outcome: operation.delivery_outcome,
+            ended_at: iso(operation.delivery_ended_at),
+          }
+        : null,
     refund: refund ?? null,
     food_credit: food_credit ?? null,
     currency_code: order.currency_code,

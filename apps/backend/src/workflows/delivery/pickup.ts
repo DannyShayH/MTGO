@@ -17,6 +17,7 @@ import { readCurrentDeliveryStep } from "./assignment"
 import { stalledAttentionDueAt } from "./attention-rules"
 import { deliveryAgentLockKey } from "./locks"
 import { settleNativeFulfillment } from "./native-fulfillment"
+import { recordPickupOnOrderStep } from "./order-pickup"
 import {
   PICKUP_CONFLICTS,
   decidePickup,
@@ -107,13 +108,16 @@ const settleNativePickupStep = createStep(
 /**
  * The responsible agent confirms collecting ready food (#160): records the
  * milestone once, synchronizes native fulfillment and returns the current
- * delivery view with the pickup and the next permitted action.
+ * delivery view with the pickup and the next permitted action. The Order's
+ * kitchen record then records the pickup time (#254), so the Restaurant sees
+ * the food has left.
  */
 export const confirmPickupWorkflow = createWorkflow(
   "confirm-pickup",
   function (input: PickupInput) {
     const recorded = recordPickupStep(input)
     settleNativePickupStep(recorded)
+    recordPickupOnOrderStep(recorded)
     return new WorkflowResponse(
       readCurrentDeliveryStep(
         // `recorded` only orders the read after the write.
