@@ -99,6 +99,15 @@ refund status and genuine Feedback invitations separately.
   for initial rendering, polling, reconciliation and stream change detection.
   This is a read contract, not another persistent business model.
 
+### Feedback eligibility revision
+
+For #217, show a Feedback action based on the existing
+Feedback feature flag and eligibility decision. This supersedes the recorded
+invitation and invitation-producer requirements below. The action does not
+claim that an invitation was recorded; Feedback submission remains independent
+of tracking and stream delivery. The existing Feedback workflow owns eligibility
+and the seven-day window.
+
 ### Customer tracking and subscription contracts
 
 - Provide an authenticated `GET /store/orders/:id/tracking` returning the Order

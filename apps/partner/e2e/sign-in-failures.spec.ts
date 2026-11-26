@@ -449,9 +449,14 @@ test.describe("safe sign-in logging", () => {
       actor_id: "test",
       restaurant_id: "test",
     })
-    expect(await context.cookies()).toContainEqual(
-      expect.objectContaining({ name: "mtogo_partner_token", httpOnly: true }),
-    )
+    await expect
+      .poll(() => context.cookies())
+      .toContainEqual(
+        expect.objectContaining({
+          name: "mtogo_partner_token",
+          httpOnly: true,
+        }),
+      )
     expect(requestIds[0]).toMatch(/^[0-9a-f-]{36}$/)
     expect(requestIds[1]).toBe(requestIds[0])
     expect(logOutput).not.toMatch(

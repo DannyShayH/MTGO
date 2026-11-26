@@ -40,6 +40,8 @@ export const CUSTOMER_ORDER_DETAIL_TEXT = {
       "Ordren blev ændret samtidig. Her kan du se, hvordan den står nu.",
     cancel_refused_unknown_error:
       "Vi kunne ikke bekræfte annulleringen. Se ordrens status på siden, og prøv igen. En ordre annulleres og refunderes kun én gang.",
+    invitation: "Du kan bedømme din ordre",
+    invitation_action: "Giv feedback",
     progress_heading: "Ordrens forløb",
     location_heading: "Buddets position",
     location_not_started: "Positionen deles efter afhentning.",
@@ -48,6 +50,7 @@ export const CUSTOMER_ORDER_DETAIL_TEXT = {
     location_stale: "Seneste målte position er ikke længere aktuel.",
     location_ended: "Positionsdeling er afsluttet.",
     location_age: "Målt for {seconds} sekunder siden.",
+    location_coordinates: "Afrundede koordinater: {latitude}°, {longitude}°.",
     location_accuracy: "Rapporteret nøjagtighed: {meters} meter.",
     location_accuracy_unknown: "Nøjagtighed er ikke oplyst.",
     map_label: "Kort over buddets senest målte position",
@@ -103,6 +106,7 @@ export const CUSTOMER_ORDER_DETAIL_TEXT = {
       "Vi kan ikke længere vise ordrens forløb her. Log ind igen for at se den nyeste status.",
     connection_connecting: "Forbinder til løbende opdateringer …",
     connection_live: "Opdateres løbende",
+    connection_fulfilled: "Leveret",
     connection_checking:
       "Løbende opdateringer er afbrudt. Vi tjekker status hvert {seconds}. sekund.",
   },
@@ -147,6 +151,8 @@ export const CUSTOMER_ORDER_DETAIL_TEXT = {
       "The Order changed at the same time. Here is where it stands now.",
     cancel_refused_unknown_error:
       "We could not confirm the cancellation. Check the Order's status on this page and try again. An Order is only ever cancelled and refunded once.",
+    invitation: "You can rate your Order",
+    invitation_action: "Give Feedback",
     progress_heading: "Your Order's progress",
     location_heading: "Delivery agent location",
     location_not_started: "Location sharing starts after pickup.",
@@ -155,6 +161,7 @@ export const CUSTOMER_ORDER_DETAIL_TEXT = {
     location_stale: "The latest measured location is no longer current.",
     location_ended: "Location sharing has ended.",
     location_age: "Measured {seconds} seconds ago.",
+    location_coordinates: "Rounded coordinates: {latitude}°, {longitude}°.",
     location_accuracy: "Reported accuracy: {meters} metres.",
     location_accuracy_unknown: "Accuracy was not reported.",
     map_label: "Map of the delivery agent's last measured location",
@@ -210,6 +217,7 @@ export const CUSTOMER_ORDER_DETAIL_TEXT = {
       "We can no longer show this Order's progress here. Sign in again to see the latest status.",
     connection_connecting: "Connecting to live updates …",
     connection_live: "Live updates on",
+    connection_fulfilled: "Fulfilled",
     connection_checking:
       "Live updates are interrupted. We check the status every {seconds} seconds.",
   },

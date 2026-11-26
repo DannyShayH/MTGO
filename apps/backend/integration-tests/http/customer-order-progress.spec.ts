@@ -143,7 +143,7 @@ medusaIntegrationTestRunner({
           headers: customer,
         })
         expect(tracking.data.progress.refund.status).toBe("succeeded")
-        expect(tracking.data.progress.follow_up.status).toBe("unknown")
+        expect(tracking.data.progress.follow_up.status).toBe("settled")
       })
 
       it("shows a failed refund as still owed, without the provider's failure", async () => {
@@ -216,7 +216,7 @@ medusaIntegrationTestRunner({
         ended_at: endedAt.toISOString(),
         delivered_at: null,
       })
-      expect(read.data.progress.follow_up.status).toBe("unknown")
+      expect(read.data.progress.follow_up.status).toBe("settled")
       expect(JSON.stringify(read.data)).not.toContain("private-operator")
     })
 

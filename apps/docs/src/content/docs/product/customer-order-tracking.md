@@ -302,3 +302,10 @@ the implementation choices above are reserved for specification.
 
 No Feature implementation, implementation-ticket breakdown, board movement or
 Feature closure is part of this discovery.
+
+### Feedback eligibility in tracking (#217)
+
+When Feedback is enabled, tracking shows an action for an eligible Customer to
+open the existing Feedback form. The action reflects the Feedback eligibility
+rules; it does not claim that a durable invitation was recorded. Submission and
+expiry remove the action. Feedback remains independent of stream delivery.

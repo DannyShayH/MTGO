@@ -24,6 +24,7 @@ import {
   customerLocationSample,
 } from "../../delivery/customer-location"
 import { orderOperationLock } from "../locks"
+import { readFeedbackEligibility } from "../../feedback/eligibility"
 import { fingerprintOf } from "../../delivery/delivery-feed"
 
 /**
@@ -211,10 +212,22 @@ export const readOrderTrackingStep = createStep(
           currency_code: refund.currency_code,
           succeeded_at: refund.succeeded_at,
         }
-        const follow_up = {
-          status:
-            refund && refund.status !== "succeeded" ? "pending" : "unknown",
-        }
+        const feedback_eligibility = await readFeedbackEligibility(
+          container,
+          input.order_id,
+        )
+        let followUpStatus = ["settled", "available"].includes(
+          feedback_eligibility.status,
+        )
+          ? "settled"
+          : "unknown"
+        if (
+          progress.progress.state === "cancelled" ||
+          (delivery?.outcome && delivery.outcome !== "delivered")
+        )
+          followUpStatus = "settled"
+        if (refund && refund.status !== "succeeded") followUpStatus = "pending"
+        const follow_up = { status: followUpStatus }
         const tracking = {
           order: { id: order.id, language },
           progress: {
@@ -222,6 +235,7 @@ export const readOrderTrackingStep = createStep(
             delivery,
             refund: customerRefund,
             follow_up,
+            feedback_eligibility,
           },
         }
         return {

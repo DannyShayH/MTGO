@@ -175,6 +175,9 @@ export default function OrderFeedbackSection({
       }))
       if (!result.ok) return setError(result.error)
       setState(result.feedback)
+      window.dispatchEvent(
+        new CustomEvent("order-feedback-submitted", { detail: orderId }),
+      )
       setJustSubmitted(true)
       // The form is gone: keep focus on the section that replaced it.
       requestAnimationFrame(() => heading.current?.focus())
@@ -185,6 +188,7 @@ export default function OrderFeedbackSection({
     <section
       aria-labelledby={`${ids}-heading`}
       className="rounded-card border border-mtogo-border-subtle bg-mtogo-surface-card p-5 sm:p-6"
+      id="order-feedback"
       data-testid="order-feedback"
     >
       <h2

@@ -126,6 +126,11 @@ export type OrderProgress = {
       revision: number | null
     }
   } | null
+  feedback_eligibility?: {
+    status: "available" | "settled" | "unavailable"
+    closes_at: string | null
+    can_submit: boolean
+  }
   /** Unknown includes follow-up whose producer is not connected yet. */
   follow_up: { status: "unknown" | "pending" | "settled" }
   /** What the Customer may do now, decided at the server's time (#145). */

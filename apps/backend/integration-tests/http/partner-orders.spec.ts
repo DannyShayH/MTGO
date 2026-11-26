@@ -4,6 +4,7 @@ import {
   generateJwtToken,
   Modules,
 } from "@medusajs/framework/utils"
+import { orderOperationLock } from "../../src/workflows/order-operations/locks"
 import { revokeRestaurantStaffWorkflow } from "../../src/workflows/restaurant-staff"
 import { DELIVERY_MODULE } from "../../src/modules/delivery"
 import type DeliveryModuleService from "../../src/modules/delivery/service"
@@ -120,24 +121,33 @@ medusaIntegrationTestRunner({
         const [lateRecord] = await operations().listOrderOperations({
           order_id: late.id,
         })
-        await operations().updateOrderOperations({
-          id: lateRecord.id,
-          acceptance_deadline: new Date(Date.now() - 1000),
-        })
+        // Keep automatic expiry from racing this read of an elapsed window.
+        await getContainer()
+          .resolve(Modules.LOCKING)
+          .execute(
+            orderOperationLock(late.id).key,
+            async () => {
+              await operations().updateOrderOperations({
+                id: lateRecord.id,
+                acceptance_deadline: new Date(Date.now() - 1000),
+              })
 
-        const active = await queue(headers, "?view=active")
-        expect(active.data.orders.map(({ id }: QueueOrder) => id)).toEqual([
-          order.id,
-        ])
-        expect(active.data.orders[0].state).toBe("preparing")
-        const awaiting = await queue(headers)
-        expect(awaiting.data.orders).toEqual([
-          expect.objectContaining({
-            id: late.id,
-            acceptance_window: "elapsed",
-            state: "awaiting_acceptance",
-          }),
-        ])
+              const active = await queue(headers, "?view=active")
+              expect(
+                active.data.orders.map(({ id }: QueueOrder) => id),
+              ).toEqual([order.id])
+              expect(active.data.orders[0].state).toBe("preparing")
+              const awaiting = await queue(headers)
+              expect(awaiting.data.orders).toEqual([
+                expect.objectContaining({
+                  id: late.id,
+                  acceptance_window: "elapsed",
+                  state: "awaiting_acceptance",
+                }),
+              ])
+            },
+            { timeout: 10 },
+          )
         await operations().updateOrderOperations({
           id: record.id,
           state: "cancelled",

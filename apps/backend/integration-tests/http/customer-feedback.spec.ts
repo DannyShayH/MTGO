@@ -140,6 +140,34 @@ medusaIntegrationTestRunner({
       body: Record<string, unknown> = ratings,
     ) => post(`/store/orders/${orderId}/feedback`, headers, body)
 
+    it("exposes eligibility without inventing an invitation", async () => {
+      const { order } = await orderUntil("delivered")
+      const tracking = () =>
+        api.get(`/store/orders/${order.id}/tracking`, { headers: customer })
+      const first = (await tracking()).data
+      expect(first.progress.feedback_eligibility).toEqual({
+        status: "available",
+        closes_at: expect.any(String),
+        can_submit: true,
+      })
+      expect(first.progress).not.toHaveProperty("feedback_invitation")
+      expect(first.progress.follow_up.status).toBe("settled")
+      expect((await submitFeedback(customer, order.id)).status).toBe(201)
+      const submitted = (await tracking()).data
+      expect(submitted.progress.feedback_eligibility).toEqual({
+        status: "settled",
+        closes_at: null,
+        can_submit: false,
+      })
+      expect(submitted.change_token).not.toBe(first.change_token)
+      setFeedbackFlag(false)
+      expect((await tracking()).data.progress.feedback_eligibility).toEqual({
+        status: "unavailable",
+        closes_at: null,
+        can_submit: false,
+      })
+    })
+
     it("lets the ordering Customer rate a delivered Order once and read the ratings back", async () => {
       const { order } = await orderUntil("delivered")
 

@@ -3055,3 +3055,9 @@ Restaurant from the existing Restaurant list and open **Statements** on its
 detail page. Flag-off requests return `404`; signed-out or wrong-actor requests
 return `401`; invalid month/page requests return `400`; unknown, future and
 pre-creation months return `404`. There is no financial mutation endpoint.
+
+### Feedback eligibility in tracking (#217)
+
+`GET /store/orders/:id/tracking` includes `feedback_eligibility`, with status,
+`can_submit`, and `closes_at`. The Feedback flag controls availability and the
+existing Feedback workflow decides eligibility. This is not a recorded invitation.

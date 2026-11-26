@@ -178,6 +178,32 @@ export default function OrderProgressPanel({
   const isFinal = confirmed ? isSettled(confirmed.progress) : false
   const isTracking = !isFinal && !isRefused
 
+  // Feedback can change after terminal tracking has stopped. Re-read after
+  // submission and at the end of the eligibility window, using server time.
+  useEffect(() => {
+    if (isRefused) return
+    const onSubmission = (event: Event) => {
+      if ((event as CustomEvent<string>).detail === orderId) void refresh(true)
+    }
+    window.addEventListener("order-feedback-submitted", onSubmission)
+    return () =>
+      window.removeEventListener("order-feedback-submitted", onSubmission)
+  }, [isRefused, orderId, refresh])
+
+  useEffect(() => {
+    const closesAt = confirmed?.progress.feedback_eligibility?.closes_at
+    if (
+      !confirmed?.progress.feedback_eligibility?.can_submit ||
+      !closesAt ||
+      isRefused
+    )
+      return
+    const remaining = Date.parse(closesAt) - Date.parse(confirmed.server_time)
+    if (!Number.isFinite(remaining) || remaining <= 0) return
+    const timer = window.setTimeout(() => void refresh(true), remaining + 1000)
+    return () => window.clearTimeout(timer)
+  }, [confirmed, isRefused, refresh])
+
   // The feed: open while tracking and the page is visible. A hidden page
   // closes it; returning opens it again, and its `ready` rereads.
   useEffect(() => {
@@ -474,6 +500,19 @@ function Timeline({
         </ol>
       )}
 
+      <div role="status">
+        {progress?.feedback_eligibility?.can_submit && (
+          <div className="mt-5 break-words text-sm leading-6">
+            <p>{text.invitation}</p>
+            <a
+              href={`/${pathname.split("/")[1]}/account/orders/details/${encodeURIComponent(progress.order_id)}#order-feedback`}
+              className="mt-2 flex min-h-11 items-center text-mtogo-text-link underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-mtogo-focus-ring"
+            >
+              {text.invitation_action}
+            </a>
+          </div>
+        )}
+      </div>
       {confirmed && freshness !== "refused" && (
         <LocationStatus confirmed={confirmed} locale={locale} />
       )}
@@ -511,9 +550,17 @@ function Timeline({
           </p>
           {/* Always rendered, so a change of connection is announced. */}
           <div role="status">
-            {connection && freshness !== "refused" && (
+            {confirmed?.progress.delivery?.outcome === "delivered" &&
+            freshness !== "refused" ? (
+              <p
+                className="text-sm text-mtogo-status-success-text"
+                data-testid="order-progress-connection"
+              >
+                {text.connection_fulfilled}
+              </p>
+            ) : connection && freshness !== "refused" ? (
               <ConnectionStatus status={connection} locale={locale} />
-            )}
+            ) : null}
           </div>
         </div>
         <button
@@ -640,11 +687,19 @@ function LocationStatus({
               seconds: Math.floor(age / 1000).toString(),
             })}
           </p>
+          {location?.latitude != null && location.longitude != null && (
+            <p>
+              {formatText(text.location_coordinates, {
+                latitude: Math.round(location.latitude).toString(),
+                longitude: Math.round(location.longitude).toString(),
+              })}
+            </p>
+          )}
           <p>
             {location?.accuracy_m == null
               ? text.location_accuracy_unknown
               : formatText(text.location_accuracy, {
-                  meters: location.accuracy_m.toString(),
+                  meters: Math.round(location.accuracy_m).toString(),
                 })}
           </p>
         </>

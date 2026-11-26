@@ -29,6 +29,10 @@ reads `cancel_refused_{code}` for each code in `CUSTOMER_CANCEL_ERROR_CODES`;
 else to `unknown_error`, so backend text never reaches the Customer.
 The food-progress timeline (#147) reads `step_{key}`, `step_{status}`,
 `now_{state}` and the `progress_*` freshness texts.
+After a recorded delivery, the tracking indicator reads Fulfilled (Leveret in
+Danish); coordinates are displayed rounded to whole degrees and the reported
+location accuracy in whole metres. The map retains the measured coordinates
+and accuracy.
 The partner new-Order alert (#149) reads `arrival_*` in `ORDER_TEXT` for the
 banner and the New mark, and `sound_*` for the opt-in sound switch and its
 refusal line.
