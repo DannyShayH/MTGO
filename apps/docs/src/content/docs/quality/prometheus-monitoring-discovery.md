@@ -31,6 +31,8 @@ not an implemented monitoring system.
    metrics. Host-wide and other-container metrics remain deferred.
 7. Keep Grafana, Prometheus and scrape endpoints private. Maintainers initially
    access Grafana through an SSH tunnel using existing server access.
+   Superseded for Grafana by the
+   [access decision of 20 November 2026](#access-decision-20-november-2026).
 8. Preserve metric history through monitoring restarts and redeployments. Retain
    up to seven days, subject to a disk limit that remains to be established.
 9. Scrape every 15 seconds, refresh dashboards every 30 seconds and initially
@@ -115,6 +117,30 @@ must not be presented as Order processing time. The existing
 [logging decision](/MTGO/architecture/decisions/0019-safe-application-logging-and-request-correlation/)
 and business guarantees remain in force.
 
+### Access decision (20 November 2026)
+
+Items 7, 12 and 28 asked for private Grafana access, item 7 through an SSH
+tunnel. On
+20 November 2026 the developer chose a public, login-protected Grafana on the
+staging Grafana hostname instead, behind Caddy over HTTPS. Why:
+
+- Staging holds synthetic data only, and the dashboards show request counts,
+  process and host readings and approved application events, nothing more.
+- Team members do not need Droplet SSH access, or any identity on the
+  server, to look. A tunnel would have meant an SSH identity per member
+  (the deployment identity prohibits forwarding), which is broader than
+  viewing needs.
+
+What stays private: Prometheus, Loki, Alloy, Node Exporter and the backend
+exporter publish no port and have no Caddy route, and the API's `/metrics`
+answers 404. Caddy answers 404 for Grafana's server administration pages and
+APIs. Anonymous access and sign-up are off; every member has an individual
+Viewer account that cannot edit dashboards or data sources, and the CI
+identity and the `staging-admin` account are never used for viewing.
+[#181](https://github.com/DannyShayH/MTGO/issues/181) creates the accounts and
+records each member's acceptance in the
+[staging runbook](/MTGO/quality/staging-request-monitoring/#viewer-accounts-and-acceptance-181).
+
 ## Repository evidence informing the decisions
 
 - `apps/backend/instrumentation.ts` is a commented tracing template. There is
@@ -170,6 +196,8 @@ and stable configuration/volume arrangement.
 The deployment SSH identity prohibits forwarding. SSH tunnel access must use
 appropriate identities provisioned for all project team members. Monitoring
 viewing access does not require the CI deployment key or broad server privileges.
+The tunnel was later replaced by a login-protected Grafana, see the
+[access decision of 20 November 2026](#access-decision-20-november-2026).
 
 [Grafana's installation requirements](https://grafana.com/docs/grafana/latest/setup-grafana/installation/)
 recommend at least 512 MB RAM and one CPU core for Grafana itself. Adding that

@@ -41,6 +41,7 @@
 #   mtogo-deploy.sh monitoring status  Monitoring containers and their source release.
 #   mtogo-deploy.sh monitoring viewer-add <login>     Grafana Viewer, prints its first password.
 #   mtogo-deploy.sh monitoring viewer-remove <login>  Delete that Grafana account.
+#   mtogo-deploy.sh monitoring viewers  Every Grafana account: login, role, last sign-in.
 #
 # A GHCR token may be passed on the first line of stdin for private packages;
 # it is used for one Docker login in a temporary config and then discarded.
@@ -598,6 +599,35 @@ require_viewer_login() {
   [[ "$1" != "$GRAFANA_ADMIN_USER" ]] || die "$GRAFANA_ADMIN_USER is not a Viewer"
 }
 
+# One JSON string field of a flat Grafana object. A key cannot appear inside a
+# value, where its quotes would be escaped.
+json_field() {
+  sed -nE "s/.*\"$1\":\"([^\"]*)\".*/\\1/p" <<< "$2"
+}
+
+# Login, role and last sign-in of every account in the staging organisation.
+# Only those fields are printed: no e-mail address, and Grafana never returns
+# a password. Grafana creates an account with lastSeenAt ten years before
+# its creation and its own user list then shows "Never"; so does this one.
+list_grafana_accounts() {
+  local users object login role seen created last
+  users=$(grafana_api GET /api/org/users) || die "Grafana did not list its accounts (is monitoring up?)"
+  printf '%-24s %-9s %s\n' LOGIN ROLE 'LAST SIGN-IN'
+  while IFS= read -r object; do
+    login=$(json_field login "$object")
+    role=$(json_field role "$object")
+    seen=$(json_field lastSeenAt "$object")
+    created=$(json_field created "$object")
+    if [[ -z "$seen" || -z "$created" ]] ||
+      (($(date -u -d "$seen" +%s) < $(date -u -d "$created" +%s))); then
+      last=never
+    else
+      last=$(date -u -d "$seen" '+%Y-%m-%d %H:%M UTC')
+    fi
+    printf '%-24s %-9s %s\n' "$login" "$role" "$last"
+  done < <(grep -oE '\{[^{}]*\}' <<< "$users")
+}
+
 cmd_monitoring() {
   local action=${1:-status}
   shift || true
@@ -671,7 +701,12 @@ cmd_monitoring() {
       grafana_api DELETE "/api/admin/users/$id" > /dev/null
       log "removed Grafana account $1"
       ;;
-    *) die "unknown monitoring action: $action (up, update, down, status, viewer-add, viewer-remove)" ;;
+    viewers)
+      [[ $# -eq 0 ]] || die "monitoring viewers takes no arguments"
+      check_monitoring_env
+      list_grafana_accounts
+      ;;
+    *) die "unknown monitoring action: $action (up, update, down, status, viewer-add, viewer-remove, viewers)" ;;
   esac
 }
 
@@ -694,9 +729,12 @@ main() {
     psql) cmd_psql "$@" ;;
     compose) cmd_compose "$@" ;;
     monitoring) cmd_monitoring "$@" ;;
-    help | --help | -h) sed -n '2,46p' "$0" ;;
+    help | --help | -h) sed -n '2,47p' "$0" ;;
     *) die "unknown command: $command (try: help)" ;;
   esac
 }
 
-main "$@"
+# Sourced by the unit tests, which call the functions without running a command.
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

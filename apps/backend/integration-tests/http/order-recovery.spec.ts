@@ -16,7 +16,14 @@ const AFTER_DOWNTIME = new Date("2026-11-18T11:30:00.000Z")
 
 medusaIntegrationTestRunner({
   dbName: "medusa_ci_order_recovery_http",
-  env: { JWT_SECRET: "ci-only-order-recovery-secret", REDIS_URL: "" },
+  // No scheduled jobs: recover-order-operations runs every minute at the real
+  // clock, which is past the fixed deadlines, so a tick between a test's
+  // placement and its own sweep would expire the Order first.
+  env: {
+    JWT_SECRET: "ci-only-order-recovery-secret",
+    REDIS_URL: "",
+    MEDUSA_WORKER_MODE: "server",
+  },
   testSuite: ({ api, getContainer, dbUtils }) => {
     const harness = restaurantOrdersHarness({ api, getContainer, dbUtils })
     const {

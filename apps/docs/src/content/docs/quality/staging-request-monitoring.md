@@ -55,7 +55,11 @@ Issue #194 proposed an SSH tunnel for every Viewer and no Caddy route. On
 staging holds synthetic data only, the dashboard shows request counts only,
 and team members should not need Droplet SSH access to look at it. Prometheus
 and the exporter remain unreachable from the internet, as the issue requires.
-Update the issue's acceptance criteria to match before acceptance.
+[#181](https://github.com/DannyShayH/MTGO/issues/181) gives every team member
+a Viewer account on this basis and records each member's acceptance
+[below](#viewer-accounts-and-acceptance-181). The #167 specification is noted
+the same way in
+[Prometheus and Loki discovery](/MTGO/quality/prometheus-monitoring-discovery/#access-decision-20-november-2026).
 :::
 
 ## Files
@@ -67,7 +71,7 @@ Update the issue's acceptance criteria to match before acceptance.
 | `deploy/monitoring/grafana/`             | Provisioned data source and the read-only dashboard `mtogo-backend-requests`, shared with the local demo                                                                                                                                                                   |
 | `deploy/staging/compose.yaml`            | Creates `mtogo-staging-metrics`, attaches the backend and storefront; `STAGING_METRICS_ENABLED=1` turns both exporters on                                                                                                                                                  |
 | `deploy/staging/.env.template`           | `STAGING_METRICS_ENABLED`, `STAGING_GRAFANA_URL`, `STAGING_GRAFANA_PORT`, `GRAFANA_ADMIN_PASSWORD`                                                                                                                                                                         |
-| `deploy/staging/mtogo-deploy.sh`         | `monitoring up`, `update`, `down`, `status`, `viewer-add` and `viewer-remove`, for administrators only                                                                                                                                                                     |
+| `deploy/staging/mtogo-deploy.sh`         | `monitoring up`, `update`, `down`, `status`, `viewer-add`, `viewer-remove` and `viewers`, for administrators only                                                                                                                                                          |
 | `deploy/staging/Caddyfile.example`       | The Grafana site block                                                                                                                                                                                                                                                     |
 
 The monitoring stack is a separate Compose project. Deploys (`prepare`,
@@ -218,7 +222,24 @@ changes it under **Profile → Change password**.
 ```bash
 sudo mtogo-deploy.sh monitoring viewer-add <login>
 sudo mtogo-deploy.sh monitoring viewer-remove <login>   # when someone leaves
+sudo mtogo-deploy.sh monitoring viewers                 # who has an account
 ```
+
+`monitoring viewers` (#181) lists every Grafana account with its role and
+when it last signed in, so you can see whom to remove:
+
+```text
+LOGIN                    ROLE      LAST SIGN-IN
+staging-admin            Admin     2026-11-25 09:14 UTC
+anna                     Viewer    2026-11-26 06:45 UTC
+bo.k                     Viewer    never
+```
+
+It prints no password or e-mail address. **Last sign-in** is Grafana's
+_last seen_ time, which Grafana moves on while a person uses it; `never`
+means the account has not signed in since it was created, as Grafana's own
+user list shows it. Use one login per person, never a shared one, and never
+the CI identity or `staging-admin` for viewing.
 
 ### 6. Check privacy and the Viewer
 
@@ -520,6 +541,7 @@ Check afterwards that the application is unaffected:
 | Target DOWN                                | `STAGING_METRICS_ENABLED=1`, then `monitoring up` again (it recreates the backend). Check backend logs for the constant metrics warning. Never publish 9464.                                                                                                    |
 | Host row Unavailable                       | `monitoring status`: Node Exporter must run. The release with #182 is installed only after `monitoring update`.                                                                                                                                                 |
 | Caddy returns 502 for Grafana              | `monitoring status`; the Caddy upstream must match `STAGING_BIND_ADDRESS:STAGING_GRAFANA_PORT`. With Caddy in a container, use the `docker0` gateway address.                                                                                                   |
+| `viewers` fails with "did not list"        | Grafana is not running (`monitoring status`), or `GRAFANA_ADMIN_PASSWORD` differs from the one Grafana stored on its first start.                                                                                                                               |
 | `viewer-add` fails                         | The login already exists, or `GRAFANA_ADMIN_PASSWORD` differs from the one Grafana stored on its first start.                                                                                                                                                   |
 | Admin password from `.env` does not work   | Reset Grafana to a new value and put the same value in `.env`: `openssl rand -hex 24 \| tee /dev/tty \| sudo docker exec -i mtogo-staging-monitoring-grafana-1 grafana cli admin reset-admin-password --password-from-stdin`.                                   |
 | "Too many login attempts"                  | Brute-force protection locked the login for a few minutes. Wait, then sign in with the right password.                                                                                                                                                          |
@@ -543,6 +565,58 @@ To be filled in by the repository admin. No secrets or passwords belong here.
 | Exporter, Prometheus and admin API unreachable (step 6)      |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | Viewer sees real traffic and an early rejection (step 6)     | 20 November 2026, about 18:55, #171 dashboard: UP — traffic observed, real traffic by route pattern (for example `GET /store/collections` 200, `GET /store/orders` 401, 404s), 0.081 req/s, 5xx 0.0%, p95 96 ms from 24 observations. Checked signed in as the admin (the page offered **Make editable**), not as a Viewer, and before the step 6 `curl` commands, so the Viewer sign-in and the `early_rejection` series are still open |
 | Rollback steps 1 and 3 rehearsed, application unaffected     |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+
+### Viewer accounts and acceptance (#181)
+
+The repository admin creates one Viewer per team member with `viewer-add` and
+hands over the first password through the password manager. Each member then
+signs in once from their own machine and checks, as a Viewer:
+
+1. After sign-in, check that you land on **MTOGO — backend API requests and
+   process**. Change
+   the traffic controls (**Low traffic below** and **High traffic above**): the
+   panels follow. The dashboard offers no save or **Edit**, and
+   **Connections → Data sources** and **Administration** are not available.
+2. Open **MTOGO — approved application events** and put a request ID in
+   **Request ID starts with**: send
+   `curl -s -o /dev/null -w '%{http_code}\n' https://<api host>/partner/me -H 'x-request-id: viewer-<login>'`
+   and search `viewer-<login>`
+   ([approved application events](/MTGO/quality/approved-application-events/#staging-opt-in)).
+   Only that request's events remain.
+
+The admin then records, for the whole team:
+
+3. From the internet, `https://<api host>/metrics` answers 404, no Prometheus,
+   Loki or Alloy port answers, and `/admin` and `/api/admin` on the Grafana
+   hostname answer 404. Run [step 6](#6-check-privacy-and-the-viewer), then:
+
+   ```bash
+   curl -s -o /dev/null -w '%{http_code} admin page\n' https://grafana.staging.example.org/admin
+   nc -vz -w 5 <droplet-ip> 3100; nc -vz -w 5 <droplet-ip> 12345
+   ```
+
+   Expected: `404 admin page`, and both `nc` attempts fail.
+
+4. `monitoring viewers` lists every member with role `Viewer`, and a
+   sign-in time once they have signed in.
+5. `viewer-remove` on a test login: `monitoring viewers` no longer lists it,
+   and signing in with it fails.
+6. Run by the CI identity, `monitoring viewers` is refused with
+   `monitoring is for administrators only`.
+
+Record dates and results only, never a password. A login is enough to name a
+person.
+
+| Team member (Grafana login) | Signed in, dashboard, controls, no save or data source (1) | Event search by request ID (2) |
+| --------------------------- | ---------------------------------------------------------- | ------------------------------ |
+|                             |                                                            |                                |
+
+| Admin check (#181)                                            | Date and result |
+| ------------------------------------------------------------- | --------------- |
+| Exporter, Prometheus, Loki, Alloy and admin API closed (3)    |                 |
+| `monitoring viewers` lists every member as Viewer (4)         |                 |
+| `viewer-remove` removes a login; it can no longer sign in (5) |                 |
+| `monitoring viewers` refused for the CI identity (6)          |                 |
 
 Activation on 20 November 2026 (release `e6736400`): the Droplet still ran
 the deploy script from before #194, so `help` listed no `monitoring` command.
@@ -587,3 +661,11 @@ file. Neither `monitoring update` nor the
 [local rehearsal](/MTGO/quality/local-request-monitoring/#release-and-rollback-rehearsal-180)
 ran here, because the development container has no Docker. The developer runs
 the rehearsal and records it; staging activation stays with #183 and #184.
+
+Agent verification for #181 on 26 November 2026: the deploy script passes
+`bash -n` and `shellcheck`, and `grafana-viewers.unit.spec.ts` passes. The
+spec sources the script with Grafana's API replaced by a recorded
+`/api/org/users` answer, and each of its cases was seen failing on a
+deliberately broken script. It does not show that staging Grafana answers;
+the admin's check 4 above does. The accounts and the members' acceptance are
+the developer's Droplet steps.
