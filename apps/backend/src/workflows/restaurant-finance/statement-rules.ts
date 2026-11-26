@@ -1,4 +1,5 @@
 import {
+  BASIS_PROBLEM_CODES,
   FINANCE_PROBLEM_CODES,
   type FinanceProblemCode,
 } from "../../modules/restaurant-finance/models/finance-problem"
@@ -95,7 +96,7 @@ export type StatementProblem = {
 
 /** Missing evidence of what a delivered Order earned. */
 const DELIVERED_EVIDENCE_PROBLEMS: ProblemCode[] = [
-  "missing_financial_basis",
+  ...BASIS_PROBLEM_CODES,
   "conflicting_recognition",
 ]
 /**

@@ -19,6 +19,9 @@ import {
   payloadDigest,
 } from "./calculation"
 import { recoverCancellations } from "./cancellation-recognition"
+import { readLegacyBasis } from "./legacy-sources"
+import type { LegacyEvidence } from "./legacy-basis"
+import type { FinanceProblemCode } from "../../modules/restaurant-finance/models/finance-problem"
 import { unaccountedHandovers } from "./pending-handovers"
 import { closeRestaurantStatements, closeStatementsWorkflow } from "./closure"
 import { restaurantFinanceLock } from "./locks"
@@ -36,6 +39,60 @@ export type DeliveredRecognitionOutcome =
   | "not_owed"
   | "pending"
 
+const MISSING_EVIDENCE_CODE: Record<LegacyEvidence, FinanceProblemCode> = {
+  purchase: "missing_purchase_evidence",
+  terms: "missing_terms_evidence",
+}
+
+/**
+ * What a handover earns from its preserved basis or, for an Order placed
+ * before the basis was preserved, from a legacy reconstruction (#231) whose
+ * evidence says so. Otherwise the facts that could not be verified.
+ */
+async function resolveDeliveredRecognition(
+  container: MedusaContainer,
+  order_id: string,
+  operation: {
+    restaurant_id: string
+    placed_at: Date | string | null
+    financial_basis: unknown
+  },
+): Promise<{
+  recognition: ReturnType<typeof deliveredRecognition>
+  missing: LegacyEvidence[]
+}> {
+  const preserved = deliveredRecognition(operation.financial_basis, operation)
+  if (preserved.status === "recognizable")
+    return { recognition: preserved, missing: [] }
+  // A basis preserved at placement but unreadable is reported, never
+  // silently replaced by a reconstruction.
+  if (operation.financial_basis != null)
+    return { recognition: preserved, missing: ["purchase"] }
+  const legacy = await readLegacyBasis(container, order_id, operation)
+  if (legacy.status === "unverifiable")
+    return { recognition: preserved, missing: legacy.missing }
+  const rebuilt = deliveredRecognition(legacy.basis, {
+    restaurant_id: operation.restaurant_id,
+    placed_at: legacy.placed_at,
+  })
+  if (rebuilt.status !== "recognizable")
+    return { recognition: rebuilt, missing: ["purchase"] }
+  return {
+    recognition: {
+      ...rebuilt,
+      evidence: {
+        ...rebuilt.evidence,
+        reconstruction: {
+          source: "legacy_reconciliation",
+          placed_at: legacy.placed_at,
+          placement_time_source: legacy.placement_time_source,
+        },
+      },
+    },
+    missing: [],
+  }
+}
+
 /**
  * Recognizes one successfully delivered Order (#227; spec #52 §3, §4): one
  * receipt and journal entry with the full purchased food value excluding VAT
@@ -46,8 +103,9 @@ export type DeliveredRecognitionOutcome =
  * The posting month is decided by the server clock inside the Restaurant's
  * finance guard and local transaction. An older handover is recovered once
  * as a linked adjustment in the current month.
- * An Order without a preserved purchase basis is recorded as an evidence
- * problem, so it is visible and not retried forever.
+ * An Order without a preserved purchase basis is reconstructed only from
+ * verifiable legacy facts (#231); otherwise each unverifiable fact is
+ * recorded as an evidence problem, so it is visible and not retried forever.
  *
  * Owed work after a committed handover (ADR-0021): it has no compensation
  * and never fails the handover. A failure is logged and stays owed in the
@@ -80,8 +138,9 @@ export async function recognizeDeliveredOrder(
       RESTAURANT_FINANCE_MODULE,
     )
     await closeRestaurantStatements(container, operation.restaurant_id)
-    const recognition = deliveredRecognition(
-      operation.financial_basis,
+    const { recognition, missing } = await resolveDeliveredRecognition(
+      container,
+      order_id,
       operation,
     )
     const lock = restaurantFinanceLock(operation.restaurant_id)
@@ -91,15 +150,16 @@ export async function recognizeDeliveredOrder(
         const posted_at = new Date()
         const posting_month = copenhagenMonthOf(posted_at)
         if (recognition.status === "missing_financial_basis") {
-          await finance.recordProblem({
-            source_kind: "order_delivered",
-            source_id: order_id,
-            restaurant_id: operation.restaurant_id,
-            order_id,
-            code: "missing_financial_basis",
-            original_month,
-            detected_at: posted_at,
-          })
+          for (const fact of missing)
+            await finance.recordProblem({
+              source_kind: "order_delivered",
+              source_id: order_id,
+              restaurant_id: operation.restaurant_id,
+              order_id,
+              code: MISSING_EVIDENCE_CODE[fact],
+              original_month,
+              detected_at: posted_at,
+            })
           return "missing_financial_basis"
         }
         const payload = {
@@ -160,6 +220,64 @@ export const recognizeDeliveredOrderStep = createStep(
 )
 
 /**
+ * Legacy reconciliation (#231): every handover recorded as
+ * `missing_financial_basis` before reconciliation existed is re-examined
+ * once, page by page with its own batch. A verifiable basis is recognized
+ * with its real handover date, as a linked adjustment when its month has
+ * closed; otherwise the specific missing facts are recorded, which ends the
+ * re-examination, so an unverifiable source is not retried every minute.
+ */
+export async function reconcileLegacyBasisProblems(
+  container: MedusaContainer,
+  batch: number,
+) {
+  const finance = container.resolve<RestaurantFinanceModuleService>(
+    RESTAURANT_FINANCE_MODULE,
+  )
+  const outcomes: Record<string, DeliveredRecognitionOutcome> = {}
+  let remaining = batch
+  let page = 0
+  while (remaining > 0) {
+    const recorded = await finance.listFinanceProblems(
+      { source_kind: "order_delivered", code: "missing_financial_basis" },
+      {
+        skip: page * FINANCE_RECOVERY_PAGE_SIZE,
+        take: FINANCE_RECOVERY_PAGE_SIZE,
+        select: ["source_id"],
+        order: { detected_at: "ASC", id: "ASC" },
+      },
+    )
+    const ids = recorded.map(({ source_id }) => source_id)
+    const [receipts, reconciled] = ids.length
+      ? await Promise.all([
+          finance.listFinanceReceipts(
+            { source_kind: "order_delivered", source_id: ids },
+            { select: ["source_id"], take: null },
+          ),
+          finance.listFinanceProblems(
+            {
+              source_kind: "order_delivered",
+              source_id: ids,
+              code: ["missing_purchase_evidence", "missing_terms_evidence"],
+            },
+            { select: ["source_id"], take: null },
+          ),
+        ])
+      : [[], []]
+    const done = new Set(
+      [...receipts, ...reconciled].map(({ source_id }) => source_id),
+    )
+    const owed = ids.filter((id) => !done.has(id)).slice(0, remaining)
+    for (const order_id of owed)
+      outcomes[order_id] = await recognizeDeliveredOrder(container, order_id)
+    remaining -= owed.length
+    if (recorded.length < FINANCE_RECOVERY_PAGE_SIZE) break
+    page += 1
+  }
+  return outcomes
+}
+
+/**
  * One recovery sweep (spec #52 §9): reads all authoritative
  * handovers page by page, oldest first, and recognizes up to a batch of those
  * neither recognized nor recorded as an evidence problem. Every page is read,
@@ -198,12 +316,16 @@ const recoverRestaurantFinanceStep = createStep(
       if (handovers.length < FINANCE_RECOVERY_PAGE_SIZE) break
       page += 1
     }
+    const legacy = await reconcileLegacyBasisProblems(
+      container,
+      FINANCE_RECOVERY_BATCH_SIZE,
+    )
     // Cancellations (#229) have their own batch, so neither starves the other.
     const cancellations = await recoverCancellations(
       container,
       FINANCE_RECOVERY_BATCH_SIZE,
     )
-    return new StepResponse({ outcomes, cancellations })
+    return new StepResponse({ outcomes, legacy, cancellations })
   },
 )
 

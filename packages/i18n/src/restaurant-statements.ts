@@ -97,6 +97,8 @@ export const RESTAURANT_STATEMENTS_TEXT = {
     entry_commission: "Kommission",
     entry_net: "Netto",
     entry_funded_by_mtogo: "Betalt af MTOGO",
+    entry_reconstructed:
+      "Genskabt fra den oprindelige ordre og de vilkår, der gjaldt ved købet, fordi købsvilkårene ikke blev gemt dengang.",
     entry_outcome: "Udfald",
     entry_prepared_food:
       "Kompensation for tilberedt mad – betalt af MTOGO, ingen kommission",
@@ -206,6 +208,8 @@ export const RESTAURANT_STATEMENTS_TEXT = {
     entry_commission: "Commission",
     entry_net: "Net",
     entry_funded_by_mtogo: "Paid by MTOGO",
+    entry_reconstructed:
+      "Reconstructed from the original Order and the terms in force at purchase, because the purchase terms were not saved at the time.",
     entry_outcome: "Outcome",
     entry_prepared_food:
       "Compensation for prepared food – paid by MTOGO, no commission",
@@ -231,6 +235,10 @@ const PROBLEM_TEXT: Record<Locale, Record<string, string>> = {
   da: {
     missing_financial_basis:
       "{count} leverede ordrer har ingen gemte købsvilkår, så deres madkredit og kommission kan ikke beregnes.",
+    missing_purchase_evidence:
+      "{count} leverede ordrer kan ikke vise præcis, hvad der blev købt og til hvilken pris, så deres madkredit og kommission kan ikke beregnes. Dagens menu bruges ikke i stedet.",
+    missing_terms_evidence:
+      "{count} leverede ordrer kan ikke vise, hvilke vilkår der gjaldt ved købet, så deres madkredit og kommission kan ikke beregnes. Dagens aftale bruges ikke i stedet.",
     conflicting_recognition:
       "{count} leverede ordrer har oplysninger, der ikke stemmer med det allerede bogførte. Beløbet er ikke ændret.",
     recognition_pending:
@@ -258,6 +266,10 @@ const PROBLEM_TEXT: Record<Locale, Record<string, string>> = {
   en: {
     missing_financial_basis:
       "{count} delivered Orders have no preserved purchase terms, so their food credit and commission cannot be calculated.",
+    missing_purchase_evidence:
+      "{count} delivered Orders cannot show exactly what was bought and at which price, so their food credit and commission cannot be calculated. Today's menu is not used instead.",
+    missing_terms_evidence:
+      "{count} delivered Orders cannot show which terms applied when they were bought, so their food credit and commission cannot be calculated. Today's agreement is not used instead.",
     conflicting_recognition:
       "{count} delivered Orders have details that do not match what was already booked. The amount has not been changed.",
     recognition_pending:

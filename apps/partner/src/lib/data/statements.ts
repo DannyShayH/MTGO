@@ -58,6 +58,8 @@ export type StatementEntry = {
     vat_rate?: string
     food_value_including_vat?: string
     food_value_excluding_vat?: string
+    /** Rebuilt by legacy reconciliation, as no basis was preserved (#231). */
+    reconstruction?: { source: string }
   } | null
 }
 

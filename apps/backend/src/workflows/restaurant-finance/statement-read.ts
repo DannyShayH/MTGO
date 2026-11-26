@@ -17,7 +17,11 @@ import {
   FINANCE_TIMEZONE,
   isCalendarMonth,
 } from "./calculation"
-import { FINANCE_PROBLEM_CODES } from "../../modules/restaurant-finance/models/finance-problem"
+import {
+  BASIS_PROBLEM_CODES,
+  FINANCE_PROBLEM_CODES,
+  type FinanceProblemCode,
+} from "../../modules/restaurant-finance/models/finance-problem"
 import { unaccountedHandovers } from "./pending-handovers"
 import {
   restaurantCancellations,
@@ -265,6 +269,54 @@ function feeDifferenceOwed(context: FeeContext, month: string, now: Date) {
   return !MathBN.eq(fee.evidence.amount, recognized)
 }
 
+/** The basis problems that name which fact is missing (#231). */
+const SPECIFIC_BASIS_CODES: FinanceProblemCode[] = BASIS_PROBLEM_CODES.filter(
+  (code) => code !== "missing_financial_basis",
+)
+
+type RecordedProblem = {
+  code: FinanceProblemCode
+  source_kind: StatementProblem["sources"][number]["kind"]
+  source_id: string
+}
+
+/**
+ * The recorded problems that still stand at `cutoff`: a source recognized
+ * since, by legacy reconciliation (#231) for instance, no longer withholds
+ * anything, except a conflict, whose disagreeing payload stays unresolved.
+ * Once reconciliation names the specific missing facts of a handover, its
+ * earlier generic `missing_financial_basis` is not counted again. A closed
+ * month reads with its boundary cutoff, so its warnings stay fixed.
+ */
+async function standingProblems<T extends RecordedProblem>(
+  container: MedusaContainer,
+  restaurant_id: string,
+  recorded: T[],
+  cutoff?: Date,
+): Promise<T[]> {
+  if (!recorded.length) return []
+  const receipts = await resolveFinance(container).listFinanceReceipts(
+    {
+      restaurant_id,
+      source_id: [...new Set(recorded.map(({ source_id }) => source_id))],
+      ...(cutoff ? { posted_at: { $lt: cutoff } } : {}),
+    },
+    { take: null, select: ["source_kind", "source_id"] },
+  )
+  const key = ({ source_kind, source_id }: Omit<RecordedProblem, "code">) =>
+    `${source_kind}:${source_id}`
+  const recognized = new Set(receipts.map(key))
+  const named = new Set(
+    recorded.filter(({ code }) => SPECIFIC_BASIS_CODES.includes(code)).map(key),
+  )
+  return recorded.filter(
+    (problem) =>
+      (problem.code === "conflicting_recognition" ||
+        !recognized.has(key(problem))) &&
+      !(problem.code === "missing_financial_basis" && named.has(key(problem))),
+  )
+}
+
 /** The month's header facts: booked amounts and visible problems. */
 async function readHeader(
   container: MedusaContainer,
@@ -307,10 +359,16 @@ async function readHeader(
       { select: ["code", "source_kind", "source_id"], take: null },
     ),
   ])
+  const standingRecorded = await standingProblems(
+    container,
+    restaurant_id,
+    recorded,
+    cutoff,
+  )
   const problems: StatementProblem[] = FINANCE_PROBLEM_CODES.map((code) =>
     problemOf(
       code,
-      recorded
+      standingRecorded
         .filter((problem) => problem.code === code)
         .map(({ source_kind, source_id }) => ({
           kind: source_kind,
@@ -415,18 +473,13 @@ async function readHeader(
     },
     { take: null },
   )
-  const receipts = earlierProblems.length
-    ? await finance.listFinanceReceipts(
-        {
-          restaurant_id,
-          source_id: earlierProblems.map(({ source_id }) => source_id),
-          ...(cutoff ? { posted_at: { $lt: cutoff } } : {}),
-        },
-        { take: null, select: ["source_kind", "source_id"] },
-      )
-    : []
-  const accounted = new Set(
-    receipts.map(({ source_kind, source_id }) => `${source_kind}:${source_id}`),
+  const earlierSources = new Map(
+    (
+      await standingProblems(container, restaurant_id, earlierProblems, cutoff)
+    ).map(({ source_kind, source_id }) => [
+      `${source_kind}:${source_id}`,
+      { kind: source_kind, id: source_id },
+    ]),
   )
   problems.push(
     problemOf("earlier_month_evidence_missing", [
@@ -434,16 +487,7 @@ async function readHeader(
         kind: "service_fee_month" as const,
         id,
       })),
-      ...earlierProblems
-        .filter(
-          ({ code, source_kind, source_id }) =>
-            code === "conflicting_recognition" ||
-            !accounted.has(`${source_kind}:${source_id}`),
-        )
-        .map(({ source_kind, source_id }) => ({
-          kind: source_kind,
-          id: source_id,
-        })),
+      ...earlierSources.values(),
     ]),
   )
   return assembleStatementHeader({

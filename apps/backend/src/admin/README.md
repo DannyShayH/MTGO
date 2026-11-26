@@ -319,6 +319,13 @@ side: paging with whole-month totals, the boundaries of `limit`, `offset` and
 the month, parity with staff, role boundaries, inactive Restaurants and the
 flag.
 
+A legacy entry reconstructed by #231 explains "Reconstructed from the
+original Order version and the agreement in force at placement" (or "at
+Order creation" for a record without a placement time). The
+`missing_purchase_evidence` and `missing_terms_evidence` problems explain
+which fact could not be verified, and that today's menu or agreement is not
+used instead.
+
 An Operator cancellation (#233) shows the outcome "Cancelled by MTOGO" as
 "Prepared-food compensation" or under Orders without food credit. Its
 occurred time is the operator's action and its funding is "Paid by MTOGO".

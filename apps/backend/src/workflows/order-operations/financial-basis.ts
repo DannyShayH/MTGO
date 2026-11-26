@@ -14,6 +14,10 @@ const TERMS_BY_VERSION: Record<string, typeof COMMON_MVP_TERMS_V1> = {
   [COMMON_MVP_TERMS_V1.terms_version]: COMMON_MVP_TERMS_V1,
 }
 
+/** Whether a recorded terms version names terms this release can reproduce. */
+export const isKnownTermsVersion = (terms_version: string) =>
+  Object.prototype.hasOwnProperty.call(TERMS_BY_VERSION, terms_version)
+
 /** Stored JSON is untrusted, so a raw value's `value` may be missing. */
 type Decimal = { value?: string | null } | string | number
 

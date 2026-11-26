@@ -5,6 +5,7 @@ import {
   type PurchasedLine,
   type PurchasedTerms,
 } from "../order-operations/financial-basis"
+import type { PlacementTimeSource } from "./legacy-basis"
 
 /**
  * The Restaurant finance rules (spec #52 §5, §7; ADR-0006): exact decimal
@@ -58,6 +59,16 @@ export type RecognitionEvidence = {
   food_value_including_vat: string
   food_value_excluding_vat: string
   lines: (PurchasedLine & { total_including_vat: string })[]
+  /**
+   * Present only when legacy reconciliation (#231) rebuilt the basis from
+   * the unchanged native Order and the agreement in force at placement,
+   * because none was preserved at placement.
+   */
+  reconstruction?: {
+    source: "legacy_reconciliation"
+    placed_at: string
+    placement_time_source: PlacementTimeSource
+  }
 }
 
 export type DeliveredRecognition =

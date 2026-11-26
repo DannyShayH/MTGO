@@ -12,7 +12,10 @@ Issue #229 recognizes existing prepared-food credits and records
 cancellations that owe no entitlement. Issue #230 fixes closed statements
 and recovers late amounts as linked current-month adjustments. Issue #233
 recognizes each Operator cancellation (#199) through the same boundary, dated
-and explained by the operator's recorded action.
+and explained by the operator's recorded action. Issue #231 reconciles
+legacy handovers without a preserved basis from verifiable facts only and
+names the purchase or terms evidence that is missing
+([Incomplete statement history](/MTGO/product/restaurant-statement-history/)).
 
 ## Data model
 
@@ -22,7 +25,7 @@ and explained by the operator's recorded action.
 | `FinanceJournalEntry` | The booked effect of one receipt (`receipt_id` unique): `kind` (`delivered_order`, `prepared_food_compensation` or `service_fee_difference`), Restaurant, Order, original and posting dates and months, `currency_code`, `food_credit` and `commission` and `service_fee` (exact decimals, statement direction: credit owed, commission and fee charged) and `funded_by` (`customer` or `mtogo`)                                                                                                                            |
 | `FinanceServiceFee`   | The one service-fee obligation per `restaurant_id` and `month` (unique together): `terms_version`, `currency_code`, `policy_amount`, `month_day_count`, `active_dates` (JSON list of `YYYY-MM-DD`), `active_date_count`, `amount` (exact, rounded once for the month) and `accrued_at`                                                                                                                                                                                                                                      |
 | `FinanceClosure`      | One unique `restaurant_id`/`month` closure with exclusive Copenhagen `starts_at`/`ends_at` and an immutable JSON snapshot: full journal membership, whole-month totals or unavailability, fee evidence, problems, days, zero outcomes and boundary verification time.                                                                                                                                                                                                                                                       |
-| `FinanceProblem`      | A visible evidence problem, once per source and `code`: `missing_financial_basis`, `conflicting_recognition` or `missing_outcome_evidence`, with Restaurant, Order, `original_month` and `detected_at`                                                                                                                                                                                                                                                                                                                      |
+| `FinanceProblem`      | A visible evidence problem, once per source and `code`: `missing_purchase_evidence` or `missing_terms_evidence` (#231), `missing_financial_basis` (recorded before #231), `conflicting_recognition` or `missing_outcome_evidence`, with Restaurant, Order, `original_month` and `detected_at`                                                                                                                                                                                                                               |
 
 - **One fee obligation per month.** `accrueServiceFee` creates the month's
   obligation or replaces its dates and amount while the month is current; the
@@ -67,6 +70,23 @@ and explained by the operator's recorded action.
   is the once-per-minute job `recover-restaurant-finance`, whose first tick
   after a restart is the startup reconciliation. Both run whatever the
   `restaurant_statements` flag says.
+- `legacy-basis.ts` and `legacy-sources.ts` (#231): a handover whose Order
+  has no preserved basis is reconstructed only from the native Order's
+  original version (its lines, exact VAT-inclusive prices and quantities;
+  Medusa's later fulfillment versions do not change them, while an applied
+  edit, claim or exchange makes it unverifiable) and the one
+  agreement recorded no later than placement and not removed before it, of a
+  known terms version. The placement time is the placement record's or, for
+  an older record, the native Order's creation. The receipt's evidence carries
+  `reconstruction`. Only a missing basis is reconstructed; a stored but
+  unreadable one is `missing_purchase_evidence`. Whatever cannot be verified is recorded as
+  `missing_purchase_evidence` or `missing_terms_evidence`; today's menu and
+  agreement are never used. `reconcileLegacyBasisProblems`, run by the
+  recovery job with its own batch, re-examines each older
+  `missing_financial_basis` once: it is recognized (as a linked adjustment
+  when its month closed) or gets its specific code. Statement reads stop
+  withholding for a problem whose source was recognized before the read's
+  cutoff, except a conflict, and do not count a generic problem twice.
 - `cancellation-rules.ts` and `cancellation-recognition.ts` (#229):
   `recognizeCancelledOrder` runs after every committed cancellation's
   settlement (`settleCancellation`), outside the Order and settlement guards,

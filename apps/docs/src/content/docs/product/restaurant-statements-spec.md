@@ -217,7 +217,7 @@ This specification implements the financial journeys supported by explicit opera
 
 ## Further Notes
 
-The implemented [closed-statement and late-adjustment behavior](/MTGO/product/restaurant-statement-closure/) documents issue #230, its verification and the developer manual check.
+The implemented [closed-statement and late-adjustment behavior](/MTGO/product/restaurant-statement-closure/) documents issue #230, its verification and the developer manual check. [Incomplete statement history](/MTGO/product/restaurant-statement-history/) documents issue #231's legacy reconciliation, evidence coverage and manual check.
 
 This specification belongs to [Feature #52](https://github.com/DannyShayH/MTGO/issues/52), based on [discovery #223](https://github.com/DannyShayH/MTGO/issues/223) and its [agreed decisions](/MTGO/product/restaurant-statements/). The team confirmed all nineteen questions and shared understanding before invoking `/to-spec`. The team invokes `/to-tickets` separately for independently demonstrable vertical work items under #52; no new work items are created here.
 

@@ -412,32 +412,300 @@ medusaIntegrationTestRunner({
       })
     })
 
-    it("withholds food credit and commission for a delivered Order whose purchase basis was not preserved", async () => {
-      const { order, agent } = await collectedOrder()
-      const record = (
-        await operations().listOrderOperations({
+    describe("history without a preserved purchase basis (#231)", () => {
+      const pg = () =>
+        getContainer().resolve(ContainerRegistrationKeys.PG_CONNECTION)
+      /** The agreement as if recorded at `at`, before or after placement. */
+      const agreedAt = (at: string) =>
+        pg()("commercial_terms_agreement")
+          .where({ restaurant_id: pizzeriaId })
+          .update({ agreed_at: new Date(at) })
+      /** A placement as recorded before #226 preserved its basis. */
+      const asLegacyPlacement = async (
+        order_id: string,
+        { keepPlacedAt = false } = {},
+      ) => {
+        const [record] = await operations().listOrderOperations({ order_id })
+        await operations().updateOrderOperations({
+          id: record.id,
+          financial_basis: null,
+          ...(keepPlacedAt ? {} : { placed_at: null }),
+        })
+      }
+      const legacyDelivery = async (
+        prepare: (order_id: string) => Promise<unknown> = async () => {},
+      ) => {
+        const { order, agent } = await collectedOrder()
+        await asLegacyPlacement(order.id)
+        await prepare(order.id)
+        expect(
+          (await post(`/partner/deliveries/${order.id}/deliver`, agent)).status,
+        ).toBe(200)
+        return order
+      }
+      /** A purchase whose lines do not state that prices include VAT. */
+      const withoutVatInclusivePrices = (order_id: string) =>
+        pg()("order_line_item")
+          .whereIn(
+            "id",
+            pg()("order_item").select("item_id").where({ order_id }),
+          )
+          .update({ is_tax_inclusive: false })
+      /** What #227 recorded before reconciliation existed. */
+      const recordPreReconciliationProblem = async (order_id: string) =>
+        finance().recordProblem({
+          source_kind: "order_delivered",
+          source_id: order_id,
+          restaurant_id: pizzeriaId,
+          order_id,
+          code: "missing_financial_basis",
+          original_month: copenhagenMonthOf(new Date()),
+          detected_at: new Date(),
+        })
+      const forgetRecognitionOf = async (order_id: string) => {
+        const receipts = await finance().listFinanceReceipts({
+          source_id: order_id,
+        })
+        const entries = await finance().listFinanceJournalEntries({
+          receipt_id: receipts.map(({ id }) => id),
+        })
+        await finance().deleteFinanceJournalEntries(entries.map(({ id }) => id))
+        await finance().deleteFinanceReceipts(receipts.map(({ id }) => id))
+      }
+      const recover = () =>
+        recoverRestaurantFinanceWorkflow(getContainer()).run({ input: {} })
+      const basisProblems = (problems: { code: string }[]) =>
+        problems.filter(({ code }) =>
+          [
+            "missing_financial_basis",
+            "missing_purchase_evidence",
+            "missing_terms_evidence",
+          ].includes(code),
+        )
+
+      it("recognizes a legacy handover once from its unchanged Order and the agreement in force at placement", async () => {
+        await agreedAt("2026-01-01T00:00:00.000Z")
+        const order = await legacyDelivery()
+        await recover()
+
+        const { data } = await statement(staff.headers)
+        expect(basisProblems(data.statement.problems)).toEqual([])
+        expect(data.statement.totals).toMatchObject({
+          food_credits: { status: "available", amount: "76" },
+          commission: { status: "available", amount: "4.56" },
+        })
+        expect(data.count).toBe(1)
+        expect(data.entries[0]).toMatchObject({
+          source: { kind: "order_delivered", id: order.id },
+          occurred_at: await terminalAtOf(order.id),
+          original_month: month(),
+          amounts: { food_credit: "76", commission: "4.56", net: "71.44" },
+          calculation: {
+            terms_version: "common_mvp_v1",
+            order_version: 1,
+            food_value_excluding_vat: "76",
+            reconstruction: {
+              source: "legacy_reconciliation",
+              placement_time_source: "order_created",
+            },
+          },
+        })
+      })
+
+      it("withholds food credit and commission of a legacy Order whose purchased prices cannot be reproduced, while known amounts, the fee and in-progress Orders stay as they are", async () => {
+        await participateFromNow()
+        await agreedAt("2026-01-01T00:00:00.000Z")
+        const known = await deliveredOrder()
+        // Still waiting for its outcome: not an evidence gap.
+        const waiting = await placePaidOrder(pizzeriaId)
+        expect((await accept(staff.headers, waiting.id)).status).toBe(200)
+        const legacy = await legacyDelivery(withoutVatInclusivePrices)
+        await recover()
+        await recover()
+
+        const { data } = await statement(freshHeaders(staff.headers))
+        expect(data.statement.completeness).toBe("incomplete")
+        expect(data.statement.totals).toMatchObject({
+          food_credits: { status: "unavailable", reason: "evidence_missing" },
+          commission: { status: "unavailable", reason: "evidence_missing" },
+          service_fee: {
+            status: "available",
+            amount: ONE_DAY_FEE[daysInMonth()],
+          },
+          adjustments: { status: "available", amount: "0" },
+          balance: { status: "unavailable", reason: "depends_on_unavailable" },
+        })
+        expect(basisProblems(data.statement.problems)).toEqual([
+          {
+            code: "missing_purchase_evidence",
+            count: 1,
+            sources: [{ kind: "order_delivered", id: legacy.id }],
+          },
+        ])
+        expect(data.entries.map(({ source }) => source.id)).toEqual([known.id])
+      })
+
+      it("names the terms missing when the only agreement was recorded after the legacy placement", async () => {
+        await agreedAt(new Date(Date.now() + 86_400_000).toISOString())
+        const order = await legacyDelivery()
+
+        const { data } = await statement(staff.headers)
+        expect(data.count).toBe(0)
+        expect(basisProblems(data.statement.problems)).toEqual([
+          {
+            code: "missing_terms_evidence",
+            count: 1,
+            sources: [{ kind: "order_delivered", id: order.id }],
+          },
+        ])
+        expect(data.statement.totals.food_credits).toEqual({
+          status: "unavailable",
+          reason: "evidence_missing",
+        })
+      })
+
+      it("reports a damaged preserved basis as missing purchase evidence instead of reconstructing it", async () => {
+        await agreedAt("2026-01-01T00:00:00.000Z")
+        const { order, agent } = await collectedOrder()
+        const [record] = await operations().listOrderOperations({
           order_id: order.id,
         })
-      )[0]
-      await operations().updateOrderOperations({
-        id: record.id,
-        financial_basis: null,
-      })
-      expect(
-        (await post(`/partner/deliveries/${order.id}/deliver`, agent)).status,
-      ).toBe(200)
+        await operations().updateOrderOperations({
+          id: record.id,
+          financial_basis: { basis_version: 1, lines: [] },
+        })
+        expect(
+          (await post(`/partner/deliveries/${order.id}/deliver`, agent)).status,
+        ).toBe(200)
 
-      const { data } = await statement(staff.headers)
-      expect(data.count).toBe(0)
-      expect(data.statement.totals.food_credits).toEqual({
-        status: "unavailable",
-        reason: "evidence_missing",
+        const { data } = await statement(staff.headers)
+        expect(data.count).toBe(0)
+        expect(basisProblems(data.statement.problems)).toEqual([
+          {
+            code: "missing_purchase_evidence",
+            count: 1,
+            sources: [{ kind: "order_delivered", id: order.id }],
+          },
+        ])
       })
-      expect(data.statement.totals.commission.status).toBe("unavailable")
-      expect(data.statement.problems).toContainEqual({
-        code: "missing_financial_basis",
-        count: 1,
-        sources: [{ kind: "order_delivered", id: order.id }],
+
+      it("re-examines a problem recorded before reconciliation once, naming the fact that cannot be verified", async () => {
+        const { order, agent } = await collectedOrder()
+        await asLegacyPlacement(order.id)
+        await withoutVatInclusivePrices(order.id)
+        expect(
+          (await post(`/partner/deliveries/${order.id}/deliver`, agent)).status,
+        ).toBe(200)
+        // As #227 left it: one generic problem, no specific fact.
+        await finance().deleteFinanceProblems(
+          (await finance().listFinanceProblems({ source_id: order.id })).map(
+            ({ id }) => id,
+          ),
+        )
+        await recordPreReconciliationProblem(order.id)
+        await recover()
+        await recover()
+
+        const { data } = await statement(staff.headers)
+        expect(basisProblems(data.statement.problems)).toEqual([
+          {
+            code: "missing_purchase_evidence",
+            count: 1,
+            sources: [{ kind: "order_delivered", id: order.id }],
+          },
+        ])
+        expect(
+          await finance().listFinanceProblems({ source_id: order.id }),
+        ).toHaveLength(2)
+      })
+
+      it("keeps a closed incomplete month's warning and posts its later verified handover once as a linked adjustment", async () => {
+        await beginNovember()
+        await agreedAt("2026-10-01T00:00:00.000Z")
+        const order = await deliveredOrder()
+        const handedOverAt = await terminalAtOf(order.id)
+        await forgetRecognitionOf(order.id)
+        await asLegacyPlacement(order.id, { keepPlacedAt: true })
+        await recordPreReconciliationProblem(order.id)
+        const november = (
+          await statement(
+            freshHeaders(staff.headers),
+            "",
+            pizzeriaId,
+            "2026-11",
+          )
+        ).data
+        expect(november.statement.totals.food_credits).toEqual({
+          status: "unavailable",
+          reason: "evidence_missing",
+        })
+
+        clockAt("2026-12-01T00:10:00.000Z")
+        await closeStatementsWorkflow(getContainer()).run({ input: {} })
+        const closed = (
+          await statement(
+            freshHeaders(staff.headers),
+            "",
+            pizzeriaId,
+            "2026-11",
+          )
+        ).data
+        expect(closed.statement.lifecycle).toBe("closed")
+        expect(basisProblems(closed.statement.problems)).toEqual([
+          {
+            code: "missing_financial_basis",
+            count: 1,
+            sources: [{ kind: "order_delivered", id: order.id }],
+          },
+        ])
+        const pending = (await statement(freshHeaders(staff.headers))).data
+        expect(pending.statement.problems).toContainEqual(
+          expect.objectContaining({
+            code: "earlier_month_evidence_missing",
+            sources: expect.arrayContaining([
+              { kind: "order_delivered", id: order.id },
+            ]),
+          }),
+        )
+
+        await recover()
+        clockAt("2026-12-05T12:00:00.000Z")
+        await recover()
+
+        const december = (await statement(freshHeaders(staff.headers))).data
+        const adjustments = december.entries.filter(
+          ({ source }) => source.id === order.id,
+        )
+        expect(adjustments).toEqual([
+          expect.objectContaining({
+            occurred_at: handedOverAt,
+            original_month: "2026-11",
+            posted_at: "2026-12-01T00:10:00.000Z",
+            posting_month: "2026-12",
+            amounts: { food_credit: "76", commission: "4.56", net: "71.44" },
+            original_statement: { month: "2026-11" },
+            calculation: expect.objectContaining({
+              reconstruction: expect.objectContaining({
+                placement_time_source: "paid_placement",
+              }),
+            }),
+          }),
+        ])
+        expect(
+          december.statement.problems.flatMap(
+            ({ sources }: { sources: { id: string }[] }) => sources,
+          ),
+        ).not.toContainEqual({ kind: "order_delivered", id: order.id })
+        expect(
+          (
+            await statement(
+              freshHeaders(staff.headers),
+              "",
+              pizzeriaId,
+              "2026-11",
+            )
+          ).data,
+        ).toEqual(closed)
       })
     })
 

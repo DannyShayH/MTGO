@@ -656,7 +656,9 @@
           "enumItems": [
             "missing_financial_basis",
             "conflicting_recognition",
-            "missing_outcome_evidence"
+            "missing_outcome_evidence",
+            "missing_purchase_evidence",
+            "missing_terms_evidence"
           ],
           "mappedType": "enum"
         },

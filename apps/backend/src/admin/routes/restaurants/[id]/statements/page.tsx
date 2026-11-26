@@ -442,6 +442,9 @@ function EntryExplanation({ entry }: Readonly<{ entry: StatementEntry }>) {
   const target = value("amount")
   const recognized = value("recognized_amount")
   const difference = value("difference")
+  // Rebuilt by legacy reconciliation because no basis was preserved (#231).
+  const reconstruction = calculation.reconstruction as
+    { placed_at?: string; placement_time_source?: string } | undefined
   return (
     <div className="flex flex-col gap-0.5">
       <Text size="small">{fundingLabel(entry.funded_by)}</Text>
@@ -464,6 +467,16 @@ function EntryExplanation({ entry }: Readonly<{ entry: StatementEntry }>) {
       {terms && (
         <Text size="small" className={clx(WRAP_CLASSES, "text-ui-fg-subtle")}>
           Terms {terms}
+        </Text>
+      )}
+      {reconstruction && (
+        <Text size="small" className={clx(WRAP_CLASSES, "text-ui-fg-subtle")}>
+          Reconstructed from the original Order version and the agreement in
+          force at{" "}
+          {reconstruction.placement_time_source === "order_created"
+            ? "Order creation"
+            : "placement"}
+          , because no basis was preserved
         </Text>
       )}
     </div>

@@ -432,6 +432,12 @@ export function StatementEntries({
           : text.entry_funded_by_mtogo}
       </span>
     )
+  const reconstructed = (entry: StatementEntry) =>
+    entry.calculation?.reconstruction && (
+      <span className={clx(WRAP, "txt-compact-small text-ui-fg-subtle")}>
+        {text.entry_reconstructed}
+      </span>
+    )
   const outcome = (entry: StatementEntry) =>
     statementOutcomeText(entry.outcome, locale)
   const pages = Math.max(1, Math.ceil(result.count / STATEMENT_PAGE_SIZE))
@@ -484,6 +490,7 @@ export function StatementEntries({
                     <span className="flex min-w-0 flex-col gap-1">
                       <OrderReference entry={entry} locale={locale} />
                       {fundedByMtogo(entry)}
+                      {reconstructed(entry)}
                       <AdjustmentReference entry={entry} locale={locale} />
                     </span>
                   </td>
@@ -568,6 +575,7 @@ export function StatementEntries({
                   </dd>
                 </dl>
                 {fundedByMtogo(entry)}
+                {reconstructed(entry)}
                 <AdjustmentReference entry={entry} locale={locale} />
               </li>
             ))}

@@ -160,6 +160,10 @@ export const reasonLabel = (reason: string) =>
 const problemTexts: Record<string, string> = {
   missing_financial_basis:
     "{count} delivered Orders have no preserved purchase terms, so their food credit and commission cannot be calculated.",
+  missing_purchase_evidence:
+    "{count} delivered Orders cannot show exactly what was bought and at which price, so their food credit and commission cannot be calculated. Today's menu is not used instead.",
+  missing_terms_evidence:
+    "{count} delivered Orders cannot show which terms applied when they were bought, so their food credit and commission cannot be calculated. Today's agreement is not used instead.",
   conflicting_recognition:
     "{count} delivered Orders have details that do not match what was already booked. The amount has not been changed.",
   recognition_pending:

@@ -641,6 +641,13 @@ information button explaining what they mean. Loading shows
 a skeleton, a failed read says it does not mean the month is empty and offers
 a retry, and a revoked session ends as on every page.
 
+A delivered Order placed before its purchase basis was preserved (#231),
+reconstructed from the original Order and the terms in force at purchase,
+carries the note "Genskabt fra den oprindelige ordre ..." / "Reconstructed from
+the original Order ...". When that cannot be verified, the problem names the
+missing purchase or terms evidence and the totals stay unavailable. See
+[Incomplete statement history](/MTGO/product/restaurant-statement-history/).
+
 An Operator cancellation (#233) shows as "Annulleret af MTOGO" / "Cancelled
 by MTOGO", dated by the operator's action. After preparation started it is
 prepared-food compensation; before preparation it is counted under "Orders

@@ -87,3 +87,13 @@ test("new cancellation problems are explained in both languages (#229)", () => {
         /\(/,
       )
 })
+
+test("legacy evidence problems are explained in both languages (#231)", () => {
+  for (const code of ["missing_purchase_evidence", "missing_terms_evidence"])
+    for (const locale of ["da", "en"] as const)
+      assert.match(statementProblemText({ code, count: 2 }, locale), /^2 /)
+  assert.equal(
+    statementProblemText({ code: "missing_terms_evidence", count: 1 }, "en"),
+    "1 delivered Orders cannot show which terms applied when they were bought, so their food credit and commission cannot be calculated. Today's agreement is not used instead.",
+  )
+})
