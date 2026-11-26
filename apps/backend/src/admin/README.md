@@ -249,14 +249,72 @@ Deliveries list shows. The widget is hidden for a cancelled Order, and after
 a cancellation it shows the same outcome message. Placement is controlled in
 the Dashboard Editor.
 
-## Restaurant statements (#230)
+## Restaurant statements (#230, #232)
 
-From **Restaurants**, select a Restaurant and open **Statements**. The link
-appears only when the backend's `restaurant_statements` flag is released.
-The nested `/restaurants/{id}/statements` page reads the shared operator API,
-selects a Copenhagen month, displays independent lifecycle/completeness and
-whole-month totals, and pages entries without changing those totals. Closed
-amounts and warnings stay fixed; later entries show original and posting dates,
-link their original month and disclose distinct components, funding, source and
-calculation evidence. Loading and failed reads never look like an empty month.
-The UI is English only and uses the existing SDK session and Medusa UI.
+`routes/restaurants/[id]/statements/page.tsx` shows a Restaurant's monthly
+statement to operators. It reads `GET /admin/restaurants/{id}/statements`
+(month choices) and `.../statements/{month}`, which return exactly what the
+Restaurant's staff get in the partner app. The page has no sidebar item. The
+Restaurant details page shows a **Statements** button only while
+`GET /admin/feature-flags` reports `restaurant_statements`. With the flag off,
+the direct URL says statements are not released and the API answers `404`.
+Selecting a Restaurant uses the existing Restaurants list, which includes
+inactive Restaurants.
+
+The month (`?month=YYYY-MM`, the current Copenhagen month by default) and the
+entry page (`&page=`) live in the URL. Changing the month drops the page, so
+it starts on its first entries. While the next page of the same month loads,
+the current page stays dimmed; a newly chosen month shows loading text
+instead of the previous month. An unknown Restaurant id says the Restaurant
+was not found and links back to the Restaurants list. The totals always cover the whole month. An
+unavailable total shows its reason and never shows zero. Lifecycle
+(provisional or closed) and completeness are separate badges, each with text.
+The month picker names each month's state. A collapsible table shows the
+month day by day: fee participation and booked entries per date, never a
+replacement for a withheld total. A page past the last entry says so and
+offers the first page. Problems list up to ten identified sources: Orders link to the Order, months
+link to that statement. Entries link their Order and, when their original
+month differs from the posting month, the original statement. A closed
+month (#230) says its amounts and warnings are fixed; a later adjustment
+links "Adjustment for {month}", and a service-fee adjustment shows the
+monthly fee, the amount already recognized and the difference. Unknown codes
+from later financial kinds show as their code instead of being hidden. Month
+choices, the statement and Feature flags each have their own loading text and
+an error with **Try again**. A failed statement read says that the month is
+not necessarily empty. `lib/statement-api.ts` holds the English text
+(ADR-0018) and the exact-decimal DKK formatting. Negative amounts start with a
+minus sign that does not wrap away from the number.
+
+Inspection evidence (26 November 2026): checked in the running Admin
+(`medusa develop` on the dev database) in Chromium at 1280px and 320px. With
+the flag on, the Restaurant page shows Statements and the page shows
+Pizzeria Nørrebro's November: unavailable totals with reasons, evidence
+problems with Order links, service-fee evidence and 17 entries. Keyboard Tab
+reaches Back to Restaurant, the month picker, problem Order links, the entries
+region and each entry's Order link, each with a visible focus ring. At 320px
+nothing overflows the page; the entries table scrolls in its own region. A
+second pass rewrote the live response in the browser to test a 74-character
+Restaurant name, 13 problem sources ("and 3 more"), seven-digit and negative
+amounts, an unknown outcome and entry kind, and an original-month link. Names
+wrap, amounts stay whole and nothing overflows. With the flag off, the
+Statements button is absent, the direct URL says statements are not released
+and the Restaurant page still works. No browser runtime errors were seen. A follow-up pass after the code review added the day-by-day table, month
+states in the picker and a guard for a page past the last entry. It used
+rewritten responses for an extra closed month and 45 entries:
+
+- Each picker option names its month's state.
+- **Next** requested `offset=20` and kept the whole-month totals.
+- Choosing October went to `?month=2026-10`, dropping the page.
+- `?page=9` says it is past the last entry and offers the first page.
+- The day table opens by keyboard and shows the month's 30 dates.
+
+No runtime errors were seen. A pass after the second code review held back
+October's read (added to the month list by a rewritten response): the page
+showed only "Loading statement…" under the picker, not November's header or
+entries. An unknown Restaurant id said the Restaurant was not found, with no
+**Try again** and no month message, a focusable link back to the Restaurants
+list and no overflow at 320px.
+`integration-tests/http/admin-restaurant-statements.spec.ts` proves the API
+side: paging with whole-month totals, the boundaries of `limit`, `offset` and
+the month, parity with staff, role boundaries, inactive Restaurants and the
+flag.

@@ -111,7 +111,12 @@ and recovers late amounts as linked current-month adjustments.
 - `pending-handovers.ts`, `cancellation-sources.ts` and `participation.ts`
   collect durable source evidence for recovery and boundary reads.
 - `statement.ts`, `statement-read.ts` and `statement-rules.ts`: the shared
-  read behind Partner and Admin statement routes. Reads acquire the finance
+  read behind the partner statement routes
+  (`GET /partner/restaurants/{id}/statements[/{month}]`) and the operator
+  routes (`GET /admin/restaurants/{id}/statements[/{month}]`, #230, #232).
+  Each surface only authorizes its caller (own-Restaurant staff, or Admin
+  authentication) before the same read steps, so a new financial kind reaches
+  both surfaces at once. Reads acquire the finance
   guard for a consistent header/page but never create entries or closures.
   Before physical materialization they project the exclusive boundary cutoff;
   afterwards they page the stored immutable snapshot. Ordinary totals include

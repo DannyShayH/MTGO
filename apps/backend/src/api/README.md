@@ -1739,6 +1739,37 @@ optional `exclude_id` for edits. **Success:** `200` with `{ "warnings": [] }` or
 the `same_pickup_address` warning shown above. **Failure:** `400` for invalid input.
 The create/update response checks again; a preview never reserves an address.
 
+### GET /admin/restaurants/{id}/statements and GET /admin/restaurants/{id}/statements/{month}
+
+**Actor:** MTOGO operator (`user`, session or bearer). Any Restaurant, active or
+inactive. Read-only operator view of the Restaurant's monthly statements (#232,
+spec #52 §10). Both routes run the same read as
+the staff routes
+(`GET /partner/restaurants/{id}/statements[/{month}]`, below),
+so the query, validation, ordering and response body are identical, apart
+from the `verified_at` time. Authentication is the only authorization step.
+Later financial kinds reach operators with no operator-specific code: closure
+snapshots, fee evidence, the adjustment breakdown and original-month links
+(#230) arrive exactly as staff get them. There is no financial mutation
+endpoint.
+
+Query: `limit` (1-50, default 20) and `offset` (default 0), as for staff.
+**Success:** `200` with `{ restaurant, statements, count, limit, offset,
+verified_at }` from the list route, or `{ statement, entries, count, limit,
+offset }` for one month, exactly as the staff routes document below.
+
+```bash
+curl "http://localhost:9000/admin/restaurants/$RESTAURANT_ID/statements/2026-11?limit=20&offset=0" \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+```
+
+| Status | When                                                                                                                                                                        |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `400`  | `{month}` is not a real `YYYY-MM` month, or `limit`/`offset` is outside 1–50 / 0+                                                                                           |
+| `401`  | Signed out, or a Customer, Restaurant staff or Delivery agent token                                                                                                         |
+| `404`  | `code: "statement_not_found"`: unknown Restaurant, a future month or one before the Restaurant existed                                                                      |
+| `404`  | The `restaurant_statements` flag is off. A signed-in operator gets `404` as for a path that never existed (ADR-0022); a signed-out caller gets `401` as on every Admin path |
+
 ## Partner app: Restaurant staff
 
 `/partner/*` is the namespace for the partner app (ADR-0017). Medusa gives it no
@@ -3040,21 +3071,6 @@ Restaurant ratings are food ratings, agent ratings describe only agents, and
 experience is platform-wide.
 An unsupported period or unknown query parameter returns `400`. A caller without
 valid operator authentication is refused with `401` or `403`.
-
-### GET /admin/restaurants/{id}/statements and GET /admin/restaurants/{id}/statements/{month}
-
-**Actor:** authenticated MTOGO operator (Medusa user). Requires the same
-backend-owned `restaurant_statements` flag. No Customer, Delivery agent or
-Restaurant staff identity can use these Admin routes.
-
-The month-list and detail responses, real `YYYY-MM` validation, default
-20/max 50 limit, nonnegative offset, stable posting order, whole-month totals,
-closure snapshots, fee evidence, adjustment breakdown and original-month links
-are the same as the partner statement contract above. Operators select a
-Restaurant from the existing Restaurant list and open **Statements** on its
-detail page. Flag-off requests return `404`; signed-out or wrong-actor requests
-return `401`; invalid month/page requests return `400`; unknown, future and
-pre-creation months return `404`. There is no financial mutation endpoint.
 
 ### Feedback eligibility in tracking (#217)
 
