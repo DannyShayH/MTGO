@@ -11,6 +11,7 @@ import {
   Tag,
   InformationCircle,
   DocumentText,
+  Star,
 } from "@medusajs/icons"
 import { signOut } from "@lib/data/session"
 import { BrandMark } from "../brand-mark"
@@ -36,23 +37,30 @@ const STATEMENTS = {
   Icon: DocumentText,
 } as const
 
+/** Shown only while the backend releases Feedback (#249). */
+const RATINGS = { href: "/ratings", label: "ratings", Icon: Star } as const
+
 export function Sidebar({
   locale,
   text,
   staffName,
   restaurantName,
   isStatementsReleased = false,
+  isFeedbackReleased = false,
 }: {
   locale: Locale
   text: Messages["text"]
   staffName: string
   restaurantName: string
   isStatementsReleased?: boolean
+  isFeedbackReleased?: boolean
 }) {
   const pathname = usePathname()
-  const navigation = isStatementsReleased
-    ? [...NAVIGATION, STATEMENTS]
-    : NAVIGATION
+  const navigation = [
+    ...NAVIGATION,
+    ...(isStatementsReleased ? [STATEMENTS] : []),
+    ...(isFeedbackReleased ? [RATINGS] : []),
+  ]
   return (
     <aside className="bg-ui-bg-base border-ui-border-base flex w-full flex-col border-b md:sticky md:top-0 md:h-screen md:w-60 md:shrink-0 md:border-b-0 md:border-r">
       <div className="border-ui-border-base flex flex-col gap-y-1 border-b px-4 py-4">

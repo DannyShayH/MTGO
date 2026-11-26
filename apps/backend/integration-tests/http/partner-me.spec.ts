@@ -98,7 +98,10 @@ medusaIntegrationTestRunner({
         restaurant: { id: restaurantId, name: "Pizzeria Nørrebro" },
         // Backend-owned Feature flags (#227, ADR-0022); their values are
         // covered by the Feature's own specs.
-        features: { restaurant_statements: expect.any(Boolean) },
+        features: {
+          restaurant_statements: expect.any(Boolean),
+          feedback: expect.any(Boolean),
+        },
       })
     })
 

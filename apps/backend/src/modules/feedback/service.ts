@@ -11,7 +11,7 @@ import Feedback from "./models/feedback"
 class FeedbackModuleService extends MedusaService({ Feedback }) {
   @InjectManager()
   async statistics(
-    range: { from: Date | null; to: Date | null },
+    range: { from: Date | null; to: Date | null; restaurant_id?: string },
     @MedusaContext() context?: Context,
   ) {
     const manager = context!.manager as EntityManager
@@ -29,6 +29,8 @@ class FeedbackModuleService extends MedusaService({ Feedback }) {
         .select(fields)
         .where({
           ...(within && { delivered_at: within }),
+          // One Restaurant's own view (#249) narrows every grouping.
+          ...(range.restaurant_id && { restaurant_id: range.restaurant_id }),
           deleted_at: null,
         })
         .groupBy(fields)
@@ -38,10 +40,11 @@ class FeedbackModuleService extends MedusaService({ Feedback }) {
         Record<string, unknown>[]
       >
     }
+    // A Restaurant's own view reads only its food ratings (ADR-0008).
     const [restaurants, agents, experience] = await Promise.all([
       grouped(["restaurant_id", "food_rating"]),
-      grouped(["agent_id", "agent_rating"]),
-      grouped(["experience_rating"]),
+      range.restaurant_id ? [] : grouped(["agent_id", "agent_rating"]),
+      range.restaurant_id ? [] : grouped(["experience_rating"]),
     ])
     return { restaurants, agents, experience }
   }

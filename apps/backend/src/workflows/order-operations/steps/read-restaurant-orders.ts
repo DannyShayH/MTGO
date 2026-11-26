@@ -331,6 +331,8 @@ export async function readRestaurantOrder(
     order_id: string
     /** Adds the purchased financial basis (#226) while it is released. */
     include_financial_basis?: boolean
+    /** Adds the Customer's food rating (#249) while Feedback is released. */
+    include_food_rating?: boolean
   },
 ) {
   const [operation] = await container
@@ -352,6 +354,11 @@ export async function readRestaurantOrder(
     foodCreditsOf(container, [row.order_id]),
   ])
   const now = new Date()
+  // Only a delivered Order can have been rated (#249).
+  const foodRating =
+    input.include_food_rating && row.delivery_outcome === "delivered"
+      ? await foodRatingOf(container, row.order_id)
+      : null
   const restaurantOrder = toRestaurantOrder(
     row,
     order,
@@ -360,14 +367,33 @@ export async function readRestaurantOrder(
     credits.get(row.order_id),
   )
   return {
-    order: input.include_financial_basis
-      ? {
-          ...restaurantOrder,
-          financial_basis: financialBasisView(row.financial_basis, row),
-        }
-      : restaurantOrder,
+    order: {
+      ...restaurantOrder,
+      ...(input.include_financial_basis && {
+        financial_basis: financialBasisView(row.financial_basis, row),
+      }),
+      ...(input.include_food_rating && { food_rating: foodRating }),
+    },
     server_time: now.toISOString(),
   }
+}
+
+/**
+ * Only the food rating of the Order's Feedback, through the read-only
+ * `order-feedback` link: never the agent or experience ratings (#249).
+ */
+async function foodRatingOf(container: MedusaContainer, orderId: string) {
+  const { data } = await container
+    .resolve(ContainerRegistrationKeys.QUERY)
+    .graph({
+      entity: "order",
+      fields: ["id", "feedback.food_rating"],
+      filters: { id: orderId },
+    })
+  const [order] = data as unknown as {
+    feedback?: { food_rating: number } | null
+  }[]
+  return order?.feedback?.food_rating ?? null
 }
 
 export const retrieveRestaurantOrderStep = createStep(
@@ -377,6 +403,7 @@ export const retrieveRestaurantOrderStep = createStep(
       restaurant_id: string
       order_id: string
       include_financial_basis?: boolean
+      include_food_rating?: boolean
     },
     { container },
   ) => new StepResponse(await readRestaurantOrder(container, input)),

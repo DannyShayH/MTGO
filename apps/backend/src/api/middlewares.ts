@@ -753,6 +753,11 @@ export default defineMiddlewares({
           RestaurantStatementsFeatureFlag.key,
           /^\/partner\/restaurants\/[^/]+\/statements(\/|$)/,
         ),
+        // So is the own food rating (#249) while Feedback is off.
+        requireFeatureFlagFor(
+          FeedbackFeatureFlag.key,
+          /^\/partner\/restaurants\/[^/]+\/feedback(\/|$)/,
+        ),
         authenticate(RESTAURANT_STAFF_ACTOR, "bearer"),
       ],
     },
@@ -774,6 +779,11 @@ export default defineMiddlewares({
       matcher: "/admin/restaurants/:id/statements/:month",
       method: "GET",
       middlewares: [validateAndTransformQuery(GetPartnerStatementsSchema, {})],
+    },
+    {
+      matcher: "/partner/restaurants/:id/feedback/statistics",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(GetFeedbackStatisticsSchema, {})],
     },
     {
       matcher: "/partner/restaurants/:id/statements",

@@ -1816,13 +1816,14 @@ curl http://localhost:9000/partner/me -H "Authorization: Bearer $TOKEN"
     "restaurant_id": "res_01..."
   },
   "restaurant": { "id": "res_01...", "name": "Pizzeria Nørrebro" },
-  "features": { "restaurant_statements": false }
+  "features": { "restaurant_statements": false, "feedback": false }
 }
 ```
 
 `features` names the backend-owned Feature flags (ADR-0022) whose navigation
 the partner app shows: `restaurant_statements` (#227) is `true` only while
-`MTOGO_FF_RESTAURANT_STATEMENTS` releases the Statements workspace.
+`MTOGO_FF_RESTAURANT_STATEMENTS` releases the Statements workspace, and
+`feedback` (#249) only while `MTOGO_FF_FEEDBACK` releases the Ratings page.
 
 | Status | When                                                                                                       |
 | ------ | ---------------------------------------------------------------------------------------------------------- |
@@ -1929,6 +1930,49 @@ curl http://localhost:9000/partner/restaurants/$RESTAURANT_ID \
 | `401`  | As for `GET /partner/me`                                                                   |
 | `403`  | `code: "staff_access_revoked"`: as for `GET /partner/me`                                   |
 | `404`  | `code: "restaurant_not_found"`: another Restaurant or an unknown one, answered identically |
+
+### GET /partner/restaurants/{id}/feedback/statistics
+
+**Actor:** Restaurant staff (`restaurant_staff`, bearer token only) of that
+very Restaurant. The Restaurant's own food rating for a period (#249), the
+figures operators see for it on the Feedback page. It answers `404` while the
+default-off `feedback` Feature flag is off, before authentication (ADR-0022).
+Only the food rating: agent and experience ratings, agents and Customers are
+never returned (ADR-0008, ADR-0010).
+
+```bash
+curl "http://localhost:9000/partner/restaurants/$RESTAURANT_ID/feedback/statistics?period=last_30_days" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Query: `period`, as for `GET /admin/feedback/statistics`:
+`last_30_days` (default), `previous_month` or `all_time`.
+
+```json
+{
+  "period": {
+    "key": "last_30_days",
+    "from": "2026-10-27T12:00:00.000Z",
+    "to": "2026-11-26T12:00:00.000Z"
+  },
+  "food": {
+    "average": 4.5,
+    "count": 2,
+    "distribution": { "1": 0, "2": 0, "3": 0, "4": 1, "5": 1 },
+    "delivered_orders": 3
+  }
+}
+```
+
+Orders count by handover time. `delivered_orders` includes unrated Orders;
+`average` is `null` when the period has no Feedback, never `0`.
+
+| Status | When                                                                                 |
+| ------ | ------------------------------------------------------------------------------------ |
+| `400`  | Unknown `period`                                                                     |
+| `401`  | As for `GET /partner/me`; also Customer and Delivery agent tokens                    |
+| `403`  | `code: "staff_access_revoked"`: as for `GET /partner/me`                             |
+| `404`  | The `feedback` flag is off, or `code: "restaurant_not_found"` for another Restaurant |
 
 ### GET /partner/restaurants/{id}/statements and GET /partner/restaurants/{id}/statements/{month}
 
@@ -2314,6 +2358,13 @@ also carries a read-only `financial_basis`, the purchase facts frozen at paid
 placement. Off, the field is absent and every other field is unchanged; the
 facts are still recorded. Only this detail route carries it, not the list or
 the stream. Amounts are exact decimal strings in the Order's currency.
+
+**Food rating (#249).** While the default-off `feedback` Feature flag
+(`MTOGO_FF_FEEDBACK`) is on, the Order also carries `food_rating`: the
+Customer's 1 to 5 food rating once the Order was delivered and rated, and
+`null` otherwise. Off, the field is absent. It is read through the read-only
+`order-feedback` link; the agent and experience ratings are never returned.
+Only this detail route carries it.
 
 ```json
 {

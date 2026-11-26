@@ -1398,10 +1398,10 @@ medusaIntegrationTestRunner({
 
     it("tells the partner app whether statements are released", async () => {
       const on = await api.get("/partner/me", { headers: staff.headers })
-      expect(on.data.features).toEqual({ restaurant_statements: true })
+      expect(on.data.features).toMatchObject({ restaurant_statements: true })
       setFlag(false)
       const off = await api.get("/partner/me", { headers: staff.headers })
-      expect(off.data.features).toEqual({ restaurant_statements: false })
+      expect(off.data.features).toMatchObject({ restaurant_statements: false })
     })
 
     it("answers 404 on both routes while the flag is off, before authentication", async () => {

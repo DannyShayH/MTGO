@@ -5,6 +5,7 @@ import {
 import { retrieveAuthorizedStaffWorkflow } from "../../../workflows/restaurant-staff"
 import { isFeatureReleased } from "../../feature-flag"
 import RestaurantStatementsFeatureFlag from "../../../feature-flags/restaurant-statements"
+import FeedbackFeatureFlag from "../../../feature-flags/feedback"
 
 /**
  * The signed-in staff member and their Restaurant, with the backend-owned
@@ -24,6 +25,8 @@ export async function GET(
         req.scope,
         RestaurantStatementsFeatureFlag.key,
       ),
+      // The Ratings page and per-Order food rating (#249).
+      feedback: isFeatureReleased(req.scope, FeedbackFeatureFlag.key),
     },
   })
 }

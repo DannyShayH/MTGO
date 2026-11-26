@@ -277,7 +277,7 @@ class DeliveryModuleService extends MedusaService({
   /** Delivered Order counts grouped within the Delivery module. */
   @InjectManager()
   async statistics(
-    range: { from: Date | null; to: Date | null },
+    range: { from: Date | null; to: Date | null; restaurant_id?: string },
     @MedusaContext() context: Context = {},
   ) {
     const manager = context.manager as EntityManager
@@ -296,6 +296,7 @@ class DeliveryModuleService extends MedusaService({
         .where({
           terminal_outcome: "delivered",
           ...(within && { terminal_at: within }),
+          ...(range.restaurant_id && { restaurant_id: range.restaurant_id }),
           deleted_at: null,
         })
         .groupBy([field])

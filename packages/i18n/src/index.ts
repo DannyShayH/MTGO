@@ -146,6 +146,11 @@ export {
   commissionTierLabel,
 } from "./order-financial-basis.ts"
 export {
+  RESTAURANT_RATINGS_TEXT,
+  formatFoodRatingAverage,
+  starsLabel,
+} from "./restaurant-ratings.ts"
+export {
   RESTAURANT_STATEMENTS_TEXT,
   formatStatementDate,
   formatStatementMonth,

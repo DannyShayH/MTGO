@@ -29,12 +29,14 @@ which only the routes read.
   `food_rating` the Restaurant; `experience_rating` is platform-wide. Missing
   Feedback is unrated, never zero.
 - **The agent stays anonymous.** The Customer's views never return `agent_id`,
-  `restaurant_id` or any agent name.
+  `restaurant_id` or any agent name, and Restaurant staff's views (#249) return
+  only food ratings, never the agent or the Customer.
 
 ## Link
 
 `src/links/order-feedback.ts` is a read-only one-to-one link from the Medusa
-Order to its Feedback on `order_id`, like the Order's operation record.
+Order to its Feedback on `order_id`, like the Order's operation record. The
+partner Order detail reads `feedback.food_rating` through it (#249).
 
 ## Workflows
 
@@ -93,3 +95,16 @@ open, so `all_time` reads every Feedback. The workflow resolves the period
 (`src/workflows/feedback/statistics-period.ts`): the last 30 × 24 hours, the
 previous Copenhagen calendar month (reusing the Restaurant-finance month
 bounds) or all time.
+
+## Restaurant staff's food rating
+
+`statistics` takes an optional `restaurant_id` that narrows every grouping to
+one Restaurant ([#249](https://github.com/DannyShayH/MTGO/issues/249)) and
+then groups only food ratings, so agent and experience ratings are never read
+for it, and
+Delivery's `statistics` takes the same filter.
+`retrieveRestaurantFeedbackStatisticsWorkflow` authorizes the staff member for their
+own Restaurant, then returns only that Restaurant's food rating summary and
+delivered Orders for the resolved period. The route is
+`GET /partner/restaurants/:id/feedback/statistics`, behind the `feedback` flag,
+and the partner app shows it on its Ratings page.

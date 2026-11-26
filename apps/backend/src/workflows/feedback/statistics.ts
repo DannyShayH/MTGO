@@ -2,6 +2,7 @@ import {
   createStep,
   createWorkflow,
   StepResponse,
+  transform,
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk"
 import {
@@ -14,11 +15,18 @@ import { FEEDBACK_MODULE } from "../../modules/feedback"
 import type FeedbackModuleService from "../../modules/feedback/service"
 import { RESTAURANT_MODULE } from "../../modules/restaurant"
 import type RestaurantModuleService from "../../modules/restaurant/service"
+import { retrieveAuthorizedStaffStep } from "../restaurant-staff/steps/retrieve-authorized-staff"
+import { assertOwnRestaurantStep } from "../restaurant-staff/steps/own-restaurant"
 
 type Group = Record<string, unknown>
 type Distribution = Record<"1" | "2" | "3" | "4" | "5", number>
 
-function summary(groups: Group[], rating: string) {
+/**
+ * One rating's average (one decimal), count and 1-5 distribution over grouped
+ * `count` rows. No Feedback gives a `null` average: unrated is never zero
+ * (ADR-0010).
+ */
+export function ratingSummary(groups: Group[], rating: string) {
   const distribution: Distribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
   let total = 0
   let count = 0
@@ -35,6 +43,10 @@ function summary(groups: Group[], rating: string) {
     distribution,
   }
 }
+
+/** Delivered Orders across grouped Delivery `count` rows, rated or not. */
+const deliveredOrderCount = (rows: Group[]) =>
+  rows.reduce((sum, row) => sum + Number(row.count), 0)
 
 const feedbackStatisticsStep = createStep(
   "feedback-statistics",
@@ -85,7 +97,7 @@ const feedbackStatisticsStep = createStep(
           id: subject.id,
           name: subject.name,
           is_active: isActive(subject),
-          ...summary(
+          ...ratingSummary(
             ratingRows.filter((row) => row[ratingSubject] === subject.id),
             rating,
           ),
@@ -100,11 +112,8 @@ const feedbackStatisticsStep = createStep(
     return new StepResponse({
       period,
       experience: {
-        ...summary(ratings.experience, "experience_rating"),
-        delivered_orders: delivered.restaurants.reduce(
-          (sum, row) => sum + Number(row.count),
-          0,
-        ),
+        ...ratingSummary(ratings.experience, "experience_rating"),
+        delivered_orders: deliveredOrderCount(delivered.restaurants),
       },
       restaurants: rows(
         restaurants,
@@ -132,5 +141,68 @@ export const feedbackStatisticsWorkflow = createWorkflow(
   "feedback-statistics",
   function (input: { period: StatisticsPeriodKey }) {
     return new WorkflowResponse(feedbackStatisticsStep(input))
+  },
+)
+
+const summarizeRestaurantFoodRatingStep = createStep(
+  "summarize-restaurant-food-rating",
+  async (
+    input: { restaurant_id: string; period: StatisticsPeriodKey },
+    { container },
+  ) => {
+    const period = resolveStatisticsPeriod(input.period, new Date())
+    const filter = {
+      from: period.from,
+      to: period.to,
+      restaurant_id: input.restaurant_id,
+    }
+    const [ratings, delivered] = await Promise.all([
+      container
+        .resolve<FeedbackModuleService>(FEEDBACK_MODULE)
+        .statistics(filter),
+      container
+        .resolve<DeliveryModuleService>(DELIVERY_MODULE)
+        .statistics(filter),
+    ])
+    // Only the food rating: agent and experience ratings describe others
+    // (ADR-0008, ADR-0010), and no identities leave this step.
+    return new StepResponse({
+      period,
+      food: {
+        ...ratingSummary(ratings.restaurants, "food_rating"),
+        delivered_orders: deliveredOrderCount(delivered.restaurants),
+      },
+    })
+  },
+)
+
+/**
+ * `GET /partner/restaurants/:id/feedback/statistics` (#249): the staff
+ * member's own Restaurant's food rating for a period. Another Restaurant is
+ * not found (ADR-0017).
+ */
+export const retrieveRestaurantFeedbackStatisticsWorkflow = createWorkflow(
+  "retrieve-restaurant-feedback-statistics",
+  function (input: {
+    staff_id: string
+    restaurant_id: string
+    period: StatisticsPeriodKey
+  }) {
+    const current = retrieveAuthorizedStaffStep({ staff_id: input.staff_id })
+    const authorized = assertOwnRestaurantStep(
+      transform({ input, current }, ({ input, current }) => ({
+        id: input.restaurant_id,
+        staff_restaurant_id: current.restaurant.id,
+      })),
+    )
+    return new WorkflowResponse(
+      summarizeRestaurantFoodRatingStep(
+        // `authorized` only orders the read after authorization.
+        transform({ input, authorized }, ({ input }) => ({
+          restaurant_id: input.restaurant_id,
+          period: input.period,
+        })),
+      ),
+    )
   },
 )
