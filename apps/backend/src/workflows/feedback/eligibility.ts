@@ -1,6 +1,4 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
-import type { IFlagRouter } from "@medusajs/framework/feature-flags"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { retrieveOrderFeedbackWorkflow } from "./index"
 import { logRecoveryFailure } from "../order-operations/recovery-log"
 
@@ -14,12 +12,6 @@ export async function readFeedbackEligibility(
     can_submit: false,
     closes_at: null,
   }
-  if (
-    !container
-      .resolve<IFlagRouter>(ContainerRegistrationKeys.FEATURE_FLAG_ROUTER)
-      .isFeatureEnabled("feedback")
-  )
-    return unavailable
   try {
     const { result } = await retrieveOrderFeedbackWorkflow(container).run({
       input: { order_id: orderId },

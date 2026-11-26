@@ -240,8 +240,9 @@ export type OrderFeedback = {
 
 /**
  * The Feedback read, or `hidden` when the page shows no Feedback section:
- * the `feedback` flag is off (the backend answers 404), the Customer may not
- * read it, or it could not be read. Feedback is additional to the Order, so
+ * the Customer may not rate the Order (the backend answers 401 or 404 for
+ * a signed-out Customer or another Customer's Order), or it could not be
+ * read. Feedback is additional to the Order, so
  * a failure never blocks the page; it is logged.
  */
 export type OrderFeedbackRead =

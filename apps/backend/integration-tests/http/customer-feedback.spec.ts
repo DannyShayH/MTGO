@@ -3,7 +3,6 @@ import {
   ContainerRegistrationKeys,
   generateJwtToken,
 } from "@medusajs/framework/utils"
-import type { FlagRouter } from "@medusajs/framework/utils"
 import { DELIVERY_MODULE } from "../../src/modules/delivery"
 import type DeliveryModuleService from "../../src/modules/delivery/service"
 import { FEEDBACK_MODULE } from "../../src/modules/feedback"
@@ -18,11 +17,9 @@ const MINUTE = 60 * 1000
 
 /**
  * The ordering Customer rates a delivered Order (#218) through
- * `GET` and `POST /store/orders/:id/feedback`, behind the default-off
- * `feedback` Feature flag (ADR-0022), within 168 hours of the handover
- * (#219). The flag is switched on Medusa's flag router inside this one app
- * boot; the handover is moved back in time on the Delivery to reach the end
- * of the window.
+ * `GET` and `POST /store/orders/:id/feedback`, within 168 hours of the
+ * handover (#219). The handover is moved back in time on the Delivery to
+ * reach the end of the window.
  */
 medusaIntegrationTestRunner({
   dbName: "medusa_ci_customer_feedback_http",
@@ -43,14 +40,7 @@ medusaIntegrationTestRunner({
       ;({ customer, pizzeriaId } = harness.seeded())
       staff = (await signInAsStaffOf(pizzeriaId, "feedback-staff@example.test"))
         .headers
-      setFeedbackFlag(true)
     })
-
-    const flags = () =>
-      getContainer().resolve<FlagRouter>(
-        ContainerRegistrationKeys.FEATURE_FLAG_ROUTER,
-      )
-    const setFeedbackFlag = (on: boolean) => flags().setFlag("feedback", on)
 
     const delivery = () =>
       getContainer().resolve<DeliveryModuleService>(DELIVERY_MODULE)
@@ -160,12 +150,6 @@ medusaIntegrationTestRunner({
         can_submit: false,
       })
       expect(submitted.change_token).not.toBe(first.change_token)
-      setFeedbackFlag(false)
-      expect((await tracking()).data.progress.feedback_eligibility).toEqual({
-        status: "unavailable",
-        closes_at: null,
-        can_submit: false,
-      })
     })
 
     it("lets the ordering Customer rate a delivered Order once and read the ratings back", async () => {
@@ -393,23 +377,6 @@ medusaIntegrationTestRunner({
         expect(repeat.status).toBe(409)
         expect(repeat.data.code).toBe("feedback_already_submitted")
       })
-
-      it("is not extended by switching the flag off and on", async () => {
-        const { order } = await orderUntil("delivered")
-        expect((await readFeedback(customer, order.id)).data.can_submit).toBe(
-          true,
-        )
-
-        setFeedbackFlag(false)
-        // The window ends while the flag is off.
-        await handedOverAgo(order.id, FEEDBACK_WINDOW_MS + MINUTE)
-        setFeedbackFlag(true)
-
-        expect((await readFeedback(customer, order.id)).data).toEqual(
-          closedRead,
-        )
-        await expectRefusedAsClosed(order.id)
-      })
     })
 
     const lowest = { food_rating: 1, experience_rating: 1, agent_rating: 1 }
@@ -490,32 +457,6 @@ medusaIntegrationTestRunner({
       ).rejects.toThrow()
       await feedback().createFeedbacks(row)
       await expect(feedback().createFeedbacks(row)).rejects.toThrow()
-    })
-
-    describe("with the feedback flag off", () => {
-      it("answers 404 on both routes and keeps recorded Feedback unchanged", async () => {
-        const { order } = await orderUntil("delivered")
-        const recorded = await submitFeedback(customer, order.id)
-        expect(recorded.status).toBe(201)
-        const open = await orderUntil("delivered")
-
-        setFeedbackFlag(false)
-        for (const response of [
-          await readFeedback(customer, order.id),
-          await submitFeedback(customer, open.order.id),
-          // Before authentication: a signed-out caller learns nothing either.
-          await readFeedback(harness.seeded().store, order.id),
-        ])
-          expect(response.status).toBe(404)
-        expect(
-          await feedback().listFeedbacks({ order_id: open.order.id }),
-        ).toEqual([])
-
-        setFeedbackFlag(true)
-        expect((await readFeedback(customer, order.id)).data).toEqual(
-          recorded.data,
-        )
-      })
     })
   },
 })

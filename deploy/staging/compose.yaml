@@ -45,11 +45,9 @@ x-backend-environment: &backend-environment
   RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
   # Delivery distances (openrouteservice). Without a key they show as unavailable.
   ORS_API_KEY: ${ORS_API_KEY:-}
-  # Feature flags (ADR-0022): off unless the Droplet .env switches them on.
-  # Staging releases Feedback (#51) with MTOGO_FF_FEEDBACK=true there; set it
-  # to false and restart the backend to withhold it again.
-  MTOGO_FF_FEEDBACK: ${MTOGO_FF_FEEDBACK:-false}
-  # Restaurant statements (#52), released the same way.
+  # Feature flags (ADR-0022): off unless the Droplet .env switches them on;
+  # set one to false and restart the backend to withhold it again.
+  # Restaurant statements (#52).
   MTOGO_FF_RESTAURANT_STATEMENTS: ${MTOGO_FF_RESTAURANT_STATEMENTS:-false}
   STOREFRONT_PUBLIC_URL: ${STAGING_STOREFRONT_URL:?}
   PARTNER_PUBLIC_URL: ${STAGING_PARTNER_URL:?}

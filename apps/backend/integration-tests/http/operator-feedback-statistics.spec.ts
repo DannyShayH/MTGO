@@ -3,7 +3,6 @@ import {
   ContainerRegistrationKeys,
   generateJwtToken,
 } from "@medusajs/framework/utils"
-import type { FlagRouter } from "@medusajs/framework/utils"
 import { DELIVERY_MODULE } from "../../src/modules/delivery"
 import type DeliveryModuleService from "../../src/modules/delivery/service"
 import type RestaurantModuleService from "../../src/modules/restaurant/service"
@@ -19,10 +18,6 @@ medusaIntegrationTestRunner({
   env: { JWT_SECRET: "ci-only-feedback-statistics-secret", REDIS_URL: "" },
   testSuite: ({ api, getContainer, dbUtils }) => {
     const harness = restaurantOrdersHarness({ api, getContainer, dbUtils })
-    const flags = () =>
-      getContainer().resolve<FlagRouter>(
-        ContainerRegistrationKeys.FEATURE_FLAG_ROUTER,
-      )
     const read = (headers: Record<string, string>) =>
       api.get("/admin/feedback/statistics", {
         headers,
@@ -31,7 +26,6 @@ medusaIntegrationTestRunner({
 
     it("returns empty statistics when no Orders were delivered in the period", async () => {
       const { admin } = harness.seeded()
-      flags().setFlag("feedback", true)
       const response = await read(admin)
       expect(response.status).toBe(200)
       expect(response.data.restaurants).toEqual([])
@@ -43,9 +37,16 @@ medusaIntegrationTestRunner({
       })
     })
 
+    it("lists no feedback flag among the Feature flags and keeps the others", async () => {
+      const { admin } = harness.seeded()
+      const listed = await api.get("/admin/feature-flags", { headers: admin })
+      expect(listed.data.feature_flags).not.toHaveProperty("feedback")
+      expect(listed.data.feature_flags).toHaveProperty("restaurant_statements")
+      expect(listed.data.feature_flags).toHaveProperty("agent_bonus")
+    })
+
     it("separates food, agent and experience ratings and counts unrated deliveries", async () => {
       const { admin, pizzeriaId } = harness.seeded()
-      flags().setFlag("feedback", true)
       const delivery =
         getContainer().resolve<DeliveryModuleService>(DELIVERY_MODULE)
       const feedback =
@@ -138,12 +139,9 @@ medusaIntegrationTestRunner({
         { headers: admin, validateStatus: () => true },
       )
       expect(invalid.status).toBe(400)
-      flags().setFlag("feedback", false)
-      expect((await read(admin)).status).toBe(404)
     })
     it("keeps inactive subjects and includes only handovers within the period boundaries", async () => {
       const { admin, pizzeriaId } = harness.seeded()
-      flags().setFlag("feedback", true)
       const delivery =
         getContainer().resolve<DeliveryModuleService>(DELIVERY_MODULE)
       const restaurant =
@@ -238,7 +236,6 @@ medusaIntegrationTestRunner({
     })
     it("groups the previous Copenhagen month and all time by handover time", async () => {
       const { admin, pizzeriaId } = harness.seeded()
-      flags().setFlag("feedback", true)
       const delivery =
         getContainer().resolve<DeliveryModuleService>(DELIVERY_MODULE)
       const feedback =
@@ -359,7 +356,6 @@ medusaIntegrationTestRunner({
     })
     it("rounds rating averages and sorts multiple agents by name", async () => {
       const { admin, pizzeriaId } = harness.seeded()
-      flags().setFlag("feedback", true)
       const delivery =
         getContainer().resolve<DeliveryModuleService>(DELIVERY_MODULE)
       const feedback =
@@ -414,7 +410,6 @@ medusaIntegrationTestRunner({
     })
     it("serves twenty simultaneous reads against the 500-Order demo plan within the shared latency target", async () => {
       const { admin, pizzeriaId, burgerId } = harness.seeded()
-      flags().setFlag("feedback", true)
       const delivery =
         getContainer().resolve<DeliveryModuleService>(DELIVERY_MODULE)
       const feedback =

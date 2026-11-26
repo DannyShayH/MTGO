@@ -57,8 +57,7 @@ export type FeedbackDecision =
  * and only on an Order whose Delivery ended with the recorded handover by
  * its responsible agent, and before the window closes 168 hours after that
  * handover (#219). A cancelled or failed Order, or one still under way,
- * cannot be rated. Recorded Feedback stays visible after the window. The
- * Feature flag plays no part, so switching it never extends the window. An
+ * cannot be rated. Recorded Feedback stays visible after the window. An
  * open decision names what the Feedback copies and when the window closes.
  */
 export function decideFeedback({

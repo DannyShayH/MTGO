@@ -152,31 +152,13 @@ function StatisticsBody({ statistics }: Readonly<{ statistics: Statistics }>) {
 const FeedbackPage = () => {
   const periodLabelId = useId()
   const [period, setPeriod] = useState<PeriodKey>("last_30_days")
-  const flags = useQuery({
-    queryKey: ["feature-flags"],
-    queryFn: () =>
-      sdk.client.fetch<{ feature_flags: Record<string, boolean> }>(
-        "/admin/feature-flags",
-      ),
-  })
   const statistics = useQuery({
     queryKey: ["feedback-statistics", period],
     queryFn: () =>
       sdk.client.fetch<Statistics>("/admin/feedback/statistics", {
         query: { period },
       }),
-    enabled: flags.data?.feature_flags.feedback === true,
   })
-  if (flags.isLoading) return <Text role="status">Loading Feedback…</Text>
-  if (flags.error)
-    return <Alert variant="error">Could not load Feature flags.</Alert>
-  if (!flags.data?.feature_flags.feedback)
-    return (
-      <Container>
-        <Heading>Feedback</Heading>
-        <Text>Feedback is not released yet</Text>
-      </Container>
-    )
   let body = <Text role="status">Loading Feedback…</Text>
   if (statistics.data) body = <StatisticsBody statistics={statistics.data} />
   else if (!statistics.isLoading)

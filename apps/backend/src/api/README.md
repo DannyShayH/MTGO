@@ -806,12 +806,8 @@ retries it with `POST /admin/refunds/{order_id}/retry`, #198). Refusals carry `c
 
 ## Customer Feedback (#218)
 
-Both routes sit behind the default-off `feedback` Feature flag
-(`MTOGO_FF_FEEDBACK`, ADR-0022). `requireFeatureFlag("feedback")` from
-`feature-flag.ts` runs first and answers `404` while the flag is off, before
-authentication, so a signed-out caller learns nothing either. Use the same
-middleware for later flagged Features. Both routes then require a Customer
-session, `requireIsolatedCustomerIdentity` and `requireOwnedOrder`, like Order
+Feedback has no Feature flag since #51 was accepted (#255, ADR-0022). Both
+routes require a Customer session, `requireIsolatedCustomerIdentity` and `requireOwnedOrder`, like Order
 progress: another Customer's or an unknown Order answers `404`.
 
 ### GET /store/orders/:id/feedback
@@ -1816,14 +1812,14 @@ curl http://localhost:9000/partner/me -H "Authorization: Bearer $TOKEN"
     "restaurant_id": "res_01..."
   },
   "restaurant": { "id": "res_01...", "name": "Pizzeria Nørrebro" },
-  "features": { "restaurant_statements": false, "feedback": false }
+  "features": { "restaurant_statements": false }
 }
 ```
 
 `features` names the backend-owned Feature flags (ADR-0022) whose navigation
 the partner app shows: `restaurant_statements` (#227) is `true` only while
-`MTOGO_FF_RESTAURANT_STATEMENTS` releases the Statements workspace, and
-`feedback` (#249) only while `MTOGO_FF_FEEDBACK` releases the Ratings page.
+`MTOGO_FF_RESTAURANT_STATEMENTS` releases the Statements workspace. The
+Ratings page (#249) has no flag since #255, so the partner app always shows it.
 
 | Status | When                                                                                                       |
 | ------ | ---------------------------------------------------------------------------------------------------------- |
@@ -1935,9 +1931,7 @@ curl http://localhost:9000/partner/restaurants/$RESTAURANT_ID \
 
 **Actor:** Restaurant staff (`restaurant_staff`, bearer token only) of that
 very Restaurant. The Restaurant's own food rating for a period (#249), the
-figures operators see for it on the Feedback page. It answers `404` while the
-default-off `feedback` Feature flag is off, before authentication (ADR-0022).
-Only the food rating: agent and experience ratings, agents and Customers are
+figures operators see for it on the Feedback page. Only the food rating: agent and experience ratings, agents and Customers are
 never returned (ADR-0008, ADR-0010).
 
 ```bash
@@ -1967,12 +1961,12 @@ Query: `period`, as for `GET /admin/feedback/statistics`:
 Orders count by handover time. `delivered_orders` includes unrated Orders;
 `average` is `null` when the period has no Feedback, never `0`.
 
-| Status | When                                                                                 |
-| ------ | ------------------------------------------------------------------------------------ |
-| `400`  | Unknown `period`                                                                     |
-| `401`  | As for `GET /partner/me`; also Customer and Delivery agent tokens                    |
-| `403`  | `code: "staff_access_revoked"`: as for `GET /partner/me`                             |
-| `404`  | The `feedback` flag is off, or `code: "restaurant_not_found"` for another Restaurant |
+| Status | When                                                              |
+| ------ | ----------------------------------------------------------------- |
+| `400`  | Unknown `period`                                                  |
+| `401`  | As for `GET /partner/me`; also Customer and Delivery agent tokens |
+| `403`  | `code: "staff_access_revoked"`: as for `GET /partner/me`          |
+| `404`  | `code: "restaurant_not_found"` for another Restaurant             |
 
 ### GET /partner/restaurants/{id}/statements and GET /partner/restaurants/{id}/statements/{month}
 
@@ -1980,8 +1974,10 @@ Orders count by handover time. `delivered_orders` includes unrated Orders;
 very Restaurant, also after the Restaurant is deactivated. Read-only monthly
 statements (#227, #228, spec #52 §6, §8, §10): Copenhagen calendar months in DKK
 excluding VAT. Both routes answer `404` while the default-off
-`restaurant_statements` Feature flag is off, before authentication (ADR-0022).
-Reading never books, recognizes or closes anything.
+`restaurant_statements` Feature flag is off, before authentication (ADR-0022):
+`requireFeatureFlagFor` from `feature-flag.ts` runs ahead of the matcher's
+authentication. Use `requireFeatureFlag` or `requireFeatureFlagFor` for later
+flagged Features. Reading never books, recognizes or closes anything.
 
 ```bash
 curl "http://localhost:9000/partner/restaurants/$RESTAURANT_ID/statements/2026-11?limit=20&offset=0" \
@@ -2359,10 +2355,9 @@ placement. Off, the field is absent and every other field is unchanged; the
 facts are still recorded. Only this detail route carries it, not the list or
 the stream. Amounts are exact decimal strings in the Order's currency.
 
-**Food rating (#249).** While the default-off `feedback` Feature flag
-(`MTOGO_FF_FEEDBACK`) is on, the Order also carries `food_rating`: the
+**Food rating (#249).** The Order also carries `food_rating`: the
 Customer's 1 to 5 food rating once the Order was delivered and rated, and
-`null` otherwise. Off, the field is absent. It is read through the read-only
+`null` otherwise. It is read through the read-only
 `order-feedback` link; the agent and experience ratings are never returned.
 Only this detail route carries it.
 
@@ -3116,7 +3111,7 @@ row keeps rendering. It is the `thumbnail` value stored on dish Products; see
 
 ### `GET /admin/feedback/statistics`
 
-Operator-only, behind the `feedback` Feature flag (404 while off). It accepts
+Operator-only. It accepts
 `period=last_30_days` (the default, the last 30 × 24 hours up to now),
 `previous_month` (the calendar month before the current one in Copenhagen time,
 from midnight to midnight, so it matches #53's bonus month across daylight-saving
@@ -3134,5 +3129,5 @@ valid operator authentication is refused with `401` or `403`.
 ### Feedback eligibility in tracking (#217)
 
 `GET /store/orders/:id/tracking` includes `feedback_eligibility`, with status,
-`can_submit`, and `closes_at`. The Feedback flag controls availability and the
-existing Feedback workflow decides eligibility. This is not a recorded invitation.
+`can_submit`, and `closes_at`. The existing Feedback workflow decides
+eligibility. This is not a recorded invitation.

@@ -331,8 +331,6 @@ export async function readRestaurantOrder(
     order_id: string
     /** Adds the purchased financial basis (#226) while it is released. */
     include_financial_basis?: boolean
-    /** Adds the Customer's food rating (#249) while Feedback is released. */
-    include_food_rating?: boolean
   },
 ) {
   const [operation] = await container
@@ -356,7 +354,7 @@ export async function readRestaurantOrder(
   const now = new Date()
   // Only a delivered Order can have been rated (#249).
   const foodRating =
-    input.include_food_rating && row.delivery_outcome === "delivered"
+    row.delivery_outcome === "delivered"
       ? await foodRatingOf(container, row.order_id)
       : null
   const restaurantOrder = toRestaurantOrder(
@@ -372,7 +370,7 @@ export async function readRestaurantOrder(
       ...(input.include_financial_basis && {
         financial_basis: financialBasisView(row.financial_basis, row),
       }),
-      ...(input.include_food_rating && { food_rating: foodRating }),
+      food_rating: foodRating,
     },
     server_time: now.toISOString(),
   }
@@ -403,7 +401,6 @@ export const retrieveRestaurantOrderStep = createStep(
       restaurant_id: string
       order_id: string
       include_financial_basis?: boolean
-      include_food_rating?: boolean
     },
     { container },
   ) => new StepResponse(await readRestaurantOrder(container, input)),

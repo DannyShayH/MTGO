@@ -25,7 +25,7 @@ export default function OrderDetailsTemplate({
   confirmation?: boolean
   /** The authorized progress read; a refused one shows no timeline. */
   progress?: OrderProgressRead
-  /** The Feedback read (#218); hidden while the `feedback` flag is off. */
+  /** The Feedback read (#218); hidden when the Customer may not rate. */
   feedback?: OrderFeedbackRead
 }) {
   const text = CUSTOMER_ORDER_DETAIL_TEXT[locale]

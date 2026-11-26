@@ -22,7 +22,7 @@ export type FoodRatingStatistics = {
 }
 
 /**
- * Ends the session when access ended; a withheld Feature is "not_found", and
+ * Ends the session when access ended; another Restaurant is "not_found", and
  * any other failure is logged and returned as `null`, so the page shows a
  * failed read instead of "No ratings yet".
  */

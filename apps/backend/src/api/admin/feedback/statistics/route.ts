@@ -25,8 +25,6 @@ import type { GetFeedbackStatisticsQuery } from "./validators"
  *     description: Feedback statistics
  *   "400":
  *     description: Unknown period
- *   "404":
- *     description: Feedback is not released
  */
 export async function GET(
   req: AuthenticatedMedusaRequest,

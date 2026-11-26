@@ -165,8 +165,8 @@ export type RestaurantOrder = {
   /** Absent while the backend withholds it; only the Order detail carries it. */
   financial_basis?: FinancialBasis
   /**
-   * The Customer's food rating (1-5), `null` when undelivered or unrated, and
-   * absent while Feedback is withheld (#249). Only the Order detail carries it.
+   * The Customer's food rating (1-5), `null` when undelivered or unrated
+   * (#249). Only the Order detail carries it; list items omit it.
    */
   food_rating?: number | null
 }

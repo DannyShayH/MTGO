@@ -13,7 +13,7 @@ import type { PostStoreOrderFeedbackBody } from "../../validators"
  * /store/orders/{id}/feedback:
  *   get:
  *     summary: The owning Customer's Feedback on an Order
- *     description: Behind the `feedback` Feature flag; `404` while it is off.
+ *     description: Only the signed-in Customer's own Order.
  *     security:
  *       - customerBearer: []
  *     parameters:
@@ -24,7 +24,7 @@ import type { PostStoreOrderFeedbackBody } from "../../validators"
  *     responses:
  *       '200': { description: "The recorded ratings or null, can_submit, and closes_at (168 hours after handover while open, else null)" }
  *       '401': { description: Not signed in as a Customer }
- *       '404': { description: Flag off, unknown Order or another Customer's Order }
+ *       '404': { description: Unknown Order or another Customer's Order }
  */
 export async function GET(
   req: AuthenticatedMedusaRequest,
@@ -42,7 +42,7 @@ export async function GET(
  * /store/orders/{id}/feedback:
  *   post:
  *     summary: Rate a delivered Order once
- *     description: Behind the `feedback` Feature flag; `404` while it is off.
+ *     description: Only the signed-in Customer's own Order.
  *     security:
  *       - customerBearer: []
  *     parameters:
@@ -66,7 +66,7 @@ export async function GET(
  *       '201': { description: Recorded; the same body as the read }
  *       '400': { description: "`feedback_ratings_invalid`, `order_not_delivered` or `feedback_window_closed` (168 hours or more after handover)" }
  *       '401': { description: Not signed in as a Customer }
- *       '404': { description: Flag off, unknown Order or another Customer's Order }
+ *       '404': { description: Unknown Order or another Customer's Order }
  *       '409': { description: "`feedback_already_submitted` with the recorded `feedback`" }
  */
 export async function POST(

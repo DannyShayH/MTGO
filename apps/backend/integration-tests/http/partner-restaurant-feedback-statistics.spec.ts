@@ -3,7 +3,6 @@ import {
   ContainerRegistrationKeys,
   generateJwtToken,
 } from "@medusajs/framework/utils"
-import type { FlagRouter } from "@medusajs/framework/utils"
 import { DELIVERY_MODULE } from "../../src/modules/delivery"
 import type DeliveryModuleService from "../../src/modules/delivery/service"
 import { FEEDBACK_MODULE } from "../../src/modules/feedback"
@@ -14,18 +13,14 @@ jest.setTimeout(240000)
 
 /**
  * #249: Restaurant staff see their own Restaurant's food rating, and the food
- * rating of each delivered Order, while the `feedback` flag is on. Never the
- * agent or experience ratings, the agent or the Customer.
+ * rating of each delivered Order. Never the agent or experience ratings, the
+ * agent or the Customer.
  */
 medusaIntegrationTestRunner({
   dbName: "medusa_ci_partner_feedback_statistics_http",
   env: { JWT_SECRET: "ci-only-partner-feedback-secret", REDIS_URL: "" },
   testSuite: ({ api, getContainer, dbUtils }) => {
     const harness = restaurantOrdersHarness({ api, getContainer, dbUtils })
-    const flags = () =>
-      getContainer().resolve<FlagRouter>(
-        ContainerRegistrationKeys.FEATURE_FLAG_ROUTER,
-      )
     const delivery = () =>
       getContainer().resolve<DeliveryModuleService>(DELIVERY_MODULE)
     const feedback = () =>
@@ -78,7 +73,6 @@ medusaIntegrationTestRunner({
 
     it("returns only the own Restaurant's food rating for the period", async () => {
       const { pizzeriaId, burgerId } = harness.seeded()
-      flags().setFlag("feedback", true)
       const staff = await harness.signInAsStaffOf(
         pizzeriaId,
         "ratings-staff@example.test",
@@ -129,7 +123,6 @@ medusaIntegrationTestRunner({
 
     it("reads the previous Copenhagen month by handover time", async () => {
       const { pizzeriaId } = harness.seeded()
-      flags().setFlag("feedback", true)
       const staff = await harness.signInAsStaffOf(
         pizzeriaId,
         "month-ratings-staff@example.test",
@@ -159,7 +152,6 @@ medusaIntegrationTestRunner({
 
     it("has no average when the period has delivered Orders but no Feedback", async () => {
       const { pizzeriaId } = harness.seeded()
-      flags().setFlag("feedback", true)
       const staff = await harness.signInAsStaffOf(
         pizzeriaId,
         "unrated-staff@example.test",
@@ -175,9 +167,8 @@ medusaIntegrationTestRunner({
       })
     })
 
-    it("refuses other Restaurants' staff, agents, Customers and anonymous callers, and is withheld while the flag is off", async () => {
+    it("refuses other Restaurants' staff, agents, Customers and anonymous callers", async () => {
       const { pizzeriaId, burgerId, customer } = harness.seeded()
-      flags().setFlag("feedback", true)
       const staff = await harness.signInAsStaffOf(
         burgerId,
         "burger-ratings-staff@example.test",
@@ -204,15 +195,10 @@ medusaIntegrationTestRunner({
       ]) {
         expect([401, 403]).toContain((await read(headers, pizzeriaId)).status)
       }
-
-      flags().setFlag("feedback", false)
-      expect((await read(staff.headers, burgerId)).status).toBe(404)
-      expect((await read({}, burgerId)).status).toBe(404)
     })
 
     it("shows a delivered Order's food rating on its detail, and null when unrated", async () => {
       const { pizzeriaId } = harness.seeded()
-      flags().setFlag("feedback", true)
       const staff = await harness.signInAsStaffOf(
         pizzeriaId,
         "detail-ratings-staff@example.test",
@@ -251,11 +237,6 @@ medusaIntegrationTestRunner({
       )
       const unratedDetail = await harness.detail(staff.headers, unrated.id)
       expect(unratedDetail.data.order.food_rating).toBeNull()
-
-      flags().setFlag("feedback", false)
-      const hidden = await harness.detail(staff.headers, rated.id)
-      expect(hidden.status).toBe(200)
-      expect(hidden.data.order).not.toHaveProperty("food_rating")
     })
   },
 })

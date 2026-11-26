@@ -6,7 +6,7 @@ Agreed on 24 November 2026 in discovery #209 for Feature #51. The case asks us t
 - **The backend is the single source.** When the flag is off, the Feature's routes answer `404` as if the Feature did not exist. Frontends (storefront, partner app, Admin) have no flag of their own; they hide the Feature when the backend reports it unavailable. Admin extensions may read Medusa's built-in `GET /admin/feature-flags`, which the dashboard already uses.
 - **A flag gates behaviour, never recorded facts.** Facts recorded while the flag was on stay stored and keep counting for other Features; time-based business rules keep running while it is off and are never extended (ADR-0014).
 - **Off by default everywhere.** Local development, CI and staging switch it on explicitly. Tests prove both states.
-- **Removed after acceptance.** Once the Feature's business outcome is accepted (ADR-0016), a cleanup work item removes the flag and the flag-off path.
+- **Removed after acceptance.** Once the Feature's business outcome is accepted (ADR-0016), a cleanup work item removes the flag and the flag-off path. The `feedback` flag (#51) was the first: #255 removed it after #51's acceptance, including the Ratings page (#249) that shipped behind it.
 
 ## Considered options
 

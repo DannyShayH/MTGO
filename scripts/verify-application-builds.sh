@@ -15,8 +15,7 @@ if [[ "${1:-}" = "--browser" ]]; then
 fi
 
 export NODE_ENV=production
-# Verification releases the flagged Feedback Feature (ADR-0022).
-export MTOGO_FF_FEEDBACK="${MTOGO_FF_FEEDBACK:-true}"
+# Verification releases the flagged Restaurant statements Feature (ADR-0022).
 export MTOGO_FF_RESTAURANT_STATEMENTS="${MTOGO_FF_RESTAURANT_STATEMENTS:-true}"
 build_tmp=$(mktemp -d)
 backend_pid=""

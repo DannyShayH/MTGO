@@ -584,17 +584,15 @@ It shows a line that only MTOGO can cancel it, with the Order number to give.
 
 ## Ratings (#249)
 
-**Ratings** (`/ratings`) appears in the navigation only while `GET /partner/me`
-reports `features.feedback`, the backend's default-off Feature flag
-(ADR-0022); the page itself is then not found and the backend withholds its
-route. It is read-only and shows only the Restaurant's food rating from
+**Ratings** (`/ratings`) is always in the navigation: it shipped behind the
+backend's `feedback` Feature flag, which was removed after Feedback was
+accepted (#255). It is read-only and shows only the Restaurant's food rating from
 `GET /partner/restaurants/{id}/feedback/statistics`: the average to one decimal
 ("4,3 ud af 5"), the number of ratings, delivered Orders and a 1 to 5 star
 distribution. Three links choose the period (`?period=last_30_days`, the
 default, `previous_month` or `all_time`), so it survives a language change. A
 period with delivered Orders but no Feedback says "No ratings yet", never 0.0,
-and a failed read says so with a retry instead. While the flag is on, a
-delivered Order's detail shows "Food rating: 4 of 5" or "Food rating: Not
+and a failed read says so with a retry instead. A delivered Order's detail shows "Food rating: 4 of 5" or "Food rating: Not
 rated". The page never shows who rated, agent ratings or experience ratings.
 
 ## Statements (#227)

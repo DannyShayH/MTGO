@@ -79,7 +79,6 @@ import {
   PostStoreOrderFeedbackSchema,
 } from "./store/orders/validators"
 import { requireFeatureFlag, requireFeatureFlagFor } from "./feature-flag"
-import FeedbackFeatureFlag from "../feature-flags/feedback"
 import AgentBonusFeatureFlag from "../feature-flags/agent-bonus"
 import { GetFeedbackStatisticsSchema } from "./admin/feedback/statistics/validators"
 import RestaurantStatementsFeatureFlag from "../feature-flags/restaurant-statements"
@@ -130,12 +129,8 @@ function validatePostalCodeParam(
   )
 }
 
-/**
- * Customer Feedback (#218): withheld while the `feedback` flag is off, then
- * only the signed-in Customer's own Order.
- */
+/** Customer Feedback (#218): only the signed-in Customer's own Order. */
 const orderFeedbackAccess = [
-  requireFeatureFlag(FeedbackFeatureFlag.key),
   authenticate("customer", ["bearer", "session"]),
   requireIsolatedCustomerIdentity,
   requireOwnedOrder,
@@ -476,7 +471,6 @@ export default defineMiddlewares({
     {
       matcher: "/admin/feedback/statistics",
       middlewares: [
-        requireFeatureFlag(FeedbackFeatureFlag.key),
         authenticate("user", ["session", "bearer"]),
         validateAndTransformQuery(GetFeedbackStatisticsSchema, {}),
       ],
@@ -752,11 +746,6 @@ export default defineMiddlewares({
         requireFeatureFlagFor(
           RestaurantStatementsFeatureFlag.key,
           /^\/partner\/restaurants\/[^/]+\/statements(\/|$)/,
-        ),
-        // So is the own food rating (#249) while Feedback is off.
-        requireFeatureFlagFor(
-          FeedbackFeatureFlag.key,
-          /^\/partner\/restaurants\/[^/]+\/feedback(\/|$)/,
         ),
         authenticate(RESTAURANT_STAFF_ACTOR, "bearer"),
       ],

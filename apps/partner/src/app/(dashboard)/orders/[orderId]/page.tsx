@@ -174,21 +174,19 @@ export default async function OrderPage({
           )}
         </section>
       </Container>
-      {/* The Customer's food rating once delivered, while Feedback is
-          released (#249): the absent field hides it. */}
-      {order.food_rating !== undefined &&
-        order.delivery?.outcome === "delivered" && (
-          <Container className="rounded-card flex items-center gap-x-2 px-4 py-4 sm:px-6">
-            <Star aria-hidden="true" className="text-ui-fg-subtle shrink-0" />
-            <Text weight="plus">
-              {order.food_rating === null
-                ? RESTAURANT_RATINGS_TEXT[locale].order_not_rated
-                : formatText(RESTAURANT_RATINGS_TEXT[locale].order_rating, {
-                    rating: order.food_rating,
-                  })}
-            </Text>
-          </Container>
-        )}
+      {/* The Customer's food rating once delivered (#249). */}
+      {order.delivery?.outcome === "delivered" && (
+        <Container className="rounded-card flex items-center gap-x-2 px-4 py-4 sm:px-6">
+          <Star aria-hidden="true" className="text-ui-fg-subtle shrink-0" />
+          <Text weight="plus">
+            {order.food_rating == null
+              ? RESTAURANT_RATINGS_TEXT[locale].order_not_rated
+              : formatText(RESTAURANT_RATINGS_TEXT[locale].order_rating, {
+                  rating: order.food_rating,
+                })}
+          </Text>
+        </Container>
+      )}
       {order.cancellation && (
         <Container className="rounded-card px-4 py-4 sm:px-6 sm:py-5">
           <CancellationOutcome order={order} locale={locale} />

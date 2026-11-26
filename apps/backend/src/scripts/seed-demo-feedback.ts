@@ -12,7 +12,7 @@
  * five demo agents. Each Order buys one to three pizzas, often with a drink,
  * and is placed, accepted, prepared, claimed, picked up and handed over
  * through the real workflows; each rating is recorded by the real Feedback
- * workflow, so it works with the `feedback` flag off. The Order's recorded
+ * workflow. The Order's recorded
  * times are then moved back together, so the handovers spread over the
  * previous and the current calendar month.
  *
@@ -494,7 +494,7 @@ export default async function seedDemoFeedback({ container }: ExecArgs) {
     [
       `Feedback demo: ${plan.rated.length} rated Orders at ${restaurants.map(({ name }) => name).join(", ")}.`,
       "Sign in to the storefront with the DEMO_FEEDBACK_CUSTOMER_EMAIL account and its password,",
-      "with the backend started with MTOGO_FF_FEEDBACK=true, and open the Orders under Account:",
+      "and open the Orders under Account:",
       `  ${orderNumber("open")}  delivered two days ago; the rating form is open`,
       `  ${orderNumber("closed")}  delivered nine days ago without Feedback; the window has closed`,
       `  ${orderNumber(contrast)}  rated: poor food, five-star agent`,

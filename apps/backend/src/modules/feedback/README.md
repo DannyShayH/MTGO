@@ -3,9 +3,11 @@
 Registered as `feedback` ([#218](https://github.com/DannyShayH/MTGO/issues/218), Feature
 [#51](https://github.com/DannyShayH/MTGO/issues/51)). Medusa has no review or
 rating module, so this custom module holds the ordering Customer's Feedback on a
-delivered Order (ADR-0010). The whole Feature is behind the default-off `feedback`
-Feature flag (ADR-0022); the module and its workflows work regardless of the flag,
-which only the routes read.
+delivered Order (ADR-0010). Feedback was released behind the default-off `feedback`
+Feature flag (ADR-0022). After #51's business outcome was accepted, the flag and
+its flag-off path were removed
+([#255](https://github.com/DannyShayH/MTGO/issues/255)), so Feedback is always
+available.
 
 ## Data model
 
@@ -48,7 +50,6 @@ partner Order detail reads `feedback.food_rating` through it (#249).
   ([#219](https://github.com/DannyShayH/MTGO/issues/219), ADR-0010) runs for
   exactly 168 hours (`FEEDBACK_WINDOW_MS`) from the Delivery's recorded
   handover instant `terminal_at`; at the closing instant it is already closed.
-  It ignores the Feature flag, so switching the flag never extends it.
   Recorded Feedback stays readable after the window.
 - `retrieveOrderFeedbackWorkflow` reads the Customer's state;
   `submitFeedbackWorkflow` records the Feedback.
@@ -72,7 +73,7 @@ previous and the current calendar month in Copenhagen time, counted from the day
 of the run, and varies the ratings per Restaurant and agent. The four demo
 Restaurants in Nørrebro publish the fuller demo menu, and each Order buys one to
 three pizzas, often with a drink. The script runs the real Order, delivery and
-`submitFeedbackWorkflow` steps, so the flag can be off, then moves each Order's
+`submitFeedbackWorkflow` steps, then moves each Order's
 recorded times back together. The Order's `created_at` is written on the Order
 module directly, an exception to coding standard 5.1 that no core-flow covers.
 Application code never rewrites recorded milestones or Feedback (ADR-0021,
@@ -89,8 +90,8 @@ full run places 502 Orders and takes about 15 minutes in the devcontainer.
 and overall-experience ratings platform-wide in the database over a half-open
 handover-time range. The operator workflow combines those distributions with
 Delivery's counts. Unrated delivered Orders increase the delivery count, never
-rating counts or averages. `GET /admin/feedback/statistics` and the Feedback
-Admin page are behind the `feedback` flag. A `null` bound leaves the range
+rating counts or averages. `GET /admin/feedback/statistics` feeds the Feedback
+Admin page. A `null` bound leaves the range
 open, so `all_time` reads every Feedback. The workflow resolves the period
 (`src/workflows/feedback/statistics-period.ts`): the last 30 × 24 hours, the
 previous Copenhagen calendar month (reusing the Restaurant-finance month
@@ -106,5 +107,4 @@ Delivery's `statistics` takes the same filter.
 `retrieveRestaurantFeedbackStatisticsWorkflow` authorizes the staff member for their
 own Restaurant, then returns only that Restaurant's food rating summary and
 delivered Orders for the resolved period. The route is
-`GET /partner/restaurants/:id/feedback/statistics`, behind the `feedback` flag,
-and the partner app shows it on its Ratings page.
+`GET /partner/restaurants/:id/feedback/statistics`, and the partner app shows it on its Ratings page.

@@ -88,9 +88,9 @@ export const listPartnerOrdersWorkflow = createWorkflow(
 /**
  * One of the staff member's Restaurant's Orders. With the Restaurant
  * statements flag on (the route decides, ADR-0022), it also carries the
- * Order's purchased financial basis (#226); off, the field is absent. With
- * the Feedback flag on, it carries its `food_rating` (#249), `null` unless
- * the Order was delivered and rated.
+ * Order's purchased financial basis (#226); off, the field is absent. It
+ * always carries its `food_rating` (#249), `null` unless the Order was
+ * delivered and rated.
  */
 export const retrievePartnerOrderWorkflow = createWorkflow(
   "retrieve-partner-order",
@@ -98,14 +98,12 @@ export const retrievePartnerOrderWorkflow = createWorkflow(
     staff_id: string
     order_id: string
     include_financial_basis?: boolean
-    include_food_rating?: boolean
   }) {
     const current = retrieveAuthorizedStaffStep({ staff_id: input.staff_id })
     const scope = transform({ input, current }, ({ input, current }) => ({
       restaurant_id: current.restaurant.id,
       order_id: input.order_id,
       include_financial_basis: !!input.include_financial_basis,
-      include_food_rating: !!input.include_food_rating,
     }))
     return new WorkflowResponse(retrieveRestaurantOrderStep(scope))
   },

@@ -34,7 +34,7 @@ import type { GetFeedbackStatisticsQuery } from "../../../../../admin/feedback/s
  *   "401":
  *     description: Not signed in as Restaurant staff
  *   "404":
- *     description: Feedback is not released, or another Restaurant
+ *     description: Another Restaurant
  */
 export async function GET(
   req: AuthenticatedMedusaRequest<unknown, GetFeedbackStatisticsQuery>,

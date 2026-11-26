@@ -13,8 +13,7 @@ import {
 import { LINK_BUTTON } from "@modules/common/link-button"
 
 /**
- * The Restaurant's own food rating (#249): read-only, by period. Withheld by
- * the backend until Feedback is released, so the page is then not found.
+ * The Restaurant's own food rating (#249): read-only, by period.
  */
 export default async function RatingsPage({
   searchParams,
@@ -22,7 +21,6 @@ export default async function RatingsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const current = await requireCurrentStaff()
-  if (!current.features?.feedback) notFound()
   const { locale } = await getMessages()
   const text = RESTAURANT_RATINGS_TEXT[locale]
   const period = parseRatingsPeriod(await searchParams)
