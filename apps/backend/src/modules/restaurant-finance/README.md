@@ -10,7 +10,9 @@ adds the monthly service-fee obligation from active Copenhagen dates.
 
 Issue #229 recognizes existing prepared-food credits and records
 cancellations that owe no entitlement. Issue #230 fixes closed statements
-and recovers late amounts as linked current-month adjustments.
+and recovers late amounts as linked current-month adjustments. Issue #233
+recognizes each Operator cancellation (#199) through the same boundary, dated
+and explained by the operator's recorded action.
 
 ## Data model
 
@@ -80,6 +82,12 @@ and recovers late amounts as linked current-month adjustments.
   refund plays no part: a pending, failed or retried refund leaves the one
   recognition as it is. A cancellation whose facts do not establish its
   outcome or credit is a `missing_outcome_evidence` problem, never inferred.
+  An Operator cancellation is dated by the operator's action
+  (`cancelled_at`). Its evidence still records the accepted work's
+  `claim_deadline` as a fact, but a statement's `calculation` leaves it out
+  (`explainReceipt` in `statement-rules.ts`), because that deadline is the
+  unassigned timeout's moment, not this outcome's (#233). The operator's
+  reason (`cancellation_note`) stays in Order Operations.
   The recovery job scans every cancellation page with its own bounded batch,
   including older months, so downtime cannot strand an entitlement.
 - `service-fee.ts`: the pure fee rules (#228). It replays the recorded

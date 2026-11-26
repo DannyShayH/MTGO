@@ -2,6 +2,7 @@ import {
   assembleStatementHeader,
   completenessOf,
   outcomesWithoutEntitlement,
+  explainReceipt,
   statementEntry,
   statementDays,
   statementMonths,
@@ -472,6 +473,73 @@ describe("A statement entry's explanation (spec #52 §10)", () => {
         original_statement: null,
       },
     )
+  })
+})
+
+describe("What a statement shows of a cancellation's evidence (#233)", () => {
+  const compensation = {
+    food_credit_id: "fcred_1",
+    cancellation_category: "operator_cancelled",
+    cancelled_at: "2026-11-20T12:40:00.000Z",
+    claim_deadline: "2026-11-20T12:35:00.000Z",
+    preparation_started_at: "2026-11-20T12:10:00.000Z",
+    ready_at: null,
+    food_value_excluding_vat: "152",
+    commission: "0",
+  }
+  const explained = {
+    food_credit_id: "fcred_1",
+    cancellation_category: "operator_cancelled",
+    cancelled_at: "2026-11-20T12:40:00.000Z",
+    preparation_started_at: "2026-11-20T12:10:00.000Z",
+    ready_at: null,
+    food_value_excluding_vat: "152",
+    commission: "0",
+  }
+  const receiptOf = (outcome: string, evidence: unknown) => ({
+    source_kind: "prepared_food_credit",
+    source_id: "fcred_1",
+    outcome,
+    evidence,
+  })
+
+  it.each([
+    {
+      receipt: receiptOf("operator_cancelled", compensation),
+      expected: explained,
+      reason:
+        "DT: an operator cancellation hides its accepted work's claim deadline",
+    },
+    {
+      receipt: receiptOf("operator_cancelled", explained),
+      expected: explained,
+      reason:
+        "DT: an operator cancellation without a claim deadline is shown as recorded",
+    },
+    {
+      receipt: receiptOf("unassigned_timeout", {
+        ...compensation,
+        cancellation_category: "unassigned_timeout",
+      }),
+      expected: {
+        ...compensation,
+        cancellation_category: "unassigned_timeout",
+      },
+      reason:
+        "DT: an unassigned timeout keeps the claim deadline that dates it",
+    },
+    {
+      receipt: receiptOf("operator_cancelled", null),
+      expected: null,
+      reason: "DT: missing evidence stays missing",
+    },
+    {
+      receipt: undefined,
+      expected: null,
+      reason: "DT: an entry without a readable receipt has no explanation",
+    },
+  ])("$reason", ({ receipt, expected }) => {
+    expect(explainReceipt(receipt)).toEqual(expected)
   })
 })
 

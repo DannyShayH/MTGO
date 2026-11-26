@@ -641,6 +641,24 @@ information button explaining what they mean. Loading shows
 a skeleton, a failed read says it does not mean the month is empty and offers
 a retry, and a revoked session ends as on every page.
 
+An Operator cancellation (#233) shows as "Annulleret af MTOGO" / "Cancelled
+by MTOGO", dated by the operator's action. After preparation started it is
+prepared-food compensation; before preparation it is counted under "Orders
+without food credit". Inspection evidence (26 November 2026, dev database,
+Chromium): two accepted Orders were cancelled with **Cancel with full refund**
+on their Admin Order pages, one after preparation started and one before.
+In Danish and English, at 1280px and 360px:
+
+- Order #605 shows the operator outcome, its cancellation time, a food credit
+  of 76.00, commission 0.00 and the MTOGO-funded wording.
+- The cancellation before preparation adds "Cancelled by MTOGO: 1 Order" to
+  Orders without food credit, with no entry.
+- Keyboard Tab reaches the #605 Order link with a visible focus ring.
+
+The operator's reason did not appear on any page. An operator credit
+recognized under #229, whose receipt still records the claim deadline, reads
+the same way. No browser runtime errors were seen.
+
 ## Run it
 
 Start the backend first, then seed a staff member (see the `restaurant` module

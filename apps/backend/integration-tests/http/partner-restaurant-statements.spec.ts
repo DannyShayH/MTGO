@@ -1640,34 +1640,6 @@ medusaIntegrationTestRunner({
         })
       })
 
-      it("recognizes an operator cancellation's prepared-food credit on its recorded cancellation time", async () => {
-        const order = await placePaidOrder(pizzeriaId)
-        expect((await accept(staff.headers, order.id)).status).toBe(200)
-        expect((await startPreparation(staff.headers, order.id)).status).toBe(
-          200,
-        )
-        const cancelled = await api.post(
-          `/admin/orders/${order.id}/operator-cancel`,
-          { reason: "Restaurant lost power" },
-          { headers: admin, validateStatus: () => true },
-        )
-        expect(cancelled.status).toBe(200)
-        const [record] = await operations().listOrderOperations({
-          order_id: order.id,
-        })
-
-        const { data } = await statement(staff.headers)
-        expect(data.entries).toEqual([
-          expect.objectContaining({
-            kind: "prepared_food_compensation",
-            outcome: "operator_cancelled",
-            occurred_at: new Date(record.cancelled_at as Date).toISOString(),
-            amounts: { food_credit: "76", commission: "0", net: "76" },
-            funded_by: "mtogo",
-          }),
-        ])
-      })
-
       it("accounts for rejection, acceptance timeout, Customer cancellation and unprepared unassigned work with no entitlement or entry", async () => {
         const rejected = await placePaidOrder(pizzeriaId)
         expect((await reject(staff.headers, rejected.id)).status).toBe(200)
@@ -1847,6 +1819,209 @@ medusaIntegrationTestRunner({
           count: 1,
           sources: [{ kind: "delivery_failed", id: order.id }],
         })
+      })
+    })
+
+    describe("Operator cancellation food credits (#233)", () => {
+      const REASON = "Restaurant lost power at table 7"
+      const operatorCancel = (order_id: string) =>
+        api.post(
+          `/admin/orders/${order_id}/operator-cancel`,
+          { reason: REASON },
+          { headers: admin, validateStatus: () => true },
+        )
+      /** An accepted paid Order, optionally with preparation started. */
+      const acceptedOrder = async ({ prepared }: { prepared: boolean }) => {
+        const order = await placePaidOrder(pizzeriaId)
+        expect((await accept(staff.headers, order.id)).status).toBe(200)
+        if (prepared)
+          expect((await startPreparation(staff.headers, order.id)).status).toBe(
+            200,
+          )
+        return order
+      }
+      const operationOf = async (order_id: string) =>
+        (await operations().listOrderOperations({ order_id }))[0]
+      const operatorStatement = () =>
+        api.get(`/admin/restaurants/${pizzeriaId}/statements/${month()}`, {
+          headers: admin,
+          validateStatus: () => true,
+        })
+      const withoutVerifiedAt = (body: Record<string, unknown>) =>
+        JSON.parse(
+          JSON.stringify(body, (key, value) =>
+            key === "verified_at" ? undefined : value,
+          ),
+        )
+
+      it("credits prepared food once, MTOGO-funded with zero commission, dated and explained by the operator's cancellation", async () => {
+        const order = await acceptedOrder({ prepared: true })
+        const cancelled = await operatorCancel(order.id)
+        expect(cancelled.status).toBe(200)
+        expect(cancelled.data.cancellation.cancelled_now).toBe(true)
+
+        // A repeated request, sweep and recognition change nothing.
+        const repeat = await operatorCancel(order.id)
+        expect(repeat.status).toBe(200)
+        expect(repeat.data.cancellation.cancelled_now).toBe(false)
+        await recoverOrderOperationsWorkflow(getContainer()).run({
+          input: { now: new Date().toISOString() },
+        })
+        expect(await recognizeCancelledOrder(getContainer(), order.id)).toBe(
+          "already_recognized",
+        )
+        await recoverRestaurantFinanceWorkflow(getContainer()).run({
+          input: {},
+        })
+
+        const record = await operationOf(order.id)
+        const [credit] = await operations().listFoodCredits({
+          order_id: order.id,
+        })
+        const [planned] = await delivery().listIntendedDeliveries({
+          order_id: order.id,
+        })
+        const cancelledAt = new Date(record.cancelled_at as Date).toISOString()
+        const { data } = await statement(staff.headers)
+        expect(data.count).toBe(1)
+        expect(data.entries[0]).toEqual({
+          id: expect.any(String),
+          kind: "prepared_food_compensation",
+          source: { kind: "prepared_food_credit", id: credit.id },
+          order: { id: order.id, display_id: order.display_id },
+          outcome: "operator_cancelled",
+          occurred_at: cancelledAt,
+          original_month: month(),
+          posted_at: expect.any(String),
+          posting_month: month(),
+          amounts: { food_credit: "76", commission: "0", net: "76" },
+          funded_by: "mtogo",
+          calculation: {
+            food_credit_id: credit.id,
+            cancellation_category: "operator_cancelled",
+            cancelled_at: cancelledAt,
+            preparation_started_at: new Date(
+              record.preparation_started_at as Date,
+            ).toISOString(),
+            ready_at: null,
+            food_value_excluding_vat: "76",
+            commission: "0",
+          },
+          original_statement: null,
+        })
+        // The receipt records the accepted work's unassigned deadline as a
+        // fact, but the statement never explains this outcome by it.
+        expect(planned.claim_deadline).toBeTruthy()
+        const [receipt] = await finance().listFinanceReceipts({
+          order_id: order.id,
+        })
+        expect(receipt.evidence).toMatchObject({
+          cancelled_at: cancelledAt,
+          claim_deadline: new Date(planned.claim_deadline).toISOString(),
+        })
+        expect(data.statement.totals).toMatchObject({
+          food_credits: { status: "available", amount: "76" },
+          commission: { status: "available", amount: "0" },
+        })
+        expect(data.statement.outcomes_without_entitlement).toEqual([])
+        // The operator's private reason never reaches the statement.
+        expect(JSON.stringify(data)).not.toContain(REASON)
+
+        const operator = await operatorStatement()
+        expect(operator.status).toBe(200)
+        expect(withoutVerifiedAt(operator.data)).toEqual(
+          withoutVerifiedAt(data),
+        )
+        expect(
+          await operations().listFoodCredits({ order_id: order.id }),
+        ).toHaveLength(1)
+        expect(
+          await finance().listFinanceReceipts({ order_id: order.id }),
+        ).toHaveLength(1)
+      })
+
+      it("accounts for a cancellation before preparation with no food credit, commission or entry, dated by the operator's action", async () => {
+        const order = await acceptedOrder({ prepared: false })
+        expect((await operatorCancel(order.id)).status).toBe(200)
+        expect((await operatorCancel(order.id)).status).toBe(200)
+        const record = await operationOf(order.id)
+
+        const { data } = await statement(staff.headers)
+
+        expect(data.count).toBe(0)
+        expect(data.statement.totals).toMatchObject({
+          food_credits: { status: "available", amount: "0" },
+          commission: { status: "available", amount: "0" },
+        })
+        expect(data.statement.outcomes_without_entitlement).toEqual([
+          { outcome: "operator_cancelled", count: 1 },
+        ])
+        expect(JSON.stringify(data)).not.toContain(REASON)
+        expect(
+          await operations().listFoodCredits({ order_id: order.id }),
+        ).toEqual([])
+        const receipts = await finance().listFinanceReceipts({
+          order_id: order.id,
+        })
+        expect(receipts).toEqual([
+          expect.objectContaining({
+            source_kind: "order_cancelled",
+            source_id: order.id,
+            outcome: "operator_cancelled",
+            occurred_at: record.cancelled_at,
+          }),
+        ])
+        expect(
+          await finance().listFinanceJournalEntries({ order_id: order.id }),
+        ).toEqual([])
+        const operator = await operatorStatement()
+        expect(withoutVerifiedAt(operator.data)).toEqual(
+          withoutVerifiedAt(data),
+        )
+      })
+
+      it("keeps the one credit through a failed Customer refund, and a successful retry adds no credit or commission", async () => {
+        const order = await acceptedOrder({ prepared: true })
+        const declined = jest
+          .spyOn(SystemProviderService.prototype, "refundPayment")
+          .mockRejectedValue(new Error("mock provider declined"))
+        const cancelled = await operatorCancel(order.id)
+        declined.mockRestore()
+        expect(cancelled.status).toBe(200)
+        expect(cancelled.data.cancellation.refund.status).toBe("failed")
+        // The recovery sweep resumes the failed settlement before any retry.
+        await recoverOrderOperationsWorkflow(getContainer()).run({
+          input: { now: new Date().toISOString() },
+        })
+
+        const failed = (await statement(staff.headers)).data
+        expect(failed.count).toBe(1)
+        expect(failed.entries[0]).toMatchObject({
+          kind: "prepared_food_compensation",
+          outcome: "operator_cancelled",
+          amounts: { food_credit: "76", commission: "0" },
+          funded_by: "mtogo",
+        })
+
+        const retried = await api.post(
+          `/admin/refunds/${order.id}/retry`,
+          {},
+          { headers: admin, validateStatus: () => true },
+        )
+        expect(retried.status).toBe(200)
+        expect(retried.data.refund.status).toBe("succeeded")
+        expect((await operatorCancel(order.id)).status).toBe(200)
+
+        const { data } = await statement(staff.headers)
+        expect(data.count).toBe(1)
+        expect(data.entries[0]).toEqual(failed.entries[0])
+        expect(data.statement.totals).toMatchObject({
+          food_credits: { status: "available", amount: "76" },
+          commission: { status: "available", amount: "0" },
+        })
+        expect(data.statement.problems).not.toContainEqual(
+          expect.objectContaining({ code: "conflicting_recognition" }),
+        )
       })
     })
   },

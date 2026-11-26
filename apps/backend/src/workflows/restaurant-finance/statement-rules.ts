@@ -331,6 +331,27 @@ export type EntryReceipt = {
 }
 
 /**
+ * The explanation a statement shows for a receipt: its recorded evidence,
+ * except that an Operator cancellation hides its accepted work's claim
+ * deadline. The receipt keeps that recorded fact, but the operator's action
+ * (`cancelled_at`) is this outcome's moment, not the unassigned deadline
+ * (#233).
+ */
+export function explainReceipt(receipt: EntryReceipt | undefined): unknown {
+  const evidence = receipt?.evidence ?? null
+  if (
+    receipt?.outcome !== "operator_cancelled" ||
+    !evidence ||
+    typeof evidence !== "object" ||
+    !("claim_deadline" in evidence)
+  )
+    return evidence
+  return Object.fromEntries(
+    Object.entries(evidence).filter(([key]) => key !== "claim_deadline"),
+  )
+}
+
+/**
  * One statement entry (spec #52 §10): its source, optional Order, dates,
  * booked amounts with their net, funding and calculation explanation. A
  * missing receipt or Order number is shown as unknown, never invented.
@@ -367,7 +388,7 @@ export function statementEntry(
       ).toString(),
     },
     funded_by: entry.funded_by,
-    calculation: receipt?.evidence ?? null,
+    calculation: explainReceipt(receipt),
     // Adjustments of a closed month will link their original statement.
     original_statement:
       entry.original_month !== entry.posting_month

@@ -2098,6 +2098,18 @@ is the header below without entries.
   or repeats it. Rejection, acceptance timeout, Customer cancellation and
   cancellation before preparation book nothing; the detail route counts them
   by `outcome` in `outcomes_without_entitlement` for the month they occurred.
+- **Operator cancellations (#233).** An MTOGO operator's **Cancel with full refund**
+  (`POST /admin/orders/{id}/operator-cancel`, #199) has the outcome
+  `operator_cancelled`. After preparation started it is the one
+  `prepared_food_compensation` entry described above; its `calculation`
+  carries `cancelled_at` (the operator's action, which is also `occurred_at`)
+  and no `claim_deadline`: the receipt records the accepted work's unassigned
+  deadline, but it is not this outcome's moment, so statements leave it out.
+  Before preparation it books nothing and counts as `operator_cancelled` in
+  `outcomes_without_entitlement`. The operator's reason
+  is never part of a statement. A repeated request, a failed Customer refund
+  and its retry keep the one recognition. The Admin statement routes return
+  exactly the same entries.
 - **Totals are whole-month** on every page and sum the booked amounts; amounts
   are exact decimal strings. Entries sort by `posted_at` then `id`, newest first.
   Commission is a charge, shown as a positive amount the balance deducts.

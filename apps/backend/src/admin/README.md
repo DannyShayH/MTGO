@@ -249,7 +249,7 @@ Deliveries list shows. The widget is hidden for a cancelled Order, and after
 a cancellation it shows the same outcome message. Placement is controlled in
 the Dashboard Editor.
 
-## Restaurant statements (#230, #232)
+## Restaurant statements (#230, #232, #233)
 
 `routes/restaurants/[id]/statements/page.tsx` shows a Restaurant's monthly
 statement to operators. It reads `GET /admin/restaurants/{id}/statements`
@@ -318,3 +318,14 @@ list and no overflow at 320px.
 side: paging with whole-month totals, the boundaries of `limit`, `offset` and
 the month, parity with staff, role boundaries, inactive Restaurants and the
 flag.
+
+An Operator cancellation (#233) shows the outcome "Cancelled by MTOGO" as
+"Prepared-food compensation" or under Orders without food credit. Its
+occurred time is the operator's action and its funding is "Paid by MTOGO".
+Inspection evidence (26 November 2026, dev database, Chromium at 1440px and
+390px): Order #605 was cancelled after preparation started with **Cancel with
+full refund** on its Order page. Its entry shows the same DKK 76.00 food
+credit, DKK 0.00 commission and time as the partner app. The Order cancelled
+before preparation counts once under Orders without food credit. At 390px
+the entries table scrolls in its own region, as #232 found. The operator's
+reason does not appear on the page, and no browser runtime errors were seen.
