@@ -757,6 +757,25 @@ export default defineMiddlewares({
       ],
     },
     {
+      matcher: "/admin/restaurants/:id/statements*",
+      middlewares: [
+        requireFeatureFlagFor(
+          RestaurantStatementsFeatureFlag.key,
+          /^\/admin\/restaurants\/[^/]+\/statements(\/|$)/,
+        ),
+      ],
+    },
+    {
+      matcher: "/admin/restaurants/:id/statements",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(GetPartnerStatementsSchema, {})],
+    },
+    {
+      matcher: "/admin/restaurants/:id/statements/:month",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(GetPartnerStatementsSchema, {})],
+    },
+    {
       matcher: "/partner/restaurants/:id/statements",
       method: "GET",
       middlewares: [validateAndTransformQuery(GetPartnerStatementsSchema, {})],

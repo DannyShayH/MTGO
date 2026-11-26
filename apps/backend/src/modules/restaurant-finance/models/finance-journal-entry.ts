@@ -8,6 +8,7 @@ import { model } from "@medusajs/framework/utils"
 export const JOURNAL_ENTRY_KINDS = [
   "delivered_order",
   "prepared_food_compensation",
+  "service_fee_difference",
 ] as const
 export type JournalEntryKind = (typeof JOURNAL_ENTRY_KINDS)[number]
 
@@ -36,6 +37,7 @@ const FinanceJournalEntry = model
     currency_code: model.text(),
     food_credit: model.bigNumber(),
     commission: model.bigNumber(),
+    service_fee: model.bigNumber().default(0),
     funded_by: model.enum([...FOOD_CREDIT_FUNDING]),
   })
   .indexes([

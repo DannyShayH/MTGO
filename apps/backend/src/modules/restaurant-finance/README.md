@@ -9,21 +9,24 @@ delivered food credit and commission, and their evidence problems. Issue #228
 adds the monthly service-fee obligation from active Copenhagen dates.
 
 Issue #229 recognizes existing prepared-food credits and records
-cancellations that owe no entitlement.
+cancellations that owe no entitlement. Issue #230 fixes closed statements
+and recovers late amounts as linked current-month adjustments.
 
 ## Data model
 
-| Model                 | Owns                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `FinanceReceipt`      | One recognition per source: `source_kind` (`order_delivered`, `prepared_food_credit` or `order_cancelled`) and `source_id` (unique together: the Order, or the existing food credit), `restaurant_id`, `order_id`, `outcome` (`delivered` or the cancellation category), `occurred_at` and `original_month` (the qualifying moment and its Copenhagen month), `posted_at` and `posting_month`, `terms_version`, `currency_code`, `evidence` (JSON: exact calculation inputs) and `payload_digest` |
-| `FinanceJournalEntry` | The booked effect of one receipt (`receipt_id` unique): `kind` (`delivered_order` or `prepared_food_compensation`), Restaurant, Order, original and posting dates and months, `currency_code`, `food_credit` and `commission` (exact decimals, statement direction: credit owed, commission charged) and `funded_by` (`customer` or `mtogo`)                                                                                                                                                      |
-| `FinanceServiceFee`   | The one service-fee obligation per `restaurant_id` and `month` (unique together): `terms_version`, `currency_code`, `policy_amount`, `month_day_count`, `active_dates` (JSON list of `YYYY-MM-DD`), `active_date_count`, `amount` (exact, rounded once for the month) and `accrued_at`                                                                                                                                                                                                            |
-| `FinanceProblem`      | A visible evidence problem, once per source and `code`: `missing_financial_basis`, `conflicting_recognition` or `missing_outcome_evidence`, with Restaurant, Order, `original_month` and `detected_at`                                                                                                                                                                                                                                                                                            |
+| Model                 | Owns                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `FinanceReceipt`      | One recognition per source: `source_kind` (`order_delivered`, `prepared_food_credit`, `order_cancelled` or `service_fee_difference`) and `source_id` (unique together: the Order, or the existing food credit), `restaurant_id`, `order_id`, `outcome` (`delivered` or the cancellation category), `occurred_at` and `original_month` (the qualifying moment and its Copenhagen month), `posted_at` and `posting_month`, `terms_version`, `currency_code`, `evidence` (JSON: exact calculation inputs) and `payload_digest` |
+| `FinanceJournalEntry` | The booked effect of one receipt (`receipt_id` unique): `kind` (`delivered_order`, `prepared_food_compensation` or `service_fee_difference`), Restaurant, Order, original and posting dates and months, `currency_code`, `food_credit` and `commission` and `service_fee` (exact decimals, statement direction: credit owed, commission and fee charged) and `funded_by` (`customer` or `mtogo`)                                                                                                                            |
+| `FinanceServiceFee`   | The one service-fee obligation per `restaurant_id` and `month` (unique together): `terms_version`, `currency_code`, `policy_amount`, `month_day_count`, `active_dates` (JSON list of `YYYY-MM-DD`), `active_date_count`, `amount` (exact, rounded once for the month) and `accrued_at`                                                                                                                                                                                                                                      |
+| `FinanceClosure`      | One unique `restaurant_id`/`month` closure with exclusive Copenhagen `starts_at`/`ends_at` and an immutable JSON snapshot: full journal membership, whole-month totals or unavailability, fee evidence, problems, days, zero outcomes and boundary verification time.                                                                                                                                                                                                                                                       |
+| `FinanceProblem`      | A visible evidence problem, once per source and `code`: `missing_financial_basis`, `conflicting_recognition` or `missing_outcome_evidence`, with Restaurant, Order, `original_month` and `detected_at`                                                                                                                                                                                                                                                                                                                      |
 
 - **One fee obligation per month.** `accrueServiceFee` creates the month's
   obligation or replaces its dates and amount while the month is current; the
   same dates again change nothing. It is never a sum of rounded daily fees,
-  and nothing accrues a month after it ended (#230 adjusts later differences).
+  and nothing accrues a month after it ended. A later verified monthly target
+  produces only the difference from the frozen accrual and prior differences.
 - **Created only.** Nothing updates or deletes a receipt, entry or problem.
   `recognizeSource` creates a receipt and its entry in one transaction; the
   unique source identity in storage backs the workflow's guard. An
@@ -56,9 +59,9 @@ cancellations that owe no entitlement.
   commits (`confirmHandoverWorkflow`), outside every Order guard, under the
   Restaurant's finance guard (`locks.ts`). The handover time in the delivery
   record dates it, never the kitchen or native synchronization. The posting
-  month is the server's Copenhagen month inside the guard; a handover from an
-  ended month that is still unrecognized stays owed (`deferred`) for the later
-  closing work instead of being backdated. `recoverRestaurantFinanceWorkflow`
+  month is chosen by the server clock inside the guarded local transaction,
+  after receipt lookup. An older handover is recognized once in the current
+  month as an adjustment, with its real handover date and original-month link. `recoverRestaurantFinanceWorkflow`
   is the once-per-minute job `recover-restaurant-finance`, whose first tick
   after a restart is the startup reconciliation. Both run whatever the
   `restaurant_statements` flag says.
@@ -73,15 +76,12 @@ cancellations that owe no entitlement.
   timeout, the acceptance deadline for an acceptance timeout (the processing
   time for a legacy Order without one) and the recorded cancellation
   otherwise; the posting time is kept apart. Unrecognized compensation of an
-  ended month stays owed (`deferred`) for the closing work. The Customer's
+  ended month posts once as a linked current-month adjustment. The Customer's
   refund plays no part: a pending, failed or retried refund leaves the one
   recognition as it is. A cancellation whose facts do not establish its
   outcome or credit is a `missing_outcome_evidence` problem, never inferred.
-  The recovery job sweeps cancellations from the start of the previous month
-  with its own batch, so an outcome with no entitlement whose processing
-  failed just before a month ended is still recorded. It skips compensation
-  whose month has ended, because that cannot be posted before the closing
-  work and would otherwise use up the batch on every tick.
+  The recovery job scans every cancellation page with its own bounded batch,
+  including older months, so downtime cannot strand an entitlement.
 - `service-fee.ts`: the pure fee rules (#228). It replays the recorded
   activations and deactivations from creation (a Restaurant starts inactive)
   into intervals that end at the next change, so a deactivation at midnight
@@ -99,8 +99,26 @@ cancellations that owe no entitlement.
   minute from the `recover-restaurant-finance` job, independently of handover
   recognition, which also accrues each new date after midnight. Missing evidence
   accrues nothing.
-- `statement.ts` and `statement-rules.ts`: the shared read behind the
-  partner statement routes (`GET /partner/restaurants/{id}/statements[/{month}]`).
+- `closure.ts`: `closeStatementsWorkflow` materializes ended months under
+  the same finance guard, once per Restaurant/month. A delayed worker uses
+  the exclusive boundary cutoff for journal membership, receipts and problems;
+  later recognition cannot make historical pending work look completed.
+  The recorded fee accrual is never recomputed into the old obligation.
+  Verified differences retain monthly target, already recognized amount,
+  active dates and obligation reference in a separate `service_fee_difference`
+  receipt/entry. A replay recognizes no new difference; negative differences
+  restore an overcharge. No daily monetary charges are rounded and summed.
+- `pending-handovers.ts`, `cancellation-sources.ts` and `participation.ts`
+  collect durable source evidence for recovery and boundary reads.
+- `statement.ts`, `statement-read.ts` and `statement-rules.ts`: the shared
+  read behind Partner and Admin statement routes. Reads acquire the finance
+  guard for a consistent header/page but never create entries or closures.
+  Before physical materialization they project the exclusive boundary cutoff;
+  afterwards they page the stored immutable snapshot. Ordinary totals include
+  only entries whose original and posting months agree. Older entries
+  contribute their signed net once under adjustments and link their original
+  statement; credit, commission, fee and funding remain separate. Missing
+  older fee/source evidence withholds current adjustments and balance.
 
 ## Demo data
 
@@ -130,3 +148,8 @@ only missing date slots. `demo-statements-plan.unit.spec.ts` covers the plan.
 In the devcontainer, whose `.env` names the database host `postgres`, run it
 with `NODE_ENV=development` and `DATABASE_URL` pointing at `localhost`, which
 the synthetic-seed guard accepts.
+
+Closed snapshots retain unresolved earlier-month adjustment warnings as well as
+warnings about their own activity. Boundary reads and materialization use the
+same exclusive cutoff for evidence problems and recognition receipts, so a
+later recovery cannot turn a historically unavailable adjustment into zero.

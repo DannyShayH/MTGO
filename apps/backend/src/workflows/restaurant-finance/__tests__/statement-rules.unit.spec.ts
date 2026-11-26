@@ -47,6 +47,31 @@ describe("A Restaurant statement's totals and availability (spec #52 §8)", () =
    */
   it.each([
     {
+      booked: [
+        { food_credit: "76", commission: "4.56" },
+        { food_credit: "600", commission: "30", is_adjustment: true },
+      ],
+      problems: [],
+      food_credits: sum("76"),
+      commission: sum("4.56"),
+      adjustments: sum("570"),
+      balance: sum("641.44"),
+      completeness: "complete",
+      reason:
+        "DT: a delayed 600 credit and 30 commission contribute a 570 adjustment once",
+    },
+    {
+      booked,
+      problems: [problem("earlier_month_evidence_missing")],
+      food_credits: sum("228"),
+      commission: sum("13.16"),
+      adjustments: withheld("evidence_missing"),
+      balance: withheld("depends_on_unavailable"),
+      completeness: "incomplete",
+      reason:
+        "DT: missing older evidence withholds adjustments and balance, not current ordinary totals",
+    },
+    {
       booked,
       problems: [],
       food_credits: sum("228"),
@@ -457,6 +482,13 @@ describe("A statement's month day by day (#228)", () => {
     active_dates: ["2026-02-09", "2026-02-10"],
     unknown_dates: ["2026-02-01"],
     booked: [
+      {
+        posted_at: "2026-02-11T12:00:00.000Z",
+        food_credit: "0",
+        commission: "0",
+        service_fee: "3.34",
+        kind: "service_fee_difference",
+      },
       // 23:30 UTC on 9 February is already 10 February in Copenhagen.
       {
         posted_at: "2026-02-09T23:30:00.000Z",
@@ -477,6 +509,12 @@ describe("A statement's month day by day (#228)", () => {
   })
 
   it.each([
+    {
+      date: "2026-02-11",
+      expected: { orders: 0, food_credit: "0", commission: "0", net: "-3.34" },
+      reason:
+        "DT: a fee adjustment changes the posting day's net without inventing an Order",
+    },
     {
       date: "2026-02-01",
       expected: { participation: "unknown", orders: 0, net: "0" },

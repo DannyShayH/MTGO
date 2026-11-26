@@ -75,10 +75,8 @@ import {
 } from "../workflows/restaurant-finance/calculation"
 import { recognizeDeliveredOrder } from "../workflows/restaurant-finance/recognition"
 import { serviceFeeEvidence } from "../workflows/restaurant-finance/service-fee"
-import {
-  accrueServiceFee,
-  readParticipation,
-} from "../workflows/restaurant-finance/service-fee-accrual"
+import { readParticipation } from "../workflows/restaurant-finance/participation"
+import { accrueServiceFee } from "../workflows/restaurant-finance/service-fee-accrual"
 import { createAuthorizedStaffWorkflow } from "../workflows/restaurant-staff"
 import { backdate } from "./seed-demo-feedback"
 

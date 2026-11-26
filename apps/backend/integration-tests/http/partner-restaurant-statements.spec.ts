@@ -2,6 +2,7 @@ import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 import {
   ContainerRegistrationKeys,
   generateJwtToken,
+  Modules,
 } from "@medusajs/framework/utils"
 import type { FlagRouter } from "@medusajs/framework/utils"
 import SystemProviderService from "@medusajs/payment/dist/providers/system"
@@ -19,6 +20,11 @@ import {
   recoverRestaurantFinanceWorkflow,
 } from "../../src/workflows/restaurant-finance/recognition"
 import { accrueServiceFeesWorkflow } from "../../src/workflows/restaurant-finance/service-fee-accrual"
+import {
+  closeRestaurantStatements,
+  closeStatementsWorkflow,
+} from "../../src/workflows/restaurant-finance/closure"
+import { restaurantFinanceLock } from "../../src/workflows/restaurant-finance/locks"
 import { recognizeCancelledOrder } from "../../src/workflows/restaurant-finance/cancellation-recognition"
 import { recoverOrderOperationsWorkflow } from "../../src/workflows/order-operations"
 import { revokeRestaurantStaffWorkflow } from "../../src/workflows/restaurant-staff"
@@ -87,7 +93,48 @@ medusaIntegrationTestRunner({
       )
       setFlag(true)
     })
-    afterEach(() => jest.restoreAllMocks())
+    afterEach(() => {
+      jest.useRealTimers()
+      jest.restoreAllMocks()
+    })
+
+    const clockAt = (value: string) =>
+      jest.useFakeTimers({
+        now: new Date(value),
+        doNotFake: [
+          "nextTick",
+          "setImmediate",
+          "clearImmediate",
+          "setTimeout",
+          "clearTimeout",
+          "setInterval",
+          "clearInterval",
+          "performance",
+          "queueMicrotask",
+        ],
+      })
+    const beginNovember = async () => {
+      clockAt("2026-11-26T12:00:00.000Z")
+      await getContainer()
+        .resolve(ContainerRegistrationKeys.PG_CONNECTION)("restaurant")
+        .where({ id: pizzeriaId })
+        .update({ created_at: new Date("2026-11-01T00:00:00.000Z") })
+    }
+    const freshHeaders = (headers: Record<string, string>) => {
+      const {
+        exp: _expiry,
+        iat: _issued,
+        ...claims
+      } = JSON.parse(
+        Buffer.from(
+          headers.authorization.split(".")[1],
+          "base64url",
+        ).toString(),
+      )
+      return {
+        authorization: `Bearer ${generateJwtToken(claims, { secret: getContainer().resolve(ContainerRegistrationKeys.CONFIG_MODULE).projectConfig.http.jwtSecret, expiresIn: "1h" })}`,
+      }
+    }
 
     const setFlag = (on: boolean) =>
       getContainer()
@@ -196,7 +243,7 @@ medusaIntegrationTestRunner({
     }
     const adminPost = (path: string, body: Record<string, unknown> = {}) =>
       api.post(`/admin/restaurants/${pizzeriaId}${path}`, body, {
-        headers: admin,
+        headers: freshHeaders(admin),
         validateStatus: () => true,
       })
     /**
@@ -216,7 +263,7 @@ medusaIntegrationTestRunner({
           await api.post(
             `/partner/restaurants/${pizzeriaId}/open`,
             {},
-            { headers: staff.headers },
+            { headers: freshHeaders(staff.headers) },
           )
         ).status,
       ).toBe(200)
@@ -394,70 +441,603 @@ medusaIntegrationTestRunner({
       })
     })
 
-    it("leaves an unrecognized handover from an ended month visibly pending instead of backdating it", async () => {
-      const earlier = await deliveredOrder()
+    it.each([
+      {
+        delivered: false,
+        reason: "DT: earlier participation evidence is missing",
+      },
+      {
+        delivered: true,
+        reason: "DT: an earlier entitlement is also still owed processing",
+      },
+    ])(
+      "keeps unresolved November evidence on December adjustments when December closes: $reason",
+      async ({ delivered }) => {
+        await beginNovember()
+        const earlierOrder = delivered ? await deliveredOrder() : null
+        if (earlierOrder) await forgetFinance()
+        // The recorded deactivation establishes December's inactivity without
+        // supplying the activation history missing from November.
+        clockAt("2026-11-30T23:00:00.000Z")
+        expect(
+          (
+            await api.post(
+              `/admin/restaurants/${pizzeriaId}/deactivate`,
+              { reason: "Participation ended" },
+              { headers: freshHeaders(admin) },
+            )
+          ).status,
+        ).toBe(200)
+        clockAt("2026-12-31T22:59:59.999Z")
+        const before = (
+          await statement(
+            freshHeaders(staff.headers),
+            "",
+            pizzeriaId,
+            "2026-12",
+          )
+        ).data
+        expect(before.statement).toMatchObject({
+          lifecycle: "provisional",
+          completeness: "incomplete",
+          totals: {
+            service_fee: { status: "available", amount: "0" },
+            adjustments: { status: "unavailable", reason: "evidence_missing" },
+            balance: {
+              status: "unavailable",
+              reason: "depends_on_unavailable",
+            },
+          },
+        })
+        expect(before.statement.problems).toContainEqual({
+          code: "earlier_month_evidence_missing",
+          count: 1,
+          sources: [{ kind: "service_fee_month", id: "2026-11" }],
+        })
+        if (earlierOrder)
+          expect(before.statement.problems).toContainEqual({
+            code: "earlier_month_processing_pending",
+            count: 1,
+            sources: [{ kind: "order_delivered", id: earlierOrder.id }],
+          })
+        clockAt("2026-12-31T23:00:00.000Z")
+        const boundary = (
+          await statement(
+            freshHeaders(staff.headers),
+            "",
+            pizzeriaId,
+            "2026-12",
+          )
+        ).data
+        expect(boundary.statement.lifecycle).toBe("closed")
+        expect(boundary.statement.completeness).toBe(
+          before.statement.completeness,
+        )
+        expect(boundary.statement.totals).toEqual(before.statement.totals)
+        expect(boundary.statement.problems).toEqual(before.statement.problems)
+        await closeStatementsWorkflow(getContainer()).run({ input: {} })
+        expect(
+          (
+            await statement(
+              freshHeaders(staff.headers),
+              "",
+              pizzeriaId,
+              "2026-12",
+            )
+          ).data,
+        ).toEqual(boundary)
+      },
+    )
+
+    it("keeps a missing activation warning when closure materializes after a later deactivation", async () => {
+      await beginNovember()
+      clockAt("2026-12-01T12:00:00.000Z")
+      const before = (
+        await statement(freshHeaders(staff.headers), "", pizzeriaId, "2026-11")
+      ).data
+      expect(before.statement.service_fee_evidence.status).toBe(
+        "evidence_missing",
+      )
+      expect(
+        (
+          await api.post(
+            `/admin/restaurants/${pizzeriaId}/deactivate`,
+            { reason: "Participation ended" },
+            { headers: freshHeaders(admin) },
+          )
+        ).status,
+      ).toBe(200)
+      await closeStatementsWorkflow(getContainer()).run({ input: {} })
+      const after = (
+        await statement(freshHeaders(staff.headers), "", pizzeriaId, "2026-11")
+      ).data
+      expect(after).toEqual(before)
+    })
+
+    it("keeps a later historical recognition conflict visible on current adjustments after the original snapshot closed", async () => {
+      await beginNovember()
       const order = await deliveredOrder(2)
-      await forgetFinance()
-      const handedOverAt = new Date(Date.now() - 40 * 24 * 3600 * 1000)
-      await delivery().updateIntendedDeliveries({
-        selector: { order_id: order.id },
-        data: { terminal_at: handedOverAt },
+      clockAt("2026-12-01T12:00:00.000Z")
+      await closeStatementsWorkflow(getContainer()).run({ input: {} })
+      const old = (
+        await statement(freshHeaders(staff.headers), "", pizzeriaId, "2026-11")
+      ).data
+      const [record] = await operations().listOrderOperations({
+        order_id: order.id,
       })
-      // The Restaurant existed then, so the ended month has a statement.
-      await getContainer()
-        .resolve(ContainerRegistrationKeys.PG_CONNECTION)("restaurant")
-        .where({ id: pizzeriaId })
-        .update({ created_at: handedOverAt })
-      // The other handover is booked in that ended month, as if recognized
-      // before the month ended.
-      expect(await recognizeDeliveredOrder(getContainer(), earlier.id)).toBe(
-        "recognized",
-      )
-      const endedMonth = copenhagenMonthOf(handedOverAt)
-      await delivery().updateIntendedDeliveries({
-        selector: { order_id: earlier.id },
-        data: { terminal_at: handedOverAt },
+      const basis = record.financial_basis as { lines: { quantity: string }[] }
+      await operations().updateOrderOperations({
+        id: record.id,
+        financial_basis: {
+          ...basis,
+          lines: basis.lines.map((line) => ({ ...line, quantity: "1" })),
+        },
       })
-      const [booked] = await finance().listFinanceJournalEntries({
-        order_id: earlier.id,
-      })
-      await finance().updateFinanceJournalEntries({
-        id: booked.id,
-        original_month: endedMonth,
-        posting_month: endedMonth,
-      })
-
       expect(await recognizeDeliveredOrder(getContainer(), order.id)).toBe(
-        "deferred",
+        "conflict",
       )
-
-      const current = (await statement(staff.headers)).data
-      expect(current.count).toBe(0)
+      const current = (await statement(freshHeaders(staff.headers))).data
+      expect(current.statement.problems).toContainEqual(
+        expect.objectContaining({
+          code: "earlier_month_evidence_missing",
+          sources: expect.arrayContaining([
+            { kind: "order_delivered", id: order.id },
+          ]),
+        }),
+      )
       expect(current.statement.totals.adjustments).toEqual({
+        status: "unavailable",
+        reason: "evidence_missing",
+      })
+      expect(
+        (
+          await statement(
+            freshHeaders(staff.headers),
+            "",
+            pizzeriaId,
+            "2026-11",
+          )
+        ).data,
+      ).toEqual(old)
+    })
+
+    it("earns a November purchase delivered in December in December ordinary totals", async () => {
+      await beginNovember()
+      const { order, agent } = await collectedOrder()
+      clockAt("2026-12-01T12:00:00.000Z")
+      // Simulate a closure persistence outage after the physical handover.
+      jest
+        .spyOn(finance(), "closeStatement")
+        .mockRejectedValueOnce(new Error("closure persistence interrupted"))
+      expect(
+        (
+          await post(
+            `/partner/deliveries/${order.id}/deliver`,
+            freshHeaders(agent),
+          )
+        ).status,
+      ).toBe(200)
+      const pending = (await statement(freshHeaders(staff.headers))).data
+      expect(pending.count).toBe(0)
+      expect(pending.statement.totals.food_credits).toEqual({
         status: "unavailable",
         reason: "processing_pending",
       })
-      expect(current.statement.problems).toContainEqual({
-        code: "earlier_month_processing_pending",
-        count: 1,
-        sources: [{ kind: "order_delivered", id: order.id }],
+      await recoverRestaurantFinanceWorkflow(getContainer()).run({ input: {} })
+      await recoverRestaurantFinanceWorkflow(getContainer()).run({ input: {} })
+      const current = (await statement(freshHeaders(staff.headers))).data
+      expect(current.statement.totals).toMatchObject({
+        food_credits: { status: "available", amount: "76" },
+        commission: { status: "available", amount: "4.56" },
       })
+      expect(current.entries[0]).toMatchObject({
+        original_month: "2026-12",
+        posting_month: "2026-12",
+        original_statement: null,
+      })
+      const old = (
+        await statement(freshHeaders(staff.headers), "", pizzeriaId, "2026-11")
+      ).data
+      expect(old.count).toBe(0)
+      expect(old.statement.totals.food_credits).toEqual({
+        status: "available",
+        amount: "0",
+      })
+    })
 
-      const ended = (await statement(staff.headers, "", pizzeriaId, endedMonth))
-        .data
-      expect(ended.count).toBe(1)
-      expect(ended.statement).toMatchObject({
-        lifecycle: "closed",
-        totals: {
-          food_credits: { status: "unavailable", reason: "processing_pending" },
-          commission: { status: "unavailable", reason: "processing_pending" },
-        },
+    it("serializes a posting waiting across midnight and two closing attempts without changing fixed membership", async () => {
+      await beginNovember()
+      const order = await deliveredOrder()
+      await forgetFinance()
+      await delivery().updateIntendedDeliveries({
+        selector: { order_id: order.id },
+        data: { terminal_at: new Date("2026-11-30T22:59:59.000Z") },
       })
-      expect(ended.statement.problems).toContainEqual({
+      clockAt("2026-11-30T22:59:59.999Z")
+      let unlock!: () => void
+      let entered!: () => void
+      const ready = new Promise<void>((resolve) => {
+        entered = resolve
+      })
+      const gate = new Promise<void>((resolve) => {
+        unlock = resolve
+      })
+      const blocking = getContainer()
+        .resolve(Modules.LOCKING)
+        .execute(restaurantFinanceLock(pizzeriaId).key, async () => {
+          entered()
+          await gate
+        })
+      await ready
+      const posting = recognizeDeliveredOrder(getContainer(), order.id)
+      const closing = [
+        closeRestaurantStatements(getContainer(), pizzeriaId),
+        closeRestaurantStatements(getContainer(), pizzeriaId),
+      ]
+      clockAt("2026-11-30T23:00:00.000Z")
+      unlock()
+      await blocking
+      await Promise.all(closing)
+      expect(await posting).toBe("recognized")
+      const old = (
+        await statement(freshHeaders(staff.headers), "", pizzeriaId, "2026-11")
+      ).data
+      expect(old.count).toBe(0)
+      expect(old.statement.lifecycle).toBe("closed")
+      const current = (
+        await statement(freshHeaders(staff.headers), "", pizzeriaId, "2026-12")
+      ).data
+      expect(current.count).toBe(1)
+      expect(current.entries[0]).toMatchObject({
+        original_month: "2026-11",
+        posting_month: "2026-12",
+        posted_at: "2026-11-30T23:00:00.000Z",
+        original_statement: { month: "2026-11" },
+      })
+      await closeStatementsWorkflow(getContainer()).run({ input: {} })
+      expect(
+        (
+          await statement(
+            freshHeaders(staff.headers),
+            "",
+            pizzeriaId,
+            "2026-11",
+          )
+        ).data,
+      ).toEqual(old)
+      const operator = await api.get(
+        `/admin/restaurants/${pizzeriaId}/statements/2026-11`,
+        { headers: freshHeaders(admin) },
+      )
+      expect(operator.data).toEqual(old)
+    })
+
+    it("fixes a pending November statement and recovers its handover once as a linked December adjustment", async () => {
+      await beginNovember()
+      const order = await deliveredOrder()
+      await forgetFinance()
+      clockAt("2026-12-01T00:10:00.000Z")
+      try {
+        await delivery().updateIntendedDeliveries({
+          selector: { order_id: order.id },
+          data: { terminal_at: new Date("2026-11-30T22:59:59.000Z") },
+        })
+        const before = (
+          await statement(
+            freshHeaders(staff.headers),
+            "",
+            pizzeriaId,
+            "2026-11",
+          )
+        ).data
+        expect(before.statement.lifecycle).toBe("closed")
+        expect(before.statement.totals.food_credits.status).toBe("unavailable")
+        await recoverRestaurantFinanceWorkflow(getContainer()).run({
+          input: {},
+        })
+        const current = (
+          await statement(
+            freshHeaders(staff.headers),
+            "?limit=1",
+            pizzeriaId,
+            "2026-12",
+          )
+        ).data
+        expect(current.count).toBe(1)
+        expect(current.statement.totals).toMatchObject({
+          food_credits: { status: "available", amount: "0" },
+          commission: { status: "available", amount: "0" },
+          adjustments: { status: "unavailable", reason: "evidence_missing" },
+        })
+        expect(current.entries[0]).toMatchObject({
+          original_month: "2026-11",
+          posting_month: "2026-12",
+          occurred_at: "2026-11-30T22:59:59.000Z",
+          posted_at: "2026-12-01T00:10:00.000Z",
+          amounts: { food_credit: "76", commission: "4.56", net: "71.44" },
+          original_statement: { month: "2026-11" },
+        })
+        clockAt("2026-12-05T12:00:00.000Z")
+        await recoverRestaurantFinanceWorkflow(getContainer()).run({
+          input: {},
+        })
+        const after = (
+          await statement(
+            freshHeaders(staff.headers),
+            "",
+            pizzeriaId,
+            "2026-11",
+          )
+        ).data
+        expect(after).toEqual(before)
+        expect(
+          (
+            await statement(
+              freshHeaders(staff.headers),
+              "",
+              pizzeriaId,
+              "2026-12",
+            )
+          ).data.count,
+        ).toBe(1)
+      } finally {
+        jest.useRealTimers()
+      }
+    })
+
+    it("preserves booked membership and pending warnings while an older handover becomes an adjustment", async () => {
+      await beginNovember()
+      const earlier = await deliveredOrder()
+      const order = await deliveredOrder(2)
+      const [entry] = await finance().listFinanceJournalEntries({
+        order_id: order.id,
+      })
+      await finance().deleteFinanceJournalEntries(entry.id)
+      await finance().deleteFinanceReceipts(entry.receipt_id)
+      clockAt("2026-12-01T12:00:00.000Z")
+      const before = (
+        await statement(freshHeaders(staff.headers), "", pizzeriaId, "2026-11")
+      ).data
+      expect(before.count).toBe(1)
+      expect(before.entries[0].order.id).toBe(earlier.id)
+      expect(before.statement.problems).toContainEqual({
         code: "recognition_pending",
         count: 1,
         sources: [{ kind: "order_delivered", id: order.id }],
       })
+      expect(await recognizeDeliveredOrder(getContainer(), order.id)).toBe(
+        "recognized",
+      )
+      const current = (await statement(freshHeaders(staff.headers))).data
+      expect(current.count).toBe(1)
+      expect(current.entries[0]).toMatchObject({
+        amounts: { food_credit: "152", commission: "8.6", net: "143.4" },
+        original_statement: { month: "2026-11" },
+      })
+      expect(current.statement.totals.food_credits).toEqual({
+        status: "available",
+        amount: "0",
+      })
+      expect(
+        (
+          await statement(
+            freshHeaders(staff.headers),
+            "",
+            pizzeriaId,
+            "2026-11",
+          )
+        ).data,
+      ).toEqual(before)
+    })
+
+    it("recovers an entirely missing old fee as one difference without completing the closed warning", async () => {
+      await beginNovember()
+      await participateFromNow()
+      const [activation] = await restaurants().listRestaurantHistoryEntries({
+        restaurant_id: pizzeriaId,
+        kind: "activated",
+      })
+      await restaurants().updateRestaurantHistoryEntries({
+        id: activation.id,
+        occurred_at: new Date("2026-11-29T10:00:00.000Z"),
+      })
+      await forgetFinance()
+      clockAt("2026-12-01T12:00:00.000Z")
+      const old = (
+        await statement(freshHeaders(staff.headers), "", pizzeriaId, "2026-11")
+      ).data
+      expect(old.statement.totals.service_fee).toEqual({
+        status: "unavailable",
+        reason: "processing_pending",
+      })
+      await closeStatementsWorkflow(getContainer()).run({ input: {} })
+      await closeStatementsWorkflow(getContainer()).run({ input: {} })
+      const current = (await statement(freshHeaders(staff.headers))).data
+      expect(current.count).toBe(1)
+      expect(current.entries[0]).toMatchObject({
+        kind: "service_fee_difference",
+        amounts: { service_fee: "6.67", net: "-6.67" },
+        calculation: {
+          amount: "6.67",
+          recognized_amount: "0",
+          obligation_id: null,
+        },
+      })
+      expect(
+        (
+          await statement(
+            freshHeaders(staff.headers),
+            "",
+            pizzeriaId,
+            "2026-11",
+          )
+        ).data,
+      ).toEqual(old)
+    })
+
+    it("closes every Restaurant across recovery pages and keeps inactive zero months reproducible", async () => {
+      await beginNovember()
+      const created = await restaurants().createRestaurants(
+        Array.from({ length: 51 }, (_, index) => ({
+          name: `Inactive Restaurant ${index + 1}`,
+          address_street: "Test Street 1",
+          address_postal_code: "2200",
+          address_city: "Copenhagen",
+          contact_phone: "+4512345678",
+          contact_email: `inactive-${index + 1}@example.test`,
+          pickup_address_key: `inactive-${index + 1}`,
+        })),
+      )
+      await getContainer()
+        .resolve(ContainerRegistrationKeys.PG_CONNECTION)("restaurant")
+        .whereIn(
+          "id",
+          created.map(({ id }) => id),
+        )
+        .update({ created_at: new Date("2026-11-01T00:00:00.000Z") })
+      clockAt("2026-12-01T12:00:00.000Z")
+      await closeStatementsWorkflow(getContainer()).run({ input: {} })
+      await closeStatementsWorkflow(getContainer()).run({ input: {} })
+      for (const { id } of created) {
+        const { data } = await api.get(
+          `/admin/restaurants/${id}/statements/2026-11`,
+          { headers: freshHeaders(admin) },
+        )
+        expect(data.statement).toMatchObject({
+          lifecycle: "closed",
+          completeness: "complete",
+          totals: {
+            service_fee: { status: "available", amount: "0" },
+            balance: { status: "available", amount: "0" },
+          },
+        })
+        expect(data.count).toBe(0)
+      }
+    })
+
+    it("freezes recorded fee accrual and posts only the independently rounded monthly difference once", async () => {
+      await beginNovember()
+      await participateFromNow()
+      const history = await restaurants().listRestaurantHistoryEntries({
+        restaurant_id: pizzeriaId,
+        kind: "activated",
+      })
+      await restaurants().updateRestaurantHistoryEntries({
+        id: history[0].id,
+        occurred_at: new Date("2026-11-29T10:00:00.000Z"),
+      })
+      const [fee] = await finance().listFinanceServiceFees({
+        restaurant_id: pizzeriaId,
+      })
+      await finance().updateFinanceServiceFees({
+        id: fee.id,
+        amount: 3.33,
+        active_dates: ["2026-11-29"] as unknown as Record<string, unknown>,
+        accrued_at: new Date("2026-11-29T10:00:01.000Z"),
+      })
+      clockAt("2026-12-01T00:10:00.000Z")
+      const before = (
+        await statement(freshHeaders(staff.headers), "", pizzeriaId, "2026-11")
+      ).data
+      expect(before.statement.totals.service_fee).toEqual({
+        status: "unavailable",
+        reason: "processing_pending",
+      })
+      await Promise.all([
+        closeStatementsWorkflow(getContainer()).run({ input: {} }),
+        closeStatementsWorkflow(getContainer()).run({ input: {} }),
+      ])
+      await accrueServiceFeesWorkflow(getContainer()).run({ input: {} })
+      const current = (await statement(freshHeaders(staff.headers), "?limit=1"))
+        .data
+      expect(current.count).toBe(1)
+      expect(current.statement.totals.adjustments).toEqual({
+        status: "available",
+        amount: "-3.34",
+      })
+      expect(current.entries[0]).toMatchObject({
+        kind: "service_fee_difference",
+        original_month: "2026-11",
+        posting_month: "2026-12",
+        amounts: { service_fee: "3.34", net: "-3.34" },
+        calculation: {
+          amount: "6.67",
+          recognized_amount: "3.33",
+          difference: "3.34",
+          active_dates: ["2026-11-29", "2026-11-30"],
+        },
+        original_statement: { month: "2026-11" },
+      })
+      const nextPage = (
+        await statement(freshHeaders(staff.headers), "?limit=1&offset=1")
+      ).data
+      expect(nextPage.entries).toEqual([])
+      expect(nextPage.statement.totals).toEqual(current.statement.totals)
+      clockAt("2026-12-04T12:00:00.000Z")
+      await closeStatementsWorkflow(getContainer()).run({ input: {} })
+      expect((await statement(freshHeaders(staff.headers))).data.count).toBe(1)
+      // Later verified participation evidence can lower the same obligation,
+      // then return to an earlier target without losing or duplicating a fee.
+      await restaurants().updateRestaurantHistoryEntries({
+        id: history[0].id,
+        occurred_at: new Date("2026-11-30T10:00:00.000Z"),
+      })
+      await closeStatementsWorkflow(getContainer()).run({ input: {} })
+      const restored = (await statement(freshHeaders(staff.headers))).data
+      expect(restored.count).toBe(2)
+      expect(restored.entries[0]).toMatchObject({
+        amounts: { service_fee: "-3.34", net: "3.34" },
+        calculation: {
+          amount: "3.33",
+          recognized_amount: "6.67",
+          difference: "-3.34",
+        },
+      })
+      expect(restored.statement.totals.adjustments).toEqual({
+        status: "available",
+        amount: "0",
+      })
+      await restaurants().updateRestaurantHistoryEntries({
+        id: history[0].id,
+        occurred_at: new Date("2026-11-29T10:00:00.000Z"),
+      })
+      await closeStatementsWorkflow(getContainer()).run({ input: {} })
+      await closeStatementsWorkflow(getContainer()).run({ input: {} })
+      const revised = (await statement(freshHeaders(staff.headers))).data
+      expect(revised.count).toBe(3)
+      expect(revised.statement.totals.adjustments).toEqual({
+        status: "available",
+        amount: "-3.34",
+      })
+      for (const evidence of [
+        { date: "2026-11-30", count: 4, amount: "0" },
+        { date: "2026-11-29", count: 5, amount: "-3.34" },
+        { date: "2026-11-30", count: 6, amount: "0" },
+        { date: "2026-11-29", count: 7, amount: "-3.34" },
+      ]) {
+        await restaurants().updateRestaurantHistoryEntries({
+          id: history[0].id,
+          occurred_at: new Date(`${evidence.date}T10:00:00.000Z`),
+        })
+        await closeStatementsWorkflow(getContainer()).run({ input: {} })
+        await closeStatementsWorkflow(getContainer()).run({ input: {} })
+        const replayed = (await statement(freshHeaders(staff.headers))).data
+        expect(replayed.count).toBe(evidence.count)
+        expect(replayed.statement.totals.adjustments).toEqual({
+          status: "available",
+          amount: evidence.amount,
+        })
+      }
+      expect(
+        (
+          await statement(
+            freshHeaders(staff.headers),
+            "",
+            pizzeriaId,
+            "2026-11",
+          )
+        ).data,
+      ).toEqual(before)
     })
 
     it("charges today's active date and completes the monthly balance with the fee's calculation", async () => {
@@ -775,6 +1355,47 @@ medusaIntegrationTestRunner({
       }
     })
 
+    it("gates operator statements with the same flag, validation and actor boundary", async () => {
+      const route = `/admin/restaurants/${pizzeriaId}/statements`
+      expect((await api.get(route, { headers: admin })).status).toBe(200)
+      expect(
+        (
+          await api.get(`${route}/2026-13`, {
+            headers: admin,
+            validateStatus: () => true,
+          })
+        ).status,
+      ).toBe(400)
+      for (const headers of [
+        undefined,
+        staff.headers,
+        customer,
+        await agentFor(),
+      ]) {
+        expect(
+          (
+            await api.get(`${route}/${month()}`, {
+              headers,
+              validateStatus: () => true,
+            })
+          ).status,
+        ).toBe(401)
+      }
+      setFlag(false)
+      expect(
+        (await api.get(route, { headers: admin, validateStatus: () => true }))
+          .status,
+      ).toBe(404)
+      expect(
+        (
+          await api.get(`${route}/${month()}`, {
+            headers: admin,
+            validateStatus: () => true,
+          })
+        ).status,
+      ).toBe(404)
+    })
+
     it("tells the partner app whether statements are released", async () => {
       const on = await api.get("/partner/me", { headers: staff.headers })
       expect(on.data.features).toEqual({ restaurant_statements: true })
@@ -929,6 +1550,57 @@ medusaIntegrationTestRunner({
         expect(
           await finance().listFinanceReceipts({ order_id: order.id }),
         ).toHaveLength(1)
+      })
+
+      it("keeps compensation owed through finance persistence failure and recovers it once", async () => {
+        const { order, deadline } = await unassignedTimeout({ prepared: true })
+        const outage = jest
+          .spyOn(finance(), "recognizeSource")
+          .mockRejectedValue(new Error("recognition persistence interrupted"))
+        await expire(deadline)
+        const pending = (await statement(staff.headers)).data
+        expect(pending.count).toBe(0)
+        expect(pending.statement.totals.food_credits).toEqual({
+          status: "unavailable",
+          reason: "processing_pending",
+        })
+        outage.mockRestore()
+        await recoverRestaurantFinanceWorkflow(getContainer()).run({
+          input: {},
+        })
+        await recoverRestaurantFinanceWorkflow(getContainer()).run({
+          input: {},
+        })
+        const recovered = (await statement(staff.headers)).data
+        expect(recovered.count).toBe(1)
+        expect(recovered.entries[0]).toMatchObject({
+          kind: "prepared_food_compensation",
+          order: { id: order.id },
+          funded_by: "mtogo",
+          amounts: { food_credit: "76", commission: "0" },
+        })
+      })
+
+      it("withholds compensation whose original deadline evidence is missing instead of guessing a date", async () => {
+        const { order, deadline } = await unassignedTimeout({ prepared: true })
+        await expire(deadline)
+        await forgetFinance()
+        const [record] = await delivery().listIntendedDeliveries({
+          order_id: order.id,
+        })
+        await delivery().deleteIntendedDeliveries(record.id)
+        expect(await recognizeCancelledOrder(getContainer(), order.id)).toBe(
+          "missing_outcome_evidence",
+        )
+        const unknown = (await statement(staff.headers)).data
+        expect(unknown.count).toBe(0)
+        expect(unknown.statement.totals.food_credits).toEqual({
+          status: "unavailable",
+          reason: "evidence_missing",
+        })
+        expect(unknown.statement.problems).toContainEqual(
+          expect.objectContaining({ code: "missing_outcome_evidence" }),
+        )
       })
 
       it("keeps the credit through a failed Customer refund, and a successful retry adds no credit or commission", async () => {
@@ -1099,51 +1771,57 @@ medusaIntegrationTestRunner({
         expect(await finance().listFinanceReceipts({})).toHaveLength(2)
       })
 
-      it("leaves a credit whose claim deadline is in an ended month pending instead of entering that month", async () => {
-        const { order, deadline } = await unassignedTimeout({ prepared: true })
-        await expire(deadline)
-        await forgetFinance()
-        const credit = await creditOf(order.id)
-        const earlier = new Date(Date.now() - 40 * 24 * 3600 * 1000)
+      it("posts a November timeout processed in December as one MTOGO-funded adjustment dated by the original deadline", async () => {
+        await beginNovember()
+        const { order } = await unassignedTimeout({ prepared: true })
+        const deadline = new Date("2026-11-30T22:59:59.999Z")
         await delivery().updateIntendedDeliveries({
           selector: { order_id: order.id },
-          data: { claim_deadline: earlier },
+          data: { claim_deadline: deadline },
         })
-        await getContainer()
-          .resolve(ContainerRegistrationKeys.PG_CONNECTION)("restaurant")
-          .where({ id: pizzeriaId })
-          .update({ created_at: earlier })
-        const endedMonth = copenhagenMonthOf(earlier)
-
-        expect(await recognizeCancelledOrder(getContainer(), order.id)).toBe(
-          "deferred",
-        )
-
-        const current = (await statement(staff.headers)).data
-        expect(current.count).toBe(0)
-        expect(current.statement.totals.adjustments).toEqual({
-          status: "unavailable",
-          reason: "processing_pending",
-        })
-        expect(current.statement.problems).toContainEqual({
-          code: "earlier_month_processing_pending",
-          count: 1,
-          sources: [{ kind: "prepared_food_credit", id: credit.id }],
-        })
-        const ended = (
-          await statement(staff.headers, "", pizzeriaId, endedMonth)
+        clockAt("2026-12-01T00:05:00.000Z")
+        await closeStatementsWorkflow(getContainer()).run({ input: {} })
+        const before = (
+          await statement(
+            freshHeaders(staff.headers),
+            "",
+            pizzeriaId,
+            "2026-11",
+          )
         ).data
-        expect(ended.count).toBe(0)
-        expect(ended.statement.totals.food_credits).toEqual({
-          status: "unavailable",
-          reason: "processing_pending",
+        await expire(deadline)
+        expect(await recognizeCancelledOrder(getContainer(), order.id)).toBe(
+          "already_recognized",
+        )
+        await recoverRestaurantFinanceWorkflow(getContainer()).run({
+          input: {},
         })
-        expect(ended.statement.problems).toContainEqual({
-          code: "prepared_food_credit_pending",
-          count: 1,
-          sources: [{ kind: "prepared_food_credit", id: credit.id }],
+        const current = (await statement(freshHeaders(staff.headers))).data
+        expect(current.count).toBe(1)
+        expect(current.entries[0]).toMatchObject({
+          kind: "prepared_food_compensation",
+          occurred_at: "2026-11-30T22:59:59.999Z",
+          original_month: "2026-11",
+          posting_month: "2026-12",
+          posted_at: "2026-12-01T00:05:00.000Z",
+          amounts: { food_credit: "76", commission: "0", net: "76" },
+          funded_by: "mtogo",
+          original_statement: { month: "2026-11" },
         })
-        expect(await finance().listFinanceReceipts({})).toEqual([])
+        expect(current.statement.totals.food_credits).toEqual({
+          status: "available",
+          amount: "0",
+        })
+        expect(
+          (
+            await statement(
+              freshHeaders(staff.headers),
+              "",
+              pizzeriaId,
+              "2026-11",
+            )
+          ).data,
+        ).toEqual(before)
       })
 
       it("infers no credit from a failed delivery outcome and withholds food credits as missing evidence", async () => {

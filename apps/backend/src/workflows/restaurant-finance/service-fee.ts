@@ -107,12 +107,16 @@ export function serviceFeeEvidence(
 ): ServiceFeeEvidence {
   const [year, monthNumber] = month.split("-").map(Number)
   const period = copenhagenMonthPeriod(month)
-  const intervals = participationIntervals(facts, now)
+  // Timestamps have millisecond precision. Include the observed instant so
+  // an activation at exactly now already counts today; a midnight deactivation
+  // still ends the preceding active interval before the new date.
+  const observedEnd = new Date(now.getTime() + 1)
+  const intervals = participationIntervals(facts, observedEnd)
   const rangeStart = Math.max(
     period.starts_at.getTime(),
     new Date(facts.created_at).getTime(),
   )
-  const rangeEnd = Math.min(period.ends_at.getTime(), now.getTime())
+  const rangeEnd = Math.min(period.ends_at.getTime(), observedEnd.getTime())
   const month_day_count = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate()
   const active_dates: string[] = []
   const unknown_dates: string[] = []
@@ -189,4 +193,15 @@ export function serviceFeeStanding(
   if (held !== JSON.stringify(evidence.active_dates))
     return { status: "accrual_pending" }
   return { status: "accrued", amount: accrued?.amount ?? "0" }
+}
+
+/** A signed charge difference for one obligation, after monthly rounding. */
+export function serviceFeeDifference(target: string, recognized: string[]) {
+  return MathBN.sub(
+    target,
+    recognized.reduce(
+      (sum, amount) => MathBN.add(sum, amount),
+      MathBN.convert(0),
+    ),
+  ).toString()
 }

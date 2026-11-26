@@ -1,5 +1,6 @@
 import {
   serviceFeeEvidence,
+  serviceFeeDifference,
   serviceFeeStanding,
   type ParticipationFacts,
 } from "../service-fee"
@@ -24,6 +25,23 @@ describe("Service fee from Copenhagen active dates (spec #52 §6)", () => {
    * boundaries, repeated changes, the current month, recorded evidence.
    */
   it.each([
+    {
+      facts: {
+        created_at: cet("2026-11-01T10:00:00"),
+        is_active: true,
+        changes: [activated(cet("2026-11-26T13:00:00"))],
+      },
+      month: "2026-11",
+      now: cet("2026-11-26T13:00:00"),
+      expected: {
+        status: "verified",
+        active_dates: ["2026-11-26"],
+        active_date_count: 1,
+        amount: "3.33",
+      },
+      reason:
+        "BVA: activation at the observed instant already counts today's active date",
+    },
     {
       facts: {
         created_at: cest("2026-08-20T10:00:00"),
@@ -273,5 +291,38 @@ describe("Whether a month's service fee has accrued (spec #52 §6, §8)", () => 
     },
   ])("$reason", ({ evidence, accrued, expected }) => {
     expect(serviceFeeStanding(evidence, accrued)).toEqual(expected)
+  })
+})
+
+/** EP/BVA: use monthly targets rounded independently, never rounded daily differences. */
+describe("Closed monthly service-fee differences (#230)", () => {
+  it.each([
+    {
+      target: "6.67",
+      recognized: ["3.33"],
+      expected: "3.34",
+      reason: "BVA: two November active dates minus the one-date accrual",
+    },
+    {
+      target: "6.67",
+      recognized: ["3.33", "3.34"],
+      expected: "0",
+      reason: "EP: replay after the difference was already recognized",
+    },
+    {
+      target: "6.67",
+      recognized: ["10"],
+      expected: "-3.33",
+      reason: "EP: a lower verified monthly target restores the overcharge",
+    },
+    {
+      target: "100",
+      recognized: [],
+      expected: "100",
+      reason:
+        "EP: an obligation that never accrued owes the whole verified target",
+    },
+  ])("$reason", ({ target, recognized, expected }) => {
+    expect(serviceFeeDifference(target, recognized)).toBe(expected)
   })
 })

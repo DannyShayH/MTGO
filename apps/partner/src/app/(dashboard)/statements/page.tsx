@@ -96,6 +96,11 @@ export default async function StatementsPage({
               })}
             </Text>
           </section>
+          {result.statement.lifecycle === "closed" && (
+            <Text size="small" className="text-ui-fg-subtle max-w-prose">
+              {text.closed_warnings_fixed}
+            </Text>
+          )}
           <StatementTotals
             header={result.statement}
             serviceFee={{

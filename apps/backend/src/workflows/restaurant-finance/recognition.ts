@@ -15,11 +15,12 @@ import type RestaurantFinanceModuleService from "../../modules/restaurant-financ
 import { logRecoveryFailure } from "../order-operations/recovery-log"
 import {
   copenhagenMonthOf,
-  copenhagenMonthPeriod,
   deliveredRecognition,
   payloadDigest,
 } from "./calculation"
 import { recoverCancellations } from "./cancellation-recognition"
+import { unaccountedHandovers } from "./pending-handovers"
+import { closeRestaurantStatements, closeStatementsWorkflow } from "./closure"
 import { restaurantFinanceLock } from "./locks"
 
 /** How many handovers the recovery sweep reads per page of the month. */
@@ -27,39 +28,11 @@ export const FINANCE_RECOVERY_PAGE_SIZE = 200
 /** How many owed recognitions one sweep performs; the rest wait a tick. */
 export const FINANCE_RECOVERY_BATCH_SIZE = 50
 
-/**
- * The delivered Orders among `order_ids` that finance has not accounted
- * for: neither recognized nor recorded as an evidence problem.
- */
-export async function unaccountedHandovers(
-  container: MedusaContainer,
-  order_ids: string[],
-) {
-  if (!order_ids.length) return []
-  const finance = container.resolve<RestaurantFinanceModuleService>(
-    RESTAURANT_FINANCE_MODULE,
-  )
-  const filters = {
-    source_kind: "order_delivered" as const,
-    source_id: order_ids,
-  }
-  const [receipts, problems] = await Promise.all([
-    finance.listFinanceReceipts(filters, { select: ["source_id"], take: null }),
-    finance.listFinanceProblems(filters, { select: ["source_id"], take: null }),
-  ])
-  const accounted = new Set(
-    [...receipts, ...problems].map(({ source_id }) => source_id),
-  )
-  return order_ids.filter((id) => !accounted.has(id))
-}
-
 export type DeliveredRecognitionOutcome =
   | "recognized"
   | "already_recognized"
   | "conflict"
   | "missing_financial_basis"
-  /** Its handover month is no longer the posting month (closing slice). */
-  | "deferred"
   | "not_owed"
   | "pending"
 
@@ -71,8 +44,8 @@ export type DeliveredRecognitionOutcome =
  * synchronization.
  *
  * The posting month is decided by the server clock inside the Restaurant's
- * finance guard. A handover from a month that has already ended is left
- * owed for the later closing and adjustment work rather than backdated.
+ * finance guard and local transaction. An older handover is recovered once
+ * as a linked adjustment in the current month.
  * An Order without a preserved purchase basis is recorded as an evidence
  * problem, so it is visible and not retried forever.
  *
@@ -106,6 +79,7 @@ export async function recognizeDeliveredOrder(
     const finance = container.resolve<RestaurantFinanceModuleService>(
       RESTAURANT_FINANCE_MODULE,
     )
+    await closeRestaurantStatements(container, operation.restaurant_id)
     const recognition = deliveredRecognition(
       operation.financial_basis,
       operation,
@@ -138,12 +112,7 @@ export async function recognizeDeliveredOrder(
           commission: recognition.commission,
           evidence: recognition.evidence,
         }
-        const [existing] = await finance.listFinanceReceipts(
-          { source_kind: "order_delivered", source_id: order_id },
-          { take: 1, select: ["id"] },
-        )
-        // An unrecognized handover from an ended month is not backdated.
-        if (!existing && original_month !== posting_month) return "deferred"
+
         const result = await finance.recognizeSource({
           receipt: {
             source_kind: "order_delivered",
@@ -191,27 +160,27 @@ export const recognizeDeliveredOrderStep = createStep(
 )
 
 /**
- * One recovery sweep (spec #52 §9): reads the current month's authoritative
+ * One recovery sweep (spec #52 §9): reads all authoritative
  * handovers page by page, oldest first, and recognizes up to a batch of those
  * neither recognized nor recorded as an evidence problem. Every page is read,
  * so an owed handover is found however many were recognized before it; the
  * batch bounds one tick's work and the next tick resumes from durable state.
  * Cancellations (#229) are recovered the same way, with their own batch,
- * from the start of the previous month (see `recoverCancellations`). Its first tick after a restart is the startup reconciliation; the source
+ * including older months. Its first tick after a restart is the startup reconciliation; the source
  * uniqueness and the finance guard make two sweeps, a retried handover and a
  * sweep safe together.
  */
 const recoverRestaurantFinanceStep = createStep(
   "recover-restaurant-finance",
   async (_input: Record<string, never>, { container }) => {
-    const { starts_at } = copenhagenMonthPeriod(copenhagenMonthOf(new Date()))
+    await closeStatementsWorkflow(container).run({ input: {} })
     const delivery = container.resolve<DeliveryModuleService>(DELIVERY_MODULE)
     const outcomes: Record<string, DeliveredRecognitionOutcome> = {}
     let remaining = FINANCE_RECOVERY_BATCH_SIZE
     let page = 0
     while (remaining > 0) {
       const handovers = await delivery.listIntendedDeliveries(
-        { terminal_outcome: "delivered", terminal_at: { $gte: starts_at } },
+        { terminal_outcome: "delivered" },
         {
           skip: page * FINANCE_RECOVERY_PAGE_SIZE,
           take: FINANCE_RECOVERY_PAGE_SIZE,

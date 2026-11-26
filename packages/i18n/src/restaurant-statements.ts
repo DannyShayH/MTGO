@@ -61,7 +61,7 @@ export const RESTAURANT_STATEMENTS_TEXT = {
     service_fee_explain: "Sådan beregnes servicegebyret",
     days_heading: "Måneden dag for dag",
     days_intro:
-      "Netto pr. dag af de bogførte posteringer: madkredit minus kommission. En prik under dagen betyder, at restauranten var aktiv og dagen tæller med i servicegebyret.",
+      "Netto pr. dag af de bogførte posteringer: madkredit minus kommission og eventuelle reguleringer af servicegebyr. En prik under dagen betyder, at restauranten var aktiv og dagen tæller med i servicegebyret.",
     days_withheld:
       "Viser kun de bogførte posteringer. Månedens beløb ovenfor er tilbageholdt, indtil det manglende er på plads.",
     days_chart_label: "Netto pr. dag i {month}",
@@ -86,6 +86,13 @@ export const RESTAURANT_STATEMENTS_TEXT = {
     entry_order_number: "Ordre #{number}",
     entry_order_unknown: "Ordre",
     entry_posted: "Bogført",
+    entry_original: "Oprindeligt udfald",
+    entry_original_statement: "Regulering af {month}",
+    entry_service_fee_difference: "Regulering af servicegebyr",
+    entry_fee_difference_explanation:
+      "Månedens gebyr {target} minus allerede bogført {recognized}: gebyrforskel {difference}.",
+    closed_warnings_fixed:
+      "Beløb og advarsler er fastholdt ved månedens afslutning. Senere behandling vises som regulering i den måned, den bogføres.",
     entry_food_credit: "Madkredit",
     entry_commission: "Kommission",
     entry_net: "Netto",
@@ -163,7 +170,7 @@ export const RESTAURANT_STATEMENTS_TEXT = {
     service_fee_explain: "How the service fee is calculated",
     days_heading: "The month day by day",
     days_intro:
-      "Net per day of the booked entries: food credit minus commission. A dot under a day means the Restaurant was active and the day counts for the service fee.",
+      "Net per day of the booked entries: food credit minus commission and any service-fee adjustments. A dot under a day means the Restaurant was active and the day counts for the service fee.",
     days_withheld:
       "Shows the booked entries only. The month's amounts above are withheld until what is missing is in place.",
     days_chart_label: "Net per day in {month}",
@@ -188,6 +195,13 @@ export const RESTAURANT_STATEMENTS_TEXT = {
     entry_order_number: "Order #{number}",
     entry_order_unknown: "Order",
     entry_posted: "Booked",
+    entry_original: "Original outcome",
+    entry_original_statement: "Adjustment for {month}",
+    entry_service_fee_difference: "Service-fee adjustment",
+    entry_fee_difference_explanation:
+      "Monthly fee {target} minus already recognized {recognized}: fee difference {difference}.",
+    closed_warnings_fixed:
+      "Amounts and warnings are fixed at month end. Later processing appears as an adjustment in the month posted.",
     entry_food_credit: "Food credit",
     entry_commission: "Commission",
     entry_net: "Net",
@@ -237,6 +251,8 @@ const PROBLEM_TEXT: Record<Locale, Record<string, string>> = {
       "Servicegebyret for de seneste aktive dage er endnu ikke bogført.",
     earlier_month_service_fee_pending:
       "Servicegebyret for {count} tidligere måneder er ikke fuldt bogført og vises senere som regulering.",
+    earlier_month_evidence_missing:
+      "Dokumentation for tidligere måneder mangler. Reguleringer og saldo vises ikke, før beløbene kan fastslås.",
     unknown: "Noget økonomisk dokumentation kræver opmærksomhed ({code}).",
   },
   en: {
@@ -262,12 +278,15 @@ const PROBLEM_TEXT: Record<Locale, Record<string, string>> = {
       "The service fee for the latest active days is not booked yet.",
     earlier_month_service_fee_pending:
       "The service fee of {count} earlier months is not fully booked and will appear later as an adjustment.",
+    earlier_month_evidence_missing:
+      "Evidence for earlier months is missing. Adjustments and the balance are withheld until the amounts can be established.",
     unknown: "Some financial evidence needs attention ({code}).",
   },
 }
 
 const OUTCOME_TEXT: Record<Locale, Record<string, string>> = {
   da: {
+    service_fee_difference: "Regulering af servicegebyr",
     delivered: "Leveret",
     unassigned_timeout: "Intet bud inden fristen",
     operator_cancelled: "Annulleret af MTOGO",
@@ -276,6 +295,7 @@ const OUTCOME_TEXT: Record<Locale, Record<string, string>> = {
     customer_cancelled: "Annulleret af kunden",
   },
   en: {
+    service_fee_difference: "Service-fee adjustment",
     delivered: "Delivered",
     unassigned_timeout: "No Delivery agent by the deadline",
     operator_cancelled: "Cancelled by MTOGO",

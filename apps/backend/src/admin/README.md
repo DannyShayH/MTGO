@@ -248,3 +248,15 @@ an assigned or picked-up Order with no open attention, which neither
 Deliveries list shows. The widget is hidden for a cancelled Order, and after
 a cancellation it shows the same outcome message. Placement is controlled in
 the Dashboard Editor.
+
+## Restaurant statements (#230)
+
+From **Restaurants**, select a Restaurant and open **Statements**. The link
+appears only when the backend's `restaurant_statements` flag is released.
+The nested `/restaurants/{id}/statements` page reads the shared operator API,
+selects a Copenhagen month, displays independent lifecycle/completeness and
+whole-month totals, and pages entries without changing those totals. Closed
+amounts and warnings stay fixed; later entries show original and posting dates,
+link their original month and disclose distinct components, funding, source and
+calculation evidence. Loading and failed reads never look like an empty month.
+The UI is English only and uses the existing SDK session and Medusa UI.

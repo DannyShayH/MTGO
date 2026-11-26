@@ -16,6 +16,7 @@ import {
   ReadinessSection,
 } from "../../../components/restaurant-setup"
 import { StaffSection } from "../../../components/staff-section"
+import { StatementLink } from "../../../components/statement-link"
 import { HistorySection } from "../../../components/history-section"
 
 const RestaurantPage = () => {
@@ -50,6 +51,7 @@ const RestaurantPage = () => {
             : `No — ${restaurantMessages[restaurant.reason || ""] || "Unavailable"}`}
         </Text>
       </Container>
+      <StatementLink restaurantId={restaurant.id} />
       <Container className="divide-y p-0">
         <div className="flex items-center justify-between px-6 py-4">
           <Heading level="h2">Details</Heading>

@@ -42,9 +42,18 @@ export type StatementEntry = {
   original_month: string
   posted_at: string
   posting_month: string
-  amounts: { food_credit: string; commission: string; net: string }
+  amounts: {
+    food_credit: string
+    commission: string
+    service_fee?: string
+    net: string
+  }
+  original_statement: { month: string } | null
   funded_by: "customer" | "mtogo"
   calculation: {
+    amount?: string
+    recognized_amount?: string
+    difference?: string
     terms_version?: string
     vat_rate?: string
     food_value_including_vat?: string

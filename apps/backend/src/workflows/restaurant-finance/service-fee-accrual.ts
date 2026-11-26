@@ -12,72 +12,15 @@ import type RestaurantModuleService from "../../modules/restaurant/service"
 import { RESTAURANT_FINANCE_MODULE } from "../../modules/restaurant-finance"
 import type RestaurantFinanceModuleService from "../../modules/restaurant-finance/service"
 import { copenhagenMonthOf } from "./calculation"
+import { readParticipation } from "./participation"
+import { closeRestaurantStatements } from "./closure"
 import { restaurantFinanceLock } from "./locks"
-import {
-  serviceFeeEvidence,
-  serviceFeeStanding,
-  type ParticipationChange,
-  type ParticipationFacts,
-} from "./service-fee"
+import { serviceFeeEvidence, serviceFeeStanding } from "./service-fee"
 
 /** How many Restaurants the accrual sweep reads per page. */
 export const SERVICE_FEE_PAGE_SIZE = 200
 /** How many owed accruals one sweep performs; the rest wait a tick. */
 export const SERVICE_FEE_BATCH_SIZE = 50
-
-/**
- * The recorded participation of each Restaurant (#228): its creation, its
- * flag today and its activation and deactivation history, oldest first.
- * Opening and closing are not read; they never change participation.
- */
-export async function readParticipation(
-  container: MedusaContainer,
-  restaurant_ids: string[],
-): Promise<Map<string, ParticipationFacts>> {
-  if (!restaurant_ids.length) return new Map()
-  const restaurants =
-    container.resolve<RestaurantModuleService>(RESTAURANT_MODULE)
-  const [found, history] = await Promise.all([
-    restaurants.listRestaurants(
-      { id: restaurant_ids },
-      {
-        select: ["id", "created_at", "is_active"],
-        take: null,
-        withDeleted: true,
-      },
-    ),
-    restaurants.listRestaurantHistoryEntries(
-      {
-        restaurant_id: restaurant_ids,
-        kind: ["activated", "deactivated"],
-      },
-      {
-        select: ["restaurant_id", "kind", "occurred_at"],
-        order: { occurred_at: "ASC", id: "ASC" },
-        take: null,
-      },
-    ),
-  ])
-  const changesOf = new Map<string, ParticipationChange[]>()
-  for (const entry of history) {
-    const changes = changesOf.get(entry.restaurant_id) ?? []
-    changes.push({
-      kind: entry.kind as ParticipationChange["kind"],
-      occurred_at: entry.occurred_at,
-    })
-    changesOf.set(entry.restaurant_id, changes)
-  }
-  return new Map(
-    found.map((restaurant) => [
-      restaurant.id,
-      {
-        created_at: restaurant.created_at,
-        is_active: restaurant.is_active,
-        changes: changesOf.get(restaurant.id) ?? [],
-      },
-    ]),
-  )
-}
 
 export type ServiceFeeAccrualOutcome =
   | "accrued"
@@ -110,6 +53,7 @@ export async function accrueServiceFee(
     const finance = container.resolve<RestaurantFinanceModuleService>(
       RESTAURANT_FINANCE_MODULE,
     )
+    await closeRestaurantStatements(container, restaurant_id)
     const lock = restaurantFinanceLock(restaurant_id)
     return await container.resolve(Modules.LOCKING).execute(
       lock.key,

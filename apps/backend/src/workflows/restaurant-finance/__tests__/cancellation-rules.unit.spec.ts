@@ -1,4 +1,4 @@
-import { cancellationRecognition, recoverableIn } from "../cancellation-rules"
+import { cancellationRecognition } from "../cancellation-rules"
 
 const cancelledAt = new Date("2026-11-20T12:40:00.000Z")
 const acceptanceDeadline = new Date("2026-11-20T12:05:00.000Z")
@@ -157,46 +157,6 @@ describe("How finance recognizes a cancelled Order (spec #52 §4; #229)", () => 
         source,
         occurred_at: cancelledAt,
       })
-    },
-  )
-
-  it.each([
-    {
-      facts: cancelled(),
-      original: "2026-11",
-      posting: "2026-11",
-      recoverable: true,
-      reason: "DT: compensation in its own month is posted",
-    },
-    {
-      facts: cancelled(),
-      original: "2026-10",
-      posting: "2026-11",
-      recoverable: false,
-      reason:
-        "DT, BVA: compensation one month late waits for the closing work instead of using up the batch",
-    },
-    {
-      facts: cancelled({ category: "restaurant_rejected", food_credit: null }),
-      original: "2026-10",
-      posting: "2026-11",
-      recoverable: true,
-      reason:
-        "DT: an ended month's outcome with no entitlement is still recorded",
-    },
-    {
-      facts: cancelled({ category: null, food_credit: null }),
-      original: "2026-10",
-      posting: "2026-11",
-      recoverable: true,
-      reason: "DT: an ended month's missing evidence is still recorded",
-    },
-  ])(
-    "lets recovery process it now: $recoverable for $reason",
-    ({ facts, original, posting, recoverable }) => {
-      expect(
-        recoverableIn(cancellationRecognition(facts), original, posting),
-      ).toBe(recoverable)
     },
   )
 })

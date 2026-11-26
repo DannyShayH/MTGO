@@ -148,16 +148,3 @@ export function cancellationRecognition(
     },
   }
 }
-
-/**
- * Whether recovery can process a recognition now. Compensation is posted
- * only in its original month; once that month has ended it waits for the
- * closing and adjustment work, so recovery leaves it out instead of retrying
- * it on every tick. An outcome with no entitlement, or missing evidence, is
- * recorded whenever it is processed.
- */
-export const recoverableIn = (
-  recognition: CancellationRecognition,
-  original_month: string,
-  posting_month: string,
-) => recognition.status !== "compensation" || original_month === posting_month

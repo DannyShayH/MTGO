@@ -332,7 +332,14 @@ function OrderReference({
   locale: Locale
 }) {
   const text = RESTAURANT_STATEMENTS_TEXT[locale]
-  if (!entry.order) return <>{text.entry_order_unknown}</>
+  if (!entry.order)
+    return (
+      <>
+        {entry.kind === "service_fee_difference"
+          ? text.entry_service_fee_difference
+          : text.entry_order_unknown}
+      </>
+    )
   return (
     <Link
       href={`/orders/${encodeURIComponent(entry.order.id)}`}
@@ -349,6 +356,46 @@ function OrderReference({
             number: entry.order.display_id,
           })}
     </Link>
+  )
+}
+
+/** A separate focusable link above the Order row's stretched hit area. */
+function AdjustmentReference({
+  entry,
+  locale,
+}: {
+  entry: StatementEntry
+  locale: Locale
+}) {
+  if (!entry.original_statement) return null
+  const text = RESTAURANT_STATEMENTS_TEXT[locale]
+  const calculation = entry.calculation
+  return (
+    <span className="flex min-w-0 flex-col gap-1">
+      <Link
+        href={statementHref({ month: entry.original_statement.month, page: 1 })}
+        className={clx(
+          WRAP,
+          "relative z-10 inline-flex min-h-11 min-w-11 items-center self-start text-ui-fg-interactive rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mtogo-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-ui-bg-base",
+        )}
+      >
+        {formatText(text.entry_original_statement, {
+          month: formatStatementMonth(entry.original_statement.month, locale),
+        })}
+      </Link>
+      {entry.kind === "service_fee_difference" &&
+        calculation?.amount &&
+        calculation.recognized_amount &&
+        calculation.difference && (
+          <span className={clx(WRAP, "txt-compact-small text-ui-fg-subtle")}>
+            {formatText(text.entry_fee_difference_explanation, {
+              target: formatExactDkk(calculation.amount, locale),
+              recognized: formatExactDkk(calculation.recognized_amount, locale),
+              difference: formatExactDkk(calculation.difference, locale),
+            })}
+          </span>
+        )}
+    </span>
   )
 }
 
@@ -377,6 +424,7 @@ export function StatementEntries({
   // funding only in the exceptional case that MTOGO pays the food credit,
   // which is prepared-food compensation without commission (#229).
   const fundedByMtogo = (entry: StatementEntry) =>
+    entry.kind !== "service_fee_difference" &&
     entry.funded_by === "mtogo" && (
       <span className={clx(WRAP, "txt-compact-small text-ui-fg-subtle")}>
         {entry.kind === "prepared_food_compensation"
@@ -436,6 +484,7 @@ export function StatementEntries({
                     <span className="flex min-w-0 flex-col gap-1">
                       <OrderReference entry={entry} locale={locale} />
                       {fundedByMtogo(entry)}
+                      <AdjustmentReference entry={entry} locale={locale} />
                     </span>
                   </td>
                   <td className="txt-compact-small px-3 py-3">
@@ -444,9 +493,11 @@ export function StatementEntries({
                         {outcome(entry)}
                       </span>
                       <span>
+                        {entry.original_statement && `${text.entry_original}: `}
                         {formatOrderDateTime(entry.occurred_at, locale)}
                       </span>
-                      {bookedLater(entry, locale) && (
+                      {(entry.original_statement ||
+                        bookedLater(entry, locale)) && (
                         <span className="text-ui-fg-subtle">
                           {text.entry_posted}{" "}
                           {formatOrderDateTime(entry.posted_at, locale)}
@@ -489,7 +540,7 @@ export function StatementEntries({
                   <dd className="txt-compact-small text-right">
                     {formatOrderDateTime(entry.occurred_at, locale)}
                   </dd>
-                  {bookedLater(entry, locale) && (
+                  {(entry.original_statement || bookedLater(entry, locale)) && (
                     <>
                       <dt className="txt-compact-small text-ui-fg-subtle">
                         {text.entry_posted}
@@ -517,6 +568,7 @@ export function StatementEntries({
                   </dd>
                 </dl>
                 {fundedByMtogo(entry)}
+                <AdjustmentReference entry={entry} locale={locale} />
               </li>
             ))}
           </ul>

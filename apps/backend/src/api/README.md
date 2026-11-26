@@ -2049,9 +2049,16 @@ is the header below without entries.
   today), as the fee counts it. The amounts sum the entries booked on that
   Copenhagen date; they describe booked entries, which stay readable while a
   monthly total is withheld, and never replace one.
-- **Adjustments** are a verified `"0"` until later work books them (#230),
-  withheld as `processing_pending` while ended months' work is known to be on
-  its way to the current month.
+- **Adjustments** (#230) sum the signed net of entries whose original month
+  precedes their posting month: food credit minus commission minus any fee
+  difference. Those components are excluded from ordinary totals. A delayed
+  credit of `"600"` and commission of `"30"` therefore contributes `"570"`
+  once. `original_statement: { "month": "2026-11" }` links the old statement.
+  Service-fee differences use `kind: "service_fee_difference"`, a separate
+  `amounts.service_fee`, and calculation evidence with the independently rounded
+  target, amounts already recognized and verified difference. Unknown older
+  evidence withholds adjustments as `evidence_missing`; known owed processing
+  withholds them as `processing_pending`.
 - **An unknown amount is never zero.** A total is `unavailable` with a
   `reason`: `evidence_missing`, `processing_pending`, `not_yet_supported`
   (reserved for a component a release does not calculate) or
@@ -2087,7 +2094,14 @@ is the header below without entries.
   date yet) and `earlier_month_service_fee_pending` (on the current month:
   ended months, source `service_fee_month`, whose fee never fully accrued; the
   verified difference arrives later as an adjustment, never by rewriting the
-  ended month).
+  ended month). `earlier_month_evidence_missing` identifies missing older
+  source or participation evidence that withholds current adjustments.
+
+Closed responses use one immutable closure per Restaurant/month. Its
+verification time is the Copenhagen boundary; journal membership, fee evidence,
+whole-month totals or unavailability and warnings remain fixed. Delayed
+materialization uses that boundary's exclusive posting cutoff. GET requests
+never close or recognize anything.
 
 | Status | When                                                                                                                                        |
 | ------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -3026,3 +3040,18 @@ Restaurant ratings are food ratings, agent ratings describe only agents, and
 experience is platform-wide.
 An unsupported period or unknown query parameter returns `400`. A caller without
 valid operator authentication is refused with `401` or `403`.
+
+### GET /admin/restaurants/{id}/statements and GET /admin/restaurants/{id}/statements/{month}
+
+**Actor:** authenticated MTOGO operator (Medusa user). Requires the same
+backend-owned `restaurant_statements` flag. No Customer, Delivery agent or
+Restaurant staff identity can use these Admin routes.
+
+The month-list and detail responses, real `YYYY-MM` validation, default
+20/max 50 limit, nonnegative offset, stable posting order, whole-month totals,
+closure snapshots, fee evidence, adjustment breakdown and original-month links
+are the same as the partner statement contract above. Operators select a
+Restaurant from the existing Restaurant list and open **Statements** on its
+detail page. Flag-off requests return `404`; signed-out or wrong-actor requests
+return `401`; invalid month/page requests return `400`; unknown, future and
+pre-creation months return `404`. There is no financial mutation endpoint.

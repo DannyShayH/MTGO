@@ -9,6 +9,7 @@ export const FINANCE_SOURCE_KINDS = [
   "order_delivered",
   "prepared_food_credit",
   "order_cancelled",
+  "service_fee_difference",
 ] as const
 export type FinanceSourceKind = (typeof FINANCE_SOURCE_KINDS)[number]
 

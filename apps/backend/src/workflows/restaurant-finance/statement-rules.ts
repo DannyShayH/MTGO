@@ -32,19 +32,19 @@ export type ProblemCode =
   | FinanceProblemCode
   /**
    * A handover of the statement's month that is neither recognized nor an
-   * evidence problem. In an ended month it waits for the later closing and
-   * adjustment work, so that month's delivered totals stay withheld.
+   * evidence problem. A closed snapshot keeps this warning after later
+   * processing posts an adjustment in the current month.
    */
   | "recognition_pending"
   /**
    * Shown on the current month: handovers of ended months that will reach
-   * it as adjustments once the later closing and adjustment work exists.
+   * it as adjustments when recovery completes.
    */
   | "earlier_month_processing_pending"
   /**
    * An existing prepared-food credit of the month that finance has not yet
    * recognized (#229). The recovery sweep recognizes the current month's;
-   * an ended month's waits for the later closing and adjustment work.
+   * an ended month's reaches the current month as an adjustment.
    */
   | "prepared_food_credit_pending"
   /**
@@ -74,6 +74,7 @@ export type ProblemCode =
    * month as an adjustment once the closing and adjustment work exists.
    */
   | "earlier_month_service_fee_pending"
+  | "earlier_month_evidence_missing"
 
 export type StatementProblem = {
   code: ProblemCode
@@ -87,6 +88,7 @@ export type StatementProblem = {
       | "delivery_failed"
       | "restaurant_participation"
       | "service_fee_month"
+      | "service_fee_difference"
     id: string
   }[]
 }
@@ -108,6 +110,7 @@ const EVIDENCE_PROBLEMS: ProblemCode[] = [
   ...FINANCE_PROBLEM_CODES,
   ...FOOD_CREDIT_EVIDENCE_PROBLEMS,
   "participation_evidence_missing",
+  "earlier_month_evidence_missing",
 ]
 const PENDING_PROBLEMS: ProblemCode[] = [
   "recognition_pending",
@@ -137,7 +140,12 @@ export type Completeness = "complete" | "incomplete" | "processing_pending"
 export type StatementFacts = {
   lifecycle: Lifecycle
   /** Booked amounts of every entry posted in the month. */
-  booked: { food_credit: string; commission: string }[]
+  booked: {
+    food_credit: string
+    commission: string
+    service_fee?: string
+    is_adjustment?: boolean
+  }[]
   /**
    * The month's accrued service fee, a verified zero for a month without
    * active dates, or `null` when a problem says why it is not known.
@@ -189,8 +197,8 @@ export function completenessOf(
  * processing does too; an unsuccessful Order's (#229) withholds only food
  * credits, since its commission is always zero, in an ended month as much as in the current one.
  * Unknown active days withhold only the fee. Adjustments are those booked
- * in the month; none are booked yet, so they are a verified zero unless
- * earlier months' work is known to be on its way. The balance is food
+ * in the month, with their signed components excluded from ordinary totals.
+ * Earlier missing evidence or owed work withholds adjustments. The balance is food
  * credits minus commission minus the fee plus adjustments, with no
  * earlier balance carried in, and needs every component (spec #52 §8).
  */
@@ -200,10 +208,12 @@ export function assembleStatementHeader(
   const problems = facts.problems.filter(({ count }) => count > 0)
   const occurred = (codes: ProblemCode[]) => problems.some(isProblemOf(codes))
   const sum = (key: "food_credit" | "commission") =>
-    facts.booked.reduce(
-      (total, entry) => MathBN.add(total, entry[key]),
-      MathBN.convert(0),
-    )
+    facts.booked
+      .filter((entry) => !entry.is_adjustment)
+      .reduce(
+        (total, entry) => MathBN.add(total, entry[key]),
+        MathBN.convert(0),
+      )
   const delivered = (key: "food_credit" | "commission"): Total => {
     if (occurred(DELIVERED_EVIDENCE_PROBLEMS))
       return unavailable("evidence_missing")
@@ -222,13 +232,31 @@ export function assembleStatementHeader(
       return unavailable("processing_pending")
     return available(facts.service_fee)
   }
+  const adjustments = (): Total => {
+    if (occurred(["earlier_month_evidence_missing"]))
+      return unavailable("evidence_missing")
+    if (occurred(ADJUSTMENT_PROBLEMS)) return unavailable("processing_pending")
+    return available(
+      facts.booked
+        .filter((entry) => entry.is_adjustment)
+        .reduce(
+          (total, entry) =>
+            MathBN.add(
+              total,
+              MathBN.sub(
+                MathBN.sub(entry.food_credit, entry.commission),
+                entry.service_fee ?? "0",
+              ),
+            ),
+          MathBN.convert(0),
+        ),
+    )
+  }
   const components = {
     food_credits: delivered("food_credit"),
     commission: delivered("commission"),
     service_fee: serviceFee(),
-    adjustments: occurred(ADJUSTMENT_PROBLEMS)
-      ? unavailable("processing_pending")
-      : available(0),
+    adjustments: adjustments(),
   }
   const known = Object.values(components).every(
     ({ status }) => status === "available",
@@ -291,6 +319,7 @@ export type BookedEntry = {
   funded_by: string
   food_credit: string
   commission: string
+  service_fee?: string
 }
 
 /** The receipt that recognized an entry's source, with its evidence. */
@@ -329,12 +358,21 @@ export function statementEntry(
     amounts: {
       food_credit: entry.food_credit,
       commission: entry.commission,
-      net: MathBN.sub(entry.food_credit, entry.commission).toString(),
+      ...(entry.kind === "service_fee_difference"
+        ? { service_fee: entry.service_fee ?? "0" }
+        : {}),
+      net: MathBN.sub(
+        MathBN.sub(entry.food_credit, entry.commission),
+        entry.service_fee ?? "0",
+      ).toString(),
     },
     funded_by: entry.funded_by,
     calculation: receipt?.evidence ?? null,
     // Adjustments of a closed month will link their original statement.
-    original_statement: null,
+    original_statement:
+      entry.original_month !== entry.posting_month
+        ? { month: entry.original_month }
+        : null,
   }
 }
 
@@ -364,6 +402,8 @@ export function statementDays(input: {
     posted_at: Date | string
     food_credit: string
     commission: string
+    service_fee?: string
+    kind?: string
   }[]
 }): StatementDay[] {
   const [year, monthNumber] = input.month.split("-").map(Number)
@@ -385,6 +425,10 @@ export function statementDays(input: {
       )
     const food_credit = sum("food_credit")
     const commission = sum("commission")
+    const feeDifferences = entries.reduce(
+      (sum, entry) => MathBN.add(sum, entry.service_fee ?? "0"),
+      MathBN.convert(0),
+    )
     const reached =
       input.counted_through !== null && date <= input.counted_through
     let participation: StatementDay["participation"] = "inactive"
@@ -394,10 +438,14 @@ export function statementDays(input: {
     return {
       date,
       participation,
-      orders: entries.length,
+      orders: entries.filter((entry) => entry.kind !== "service_fee_difference")
+        .length,
       food_credit: food_credit.toString(),
       commission: commission.toString(),
-      net: MathBN.sub(food_credit, commission).toString(),
+      net: MathBN.sub(
+        MathBN.sub(food_credit, commission),
+        feeDifferences,
+      ).toString(),
     }
   })
 }

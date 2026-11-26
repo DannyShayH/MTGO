@@ -5,6 +5,7 @@ import {
   InjectTransactionManager,
   MedusaContext,
   MedusaService,
+  MedusaError,
 } from "@medusajs/framework/utils"
 import FinanceReceipt, {
   type FinanceSourceKind,
@@ -13,10 +14,25 @@ import FinanceJournalEntry, {
   FOOD_CREDIT_FUNDING,
   type JournalEntryKind,
 } from "./models/finance-journal-entry"
+import FinanceClosure from "./models/finance-closure"
 import FinanceServiceFee from "./models/finance-service-fee"
 import FinanceProblem, {
   type FinanceProblemCode,
 } from "./models/finance-problem"
+
+/** The authoritative server clock, classified inside the local commit. */
+const postingTime = () => {
+  const posted_at = new Date()
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Copenhagen",
+    year: "numeric",
+    month: "2-digit",
+  }).formatToParts(posted_at)
+  return {
+    posted_at,
+    posting_month: `${parts.find((part) => part.type === "year")!.value}-${parts.find((part) => part.type === "month")!.value}`,
+  }
+}
 
 export type RecognitionCommand = {
   receipt: {
@@ -41,6 +57,7 @@ export type RecognitionCommand = {
     /** Exact decimal strings in statement direction. */
     food_credit: string
     commission: string
+    service_fee?: string
     funded_by: (typeof FOOD_CREDIT_FUNDING)[number]
   } | null
 }
@@ -88,6 +105,7 @@ class RestaurantFinanceModuleService extends MedusaService({
   FinanceJournalEntry,
   FinanceProblem,
   FinanceServiceFee,
+  FinanceClosure,
 }) {
   /**
    * Records one source's receipt and journal entry in one transaction (only
@@ -100,7 +118,7 @@ class RestaurantFinanceModuleService extends MedusaService({
   @InjectTransactionManager()
   async recognizeSource(
     command: RecognitionCommand,
-    @MedusaContext() context: Context = {},
+    @MedusaContext() context?: Context,
   ): Promise<RecognitionResult> {
     const { receipt, entry } = command
     const [existing] = await this.listFinanceReceipts(
@@ -125,7 +143,10 @@ class RestaurantFinanceModuleService extends MedusaService({
       )
       return { outcome: "conflict", receipt_id: existing.id }
     }
-    const created = await this.createFinanceReceipts(receipt, context)
+    // Choose the actual posting instant after transaction/guard waits and
+    // receipt lookup. A caller's earlier clock cannot reopen a past month.
+    const posted = { ...receipt, ...postingTime() }
+    const created = await this.createFinanceReceipts(posted, context)
     if (!entry) return { outcome: "recognized", receipt_id: created.id }
     await this.createFinanceJournalEntries(
       {
@@ -135,13 +156,16 @@ class RestaurantFinanceModuleService extends MedusaService({
         order_id: receipt.order_id,
         occurred_at: receipt.occurred_at,
         original_month: receipt.original_month,
-        posted_at: receipt.posted_at,
-        posting_month: receipt.posting_month,
+        posted_at: posted.posted_at,
+        posting_month: posted.posting_month,
         currency_code: receipt.currency_code,
         // Exact decimals: the generated input type says `number`, but a
         // bigNumber property stores a BigNumber without float rounding.
         food_credit: new BigNumber(entry.food_credit) as unknown as number,
         commission: new BigNumber(entry.commission) as unknown as number,
+        service_fee: new BigNumber(
+          entry.service_fee ?? "0",
+        ) as unknown as number,
         funded_by: entry.funded_by,
       },
       context,
@@ -160,13 +184,18 @@ class RestaurantFinanceModuleService extends MedusaService({
   @InjectTransactionManager()
   async accrueServiceFee(
     accrual: ServiceFeeAccrual,
-    @MedusaContext() context: Context = {},
+    @MedusaContext() context?: Context,
   ): Promise<ServiceFeeAccrualResult> {
     const [existing] = await this.listFinanceServiceFees(
       { restaurant_id: accrual.restaurant_id, month: accrual.month },
       { take: 1, select: ["id", "active_dates"] },
       context,
     )
+    if (accrual.month !== postingTime().posting_month)
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        "service_fee_month_closed",
+      )
     // Exact decimals: a bigNumber property stores a BigNumber unrounded.
     const amounts = {
       policy_amount: new BigNumber(accrual.policy_amount) as unknown as number,
@@ -195,12 +224,33 @@ class RestaurantFinanceModuleService extends MedusaService({
     return { outcome: "accrued", service_fee_id: existing.id }
   }
 
+  /** Materializes a closure once under the shared Restaurant finance guard. */
+  @InjectManager()
+  @InjectTransactionManager()
+  async closeStatement(
+    closure: {
+      restaurant_id: string
+      month: string
+      starts_at: Date
+      ends_at: Date
+      snapshot: Record<string, unknown>
+    },
+    @MedusaContext() context?: Context,
+  ): Promise<void> {
+    const [existing] = await this.listFinanceClosures(
+      { restaurant_id: closure.restaurant_id, month: closure.month },
+      { select: ["id"], take: 1 },
+      context,
+    )
+    if (!existing) await this.createFinanceClosures(closure, context)
+  }
+
   /** Records an evidence problem once per source and code. */
   @InjectManager()
   @InjectTransactionManager()
   async recordProblem(
     problem: ProblemCommand,
-    @MedusaContext() context: Context = {},
+    @MedusaContext() context?: Context,
   ): Promise<void> {
     const [existing] = await this.listFinanceProblems(
       {
