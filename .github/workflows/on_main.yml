@@ -195,7 +195,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push the backend image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: deploy/staging/Dockerfile
@@ -209,7 +209,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Build and push the partner image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: deploy/staging/Dockerfile
@@ -338,7 +338,7 @@ jobs:
       # against the backend that is already running the same commit.
       - name: Build and push the storefront image
         if: ${{ !inputs.release_sha }}
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: deploy/staging/Dockerfile
