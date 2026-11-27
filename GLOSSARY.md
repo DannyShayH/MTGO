@@ -156,6 +156,14 @@ _Avoid_: Pending payment, unresolved refund
 The elapsed time from placing a paid Order to confirmed handover of its food.
 _Avoid_: Work item cycle time, Feature lead time
 
+**Delivery transit time**:
+The elapsed time from a Delivery agent's confirmed pickup of an Order's food to its confirmed handover.
+_Avoid_: Delivery time, arrival time, Order processing time
+
+**Unfulfilled Order**:
+An Order that ended without its food being handed over to the Customer, whether it was cancelled or its Delivery failed.
+_Avoid_: Failed Order, lost Order
+
 ## Way of working
 
 **Feature**:
