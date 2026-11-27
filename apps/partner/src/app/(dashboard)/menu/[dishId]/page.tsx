@@ -23,6 +23,7 @@ export default async function EditDishPage({
       <Container role="alert" className="mx-auto max-w-3xl">
         <Text>{text.load_error}</Text>
         <Link
+          prefetch={false}
           href={`/menu/${encodeURIComponent(dishId)}`}
           className="mt-3 inline-flex min-h-11 items-center text-mtogo-text-link underline"
         >
@@ -37,6 +38,7 @@ export default async function EditDishPage({
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       <Link
+        prefetch={false}
         href="/menu"
         className="inline-flex min-h-11 w-fit items-center text-mtogo-text-link underline"
       >

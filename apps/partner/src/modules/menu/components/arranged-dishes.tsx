@@ -168,6 +168,7 @@ export function ArrangedDishes({
           <Heading level="h2">{dishesText.title}</Heading>
         </div>
         <Link
+          prefetch={false}
           href="/menu/new"
           className={clx(
             "inline-flex min-h-11 items-center rounded-lg bg-ui-button-inverted px-4 font-medium text-ui-fg-on-inverted transition-transform duration-150 ease-out active:scale-[0.97] motion-reduce:transition-none motion-reduce:active:scale-100",
@@ -180,6 +181,7 @@ export function ArrangedDishes({
       <div className="mt-2 flex flex-col items-start gap-1">
         <Text className="max-w-prose text-ui-fg-subtle">{text.hint}</Text>
         <Link
+          prefetch={false}
           href="/categories"
           className={clx(
             "-mx-1 inline-flex min-h-11 items-center gap-1 rounded px-1 text-sm font-medium text-mtogo-text-link underline-offset-4 [@media(hover:hover)]:hover:underline",
@@ -310,6 +312,7 @@ export function ArrangedDishes({
                         </div>
                         <div className="col-start-1 row-start-3 flex items-center justify-end gap-1 sm:col-start-3 sm:row-start-1">
                           <Link
+                            prefetch={false}
                             href={`/menu/${encodeURIComponent(dish.id)}`}
                             aria-label={`${dishesText.edit_action}: ${name}`}
                             title={dishesText.edit_action}

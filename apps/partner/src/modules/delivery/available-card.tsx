@@ -114,6 +114,7 @@ export function AvailableCard({
       )}
       {showDetails && (
         <Link
+          prefetch={false}
           href={`/delivery/${encodeURIComponent(delivery.order_id)}`}
           className="text-mtogo-text-link focus-visible:ring-mtogo-focus-ring -my-1 inline-flex min-h-11 items-center self-start rounded text-sm underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2"
         >

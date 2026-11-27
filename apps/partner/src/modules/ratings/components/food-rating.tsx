@@ -31,6 +31,7 @@ export function PeriodChoice({
           return (
             <li key={period}>
               <Link
+                prefetch={false}
                 href={ratingsHref(period)}
                 aria-current={isCurrent ? "page" : undefined}
                 className={clx(

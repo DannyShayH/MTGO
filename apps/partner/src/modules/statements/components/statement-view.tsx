@@ -342,6 +342,7 @@ function OrderReference({
     )
   return (
     <Link
+      prefetch={false}
       href={`/orders/${encodeURIComponent(entry.order.id)}`}
       className={clx(
         WRAP,
@@ -373,6 +374,7 @@ function AdjustmentReference({
   return (
     <span className="flex min-w-0 flex-col gap-1">
       <Link
+        prefetch={false}
         href={statementHref({ month: entry.original_statement.month, page: 1 })}
         className={clx(
           WRAP,
@@ -598,6 +600,7 @@ export function StatementEntries({
             <div className="flex flex-wrap gap-3">
               {query.page > 1 && (
                 <Link
+                  prefetch={false}
                   href={statementHref({ ...query, page: query.page - 1 })}
                   className={LINK_BUTTON}
                 >
@@ -606,6 +609,7 @@ export function StatementEntries({
               )}
               {query.page < pages && (
                 <Link
+                  prefetch={false}
                   href={statementHref({ ...query, page: query.page + 1 })}
                   className={LINK_BUTTON}
                 >

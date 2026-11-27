@@ -47,9 +47,10 @@ export function ClaimDelivery({
   const message = useRef<HTMLDivElement>(null)
   const sentAt = useRef(0)
 
+  // The claim and its check revalidate /delivery on the server, so the
+  // answer already carries the new page; another refresh rendered it twice (#253).
   const claimed = useCallback(() => {
     router.push("/delivery#current")
-    router.refresh()
   }, [router])
 
   const check = useCallback(async () => {

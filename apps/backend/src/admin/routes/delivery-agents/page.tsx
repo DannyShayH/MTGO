@@ -14,11 +14,8 @@ import {
 } from "@medusajs/ui"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
-import {
-  AgentAreasDrawer,
-  useAgentAreas,
-} from "../../components/agent-areas-drawer"
-import { summarizeAreas } from "../../lib/postal-towns"
+import { AgentAreasDrawer } from "../../components/agent-areas-drawer"
+import { summarizeAreas, type AreaCode } from "../../lib/postal-towns"
 import { sdk } from "../../lib/restaurant-api"
 
 type Agent = {
@@ -26,6 +23,8 @@ type Agent = {
   name: string
   email: string
   status: "pending" | "authorized" | "revoked"
+  /** Read with the list, so a row needs no request of its own (#253). */
+  areas: AreaCode[]
 }
 
 const STATUS: Record<
@@ -43,7 +42,6 @@ function AgentRow({
 }: Readonly<{ agent: Agent; onRevoked: () => Promise<unknown> }>) {
   const [isEditing, setIsEditing] = useState(false)
   const [isConfirming, setIsConfirming] = useState(false)
-  const areas = useAgentAreas(agent.id)
   const revoke = useMutation({
     mutationFn: () =>
       sdk.client.fetch(`/admin/delivery-agents/${agent.id}/revoke`, {
@@ -63,9 +61,7 @@ function AgentRow({
   })
   const status = STATUS[agent.status]
   const isRevoked = agent.status === "revoked"
-  let areaSummary = "Loading areas…"
-  if (areas.isError) areaSummary = "Areas unavailable"
-  if (areas.data) areaSummary = summarizeAreas(areas.data.areas)
+  const areaSummary = summarizeAreas(agent.areas)
   return (
     <div className="grid gap-3 px-6 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:gap-8">
       <div className="flex min-w-0 flex-col gap-1">

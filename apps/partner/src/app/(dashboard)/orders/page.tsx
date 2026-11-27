@@ -103,6 +103,7 @@ export default async function OrdersPage({
                 <Heading level="h2">{text.unavailable}</Heading>
                 <Text className="text-ui-fg-subtle">{text.retry_hint}</Text>
                 <Link
+                  prefetch={false}
                   href={queueHref(query, { page })}
                   className={clx(LINK_BUTTON, "mt-2 self-start")}
                 >
@@ -115,7 +116,11 @@ export default async function OrdersPage({
                   {isFiltered ? text.empty_filtered : text[EMPTY[view]]}
                 </Text>
                 {isFiltered && (
-                  <Link href={clearHref} className={LINK_BUTTON}>
+                  <Link
+                    prefetch={false}
+                    href={clearHref}
+                    className={LINK_BUTTON}
+                  >
                     {text.clear_filters}
                   </Link>
                 )}
@@ -153,6 +158,7 @@ export default async function OrdersPage({
                   </Text>
                   {page > 1 && (
                     <Link
+                      prefetch={false}
                       href={queueHref(query, { page: page - 1 })}
                       className={LINK_BUTTON}
                     >
@@ -161,6 +167,7 @@ export default async function OrdersPage({
                   )}
                   {page < pages && (
                     <Link
+                      prefetch={false}
                       href={queueHref(query, { page: page + 1 })}
                       className={LINK_BUTTON}
                     >

@@ -271,6 +271,17 @@ say so; another agent's or unknown work reads as not in the history.
   in again as revoked staff shows the same message. `GET /partner/me` is read
   with `fetch` instead of the js-sdk, whose errors drop the refusal's body.
   Visiting `/sign-in` directly with an ended session clears it in the same way.
+  Staff and Delivery agents share the cookie, so `/session-ended` first checks
+  whether it now signs in someone else (for example an agent who signed in
+  while a kitchen tab was open). Then it keeps that session and goes to its
+  home, `/overview` or `/delivery`, instead of signing the agent out (#253).
+  It redirects to a path, never an absolute URL: behind the proxy the
+  request's own URL names the container (`localhost:8100`).
+- **Links never prefetch.** Every page is dynamic and reads the signed-in staff
+  member or agent, and every refresh after an action prefetches all visible
+  links again, so prefetching made about 30 page renders per kitchen click.
+  Every `<Link>` sets `prefetch={false}`; `link-prefetch.unit.spec.ts` keeps it
+  that way (#253).
   Backend failures while signing in show a translated retry message and leave
   the token unset; server diagnostics include only the HTTP status.
 - **Language.** The first visit follows the browser's `Accept-Language` and falls

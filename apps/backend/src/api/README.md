@@ -390,6 +390,8 @@ full address, phone and instructions never appear in either projection.
 
 Admin routes require an operator session or bearer. `GET /admin/delivery-agents`
 returns `{ agents, count, limit, offset }`, with bounded `limit` and `offset`.
+Each agent carries its approved `areas` (`{ postal_code, name }` in code order),
+read for the whole page at once, so the list needs no request per row (#253).
 `POST /admin/delivery-agents` accepts `{ name, email }` and sends a 24-hour
 invitation to the private mailbox or configured email provider.
 `POST /admin/delivery-agents/:id/revoke` revokes an invitation or access while
@@ -3215,12 +3217,15 @@ projection; it exposes neither menu editing nor stock quantities.
 
 ## GET /admin/products/{id}/dish/photo (#150)
 
-Operator-only (Admin session, bearer or API key). Redirects (302, `no-store`)
-to a fresh read URL of the registered dish photo owned by the Product's linked
-Restaurant. With no photo, a removed or unreadable photo, an unlinked, deleted
-or unknown Product, it returns 200 with a placeholder SVG so the native Admin
-row keeps rendering. It is the `thumbnail` value stored on dish Products; see
-[Admin customizations](../admin/README.md).
+Operator-only (Admin session, bearer or API key). Redirects (302,
+`private, max-age=300`) to a fresh read URL of the registered dish photo owned
+by the Product's linked Restaurant. With no photo, a removed or unreadable
+photo, an unlinked, deleted or unknown Product, it returns 200 with a
+placeholder SVG so the native Admin row keeps rendering. It is the `thumbnail`
+value stored on dish Products; see [Admin customizations](../admin/README.md).
+The browser reuses the redirect for five minutes; the read URL lives an hour
+(`download_file_duration`), so a reused redirect never points at an expired URL
+(#253). The placeholder is `no-store`, so a new photo shows at once.
 
 ### `GET /admin/feedback/statistics`
 

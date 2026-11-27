@@ -60,7 +60,11 @@ export default async function DeliveryHistory({
         copy={copy}
         signOut={signOutDeliveryAgent}
       />
-      <Link href="/delivery" className={`${LINK} -ml-1 gap-1 self-start`}>
+      <Link
+        prefetch={false}
+        href="/delivery"
+        className={`${LINK} -ml-1 gap-1 self-start`}
+      >
         <ArrowLeftMini aria-hidden />
         {copy.back}
       </Link>
@@ -69,7 +73,7 @@ export default async function DeliveryHistory({
       </h1>
       <p className="text-mtogo-text-secondary text-sm">{copy.historyPrivacy}</p>
       {hasBonus && (
-        <Link href="/delivery/bonus" className={LINK}>
+        <Link prefetch={false} href="/delivery/bonus" className={LINK}>
           {copy.bonus}
         </Link>
       )}
@@ -93,12 +97,17 @@ export default async function DeliveryHistory({
       {history && (page > 1 || history.has_more) && (
         <nav className="flex justify-between gap-4" aria-label={copy.history}>
           {page > 1 && (
-            <Link href={`/delivery/history?page=${page - 1}`} className={LINK}>
+            <Link
+              prefetch={false}
+              href={`/delivery/history?page=${page - 1}`}
+              className={LINK}
+            >
               {copy.previous}
             </Link>
           )}
           {history.has_more && (
             <Link
+              prefetch={false}
               href={`/delivery/history?page=${page + 1}`}
               className={`${LINK} ml-auto`}
             >

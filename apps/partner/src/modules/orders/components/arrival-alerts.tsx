@@ -201,6 +201,7 @@ export function ArrivalAlert({ locale }: Readonly<{ locale: Locale }>) {
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             <Link
+              prefetch={false}
               href="/orders?view=awaiting"
               className="bg-ui-bg-base text-ui-fg-base shadow-borders-base focus-visible:ring-mtogo-focus-ring txt-compact-small-plus ease-out-strong inline-flex min-h-11 items-center rounded-md px-4 transition-transform duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 motion-safe:active:scale-[0.97]"
             >

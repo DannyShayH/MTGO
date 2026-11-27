@@ -32,6 +32,7 @@ export default async function BonusPage() {
         signOut={signOutDeliveryAgent}
       />
       <Link
+        prefetch={false}
         href="/delivery"
         className="text-mtogo-text-link focus-visible:ring-mtogo-focus-ring flex min-h-11 items-center rounded-md focus-visible:outline-none focus-visible:ring-2"
       >

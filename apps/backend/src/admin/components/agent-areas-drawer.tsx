@@ -29,12 +29,17 @@ const addLabel = (missing: number, total: number) => {
   return total > 1 ? "Add all" : "Add"
 }
 
-/** One agent's approved postal codes and the revision a save must match. */
-export const useAgentAreas = (agentId: string) =>
+/**
+ * One agent's approved postal codes and the revision a save must match. Read
+ * only while the drawer is open: every list row mounts a closed drawer, and
+ * the list already shows the areas (#253).
+ */
+const useAgentAreas = (agentId: string, enabled: boolean) =>
   useQuery({
     queryKey: ["delivery-agent-areas", agentId],
     queryFn: () =>
       sdk.client.fetch<AgentAreas>(`/admin/delivery-agents/${agentId}/areas`),
+    enabled,
   })
 
 /**
@@ -52,7 +57,7 @@ export const AgentAreasDrawer = ({
   onOpenChange: (open: boolean) => void
 }>) => {
   const queryClient = useQueryClient()
-  const storedAreas = useAgentAreas(agent.id)
+  const storedAreas = useAgentAreas(agent.id, open)
   const [draft, setDraft] = useState<AreaSelection | null>(null)
   const [search, setSearch] = useState("")
   const [expanded, setExpanded] = useState<string | null>(null)
@@ -100,9 +105,13 @@ export const AgentAreasDrawer = ({
         body: { postal_codes: [...selected.keys()] },
       }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: ["delivery-agent-areas", agent.id],
-      })
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["delivery-agent-areas", agent.id],
+        }),
+        // The list carries each row's areas (#253).
+        queryClient.invalidateQueries({ queryKey: ["delivery-agents"] }),
+      ])
       toast.success("Approved areas saved", {
         description: `${agent.name} can claim new deliveries in these areas.`,
       })

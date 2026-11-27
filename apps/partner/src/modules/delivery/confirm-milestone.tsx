@@ -179,9 +179,10 @@ export function ConfirmMilestone({
   const text = textsOf(milestone, copy, restaurantName)
   const questionId = `${milestone}-question`
 
+  // The milestone and its check revalidate /delivery on the server, so the
+  // answer already carries the new page; another refresh rendered it twice (#253).
   const done = useCallback(() => {
     if (donePath) router.replace(donePath)
-    else router.refresh()
   }, [donePath, router])
 
   const check = useCallback(async () => {

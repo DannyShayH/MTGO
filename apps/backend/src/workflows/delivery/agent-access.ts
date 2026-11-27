@@ -41,29 +41,49 @@ export type ApprovedArea = { postal_code: string; name: string | null }
 export async function listApprovedAreas(
   container: MedusaContainer,
   agent_id: string,
-): Promise<{ postal_codes: string[]; areas: ApprovedArea[] }> {
-  const areas = await container
+): Promise<ApprovedAreas> {
+  const byAgent = await listApprovedAreasOf(container, [agent_id])
+  return byAgent.get(agent_id) ?? { postal_codes: [], areas: [] }
+}
+
+export type ApprovedAreas = { postal_codes: string[]; areas: ApprovedArea[] }
+
+/**
+ * The approved areas of several agents with one area read and one register
+ * read, so the operator's agent list needs no request per row (#253). Every
+ * requested agent has an entry, empty when it has no approved area.
+ */
+export async function listApprovedAreasOf(
+  container: MedusaContainer,
+  agent_ids: string[],
+): Promise<Map<string, ApprovedAreas>> {
+  const byAgent = new Map<string, ApprovedAreas>(
+    agent_ids.map((id) => [id, { postal_codes: [], areas: [] }]),
+  )
+  if (!agent_ids.length) return byAgent
+  const rows = await container
     .resolve<DeliveryModuleService>(DELIVERY_MODULE)
-    .listDeliveryAgentAreas({ agent_id }, { take: null })
-  const postal_codes = areas
-    .map(({ postal_code }) => postal_code)
-    .sort((a, b) => a.localeCompare(b))
-  const registered = postal_codes.length
+    .listDeliveryAgentAreas({ agent_id: agent_ids }, { take: null })
+  const codes = [...new Set(rows.map(({ postal_code }) => postal_code))]
+  const registered = codes.length
     ? await container
         .resolve<PostalCodeModuleService>(POSTAL_CODE_MODULE)
         .listPostalCodes(
-          { postal_code: postal_codes },
+          { postal_code: codes },
           { take: null, select: ["postal_code", "name"] },
         )
     : []
   const townByCode = new Map(
     registered.map(({ postal_code, name }) => [postal_code, name]),
   )
-  return {
-    postal_codes,
-    areas: postal_codes.map((postal_code) => ({
+  for (const { agent_id, postal_code } of rows)
+    byAgent.get(agent_id)?.postal_codes.push(postal_code)
+  for (const approved of byAgent.values()) {
+    approved.postal_codes.sort((a, b) => a.localeCompare(b))
+    approved.areas = approved.postal_codes.map((postal_code) => ({
       postal_code,
       name: townByCode.get(postal_code) ?? null,
-    })),
+    }))
   }
+  return byAgent
 }

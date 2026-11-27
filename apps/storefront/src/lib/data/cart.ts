@@ -318,7 +318,12 @@ export async function setAddresses(currentState: unknown, formData: FormData) {
     // The form only holds text inputs, so every entry is a string
     const field = (name: string) => String(formData.get(name) ?? "").trim()
 
-    const customer = await retrieveCustomer()
+    // Independent reads, asked together: the address step waited on each
+    // backend round trip in turn (#253).
+    const [customer, cart] = await Promise.all([
+      retrieveCustomer(),
+      retrieveCart(cartId),
+    ])
     if (!customer) throw new Error("checkout_customer_required")
 
     const orderLanguage = field("order_language")
@@ -344,7 +349,6 @@ export async function setAddresses(currentState: unknown, formData: FormData) {
     const addressError = validateCustomerAddress(address)
     if (addressError) throw new Error(addressError)
 
-    const cart = await retrieveCart(cartId)
     if (!cart || cart.customer_id !== customer.id) {
       throw new Error("checkout_cart_not_owned")
     }

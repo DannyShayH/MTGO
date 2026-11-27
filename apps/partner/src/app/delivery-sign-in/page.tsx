@@ -34,12 +34,17 @@ export default async function DeliverySignInPage({
         )}
         <AgentSignInForm copy={copy} />
         <Link
+          prefetch={false}
           href="/delivery-forgot-password"
           className="text-ui-fg-interactive inline-flex min-h-11 items-center underline"
         >
           {PASSWORD_RECOVERY_TEXT[locale].forgot}
         </Link>
-        <Link href="/sign-in" className="text-ui-fg-interactive">
+        <Link
+          prefetch={false}
+          href="/sign-in"
+          className="text-ui-fg-interactive"
+        >
           {copy.staff}
         </Link>
       </div>

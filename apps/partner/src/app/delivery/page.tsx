@@ -144,6 +144,7 @@ export default async function DeliveryPage({
       >
         {hasBonus && (
           <Link
+            prefetch={false}
             href="/delivery/bonus"
             className="text-mtogo-text-link focus-visible:ring-mtogo-focus-ring inline-flex min-h-11 items-center rounded-md px-1 text-sm font-medium focus-visible:outline-none focus-visible:ring-2"
           >
@@ -220,6 +221,7 @@ export default async function DeliveryPage({
             message(copy.noCurrent)
           )}
           <Link
+            prefetch={false}
             href="/delivery/history"
             className={`text-mtogo-text-link focus-visible:ring-mtogo-focus-ring flex min-h-11 items-center self-start rounded-md px-1 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 ${PRESSABLE}`}
           >

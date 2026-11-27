@@ -34,6 +34,7 @@ export default async function CompletedDeliveryPage({
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-xl flex-col gap-4 px-4 pb-[max(2.5rem,env(safe-area-inset-bottom))] pt-[max(1.25rem,env(safe-area-inset-top))]">
       <Link
+        prefetch={false}
         href="/delivery/history"
         className={`text-mtogo-text-link focus-visible:ring-mtogo-focus-ring -ml-1 flex min-h-11 items-center gap-1 self-start rounded-md px-1 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 ${PRESSABLE}`}
       >

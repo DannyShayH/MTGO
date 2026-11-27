@@ -7,6 +7,7 @@ import {
 import { Modules } from "@medusajs/framework/utils"
 import { DELIVERY_MODULE } from "../../modules/delivery"
 import DeliveryModuleService from "../../modules/delivery/service"
+import { listApprovedAreasOf } from "./agent-access"
 
 const listDeliveryAgentsStep = createStep(
   "list-delivery-agents",
@@ -19,6 +20,12 @@ const listDeliveryAgentsStep = createStep(
         skip: input.offset,
         order: { created_at: "DESC", id: "DESC" },
       },
+    )
+    // Each row shows its approved areas; read them for the whole page at
+    // once instead of one request per row (#253).
+    const areas = await listApprovedAreasOf(
+      container,
+      agents.map(({ id }) => id),
     )
     return new StepResponse({
       count,
@@ -33,6 +40,7 @@ const listDeliveryAgentsStep = createStep(
           created_at,
           accepted_at,
           revoked_at,
+          areas: areas.get(id)?.areas ?? [],
         }),
       ),
     })

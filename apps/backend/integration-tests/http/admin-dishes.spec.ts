@@ -304,7 +304,10 @@ medusaIntegrationTestRunner({
       const shown = await read()
       expect(shown.status).toBe(302)
       expect(shown.headers.location).toBe(firstUrl)
-      expect(shown.headers["cache-control"]).toContain("no-store")
+      // The signed URL lives an hour (download_file_duration), so the browser
+      // may reuse the redirect for five minutes instead of asking again on
+      // every Admin page (#253).
+      expect(shown.headers["cache-control"]).toBe("private, max-age=300")
       expect((await productModule.retrieveProduct(productId)).thumbnail).toBe(
         thumbnail,
       )

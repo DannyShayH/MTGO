@@ -432,6 +432,61 @@ medusaIntegrationTestRunner({
         ).size,
       ).toBe(3)
     })
+    it("lists each agent with its approved areas, so a row needs no request of its own (#253)", async () => {
+      const container = getContainer()
+      const delivery = container.resolve<DeliveryModuleService>(DELIVERY_MODULE)
+      const [north, none] = await delivery.createDeliveryAgents([
+        {
+          name: "North",
+          email: "north@example.test",
+          status: "pending",
+          invited_by: "operator",
+        },
+        {
+          name: "None",
+          email: "none@example.test",
+          status: "pending",
+          invited_by: "operator",
+        },
+      ])
+      await container
+        .resolve<PostalCodeModuleService>(POSTAL_CODE_MODULE)
+        .createPostalCodes([
+          {
+            postal_code: "2200",
+            name: "København N",
+            municipality: "København",
+          },
+          {
+            postal_code: "2100",
+            name: "København Ø",
+            municipality: "København",
+          },
+        ])
+      const secret = container.resolve(ContainerRegistrationKeys.CONFIG_MODULE)
+        .projectConfig.http.jwtSecret
+      const authorization = `Bearer ${generateJwtToken({ actor_id: "operator", actor_type: "user", auth_identity_id: "auth_test" }, { secret, expiresIn: "1h" })}`
+      await api.post(
+        `/admin/delivery-agents/${north.id}/areas`,
+        { postal_codes: ["2200", "2100"] },
+        { headers: { authorization } },
+      )
+
+      const list = await api.get("/admin/delivery-agents", {
+        headers: { authorization },
+      })
+
+      const byId = new Map(
+        list.data.agents.map((agent: { id: string }) => [agent.id, agent]),
+      )
+      expect(byId.get(north.id)).toMatchObject({
+        areas: [
+          { postal_code: "2100", name: "København Ø" },
+          { postal_code: "2200", name: "København N" },
+        ],
+      })
+      expect(byId.get(none.id)).toMatchObject({ areas: [] })
+    })
     it("holds the agent row while invitation credentials are changed", async () => {
       const service =
         getContainer().resolve<DeliveryModuleService>(DELIVERY_MODULE)

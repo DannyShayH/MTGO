@@ -104,9 +104,12 @@ export function OrderProgressAction({
         error: "unknown_error" as const,
         order: undefined,
       }))
-      if (result.error) setError(result.error)
-      else setDone(action)
-      router.refresh()
+      // A recorded step revalidates /orders on the server, so the answer
+      // already carries the new page; refresh only to resync after a refusal (#253).
+      if (result.error) {
+        setError(result.error)
+        router.refresh()
+      } else setDone(action)
     })
 
   return (

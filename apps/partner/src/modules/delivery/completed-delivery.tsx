@@ -48,6 +48,7 @@ export function CompletedRow({
 }) {
   return (
     <Link
+      prefetch={false}
       href={`/delivery/history/${encodeURIComponent(delivery.order_id)}`}
       className={`${CARD} focus-visible:ring-mtogo-focus-ring flex items-center gap-3 p-4 focus-visible:outline-none focus-visible:ring-2 ${PRESSABLE}`}
     >

@@ -45,12 +45,17 @@ export default async function SignInPage({
         />
         <SignInForm messages={messages} />
         <Link
+          prefetch={false}
           href="/forgot-password"
           className="text-ui-fg-interactive inline-flex min-h-11 items-center underline"
         >
           {PASSWORD_RECOVERY_TEXT[locale].forgot}
         </Link>
-        <Link href="/delivery-sign-in" className="text-ui-fg-interactive">
+        <Link
+          prefetch={false}
+          href="/delivery-sign-in"
+          className="text-ui-fg-interactive"
+        >
           {DELIVERY_AGENT_TEXT[locale].agent}
         </Link>
       </div>

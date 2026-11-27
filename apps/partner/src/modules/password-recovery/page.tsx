@@ -33,6 +33,7 @@ export default async function PasswordRecoveryPage({
           <RequestPasswordResetForm actor={actor} locale={locale} />
         )}
         <Link
+          prefetch={false}
           href={
             actor === "user"
               ? `${(process.env.ADMIN_PUBLIC_URL || "http://localhost:9000/app").replace(/\/$/, "")}/login`

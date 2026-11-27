@@ -10,6 +10,12 @@ const PLACEHOLDER = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 3" r
  * GET /admin/products/{id}/dish/photo: the stable thumbnail native Admin
  * Products and Order lines load. Redirects to a fresh registered-photo URL, or
  * serves a placeholder image so the surrounding row is never affected.
+ *
+ * The browser may reuse the redirect for five minutes: the signed URL lives
+ * an hour (`download_file_duration` in medusa-config), so a reused redirect
+ * still points at a working URL, and a products page no longer asks for every
+ * row's photo on each visit (#253). The placeholder is never stored, so a new
+ * photo shows at once.
  */
 export async function GET(
   req: AuthenticatedMedusaRequest,
@@ -18,8 +24,11 @@ export async function GET(
   const { result } = await readAdminDishPhotoWorkflow(req.scope).run({
     input: { product_id: req.params.id },
   })
+  if (result.url) {
+    res.setHeader("Cache-Control", "private, max-age=300")
+    return res.redirect(302, result.url)
+  }
   res.setHeader("Cache-Control", "no-store")
-  if (result.url) return res.redirect(302, result.url)
   res.setHeader("Content-Type", "image/svg+xml")
   res.status(200).send(PLACEHOLDER)
 }

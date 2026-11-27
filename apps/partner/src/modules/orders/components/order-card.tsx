@@ -105,6 +105,7 @@ export function OrderCard({
   return (
     <li>
       <Link
+        prefetch={false}
         href={`/orders/${encodeURIComponent(order.id)}`}
         aria-label={formatText(text.open_order, { number: order.display_id })}
         className="hover:bg-ui-bg-base-hover active:bg-ui-bg-base-pressed focus-visible:ring-mtogo-focus-ring group relative isolate flex items-center gap-x-3 px-4 py-4 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset sm:px-6"

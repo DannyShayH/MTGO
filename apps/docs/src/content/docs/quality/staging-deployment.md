@@ -423,7 +423,11 @@ sudo mtogo-deploy.sh status
 ```
 
 Prints the current and previous release SHA and the container table with
-health and image. Every container also carries `MTOGO_RELEASE` in its
+health and image. The backend's health check asks `/health`; the storefront
+and the partner app answer `/api/health` without rendering a page or calling
+the backend, so a check every 15 seconds costs no page render (#253). That
+the storefront renders a page is proven by the deploy's smoke check below.
+Every container also carries `MTOGO_RELEASE` in its
 environment, and the images carry the `org.opencontainers.image.revision`
 label.
 

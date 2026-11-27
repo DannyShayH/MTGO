@@ -16,6 +16,7 @@ export default async function CreateDishPage() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       <Link
+        prefetch={false}
         href="/menu"
         className="inline-flex min-h-11 w-fit items-center rounded text-ui-fg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mtogo-focus-ring focus-visible:ring-offset-2"
       >
@@ -26,6 +27,7 @@ export default async function CreateDishPage() {
         <Container role="alert">
           <Text>{DISH_TEXT[locale].category_load_error}</Text>
           <Link
+            prefetch={false}
             href="/menu/new"
             className="mt-3 inline-flex min-h-11 items-center rounded px-3 text-mtogo-text-link underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mtogo-focus-ring focus-visible:ring-offset-2"
           >

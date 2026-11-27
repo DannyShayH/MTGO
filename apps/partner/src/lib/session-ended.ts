@@ -41,6 +41,50 @@ export const feedEndedCodeOf = (code: unknown): FeedEndedCode =>
 export const endedPath = (code: FeedEndedCode) =>
   code === "signed_out" ? "/sign-in" : `/session-ended?code=${code}`
 
+/** Who the browser's partner cookie signs in right now, if anyone. */
+export type CookieHolder = "staff" | "delivery_agent" | "nobody"
+
+/**
+ * Restaurant staff and Delivery agents share one cookie. A screen whose
+ * session ended because the browser signed in as the other role must not
+ * clear that newer session (#253): it goes to that role's home instead.
+ * `undefined` means the cookie signs nobody in and is cleared.
+ */
+/**
+ * Who the cookie signs in, from the two backend answers. Only an answer that
+ * names an agent counts as a Delivery agent session: an empty or unexpected
+ * success must not keep a cookie that no longer signs anyone in.
+ */
+export function cookieHolderOf(read: {
+  staffAuthorized: boolean
+  agent: unknown
+}): CookieHolder {
+  if (read.staffAuthorized) return "staff"
+  const id = (read.agent as { agent?: { id?: unknown } } | null | undefined)
+    ?.agent?.id
+  return typeof id === "string" && id !== "" ? "delivery_agent" : "nobody"
+}
+
+const HOME_OF: Record<CookieHolder, string | undefined> = {
+  staff: "/overview",
+  delivery_agent: "/delivery",
+  nobody: undefined,
+}
+export const homeOfCookieHolder = (holder: CookieHolder) => HOME_OF[holder]
+
+const isSessionEndedCode = (code: string | null): code is SessionEndedCode =>
+  SESSION_ENDED_CODES.includes(code as SessionEndedCode)
+
+/**
+ * The sign-in page /session-ended sends the browser to. It is a path, not a
+ * URL: behind the proxy the request's own URL names the container's address
+ * (`localhost:8100`), never the public host (#253).
+ */
+export function sessionEndedSignInPath(code: string | null) {
+  if (!isSessionEndedCode(code)) return "/sign-in"
+  return `/sign-in?${new URLSearchParams({ message: code })}`
+}
+
 const SESSION_CHANNEL = "mtogo-partner-session"
 
 /**

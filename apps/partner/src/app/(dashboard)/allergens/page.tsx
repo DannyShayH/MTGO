@@ -23,6 +23,7 @@ export default async function AllergensPage() {
           <Heading level="h2">{text.unavailable}</Heading>
           <Text className="text-ui-fg-subtle mt-2">{text.retry_hint}</Text>
           <Link
+            prefetch={false}
             href="/allergens"
             className="focus-visible:ring-mtogo-focus-ring mt-4 inline-flex min-h-11 items-center rounded border border-mtogo-border-control px-4 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
           >

@@ -163,6 +163,7 @@ export function Dishes({
             <div className="mb-4">
               <Text>{text.no_categories}</Text>
               <Link
+                prefetch={false}
                 href="/categories"
                 className="inline-flex min-h-11 items-center text-mtogo-text-link underline"
               >

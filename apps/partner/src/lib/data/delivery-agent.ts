@@ -3,6 +3,11 @@
 import { cookies, headers } from "next/headers"
 import { redirect, unstable_rethrow } from "next/navigation"
 import { revalidatePath } from "next/cache"
+import {
+  readAgentWithToken,
+  type AgentRead,
+  type CurrentAgent,
+} from "./delivery-agent-session"
 import { FetchError } from "@medusajs/js-sdk"
 import type { ProblemCategory } from "@dtc/i18n"
 import { requestId } from "@dtc/logging"
@@ -30,14 +35,6 @@ import { MIN_PASSWORD_LENGTH } from "@lib/password"
 const FILTER_COOKIE = "mtogo_delivery_area_filter"
 /** Where a refused (revoked) Delivery agent lands, with an honest notice. */
 const AGENT_ACCESS_ENDED_PATH = "/delivery-sign-in?message=access_ended"
-type CurrentAgent = {
-  agent: { id: string; name: string }
-  postal_codes: string[]
-  /** The approved codes with their register town names. */
-  areas: { postal_code: string; name: string | null }[]
-  /** Backend-owned Features the workspace shows navigation for (ADR-0022). */
-  features?: { agent_bonus?: boolean }
-}
 type Invite = { id: string; name: string; email: string }
 export type AgentActionState = {
   error?: "failed" | "invalid" | "wrong_credentials" | "ended"
@@ -778,30 +775,10 @@ export async function getDeliveryInvitation(
   }
 }
 
-type AgentRead =
-  | { status: "authorized"; agent: CurrentAgent }
-  /** The backend refused a valid token: access was revoked. */
-  | { status: "ended" }
-  | { status: "signed_out" }
-
 async function readDeliveryAgent(token?: string): Promise<AgentRead> {
   const bearer = token ?? (await cookies()).get(PARTNER_TOKEN_COOKIE)?.value
   if (!bearer) return { status: "signed_out" }
-  try {
-    return {
-      status: "authorized",
-      agent: await createPartnerSdk().client.fetch<CurrentAgent>(
-        "/partner/delivery-agent/me",
-        { headers: { authorization: `Bearer ${bearer}` }, cache: "no-store" },
-      ),
-    }
-  } catch (error) {
-    if (error instanceof FetchError && error.status === 403)
-      return { status: "ended" }
-    if (error instanceof FetchError && error.status === 401)
-      return { status: "signed_out" }
-    throw error
-  }
+  return readAgentWithToken(bearer)
 }
 
 export async function getDeliveryAgent(

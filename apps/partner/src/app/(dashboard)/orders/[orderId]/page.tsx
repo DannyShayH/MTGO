@@ -36,6 +36,7 @@ const LINK_CLASS =
 function BackLink({ locale }: { locale: Locale }) {
   return (
     <Link
+      prefetch={false}
       href="/orders"
       className="text-ui-fg-subtle hover:text-ui-fg-base focus-visible:ring-mtogo-focus-ring txt-compact-small-plus inline-flex min-h-11 items-center gap-x-1 self-start rounded focus-visible:outline-none focus-visible:ring-2"
     >
@@ -69,6 +70,7 @@ export default async function OrderPage({
           </Text>
           {!result && (
             <Link
+              prefetch={false}
               href={`/orders/${encodeURIComponent(orderId)}`}
               className={`${LINK_CLASS} mt-4`}
             >

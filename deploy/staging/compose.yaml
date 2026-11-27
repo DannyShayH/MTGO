@@ -219,13 +219,15 @@ services:
       web:
       metrics:
         aliases: [storefront-metrics]
+    # /api/health answers without a page render or a backend call (#253);
+    # the deploy's smoke check proves that /dk/store renders.
     healthcheck:
       test:
         [
           "CMD",
           "node",
           "-e",
-          "fetch('http://127.0.0.1:8000/${STAGING_DEFAULT_REGION:-dk}/store').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))",
+          "fetch('http://127.0.0.1:8000/api/health').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))",
         ]
       interval: 15s
       timeout: 10s
@@ -255,13 +257,14 @@ services:
         condition: service_healthy
     networks:
       - web
+    # /api/health answers without a page render (#253).
     healthcheck:
       test:
         [
           "CMD",
           "node",
           "-e",
-          "fetch('http://127.0.0.1:8100/sign-in').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))",
+          "fetch('http://127.0.0.1:8100/api/health').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))",
         ]
       interval: 15s
       timeout: 10s

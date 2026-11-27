@@ -60,9 +60,12 @@ export default async function Footer() {
                 <ul className="mt-2 flex flex-col">
                   {group.links.map((link) => (
                     <li key={link.href}>
+                      {/* Rarely used: prefetching them rendered four
+                          pages on every visit and every refresh (#253). */}
                       <LocalizedClientLink
                         href={link.href}
                         className={footerLink}
+                        prefetch={false}
                       >
                         {link.name}
                       </LocalizedClientLink>

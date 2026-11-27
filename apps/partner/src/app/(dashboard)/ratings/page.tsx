@@ -44,6 +44,7 @@ export default async function RatingsPage({
           <Heading level="h2">{text.unavailable_title}</Heading>
           <Text className="text-ui-fg-subtle">{text.retry_hint}</Text>
           <Link
+            prefetch={false}
             href={ratingsHref(period)}
             className={clx(LINK_BUTTON, "mt-2 self-start")}
           >

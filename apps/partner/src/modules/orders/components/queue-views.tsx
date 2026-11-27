@@ -31,6 +31,7 @@ export function QueueViews({
         {ORDER_VIEWS.map((view) => (
           <li key={view}>
             <Link
+              prefetch={false}
               href={`/orders?view=${view}`}
               aria-current={view === current ? "page" : undefined}
               className={clx(

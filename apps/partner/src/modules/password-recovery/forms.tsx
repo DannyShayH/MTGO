@@ -102,6 +102,7 @@ function ChoosePasswordForm({
   const copy = PASSWORD_RECOVERY_TEXT[locale]
   const requestLink = (
     <Link
+      prefetch={false}
       href={RECOVERY_ACCOUNTS[actor].request}
       className="text-ui-fg-interactive inline-flex min-h-11 items-center underline"
     >

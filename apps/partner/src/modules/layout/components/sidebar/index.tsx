@@ -79,6 +79,7 @@ export function Sidebar({
             return (
               <li key={href} className="shrink-0">
                 <Link
+                  prefetch={false}
                   href={href}
                   id={href === "/orders" ? ORDERS_NAV_ID : undefined}
                   aria-current={current ? "page" : undefined}

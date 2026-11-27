@@ -52,7 +52,7 @@ control characters are removed and an empty note is stored as `null`. It is
 never included in application logs. Admin's existing attention list shows the
 category, note, reporter and age.
 
-- `GET /admin/delivery-agents` lists agents; `POST` accepts `{ name, email }`
+- `GET /admin/delivery-agents` lists agents with their approved areas; `POST` accepts `{ name, email }`
   and sends an invitation.
 - `POST /admin/delivery-agents/{id}/revoke` revokes access or a pending invite.
 - `GET /admin/delivery-agents/{id}/areas` reads codes and authorization revision;

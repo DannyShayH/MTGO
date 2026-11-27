@@ -42,7 +42,12 @@ export function DeliveryHeader({
   return (
     <header className="relative flex flex-col gap-4">
       <div className="flex items-center justify-between gap-4">
-        <Link href="/delivery" aria-label={copy.title} className="min-w-0">
+        <Link
+          prefetch={false}
+          href="/delivery"
+          aria-label={copy.title}
+          className="min-w-0"
+        >
           {brand}
         </Link>
         <button
@@ -80,13 +85,28 @@ export function DeliveryHeader({
           <p className="text-mtogo-text-secondary break-words px-3 pb-1 pt-2 text-sm">
             {agentName}
           </p>
-          <Link href="/delivery#current" onClick={close} className={ITEM}>
+          <Link
+            prefetch={false}
+            href="/delivery#current"
+            onClick={close}
+            className={ITEM}
+          >
             {copy.current}
           </Link>
-          <Link href="/delivery#available" onClick={close} className={ITEM}>
+          <Link
+            prefetch={false}
+            href="/delivery#available"
+            onClick={close}
+            className={ITEM}
+          >
             {copy.available}
           </Link>
-          <Link href="/delivery/history" onClick={close} className={ITEM}>
+          <Link
+            prefetch={false}
+            href="/delivery/history"
+            onClick={close}
+            className={ITEM}
+          >
             {copy.history}
           </Link>
           <form action={signOut} className="pt-1">
