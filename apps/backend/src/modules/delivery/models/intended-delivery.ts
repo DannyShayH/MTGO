@@ -108,6 +108,12 @@ const IntendedDelivery = model
      * records it.
      */
     order_pickup_recorded_at: model.dateTime().nullable(),
+    /**
+     * When the assignment was recorded on the Order's kitchen record (#259).
+     * Null after assignment means it is still owed, and the recovery sweep
+     * records it.
+     */
+    order_assignment_recorded_at: model.dateTime().nullable(),
   })
   .indexes([
     { on: ["order_id"], unique: true },
@@ -159,6 +165,11 @@ const IntendedDelivery = model
     {
       on: ["picked_up_at", "id"],
       where: "picked_up_at IS NOT NULL AND order_pickup_recorded_at IS NULL",
+    },
+    // The recovery sweep's read of assignments not yet on the Order (#259).
+    {
+      on: ["assigned_at", "id"],
+      where: "assigned_at IS NOT NULL AND order_assignment_recorded_at IS NULL",
     },
     // Restaurant finance's reads of authoritative handovers (#227): the
     // recovery sweep by handover time, and one Restaurant's month.

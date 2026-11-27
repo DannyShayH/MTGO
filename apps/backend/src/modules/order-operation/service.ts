@@ -1,3 +1,4 @@
+import type { EntityManager } from "@medusajs/framework/mikro-orm/postgresql"
 import type { Context } from "@medusajs/framework/types"
 import {
   BigNumber,
@@ -18,6 +19,33 @@ import RefundObligation, {
 import RefundAttempt, {
   type RefundAttemptOutcome,
 } from "./models/refund-attempt"
+
+/**
+ * Where an Open Order is (#259), in the order work moves through them. A
+ * pickup is only ever recorded for ready food, and an agent assigned while
+ * the kitchen still works counts with the kitchen.
+ */
+export const OPEN_ORDER_STAGES = [
+  "awaiting_acceptance",
+  "accepted_or_preparing",
+  "ready_unassigned",
+  "assigned_not_picked_up",
+  "picked_up",
+] as const
+export type OpenOrderStage = (typeof OPEN_ORDER_STAGES)[number]
+
+/**
+ * The stage rule, evaluated in the database so one grouped query counts
+ * every stage: pickup first (only ever recorded for ready food), then the
+ * kitchen state, then the copied assignment.
+ */
+const OPEN_ORDER_STAGE_SQL = `case
+  when o.delivery_picked_up_at is not null then 'picked_up'
+  when o.state = 'awaiting_acceptance' then 'awaiting_acceptance'
+  when o.state in ('accepted', 'preparing') then 'accepted_or_preparing'
+  when o.delivery_assigned_at is null then 'ready_unassigned'
+  else 'assigned_not_picked_up'
+end`
 
 export type CancellationCommand = {
   /** The record and the revision and state the caller decided on. */
@@ -75,6 +103,40 @@ class OrderOperationModuleService extends MedusaService({
   RefundAttempt,
   FoodCredit,
 }) {
+  /**
+   * Counts Open Orders by stage in the database (#259): Orders not cancelled
+   * and without a delivery outcome, with or without a placement time. One
+   * grouped query gives every stage, so the stages always add up to the
+   * total. Every stage is returned, zero when nothing is in it.
+   */
+  @InjectManager()
+  async countOpenOrdersByStage(
+    scope: { restaurant_id?: string } = {},
+    @MedusaContext() context: Context = {},
+  ): Promise<Record<OpenOrderStage, number>> {
+    const manager = context.manager as EntityManager
+    const open = manager
+      .createQueryBuilder("OrderOperation", "o")
+      .where({
+        state: { $ne: "cancelled" },
+        delivery_outcome: null,
+        ...(scope.restaurant_id && { restaurant_id: scope.restaurant_id }),
+        deleted_at: null,
+      })
+      .getKnexQuery()
+    const rows = (await open
+      .clearSelect()
+      .select(manager.getKnex().raw(`${OPEN_ORDER_STAGE_SQL} as stage`))
+      .count({ count: "o.id" })
+      .groupBy("stage")) as unknown as { stage: string; count: string }[]
+    const counts = Object.fromEntries(
+      OPEN_ORDER_STAGES.map((stage) => [stage, 0]),
+    ) as Record<OpenOrderStage, number>
+    for (const { stage, count } of rows)
+      counts[stage as OpenOrderStage] = Number(count)
+    return counts
+  }
+
   /**
    * Records how a refund attempt ended (#197): the outcome on the obligation
    * and one new history entry, in one transaction, so the history never

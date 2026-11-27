@@ -97,6 +97,13 @@ const OrderOperation = model
      * stays with the delivery (ADR-0008).
      */
     delivery_picked_up_at: model.dateTime().nullable(),
+    /**
+     * When a Delivery agent became responsible for the Order's delivery
+     * (#259), copied once from the delivery's `assigned_at` and never moved.
+     * Only the time: who is responsible stays with the delivery (ADR-0008).
+     * It lets the Open Order stages come from this record alone.
+     */
+    delivery_assigned_at: model.dateTime().nullable(),
   })
   .indexes([
     { on: ["order_id"], unique: true },
@@ -104,6 +111,11 @@ const OrderOperation = model
     { on: ["restaurant_id", "state", "placed_at", "id"] },
     // The kitchen feed's bounded read of recently changed records (#148).
     { on: ["restaurant_id", "updated_at"] },
+    // Open Orders by stage (#259): only work that has not ended.
+    {
+      on: ["restaurant_id", "state"],
+      where: "state <> 'cancelled' AND delivery_outcome IS NULL",
+    },
   ])
 
 export default OrderOperation

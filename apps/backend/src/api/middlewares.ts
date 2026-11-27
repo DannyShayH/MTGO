@@ -82,6 +82,7 @@ import { requireFeatureFlag, requireFeatureFlagFor } from "./feature-flag"
 import AgentBonusFeatureFlag from "../feature-flags/agent-bonus"
 import { GetFeedbackStatisticsSchema } from "./admin/feedback/statistics/validators"
 import RestaurantStatementsFeatureFlag from "../feature-flags/restaurant-statements"
+import OperationsMonitoringFeatureFlag from "../feature-flags/operations-monitoring"
 import {
   GetAdminEarningsMonthSchema,
   GetAdminEarningsSchema,
@@ -762,6 +763,11 @@ export default defineMiddlewares({
           /^\/admin\/restaurants\/[^/]+\/statements(\/|$)/,
         ),
       ],
+    },
+    {
+      // Operations monitoring (#54) is withheld while its flag is off.
+      matcher: "/admin/operations*",
+      middlewares: [requireFeatureFlag(OperationsMonitoringFeatureFlag.key)],
     },
     {
       // MTOGO's earnings (#256) follow the statements they add up.

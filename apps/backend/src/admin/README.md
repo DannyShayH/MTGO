@@ -424,3 +424,63 @@ that filter, and the arrow keys moved the selected month. Nothing overflowed at
 Pizzeria Nørrebro (DKK 540.27) came first.
 `integration-tests/http/admin-earnings.spec.ts` proves the API and the sidebar
 job; `earnings-rules.unit.spec.ts` covers adding up and withholding.
+
+## Operations (#259)
+
+`routes/operations/page.tsx` is the **Operations** sidebar entry (icon
+`ChartActivity`): how the platform is doing right now, for MTOGO operators,
+in English (ADR-0018). It reads `GET /admin/operations` once on opening and
+again only when the operator presses **Refresh**; it never polls and does not
+refetch on window focus. The header shows the moment the figures were
+calculated for (`as_of`, Copenhagen time, to the second). If a refresh fails,
+a warning says the figures shown are still those of the earlier moment.
+`lib/operations-api.ts` holds the response types and stage labels.
+
+**Open Orders by stage** shows the total and a horizontal bar chart. Its
+description states the population (all Restaurants, Orders not cancelled and
+not yet ended, legacy Orders included) and the moment. While a refresh runs,
+the figures fade to 60% and are marked `aria-busy`.
+
+`components/count-bar-chart.tsx` draws every count chart: horizontal bars in
+the order the rows arrive, flush inside a `Container` with `p-0 divide-y`.
+Each bar has its name on the axis (on one line) and its count at the end, so
+nothing relies on colour; an empty category keeps a grey stub and a `0`. The
+chart is `aria-hidden`. Under it, a table with a screen-reader caption lists
+the same counts, zeros greyed out, and an optional total. Horizontal bars suit
+these figures: few categories with long names, in a fixed order, compared by
+size. A funnel would suggest conversion between stages, and a pie hides small
+counts. **Feedback** uses the same chart for the overall star distribution.
+
+Charts use Recharts 3.10.1 (`recharts` in `apps/backend`), coloured with
+Medusa UI tokens (`var(--fg-interactive)` bars, `var(--border-base)` grid), so
+they follow light and dark mode. Animation is off. Recharts declares React 16
+to 19 and a matching `react-is` as peers. The Admin resolves React and
+`react-is` 18.3.1 from the root, and `medusa build` bundles the page. For the
+partner app's React 19 staff view, install `recharts` and `react-is@19` in
+`apps/partner` so both resolve beside its own React copy, then run
+`npm run check:react`.
+
+The `sync-operations-navigation` job keeps `core:nav:/operations` hidden in the
+shared default sidebar while `operations_monitoring` is off, the same way
+`sync-statement-navigation` does for Earnings (both run
+`syncFlaggedNavigationWorkflow` with their own entries). Once released it also
+pins Operations directly under Search (`core:Searchbar` order `-2`,
+`core:nav:/operations` order `-1`; core entries default to `0`), as the
+operator's first stop. Medusa always lands on Orders after sign-in
+(`DEFAULT_LANDING_ROUTES` in `@medusajs/dashboard`, with no setting), so the
+sidebar position is the supported way to put Operations first. The direct URL says
+operations monitoring is not released, and the API answers `404`.
+`integration-tests/http/admin-operations.spec.ts` proves the counts, the
+refusals, the `404` and the sidebar job.
+
+## MTOGO branding
+
+The Admin says MTOGO, not Medusa. The `store-name-mtogo` migration script
+renames the store from Medusa's "Default Store" to **MTOGO**, which the
+sidebar header shows; new installations are seeded with that name.
+`src/config/admin-branding.ts` is a Vite plugin, registered in
+`medusa-config.ts` under `admin.vite`, that replaces the dashboard's blank
+favicon with the MTOGO mark (the same SVG as the partner app's
+`src/app/icon.svg`) and rewrites the tab title suffix the dashboard sets, so
+tabs read "Operations - MTOGO". Medusa has no setting for either; the plugin
+changes presentation only.

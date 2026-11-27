@@ -2,7 +2,10 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import type { IFlagRouter } from "@medusajs/framework/feature-flags"
 import RestaurantStatementsFeatureFlag from "../feature-flags/restaurant-statements"
-import { syncStatementNavigationWorkflow } from "../workflows/operator-sidebar"
+import {
+  STATEMENT_NAVIGATION,
+  syncFlaggedNavigationWorkflow,
+} from "../workflows/operator-sidebar"
 
 /**
  * Keeps Earnings (#256) out of the Admin sidebar while Restaurant statements
@@ -15,8 +18,8 @@ export default async function syncStatementNavigation(
   const isReleased = container
     .resolve<IFlagRouter>(ContainerRegistrationKeys.FEATURE_FLAG_ROUTER)
     .isFeatureEnabled(RestaurantStatementsFeatureFlag.key)
-  await syncStatementNavigationWorkflow(container).run({
-    input: { isReleased },
+  await syncFlaggedNavigationWorkflow(container).run({
+    input: { navigation: STATEMENT_NAVIGATION, isReleased },
   })
 }
 

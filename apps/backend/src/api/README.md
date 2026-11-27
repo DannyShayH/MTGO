@@ -1773,6 +1773,31 @@ curl "http://localhost:9000/admin/restaurants/$RESTAURANT_ID/statements/2026-11?
 | `404`  | `code: "statement_not_found"`: unknown Restaurant, a future month or one before the Restaurant existed                                                                      |
 | `404`  | The `restaurant_statements` flag is off. A signed-in operator gets `404` as for a path that never existed (ADR-0022); a signed-out caller gets `401` as on every Admin path |
 
+### GET /admin/operations
+
+**Actor:** MTOGO operator (`user`, session or bearer). How the platform is
+doing right now (#54), behind the default-off `operations_monitoring` flag
+(ADR-0022). The route runs `readOperationsWorkflow` with the platform scope
+and the server's time as `now`; every figure is calculated for that one
+moment, which the response returns as `as_of`. #259 adds Open Orders by stage;
+later work items add the other measures to the same response.
+
+**Success:** `200` with
+`{ as_of, scope: { type: "platform" }, open_orders: { period, total, stages, exclusions } }`.
+`period` is `{ at }`, the moment, since Open Orders are a state rather than a
+range of time; `exclusions` is always empty, because being open needs no
+recorded time.
+`stages` always lists the five stages in this order, each `{ stage, count }`
+and zero when empty: `awaiting_acceptance`, `accepted_or_preparing`,
+`ready_unassigned`, `assigned_not_picked_up` and `picked_up`. An Open Order is
+an Order that is not cancelled and has no delivery outcome, with or without a
+placement time. Total and stages come from one query, so they always add up.
+
+| Status | When                                                                                                                                 |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `401`  | Signed out, or a Customer, Restaurant staff or Delivery agent token                                                                  |
+| `404`  | The `operations_monitoring` flag is off; a signed-in operator gets `404` as for a path that never existed, a signed-out caller `401` |
+
 ### GET /admin/earnings and GET /admin/earnings/{month}
 
 **Actor:** MTOGO operator (`user`, session or bearer). What MTOGO earned across

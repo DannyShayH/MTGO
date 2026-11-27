@@ -33,7 +33,7 @@ export default async function initial_data_seed({
   const { data: existingStores } = await query.graph({
     entity: "store",
     fields: ["id", "metadata"],
-    filters: { name: "Default Store" },
+    filters: { name: ["Default Store", "MTOGO"] },
   })
   if (
     existingStores.some(
@@ -85,7 +85,7 @@ export default async function initial_data_seed({
     input: {
       stores: [
         {
-          name: "Default Store",
+          name: "MTOGO",
           supported_currencies: [
             {
               currency_code: "eur",

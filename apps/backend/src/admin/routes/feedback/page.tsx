@@ -9,9 +9,12 @@ import {
   StatusBadge,
   Table,
   Text,
+  clx,
 } from "@medusajs/ui"
-import { useQuery } from "@tanstack/react-query"
+import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { useId, useState } from "react"
+import { CountBarChart } from "../../components/count-bar-chart"
+import { LoadingStatus } from "../../components/loading-status"
 import { sdk } from "../../lib/restaurant-api"
 
 type Summary = {
@@ -56,93 +59,174 @@ function describePeriod({ key, from, to }: Period) {
   return `${copenhagenDate.format(new Date(from))} – ${copenhagenDate.format(lastIncluded)}`
 }
 
-function Rating({ summary }: Readonly<{ summary: Summary }>) {
-  return (
-    <>{summary.average === null ? "No ratings" : summary.average.toFixed(1)}</>
+const STARS = [5, 4, 3, 2, 1] as const
+const starLabel = (n: number) => (n === 1 ? "1 star" : `${n} stars`)
+
+function Average({ summary }: Readonly<{ summary: Summary }>) {
+  return summary.average === null ? (
+    <span className="text-ui-fg-muted">No ratings</span>
+  ) : (
+    <>{summary.average.toFixed(1)}</>
   )
 }
 
+/** A count in a table, greyed out when zero so the real counts stand out. */
+function Count({ value }: Readonly<{ value: number }>) {
+  return <span className={clx(!value && "text-ui-fg-muted")}>{value}</span>
+}
+
+const numeric = "text-right tabular-nums"
+
 function SubjectTable({
   title,
-  label,
+  description,
   rows,
 }: Readonly<{
   title: string
-  label: string
+  description: string
   rows: Subject[]
 }>) {
+  const captionId = useId()
   return (
-    <section className="space-y-3">
-      <Heading level="h2">
-        {title} ({label})
-      </Heading>
+    <Container className="divide-y p-0">
+      <div className="flex flex-col gap-y-1 px-6 py-4">
+        <Heading level="h2" id={captionId}>
+          {title}
+        </Heading>
+        <Text size="small" leading="compact" className="text-ui-fg-subtle">
+          {description}
+        </Text>
+      </div>
       {rows.length === 0 ? (
-        <Text>No delivered Orders in this period.</Text>
+        <Text
+          size="small"
+          leading="compact"
+          className="px-6 py-4 text-ui-fg-subtle"
+        >
+          No delivered Orders in this period.
+        </Text>
       ) : (
         <div className="overflow-x-auto">
-          <Table>
+          <Table aria-labelledby={captionId}>
             <Table.Header>
               <Table.Row>
-                <Table.HeaderCell>Name</Table.HeaderCell>
-                <Table.HeaderCell>Average</Table.HeaderCell>
-                <Table.HeaderCell>Ratings</Table.HeaderCell>
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <Table.HeaderCell key={n}>{n} star</Table.HeaderCell>
+                <Table.HeaderCell scope="col">Name</Table.HeaderCell>
+                <Table.HeaderCell scope="col" className="text-right">
+                  Average
+                </Table.HeaderCell>
+                <Table.HeaderCell scope="col" className="text-right">
+                  Ratings
+                </Table.HeaderCell>
+                {STARS.map((n) => (
+                  <Table.HeaderCell
+                    key={n}
+                    scope="col"
+                    className="text-right whitespace-nowrap"
+                  >
+                    {starLabel(n)}
+                  </Table.HeaderCell>
                 ))}
-                <Table.HeaderCell>Delivered Orders</Table.HeaderCell>
+                <Table.HeaderCell
+                  scope="col"
+                  className="text-right whitespace-nowrap"
+                >
+                  Delivered Orders
+                </Table.HeaderCell>
               </Table.Row>
             </Table.Header>
             <Table.Body>
               {rows.map((row) => (
                 <Table.Row key={row.id}>
-                  <Table.Cell>
-                    {row.name}{" "}
-                    {!row.is_active && (
-                      <StatusBadge color="grey">Inactive</StatusBadge>
-                    )}
+                  <Table.HeaderCell scope="row" className="font-normal">
+                    <span className="flex items-center gap-x-2 whitespace-nowrap">
+                      {row.name}
+                      {!row.is_active && (
+                        <StatusBadge color="grey">Inactive</StatusBadge>
+                      )}
+                    </span>
+                  </Table.HeaderCell>
+                  <Table.Cell className={clx(numeric, "font-medium")}>
+                    <Average summary={row} />
                   </Table.Cell>
-                  <Table.Cell>
-                    <Rating summary={row} />
+                  <Table.Cell className={numeric}>
+                    <Count value={row.count} />
                   </Table.Cell>
-                  <Table.Cell>{row.count}</Table.Cell>
-                  {[1, 2, 3, 4, 5].map((n) => (
-                    <Table.Cell key={n}>{row.distribution[n]}</Table.Cell>
+                  {STARS.map((n) => (
+                    <Table.Cell key={n} className={numeric}>
+                      <Count value={row.distribution[n] ?? 0} />
+                    </Table.Cell>
                   ))}
-                  <Table.Cell>{row.delivered_orders}</Table.Cell>
+                  <Table.Cell className={numeric}>
+                    <Count value={row.delivered_orders} />
+                  </Table.Cell>
                 </Table.Row>
               ))}
             </Table.Body>
           </Table>
         </div>
       )}
-    </section>
+    </Container>
+  )
+}
+
+function Experience({
+  experience,
+  period,
+}: Readonly<{ experience: Summary; period: string }>) {
+  return (
+    <Container className="divide-y p-0">
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 px-6 py-4">
+        <div className="flex min-w-0 flex-col gap-y-1">
+          <Heading level="h2">Overall experience</Heading>
+          <Text size="small" leading="compact" className="text-ui-fg-subtle">
+            {experience.count} of {experience.delivered_orders} delivered Orders
+            rated, {period}
+          </Text>
+        </div>
+        <div className="flex items-baseline gap-x-1.5">
+          <Text
+            size="xlarge"
+            leading="compact"
+            weight="plus"
+            className="tabular-nums"
+          >
+            {experience.average === null ? "–" : experience.average.toFixed(1)}
+          </Text>
+          <Text size="small" leading="compact" className="text-ui-fg-subtle">
+            {experience.average === null ? "no ratings" : "out of 5"}
+          </Text>
+        </div>
+      </div>
+      <CountBarChart
+        rows={STARS.map((n) => ({
+          key: String(n),
+          label: starLabel(n),
+          count: experience.distribution[n] ?? 0,
+        }))}
+        total={experience.count}
+        categoryHeader="Rating"
+        valueHeader="Ratings"
+        labelWidth={72}
+        caption={`Overall experience ratings by stars, ${period}, ${experience.count} ratings`}
+      />
+    </Container>
   )
 }
 
 function StatisticsBody({ statistics }: Readonly<{ statistics: Statistics }>) {
   const { experience, restaurants, agents } = statistics
+  const period = describePeriod(statistics.period)
   return (
     <>
-      <section className="space-y-2">
-        <Heading level="h2">Overall experience</Heading>
-        <Text>
-          <Rating summary={experience} /> · {experience.count} ratings ·{" "}
-          {experience.delivered_orders} delivered Orders
-        </Text>
-        <Text>
-          {[1, 2, 3, 4, 5]
-            .map((n) => `${n} star: ${experience.distribution[n]}`)
-            .join(" · ")}
-        </Text>
-      </section>
+      <Experience experience={experience} period={period} />
       <SubjectTable
         title="Restaurants"
-        label="food rating"
+        description="Food rating per Restaurant"
         rows={restaurants}
       />
       <SubjectTable
         title="Delivery agents"
-        label="agent rating"
+        description="Agent rating per Delivery agent"
         rows={agents}
       />
     </>
@@ -158,46 +242,75 @@ const FeedbackPage = () => {
       sdk.client.fetch<Statistics>("/admin/feedback/statistics", {
         query: { period },
       }),
+    placeholderData: keepPreviousData,
   })
-  let body = <Text role="status">Loading Feedback…</Text>
-  if (statistics.data) body = <StatisticsBody statistics={statistics.data} />
+  const isSwitching = statistics.isFetching && statistics.isPlaceholderData
+  let body = (
+    <Container className="p-0">
+      <LoadingStatus label="Loading Feedback…" />
+    </Container>
+  )
+  if (statistics.data)
+    body = (
+      <div
+        aria-busy={isSwitching}
+        className={clx(
+          "flex flex-col gap-y-3 transition-opacity duration-150 ease-out",
+          isSwitching && "opacity-60",
+        )}
+      >
+        <StatisticsBody statistics={statistics.data} />
+      </div>
+    )
   else if (!statistics.isLoading)
     body = <Alert variant="error">Could not load Feedback statistics.</Alert>
   return (
-    <Container className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
+    <div className="flex flex-col gap-y-3">
+      <Container className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 px-6 py-4">
+        <div className="flex min-w-0 flex-col gap-y-1">
           <Heading>Feedback</Heading>
-          <Text className="text-ui-fg-subtle" aria-live="polite">
+          <Text
+            size="small"
+            leading="compact"
+            className="text-ui-fg-subtle"
+            aria-live="polite"
+          >
             {statistics.data
               ? `Delivered Orders by handover time, Copenhagen: ${describePeriod(statistics.data.period)}`
               : "Delivered Orders by handover time"}
           </Text>
         </div>
-        <div className="w-full space-y-1 sm:w-64">
-          <Label id={periodLabelId} size="small" weight="plus">
+        <div className="flex w-full items-center gap-x-2 sm:w-auto">
+          <Label
+            id={periodLabelId}
+            size="small"
+            weight="plus"
+            className="shrink-0"
+          >
             Period
           </Label>
-          <Select
-            size="small"
-            value={period}
-            onValueChange={(value) => setPeriod(value as PeriodKey)}
-          >
-            <Select.Trigger aria-labelledby={periodLabelId}>
-              <Select.Value />
-            </Select.Trigger>
-            <Select.Content>
-              {PERIODS.map(({ key, label }) => (
-                <Select.Item key={key} value={key}>
-                  {label}
-                </Select.Item>
-              ))}
-            </Select.Content>
-          </Select>
+          <div className="w-full sm:w-56">
+            <Select
+              size="small"
+              value={period}
+              onValueChange={(value) => setPeriod(value as PeriodKey)}
+            >
+              <Select.Trigger aria-labelledby={periodLabelId}>
+                <Select.Value />
+              </Select.Trigger>
+              <Select.Content>
+                {PERIODS.map(({ key, label }) => (
+                  <Select.Item key={key} value={key}>
+                    {label}
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select>
+          </div>
         </div>
-      </div>
+      </Container>
       {body}
-    </Container>
+    </div>
   )
 }
 

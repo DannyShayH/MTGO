@@ -38,6 +38,7 @@ import {
 } from "./agent-access"
 import { deliveryAgentLockKey } from "./locks"
 import { distanceKm } from "./distance"
+import { recordAssignmentOnOrderStep } from "./order-assignment"
 
 type AssignInput = {
   order_id: string
@@ -360,12 +361,20 @@ export const claimDeliveryWorkflow = createWorkflow(
       actor_id: input.agent_id,
       source: "agent_claim" as const,
     }))
-    assignDeliveryStep(command)
-    return new WorkflowResponse(
-      readCurrentDeliveryStep(
-        transform({ input }, ({ input }) => ({ agent_id: input.agent_id })),
-      ),
+    const assignment = assignDeliveryStep(command)
+    // Read the agent's view straight after the assignment commits, as
+    // before #259, so a revocation has no wider window to refuse a claim
+    // that already committed. `assignment` only orders the read.
+    const current = readCurrentDeliveryStep(
+      transform({ input, assignment }, ({ input }) => ({
+        agent_id: input.agent_id,
+      })),
     )
+    // Then the Order's kitchen record records the assignment time (#259).
+    recordAssignmentOnOrderStep(
+      transform({ assignment, current }, ({ assignment }) => assignment),
+    )
+    return new WorkflowResponse(current)
   },
 )
 
@@ -416,6 +425,7 @@ export const assignDeliveryWorkflow = createWorkflow(
       source: "operator_assignment" as const,
     }))
     const assignment = assignDeliveryStep(command)
+    recordAssignmentOnOrderStep(assignment)
     return new WorkflowResponse(describeAssignmentStep(assignment))
   },
 )

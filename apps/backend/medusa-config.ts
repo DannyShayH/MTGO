@@ -1,6 +1,7 @@
 import { loadEnv, defineConfig, Modules } from "@medusajs/framework/utils"
 import * as linkModules from "@medusajs/medusa/link-modules"
 import path from "node:path"
+import { mtogoAdminBranding } from "./src/config/admin-branding"
 import { redisModules } from "./src/config/redis-modules"
 
 loadEnv(process.env.NODE_ENV || "development", process.cwd())
@@ -72,6 +73,8 @@ module.exports = defineConfig({
       resolve: {
         dedupe: ["@tanstack/react-query", "@tanstack/query-core"],
       },
+      // MTOGO favicon and tab titles instead of Medusa's.
+      plugins: [mtogoAdminBranding()],
     }),
   },
   projectConfig: {

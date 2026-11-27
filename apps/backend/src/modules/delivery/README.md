@@ -381,6 +381,16 @@ without compensation. The `recover-order-delivery-pickups` job (every minute,
 50 per sweep, oldest `picked_up_at` first) records pickups still owed, and the
 `order-delivery-pickups` migration script backfills pickups made before #254.
 
+The assignment is recorded the same way (#259): `recordAssignmentOnOrder`
+(`src/workflows/delivery/order-assignment.ts`) copies `assigned_at`, only the
+time, onto the Order Operations record under the Order's guard with a newer
+revision, then sets `order_assignment_recorded_at`. `claimDeliveryWorkflow`
+and `assignDeliveryWorkflow` run it right after the assignment commits, as
+owed work without compensation. The `recover-order-delivery-assignments` job
+(every minute, 50 per sweep, oldest `assigned_at` first) records assignments
+still owed, and the `order-delivery-assignments` migration script backfills
+assignments made before #259.
+
 A delivered handover is also the authoritative source of the Restaurant's
 delivered food credit and commission (#227): `terminal_at` dates the
 recognition, never a later synchronization. Restaurant finance reads delivered

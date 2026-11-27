@@ -52,6 +52,19 @@ export const configureOperatorProductLayoutWorkflow = createWorkflow(
 /** Custom Admin routes the `restaurant_statements` flag releases (#256). */
 export const STATEMENT_NAVIGATION = ["core:nav:/earnings"] as const
 
+/** Custom Admin routes the `operations_monitoring` flag releases (#259). */
+export const OPERATIONS_NAVIGATION = ["core:nav:/operations"] as const
+
+/**
+ * Once released, Operations is the operator's first stop: it sits directly
+ * under Search, above Orders. Core entries default to order 0 and keep their
+ * own order among themselves.
+ */
+export const OPERATIONS_RELEASED_ORDER = {
+  "core:Searchbar": -2,
+  "core:nav:/operations": -1,
+} as const
+
 const readSidebarStep = createStep(
   "read-sidebar",
   async (_input: void, { container }) => {
@@ -63,23 +76,32 @@ const readSidebarStep = createStep(
 )
 
 /**
- * Hides flagged navigation in the shared default sidebar while its Feature
- * is off and shows it once released (ADR-0022). Writes only on a change, so
- * the job can run it every minute; Medusa reads flags at boot, so the first
+ * Hides a Feature's flagged navigation in the shared default sidebar while
+ * the Feature is off and shows it once released (ADR-0022). A released
+ * Feature can also pin sidebar entries to an order. Writes only on a change,
+ * so a job can run it every minute; Medusa reads flags at boot, so the first
  * tick after a restart applies a new value. Navigation only: the routes
  * themselves answer 404 while the flag is off.
  */
-export const syncStatementNavigationWorkflow = createWorkflow(
-  "sync-statement-navigation",
-  function (input: { isReleased: boolean }) {
+export const syncFlaggedNavigationWorkflow = createWorkflow(
+  "sync-flagged-navigation",
+  function (input: {
+    navigation: readonly string[]
+    isReleased: boolean
+    releasedOrder?: Readonly<Record<string, number>>
+  }) {
     const widgets = readSidebarStep()
-    const changes = transform({ input, widgets }, ({ input, widgets }) =>
-      Object.fromEntries(
-        STATEMENT_NAVIGATION.filter(
-          (id) => (widgets[id]?.hidden ?? false) === input.isReleased,
-        ).map((id) => [id, { hidden: !input.isReleased }]),
-      ),
-    )
+    const changes = transform({ input, widgets }, ({ input, widgets }) => {
+      const changes: Record<string, { hidden?: boolean; order?: number }> = {}
+      for (const id of input.navigation)
+        if ((widgets[id]?.hidden ?? false) === input.isReleased)
+          changes[id] = { hidden: !input.isReleased }
+      if (input.isReleased)
+        for (const [id, order] of Object.entries(input.releasedOrder ?? {}))
+          if (widgets[id]?.order !== order)
+            changes[id] = { ...changes[id], order }
+      return changes
+    })
     when({ changes }, ({ changes }) => Object.keys(changes).length > 0).then(
       () => {
         configureDefaultAdminLayoutStep({ zone: "sidebar", widgets: changes })

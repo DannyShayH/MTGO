@@ -694,6 +694,15 @@ The operator's reason did not appear on any page. An operator credit
 recognized under #229, whose receipt still records the claim deadline, reads
 the same way. No browser runtime errors were seen.
 
+## Operations charts (planned, #54)
+
+The Drift / Operations staff view will draw its charts with Recharts, as the
+Admin Operations page does (#259). Recharts 3.10.1 declares React 16 to 19
+and a matching `react-is` as peers, so it supports this app's React 19. The
+root holds `react-is` 18 for the Admin, so install `recharts@3.10.1` and
+`react-is@19` here, beside this app's React copy, and run
+`npm run check:react` (see `packages/next-react`). Nothing is installed yet.
+
 ## Run it
 
 Start the backend first, then seed a staff member (see the `restaurant` module

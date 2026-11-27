@@ -630,6 +630,7 @@ async function retimeOrder(
         "native_cancelled_at",
         "delivery_ended_at",
         "delivery_picked_up_at",
+        "delivery_assigned_at",
       ],
       retime,
     ),

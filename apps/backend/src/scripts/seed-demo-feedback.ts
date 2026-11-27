@@ -313,6 +313,8 @@ export async function backdate(
         "preparation_started_at",
         "ready_at",
         "delivery_ended_at",
+        "delivery_picked_up_at",
+        "delivery_assigned_at",
       ],
       shift,
     ),
