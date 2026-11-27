@@ -1,14 +1,19 @@
 import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
+import SystemProviderService from "@medusajs/payment/dist/providers/system"
 import {
   ContainerRegistrationKeys,
   generateJwtToken,
 } from "@medusajs/framework/utils"
+import type { FlagRouter } from "@medusajs/framework/utils"
 import { DELIVERY_MODULE } from "../../src/modules/delivery"
 import { ORDER_OPERATION_MODULE } from "../../src/modules/order-operation"
 import type OrderOperationModuleService from "../../src/modules/order-operation/service"
 import { FEEDBACK_MODULE } from "../../src/modules/feedback"
 import type FeedbackModuleService from "../../src/modules/feedback/service"
 import type DeliveryModuleService from "../../src/modules/delivery/service"
+import { RESTAURANT_FINANCE_MODULE } from "../../src/modules/restaurant-finance"
+import type RestaurantFinanceModuleService from "../../src/modules/restaurant-finance/service"
+import { copenhagenMonthOf } from "../../src/workflows/shared/copenhagen-time"
 import { endDeliveryWorkflow } from "../../src/workflows/delivery/terminal"
 import { recoverDeliveryFulfillmentsWorkflow } from "../../src/workflows/delivery/native-fulfillment"
 import { restaurantOrdersHarness } from "../helpers/restaurant-orders"
@@ -396,7 +401,7 @@ medusaIntegrationTestRunner({
 
     describe("GET /partner/delivery-agent/bonus", () => {
       it("limits provisional points to authorized agents' own delivered Orders and hides the route when disabled", async () => {
-        const flags = getContainer().resolve(
+        const flags = getContainer().resolve<FlagRouter>(
           ContainerRegistrationKeys.FEATURE_FLAG_ROUTER,
         )
         const agent = await agentFor()
@@ -517,6 +522,223 @@ medusaIntegrationTestRunner({
         } finally {
           flags.setFlag("agent_bonus", false)
         }
+      })
+    })
+
+    describe("GET /partner/delivery-agent/bonus estimate", () => {
+      const finance = () =>
+        getContainer().resolve<RestaurantFinanceModuleService>(
+          RESTAURANT_FINANCE_MODULE,
+        )
+      let facts = 0
+      /** One #52 journal fact, recorded through the finance module's API. */
+      const recordFact = (
+        original_month: string,
+        entry: {
+          kind:
+            | "delivered_order"
+            | "prepared_food_compensation"
+            | "service_fee_difference"
+          food_credit?: string
+          commission?: string
+          service_fee?: string
+          funded_by?: "customer" | "mtogo"
+        },
+      ) =>
+        finance().recognizeSource({
+          receipt: {
+            source_kind:
+              entry.kind === "delivered_order"
+                ? "order_delivered"
+                : entry.kind === "prepared_food_compensation"
+                  ? "prepared_food_credit"
+                  : "service_fee_difference",
+            source_id: `bonus-fact-${++facts}`,
+            restaurant_id: pizzeriaId,
+            order_id: null,
+            outcome: "delivered",
+            occurred_at: new Date(),
+            original_month,
+            posted_at: new Date(),
+            posting_month: original_month,
+            terms_version: "common_mvp_v1",
+            currency_code: "dkk",
+            evidence: {},
+            payload_digest: `bonus-fact-${facts}`,
+          },
+          entry: {
+            food_credit: "0",
+            commission: "0",
+            funded_by: "customer",
+            ...entry,
+          },
+        })
+
+      const request = (headers: Record<string, string>) =>
+        get("/partner/delivery-agent/bonus", headers)
+      /** Runs a test with the default-off `agent_bonus` flag on. */
+      const withBonusFlag = async (test: () => Promise<void>) => {
+        const flags = getContainer().resolve<FlagRouter>(
+          ContainerRegistrationKeys.FEATURE_FLAG_ROUTER,
+        )
+        flags.setFlag("agent_bonus", true)
+        try {
+          await test()
+        } finally {
+          flags.setFlag("agent_bonus", false)
+        }
+      }
+      const handOver = async (responsible: Agent) => {
+        const { order } = await collectedOrder(responsible)
+        expect((await deliver(responsible.headers, order.id)).status).toBe(200)
+      }
+
+      it("estimates the agent's own share of this month's pool funded from commission after losses, without funding inputs", async () => {
+        const month = copenhagenMonthOf(new Date())
+        const agent = await agentFor()
+        const other = await agentFor()
+        await withBonusFlag(async () => {
+          // MTOGO-funded compensation; a refund obligation is never read.
+          await recordFact(month, {
+            kind: "prepared_food_compensation",
+            food_credit: "300",
+            funded_by: "mtogo",
+          })
+          for (const responsible of [agent, other]) await handOver(responsible)
+          // Each handover booked its own commission of DKK 4.56 (#227).
+          const booked = await finance().listFinanceJournalEntries({
+            kind: "delivered_order",
+            original_month: month,
+          })
+          expect(booked.map((entry) => entry.commission)).toEqual([4.56, 4.56])
+
+          const unfunded = await request(agent.headers)
+          expect(unfunded.status).toBe(200)
+          expect(unfunded.data).toMatchObject({
+            pool: "none",
+            estimate: null,
+            deliveries: [expect.objectContaining({ amount: null })],
+          })
+
+          // Commission to DKK 1,100.01, a DKK 100 reversal and facts that never
+          // fund: a service fee and an earlier month's commission.
+          await recordFact(month, {
+            kind: "delivered_order",
+            food_credit: "18000",
+            commission: "1090.89",
+          })
+          await recordFact(month, {
+            kind: "delivered_order",
+            commission: "-100",
+          })
+          await recordFact(month, {
+            kind: "service_fee_difference",
+            service_fee: "100",
+          })
+          await recordFact("2020-01", {
+            kind: "delivered_order",
+            commission: "5000",
+          })
+
+          // Balance DKK 700.01, pool DKK 140.002 shared by two equal agents:
+          // 70.001 each, rounded down.
+          const funded = await request(agent.headers)
+          expect(funded.data).toMatchObject({
+            status: "provisional",
+            pool: "funded",
+            estimate: { amount: "70", delivery_count: 1 },
+            deliveries: [
+              expect.objectContaining({
+                calculation: expect.objectContaining({ food_value: "76" }),
+                amount: "70",
+              }),
+            ],
+          })
+          expect(funded.data.calculated_at).toEqual(expect.any(String))
+          expect(JSON.stringify(funded.data)).not.toMatch(
+            /commission|compensation|reversal|balance|"140|all_points|agent_id/,
+          )
+          expect((await request(other.headers)).data.estimate).toEqual({
+            amount: "70",
+            delivery_count: 1,
+          })
+        })
+      })
+
+      it("lowers funding by a cancelled Order's MTOGO-funded credit only, never by the refund still owed to the Customer", async () => {
+        const month = copenhagenMonthOf(new Date())
+        const agent = await agentFor()
+        await withBonusFlag(async () => {
+          await handOver(agent)
+          // The handover's DKK 4.56 brings commission to DKK 1,000.00: pool 200.
+          await recordFact(month, {
+            kind: "delivered_order",
+            commission: "995.44",
+          })
+          expect((await request(agent.headers)).data.estimate).toEqual({
+            amount: "200",
+            delivery_count: 1,
+          })
+
+          // An operator cancels prepared food; the Customer's refund fails
+          // and stays owed.
+          const order = await placePaidOrder(pizzeriaId)
+          expect((await accept(staff, order.id)).status).toBe(200)
+          expect((await startPreparation(staff, order.id)).status).toBe(200)
+          const declined = jest
+            .spyOn(SystemProviderService.prototype, "refundPayment")
+            .mockRejectedValue(new Error("mock provider declined"))
+          try {
+            const cancelled = await post(
+              `/admin/orders/${order.id}/operator-cancel`,
+              harness.seeded().admin,
+              { reason: "Restaurant lost power" },
+            )
+            expect(cancelled.status).toBe(200)
+          } finally {
+            declined.mockRestore()
+          }
+          const [owed] = await harness
+            .operations()
+            .listRefundObligations({ order_id: order.id })
+          expect(owed.status).toBe("failed")
+          expect(Number(owed.amount)).toBeGreaterThan(76)
+          const credits = await finance().listFinanceJournalEntries({
+            kind: "prepared_food_compensation",
+            original_month: month,
+          })
+          expect(
+            credits.map(({ food_credit, funded_by }) => ({
+              food_credit,
+              funded_by,
+            })),
+          ).toEqual([{ food_credit: 76, funded_by: "mtogo" }])
+
+          // Balance 1,000 - 76 = 924, pool 184.80: the owed refund never counts.
+          expect((await request(agent.headers)).data.estimate).toEqual({
+            amount: "184.8",
+            delivery_count: 1,
+          })
+        })
+      })
+
+      it("shares a DKK 100.00 pool between three equal agents as DKK 33.33 each", async () => {
+        const month = copenhagenMonthOf(new Date())
+        const trio = [await agentFor(), await agentFor(), await agentFor()]
+        await withBonusFlag(async () => {
+          for (const responsible of trio) await handOver(responsible)
+          // Three handovers booked DKK 13.68; commission DKK 500.00, pool 100.
+          await recordFact(month, {
+            kind: "delivered_order",
+            commission: "486.32",
+          })
+          // MTOGO retains the 0.01 that rounding down leaves.
+          for (const { headers } of trio)
+            expect((await request(headers)).data.estimate).toEqual({
+              amount: "33.33",
+              delivery_count: 1,
+            })
+        })
       })
     })
 

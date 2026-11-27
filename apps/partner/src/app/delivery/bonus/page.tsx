@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { notFound, unstable_rethrow } from "next/navigation"
-import { DELIVERY_AGENT_TEXT } from "@dtc/i18n"
+import { DELIVERY_AGENT_TEXT, formatExactDkk, formatText } from "@dtc/i18n"
 import { getMessages } from "@lib/i18n"
 import {
   getAgentBonus,
@@ -22,6 +22,7 @@ export default async function BonusPage() {
   })
   if (bonus === null) notFound()
   const date = dateTimeFormatter(locale)
+  const dkk = (amount: string) => formatExactDkk(amount, locale)
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-xl flex-col gap-4 px-4 py-6">
       <DeliveryHeader
@@ -46,6 +47,24 @@ export default async function BonusPage() {
           <p className="text-mtogo-text-secondary">
             {copy.bonusProvisional} · {bonus.month}
           </p>
+          {bonus.estimate ? (
+            <section className={`${CARD} flex flex-col gap-1 break-words p-4`}>
+              <p className="text-mtogo-text-primary text-xl font-semibold">
+                {formatText(copy.bonusSoFar, {
+                  amount: dkk(bonus.estimate.amount),
+                })}
+              </p>
+              <p className="text-mtogo-text-secondary">
+                {formatText(copy.bonusDeliveryCount, {
+                  count: bonus.estimate.delivery_count,
+                })}
+              </p>
+            </section>
+          ) : (
+            <p className={`${CARD} break-words p-4 font-semibold`}>
+              {bonus.pool === "none" ? copy.bonusNoPool : copy.bonusNoPoints}
+            </p>
+          )}
           <p className="text-mtogo-text-secondary text-sm">
             {copy.bonusCalculated}: {date(bonus.calculated_at)}
           </p>
@@ -83,6 +102,13 @@ export default async function BonusPage() {
                       <p className="font-semibold">
                         {delivery.calculation.points} {copy.bonusPoints}
                       </p>
+                      {delivery.amount !== null && (
+                        <p>
+                          {formatText(copy.bonusDeliveryAmount, {
+                            amount: dkk(delivery.amount),
+                          })}
+                        </p>
+                      )}
                     </>
                   ) : (
                     <p>{copy.bonusUnavailable}</p>

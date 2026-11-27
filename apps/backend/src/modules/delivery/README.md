@@ -486,6 +486,22 @@ answers `features.agent_bonus`, so the partner workspace shows the Bonus link
 without asking this route on every render (#252). No points or provisional results are
 persisted, and cancellation after pickup never earns points.
 
+The estimate (#237) is calculated when read and never stored. Funding reads
+only the Restaurant Finance module's journal entries whose original month is
+the current month: commission, negative commission (reversals) and
+MTOGO-funded food credits (compensation). Service fees, Customer-funded food
+credits and refund obligations are never read, so a refund reduces funding
+only through the commission reversal it causes. The carried loss is zero until
+finalization exists. The rules live in `src/workflows/agent-bonus/calculation.ts`
+(`calculateBonusFunding`, `calculateBonusAmount`): a positive balance funds a
+pool of 20%; the agent's estimate is pool x own points / all agents' points so
+far, rounded down to DKK 0.01, and each delivery's `amount` is its points at the
+same exact DKK per point, rounded down, so the per-delivery amounts can add up
+to a few øre less than the estimate. MTOGO retains what rounding leaves. `pool` is `none` when funding so far is
+zero or negative; `estimate` is null then or when the agent has no points, and
+every `amount` is null. Other agents' points and the funding inputs are never
+returned.
+
 **Actor:** authorized Delivery agent. No request parameters are required.
 
 **Success:** `200` with, for example:
@@ -495,6 +511,8 @@ persisted, and cancellation after pickup never earns points.
   "month": "2026-11",
   "calculated_at": "2026-11-25T12:00:00.000Z",
   "status": "provisional",
+  "pool": "funded",
+  "estimate": { "amount": "1.58", "delivery_count": 1 },
   "deliveries": [
     {
       "id": "del_123",
@@ -506,13 +524,14 @@ persisted, and cancellation after pickup never earns points.
         "time_bonus": true,
         "rating_bonus": true,
         "points": "275"
-      }
+      },
+      "amount": "1.58"
     }
   ]
 }
 ```
 
-Food value and points are exact decimal strings. `picked_up_at` and
+Food value, points and amounts are exact decimal strings in DKK. `picked_up_at` and
 `calculation` may be null when the underlying facts are unavailable.
 
 | Status | When                                                 |

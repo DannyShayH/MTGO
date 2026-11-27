@@ -104,4 +104,6 @@ Customer-owned destination, Order contact details, Order language and review
 timestamp; it is intentionally separate from the later paid-Order model.
 
 `DELIVERY_AGENT_TEXT` includes the bilingual provisional Bonus points page,
-its calculation reasons and the empty, failed and unavailable states (#236).
+its calculation reasons and the empty, failed and unavailable states (#236),
+and the month-so-far estimate, delivery count, per-delivery amount and "no
+Bonus pool so far" texts (#237).

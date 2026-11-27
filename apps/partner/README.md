@@ -899,6 +899,14 @@ bonuses. Missing purchase or pickup evidence is shown as unavailable. Low and
 missing agent ratings use the same wording, and the page never exposes ratings
 or Customer details. The figures are provisional and include a calculation time.
 
+The page also shows the agent's estimate for the month so far (#237): "This
+month so far ≈ DKK …" with the number of deliveries counted, and "≈ DKK … for
+this delivery" on each delivery, from the backend's current DKK per point. When
+funding so far is not positive it says "No bonus pool so far this month"
+instead of an amount, and when there is a pool but the agent has no points yet
+it says "You have no bonus points yet this month". Other agents' points and the funding inputs never reach
+the page.
+
 Closed statements (#230) retain their boundary amounts and warnings, including
 incomplete and processing-pending states. Later postings link the original
 month and show the actual posting date alongside the original outcome date.

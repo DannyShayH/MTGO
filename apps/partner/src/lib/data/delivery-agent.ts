@@ -958,6 +958,10 @@ export async function getAgentBonus() {
       month: string
       calculated_at: string
       status: "provisional"
+      /** Whether this month's funding so far gives a Bonus pool (#237). */
+      pool: "funded" | "none"
+      /** The agent's own share so far, or null without pool or points. */
+      estimate: { amount: string; delivery_count: number } | null
       deliveries: {
         id: string
         order_reference: number
@@ -969,6 +973,8 @@ export async function getAgentBonus() {
           time_bonus: boolean
           rating_bonus: boolean
         } | null
+        /** Approximate DKK at the current DKK per point, or null. */
+        amount: string | null
       }[]
     }>("/partner/delivery-agent/bonus", {
       headers: {

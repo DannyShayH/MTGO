@@ -4,7 +4,7 @@ import {
 } from "@medusajs/framework/http"
 import { readAgentBonusWorkflow } from "../../../../workflows/agent-bonus/read"
 
-/** Current-month points for the authenticated Delivery agent (#236). */
+/** Current-month points and estimate for the authenticated Delivery agent (#236, #237). */
 export async function GET(
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse,
