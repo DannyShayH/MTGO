@@ -6,3 +6,7 @@ requires the current invitation token and the matching email. A new invitation
 can set a fresh password for an inactive identity. A credential alone
 never authorizes access. The delivery module and partner endpoints check the
 agent's durable status on every workspace request.
+
+Password recovery uses Medusa's built-in reset-token routes and the
+`account-recovery` workflow. Updates require at least eight characters, like
+registration. Changing a password never changes the agent's authorization.

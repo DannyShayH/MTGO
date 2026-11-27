@@ -1,11 +1,11 @@
 import Link from "next/link"
 import { redirect } from "next/navigation"
 import { Alert, Heading, Toaster } from "@medusajs/ui"
-import { DELIVERY_AGENT_TEXT } from "@dtc/i18n"
+import { DELIVERY_AGENT_TEXT, PASSWORD_RECOVERY_TEXT } from "@dtc/i18n"
 import { getMessages } from "@lib/i18n"
 import { getDeliveryAgent } from "@lib/data/delivery-agent"
-import { BrandMark } from "@modules/layout/components/brand-mark"
-import { LanguageSwitch } from "@modules/layout/components/language-switch"
+import { BrandMark } from "@modules/common/components/brand-mark"
+import { LanguageSwitch } from "@modules/common/components/language-switch"
 import { AgentSignInForm } from "@modules/delivery/forms"
 import { AnnounceSignOut } from "@modules/sign-in/components/announce-sign-out"
 
@@ -33,6 +33,12 @@ export default async function DeliverySignInPage({
           </Alert>
         )}
         <AgentSignInForm copy={copy} />
+        <Link
+          href="/delivery-forgot-password"
+          className="text-ui-fg-interactive inline-flex min-h-11 items-center underline"
+        >
+          {PASSWORD_RECOVERY_TEXT[locale].forgot}
+        </Link>
         <Link href="/sign-in" className="text-ui-fg-interactive">
           {copy.staff}
         </Link>

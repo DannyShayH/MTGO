@@ -1,13 +1,13 @@
 import Link from "next/link"
-import { DELIVERY_AGENT_TEXT } from "@dtc/i18n"
+import { DELIVERY_AGENT_TEXT, PASSWORD_RECOVERY_TEXT } from "@dtc/i18n"
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { accessEndedMessage, isMessageCode } from "@dtc/i18n"
 import { ACCESS_ENDED_COOKIE } from "@lib/config"
 import { getMessages } from "@lib/i18n"
 import { getStaffSession } from "@lib/data/staff"
-import { BrandMark } from "@modules/layout/components/brand-mark"
-import { LanguageSwitch } from "@modules/layout/components/language-switch"
+import { BrandMark } from "@modules/common/components/brand-mark"
+import { LanguageSwitch } from "@modules/common/components/language-switch"
 import { SignInForm } from "@modules/sign-in/components/sign-in-form"
 import { SignInNotice } from "@modules/sign-in/components/sign-in-notice"
 import { AnnounceSignOut } from "@modules/sign-in/components/announce-sign-out"
@@ -44,6 +44,12 @@ export default async function SignInPage({
           isWarning={message === "staff_access_revoked"}
         />
         <SignInForm messages={messages} />
+        <Link
+          href="/forgot-password"
+          className="text-ui-fg-interactive inline-flex min-h-11 items-center underline"
+        >
+          {PASSWORD_RECOVERY_TEXT[locale].forgot}
+        </Link>
         <Link href="/delivery-sign-in" className="text-ui-fg-interactive">
           {DELIVERY_AGENT_TEXT[locale].agent}
         </Link>

@@ -14,8 +14,8 @@ import {
   Star,
 } from "@medusajs/icons"
 import { signOut } from "@lib/data/session"
-import { BrandMark } from "../brand-mark"
-import { LanguageSwitch } from "../language-switch"
+import { BrandMark } from "@modules/common/components/brand-mark"
+import { LanguageSwitch } from "@modules/common/components/language-switch"
 import {
   AwaitingCount,
   ORDERS_NAV_ID,

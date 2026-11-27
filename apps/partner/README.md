@@ -5,6 +5,23 @@ The Next.js app where Restaurant staff operate their Restaurant (ADR-0017), at
 components with the MTOGO tokens from `@dtc/ui`, and all of its Danish and
 English text comes from `@dtc/i18n`.
 
+## Password recovery
+
+Restaurant staff sign-in links to `/forgot-password`; Delivery agent sign-in
+links to `/delivery-forgot-password`. Each sends a neutral confirmation and a
+15-minute email link when the account is authorized. `/reset-password` and
+`/delivery-reset-password` let the person choose and confirm a password of at
+least eight characters. Both screens support Danish and English, pending,
+failure and success states, and a replacement-link action for invalid, expired
+or used links. Success offers the appropriate sign-in link.
+
+Server actions use Medusa's `sdk.auth.resetPassword` and
+`sdk.auth.updateProvider` with the role's existing provider. Tokens travel in
+the email URL fragment and are sent to Medusa only when the form is submitted.
+Recovery clears this browser's partner token after success and never grants
+Restaurant or Delivery agent access. The backend `account-recovery` README
+documents all account types, email delivery, deployment URLs and manual checks.
+
 ## Delivery agent access
 
 Operators invite Delivery agents and approve Danish postal codes in Admin. The

@@ -8,7 +8,7 @@ import {
   requireDeliveryAgent,
   signOutDeliveryAgent,
 } from "@lib/data/delivery-agent"
-import { BrandMark } from "@modules/layout/components/brand-mark"
+import { BrandMark } from "@modules/common/components/brand-mark"
 import { DeliveryHeader } from "@modules/delivery/delivery-header"
 import { CARD, PRESSABLE } from "@modules/delivery/copy"
 import { CompletedRow } from "@modules/delivery/completed-delivery"

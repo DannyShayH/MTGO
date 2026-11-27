@@ -57,6 +57,36 @@ describe("ResendNotificationProviderService", () => {
     expect(logger.error).not.toHaveBeenCalled()
   })
 
+  it.each([
+    {
+      language: "en",
+      subject: "Reset your MTogo password",
+      reason: "EP: English partner and operator recovery",
+    },
+    {
+      language: "da",
+      subject: "Nulstil din adgangskode hos MTogo",
+      reason: "EP: Danish partner recovery",
+    },
+  ])(
+    "sends the account recovery link: $reason",
+    async ({ language, subject }) => {
+      send.mockResolvedValue({ data: { id: "re_recovery" }, error: null })
+      const service = new ResendNotificationProviderService(
+        { logger },
+        { api_key: "key" },
+      )
+      await service.send({
+        ...notification(language),
+        template: "account-password-reset",
+        data: { reset_url: url, language },
+      })
+      expect(send.mock.calls[0][0].subject).toBe(subject)
+      expect(send.mock.calls[0][0].text).toContain(url)
+      expect(logger.error).not.toHaveBeenCalled()
+    },
+  )
+
   it("sends a Danish verification email from the default sender", async () => {
     send.mockResolvedValue({ data: { id: "re_1" }, error: null })
     const service = new ResendNotificationProviderService(

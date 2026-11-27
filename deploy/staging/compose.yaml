@@ -245,6 +245,7 @@ services:
       MTOGO_RELEASE: ${MTOGO_RELEASE:?}
       # Server-side calls stay on the private network (ADR-0017).
       MEDUSA_BACKEND_URL: http://backend:9000
+      ADMIN_PUBLIC_URL: ${STAGING_BACKEND_URL:?}/app
       NEXT_TELEMETRY_DISABLED: "1"
       NODE_OPTIONS: --max-old-space-size=192
     ports:

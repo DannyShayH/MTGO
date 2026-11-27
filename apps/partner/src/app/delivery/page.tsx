@@ -18,7 +18,7 @@ import {
   getCurrentDelivery,
   signOutDeliveryAgent,
 } from "@lib/data/delivery-agent"
-import { LanguageSwitch } from "@modules/layout/components/language-switch"
+import { LanguageSwitch } from "@modules/common/components/language-switch"
 import { AreaFilter } from "@modules/delivery/area-filter"
 import { AvailableCard } from "@modules/delivery/available-card"
 import {
@@ -29,7 +29,7 @@ import {
 } from "@modules/delivery/copy"
 import { CurrentDeliveryCard } from "@modules/delivery/current-delivery"
 import { recentlyCancelled } from "@modules/delivery/cancelled-notice"
-import { BrandMark } from "@modules/layout/components/brand-mark"
+import { BrandMark } from "@modules/common/components/brand-mark"
 import { DeliveryHeader } from "@modules/delivery/delivery-header"
 import { DeliveryFeed } from "@modules/delivery/delivery-feed"
 import {

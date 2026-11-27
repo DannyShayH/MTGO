@@ -157,3 +157,4 @@ export {
   statementOutcomeText,
   statementProblemText,
 } from "./restaurant-statements.ts"
+export { PASSWORD_RECOVERY_TEXT } from "./password-recovery.ts"

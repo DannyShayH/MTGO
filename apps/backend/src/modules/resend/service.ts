@@ -57,6 +57,7 @@ export default class ResendNotificationProviderService extends AbstractNotificat
       notification.template !== "restaurant-staff-invitation" &&
       notification.template !== "customer-verification" &&
       notification.template !== "customer-password-reset" &&
+      notification.template !== "account-password-reset" &&
       notification.template !== "customer-email-change" &&
       notification.template !== "customer-email-change-completed"
     ) {
@@ -73,7 +74,10 @@ export default class ResendNotificationProviderService extends AbstractNotificat
       content = renderDeliveryAgentInvitation(notification.data)
     } else if (notification.template === "restaurant-staff-invitation") {
       content = renderRestaurantStaffInvitation(notification.data)
-    } else if (notification.template === "customer-password-reset") {
+    } else if (
+      notification.template === "customer-password-reset" ||
+      notification.template === "account-password-reset"
+    ) {
       content = renderCustomerPasswordReset(notification.data)
     } else if (notification.template === "customer-email-change") {
       content = renderCustomerEmailChange(notification.data)

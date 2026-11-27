@@ -39,6 +39,7 @@ export const supportedTemplates = [
   "restaurant-staff-invitation",
   "customer-verification",
   "customer-password-reset",
+  "account-password-reset",
   "customer-email-change",
   "customer-email-change-completed",
 ] as const

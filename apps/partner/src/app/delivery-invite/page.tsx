@@ -2,8 +2,8 @@ import { Alert, Heading, Toaster } from "@medusajs/ui"
 import { DELIVERY_AGENT_TEXT } from "@dtc/i18n"
 import { getMessages } from "@lib/i18n"
 import { getDeliveryInvitation } from "@lib/data/delivery-agent"
-import { BrandMark } from "@modules/layout/components/brand-mark"
-import { LanguageSwitch } from "@modules/layout/components/language-switch"
+import { BrandMark } from "@modules/common/components/brand-mark"
+import { LanguageSwitch } from "@modules/common/components/language-switch"
 import { AgentInvitationForm } from "@modules/delivery/forms"
 
 export default async function DeliveryInvitePage({

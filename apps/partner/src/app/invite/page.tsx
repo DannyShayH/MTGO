@@ -2,8 +2,8 @@ import { formatText } from "@dtc/i18n"
 import { Alert, Heading, Text } from "@medusajs/ui"
 import { getMessages } from "@lib/i18n"
 import { retrieveInvitation } from "@lib/data/invitation"
-import { BrandMark } from "@modules/layout/components/brand-mark"
-import { LanguageSwitch } from "@modules/layout/components/language-switch"
+import { BrandMark } from "@modules/common/components/brand-mark"
+import { LanguageSwitch } from "@modules/common/components/language-switch"
 import { InvitationForm } from "@modules/invitation/components/invitation-form"
 
 /** The page an invite link opens (spec stories 37-39). */

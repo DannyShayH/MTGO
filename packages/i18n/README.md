@@ -1,5 +1,8 @@
 # @dtc/i18n
 
+`PASSWORD_RECOVERY_TEXT[locale]` supplies the Restaurant staff and Delivery
+agent recovery forms, validation messages and neutral confirmation (#250).
+
 Danish and English text shared by the MTOGO apps. The partner app takes all of
 its text from here; the storefront registration and sign-in forms use
 `CUSTOMER_AUTH[locale]` for text and stable account error codes (issue #84).

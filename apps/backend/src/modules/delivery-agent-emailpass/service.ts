@@ -23,18 +23,34 @@ interface EmailPasswordService {
 }
 const EmailPassAuthService: new (...args: unknown[]) => EmailPasswordService =
   EmailPassProvider.services[0]
+const MIN_PASSWORD_LENGTH = 8
 
 /** A separate provider namespace prevents credentials from crossing actor types. */
 export default class DeliveryAgentEmailPassService extends EmailPassAuthService {
   static readonly identifier = "delivery-agent-emailpass"
   static readonly DISPLAY_NAME = "Delivery Agent Email/Password"
 
+  async update(
+    data: Record<string, unknown>,
+    identities: AuthIdentityProviderService,
+  ): Promise<AuthenticationResponse> {
+    if (
+      typeof data.password !== "string" ||
+      data.password.length < MIN_PASSWORD_LENGTH
+    )
+      return { success: false, error: "delivery_agent_credentials_invalid" }
+    return super.update(data, identities)
+  }
+
   async register(
     input: AuthenticationInput,
     identities: AuthIdentityProviderService,
   ): Promise<AuthenticationResponse> {
     const parsed = z
-      .object({ email: z.email(), password: z.string().min(8) })
+      .object({
+        email: z.email(),
+        password: z.string().min(MIN_PASSWORD_LENGTH),
+      })
       .safeParse(input.body)
     if (!parsed.success)
       return { success: false, error: "delivery_agent_credentials_invalid" }
