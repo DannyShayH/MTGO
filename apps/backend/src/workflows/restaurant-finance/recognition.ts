@@ -1,9 +1,4 @@
-import {
-  createStep,
-  createWorkflow,
-  StepResponse,
-  WorkflowResponse,
-} from "@medusajs/framework/workflows-sdk"
+import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
 import { Modules } from "@medusajs/framework/utils"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { DELIVERY_MODULE } from "../../modules/delivery"
@@ -18,18 +13,14 @@ import {
   deliveredRecognition,
   payloadDigest,
 } from "./calculation"
-import { recoverCancellations } from "./cancellation-recognition"
 import { readLegacyBasis } from "./legacy-sources"
 import type { LegacyEvidence } from "./legacy-basis"
 import type { FinanceProblemCode } from "../../modules/restaurant-finance/models/finance-problem"
-import { unaccountedHandovers } from "./pending-handovers"
-import { closeRestaurantStatements, closeStatementsWorkflow } from "./closure"
+import { closeRestaurantStatements } from "./closure"
 import { restaurantFinanceLock } from "./locks"
 
 /** How many handovers the recovery sweep reads per page of the month. */
 export const FINANCE_RECOVERY_PAGE_SIZE = 200
-/** How many owed recognitions one sweep performs; the rest wait a tick. */
-export const FINANCE_RECOVERY_BATCH_SIZE = 50
 
 export type DeliveredRecognitionOutcome =
   | "recognized"
@@ -276,62 +267,3 @@ export async function reconcileLegacyBasisProblems(
   }
   return outcomes
 }
-
-/**
- * One recovery sweep (spec #52 §9): reads all authoritative
- * handovers page by page, oldest first, and recognizes up to a batch of those
- * neither recognized nor recorded as an evidence problem. Every page is read,
- * so an owed handover is found however many were recognized before it; the
- * batch bounds one tick's work and the next tick resumes from durable state.
- * Cancellations (#229) are recovered the same way, with their own batch,
- * including older months. Its first tick after a restart is the startup reconciliation; the source
- * uniqueness and the finance guard make two sweeps, a retried handover and a
- * sweep safe together.
- */
-const recoverRestaurantFinanceStep = createStep(
-  "recover-restaurant-finance",
-  async (_input: Record<string, never>, { container }) => {
-    await closeStatementsWorkflow(container).run({ input: {} })
-    const delivery = container.resolve<DeliveryModuleService>(DELIVERY_MODULE)
-    const outcomes: Record<string, DeliveredRecognitionOutcome> = {}
-    let remaining = FINANCE_RECOVERY_BATCH_SIZE
-    let page = 0
-    while (remaining > 0) {
-      const handovers = await delivery.listIntendedDeliveries(
-        { terminal_outcome: "delivered" },
-        {
-          skip: page * FINANCE_RECOVERY_PAGE_SIZE,
-          take: FINANCE_RECOVERY_PAGE_SIZE,
-          select: ["order_id"],
-          order: { terminal_at: "ASC", id: "ASC" },
-        },
-      )
-      const owed = await unaccountedHandovers(
-        container,
-        handovers.map(({ order_id }) => order_id),
-      )
-      for (const order_id of owed.slice(0, remaining))
-        outcomes[order_id] = await recognizeDeliveredOrder(container, order_id)
-      remaining -= Math.min(owed.length, remaining)
-      if (handovers.length < FINANCE_RECOVERY_PAGE_SIZE) break
-      page += 1
-    }
-    const legacy = await reconcileLegacyBasisProblems(
-      container,
-      FINANCE_RECOVERY_BATCH_SIZE,
-    )
-    // Cancellations (#229) have their own batch, so neither starves the other.
-    const cancellations = await recoverCancellations(
-      container,
-      FINANCE_RECOVERY_BATCH_SIZE,
-    )
-    return new StepResponse({ outcomes, legacy, cancellations })
-  },
-)
-
-export const recoverRestaurantFinanceWorkflow = createWorkflow(
-  "recover-restaurant-finance",
-  function (input: Record<string, never>) {
-    return new WorkflowResponse(recoverRestaurantFinanceStep(input))
-  },
-)

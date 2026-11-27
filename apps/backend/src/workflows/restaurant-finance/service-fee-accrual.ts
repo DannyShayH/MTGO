@@ -1,10 +1,5 @@
 import { createLogRecord } from "@dtc/logging"
-import {
-  createStep,
-  createWorkflow,
-  StepResponse,
-  WorkflowResponse,
-} from "@medusajs/framework/workflows-sdk"
+import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { RESTAURANT_MODULE } from "../../modules/restaurant"
@@ -19,8 +14,6 @@ import { serviceFeeEvidence, serviceFeeStanding } from "./service-fee"
 
 /** How many Restaurants the accrual sweep reads per page. */
 export const SERVICE_FEE_PAGE_SIZE = 200
-/** How many owed accruals one sweep performs; the rest wait a tick. */
-export const SERVICE_FEE_BATCH_SIZE = 50
 
 export type ServiceFeeAccrualOutcome =
   | "accrued"
@@ -178,23 +171,3 @@ export async function sweepServiceFees(
   }
   return outcomes
 }
-
-const accrueServiceFeesStep = createStep(
-  "accrue-service-fees",
-  async (_input: Record<string, never>, { container }) =>
-    new StepResponse({
-      outcomes: await sweepServiceFees(container, SERVICE_FEE_BATCH_SIZE),
-    }),
-)
-
-/**
- * The once-per-minute fee accrual (#228), run by the
- * `recover-restaurant-finance` job beside handover recognition but
- * independently of it, so one failing never skips the other.
- */
-export const accrueServiceFeesWorkflow = createWorkflow(
-  "accrue-service-fees",
-  function (input: Record<string, never>) {
-    return new WorkflowResponse(accrueServiceFeesStep(input))
-  },
-)

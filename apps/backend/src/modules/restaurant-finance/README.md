@@ -66,10 +66,19 @@ names the purchase or terms evidence that is missing
   record dates it, never the kitchen or native synchronization. The posting
   month is chosen by the server clock inside the guarded local transaction,
   after receipt lookup. An older handover is recognized once in the current
-  month as an adjustment, with its real handover date and original-month link. `recoverRestaurantFinanceWorkflow`
-  is the once-per-minute job `recover-restaurant-finance`, whose first tick
-  after a restart is the startup reconciliation. Both run whatever the
-  `restaurant_statements` flag says.
+  month as an adjustment, with its real handover date and original-month link.
+- `reconciliation.ts` (#234): `recoverRestaurantFinanceWorkflow` is the one
+  finance reconciliation. Each invocation closes ended months, then recognizes
+  owed handovers, re-examines legacy problems, accounts for cancellations and
+  accrues current-month fees, each with its own bounded batch (`batch`, 50 by
+  default) read from durable records only. One failing part never skips the
+  others; the first failure is rethrown afterwards. Its result reports
+  `backlog` when a part filled its batch. The once-per-minute job
+  `recover-restaurant-finance` calls it through `drainRestaurantFinance`, up to
+  ten fresh invocations per tick while a backlog remains; its first tick after
+  a restart is the startup reconciliation. It runs whatever the
+  `restaurant_statements` flag says. See
+  [Recovering interrupted statement processing](/MTGO/product/restaurant-statement-recovery/).
 - `legacy-basis.ts` and `legacy-sources.ts` (#231): a handover whose Order
   has no preserved basis is reconstructed only from the native Order's
   original version (its lines, exact VAT-inclusive prices and quantities;
@@ -123,10 +132,9 @@ names the purchase or terms evidence that is missing
   under the finance guard, with the month decided by the server clock inside
   it. `activateRestaurantWorkflow` and `deactivateRestaurantWorkflow` run it
   last, after releasing the Restaurant's lock (owed work, ADR-0021), and
-  `accrueServiceFeesWorkflow` sweeps every Restaurant page by page each
-  minute from the `recover-restaurant-finance` job, independently of handover
-  recognition, which also accrues each new date after midnight. Missing evidence
-  accrues nothing.
+  the reconciliation's `sweepServiceFees` sweeps every Restaurant page by page
+  each minute. That sweep also accrues each new date after midnight. Missing
+  evidence accrues nothing.
 - `closure.ts`: `closeStatementsWorkflow` materializes ended months under
   the same finance guard, once per Restaurant/month. A delayed worker uses
   the exclusive boundary cutoff for journal membership, receipts and problems;

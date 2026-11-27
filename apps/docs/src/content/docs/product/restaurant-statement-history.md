@@ -50,8 +50,8 @@ still current, the entry counts in its ordinary totals. When that month is
 closed, the entry posts once to the current month's adjustments with a link to
 the original statement, as for any late processing (#230).
 
-The once-a-minute `recover-restaurant-finance` job is the bounded
-reconciliation path: it pages through all handovers and records outside the
+The once-a-minute `recover-restaurant-finance` job runs the bounded
+[finance reconciliation](/MTGO/product/restaurant-statement-recovery/): it pages through all handovers and records outside the
 batch, so restart or downtime cannot strand older evidence. Handovers recorded
 as `missing_financial_basis` before reconciliation existed are re-examined once
 each. A verifiable basis is recognized; otherwise the specific missing fact is

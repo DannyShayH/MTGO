@@ -10,8 +10,8 @@ import { DELIVERY_MODULE } from "../../src/modules/delivery"
 import type DeliveryModuleService from "../../src/modules/delivery/service"
 import RestaurantStatementsFeatureFlag from "../../src/feature-flags/restaurant-statements"
 import { copenhagenMonthOf } from "../../src/workflows/restaurant-finance/calculation"
-import { accrueServiceFeesWorkflow } from "../../src/workflows/restaurant-finance/service-fee-accrual"
 import { closeRestaurantStatements } from "../../src/workflows/restaurant-finance/closure"
+import { recoverRestaurantFinanceWorkflow } from "../../src/workflows/restaurant-finance/reconciliation"
 import { recoverOrderOperationsWorkflow } from "../../src/workflows/order-operations"
 import syncStatementNavigation from "../../src/jobs/sync-statement-navigation"
 import { restaurantOrdersHarness } from "../helpers/restaurant-orders"
@@ -162,7 +162,7 @@ medusaIntegrationTestRunner({
       await deliveredOrder(pizzeriaId)
       await deliveredOrder(pizzeriaId)
       await deliveredOrder(burgerId)
-      await accrueServiceFeesWorkflow(getContainer()).run({ input: {} })
+      await recoverRestaurantFinanceWorkflow(getContainer()).run({ input: {} })
 
       const { status, data } = await earnings()
 
@@ -227,7 +227,7 @@ medusaIntegrationTestRunner({
       await participateFromNow(pizzeriaId)
       // The harness never recorded the burger bar's activation.
       await deliveredOrder(burgerId)
-      await accrueServiceFeesWorkflow(getContainer()).run({ input: {} })
+      await recoverRestaurantFinanceWorkflow(getContainer()).run({ input: {} })
 
       const { data } = await earnings()
 

@@ -1,25 +1,19 @@
 import type { MedusaContainer } from "@medusajs/framework/types"
-import { recoverRestaurantFinanceWorkflow } from "../workflows/restaurant-finance/recognition"
-import { accrueServiceFeesWorkflow } from "../workflows/restaurant-finance/service-fee-accrual"
+import { drainRestaurantFinance } from "../workflows/restaurant-finance/reconciliation"
 
 /**
- * Recognizes the current month's delivered Orders whose recognition the
- * handover request could not finish (#227), and accrues each Restaurant's
- * current-month service fee, including every new date after midnight
- * (#228). Both read only durable records, so the first tick after a worker
- * starts is the startup reconciliation. They run independently: a failure
- * of one never skips the other, and is still reported. They run whether or
- * not Restaurant statements are released (ADR-0022).
+ * The once-per-minute finance reconciliation (#234): closes ended months,
+ * recognizes delivered and cancelled Orders whose follow-up never finished,
+ * and accrues each Restaurant's current-month service fee, including every
+ * new date after midnight. It reads only durable records, so the first tick
+ * after a worker starts is the startup reconciliation, and it drains several
+ * bounded batches per tick. It runs whether or not Restaurant statements are
+ * released (ADR-0022).
  */
 export default async function recoverRestaurantFinance(
   container: MedusaContainer,
 ) {
-  const results = await Promise.allSettled([
-    recoverRestaurantFinanceWorkflow(container).run({ input: {} }),
-    accrueServiceFeesWorkflow(container).run({ input: {} }),
-  ])
-  for (const result of results)
-    if (result.status === "rejected") throw result.reason
+  await drainRestaurantFinance(container)
 }
 
 export const config = {

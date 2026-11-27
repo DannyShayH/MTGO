@@ -15,11 +15,11 @@ import {
   copenhagenDateOf,
   copenhagenMonthOf,
 } from "../../src/workflows/restaurant-finance/calculation"
+import { recognizeDeliveredOrder } from "../../src/workflows/restaurant-finance/recognition"
 import {
-  recognizeDeliveredOrder,
+  drainRestaurantFinance,
   recoverRestaurantFinanceWorkflow,
-} from "../../src/workflows/restaurant-finance/recognition"
-import { accrueServiceFeesWorkflow } from "../../src/workflows/restaurant-finance/service-fee-accrual"
+} from "../../src/workflows/restaurant-finance/reconciliation"
 import {
   closeRestaurantStatements,
   closeStatementsWorkflow,
@@ -28,6 +28,7 @@ import { restaurantFinanceLock } from "../../src/workflows/restaurant-finance/lo
 import { recognizeCancelledOrder } from "../../src/workflows/restaurant-finance/cancellation-recognition"
 import { recoverOrderOperationsWorkflow } from "../../src/workflows/order-operations"
 import { revokeRestaurantStaffWorkflow } from "../../src/workflows/restaurant-staff"
+import recoverRestaurantFinance from "../../src/jobs/recover-restaurant-finance"
 import { restaurantOrdersHarness } from "../helpers/restaurant-orders"
 
 jest.setTimeout(300000)
@@ -1215,7 +1216,7 @@ medusaIntegrationTestRunner({
         closeStatementsWorkflow(getContainer()).run({ input: {} }),
         closeStatementsWorkflow(getContainer()).run({ input: {} }),
       ])
-      await accrueServiceFeesWorkflow(getContainer()).run({ input: {} })
+      await recoverRestaurantFinanceWorkflow(getContainer()).run({ input: {} })
       const current = (await statement(freshHeaders(staff.headers), "?limit=1"))
         .data
       expect(current.count).toBe(1)
@@ -1379,8 +1380,8 @@ medusaIntegrationTestRunner({
         () => adminPost("/deactivate", { reason: "Still renovating" }),
       ])
         expect((await step()).status).toBe(200)
-      await accrueServiceFeesWorkflow(getContainer()).run({ input: {} })
-      await accrueServiceFeesWorkflow(getContainer()).run({ input: {} })
+      await recoverRestaurantFinanceWorkflow(getContainer()).run({ input: {} })
+      await recoverRestaurantFinanceWorkflow(getContainer()).run({ input: {} })
 
       const { data } = await statement(staff.headers)
 
@@ -1477,15 +1478,17 @@ medusaIntegrationTestRunner({
         sources: [{ kind: "restaurant_participation", id: pizzeriaId }],
       })
 
-      const { result } = await accrueServiceFeesWorkflow(getContainer()).run({
+      const { result } = await recoverRestaurantFinanceWorkflow(
+        getContainer(),
+      ).run({
         input: {},
       })
-      const again = await accrueServiceFeesWorkflow(getContainer()).run({
+      const again = await recoverRestaurantFinanceWorkflow(getContainer()).run({
         input: {},
       })
 
-      expect(result.outcomes[pizzeriaId]).toBe("accrued")
-      expect(again.result.outcomes[pizzeriaId]).toBeUndefined()
+      expect(result.fees[pizzeriaId]).toBe("accrued")
+      expect(again.result.fees[pizzeriaId]).toBeUndefined()
       const { data } = await statement(staff.headers)
       expect(data.statement.totals.service_fee).toEqual({
         status: "available",
@@ -1496,7 +1499,7 @@ medusaIntegrationTestRunner({
       ).toHaveLength(1)
     })
 
-    it("does not accrue an ended month's fee late, and withholds the current adjustments it is owed", async () => {
+    it("does not accrue an ended month's fee late, and recovers it only as a verified current-month difference", async () => {
       const activatedAt = new Date(Date.now() - 40 * 24 * 3600 * 1000)
       await getContainer()
         .resolve(ContainerRegistrationKeys.PG_CONNECTION)("restaurant")
@@ -1513,15 +1516,12 @@ medusaIntegrationTestRunner({
       })
       const endedMonth = copenhagenMonthOf(activatedAt)
 
-      await accrueServiceFeesWorkflow(getContainer()).run({ input: {} })
-
-      const current = (await statement(staff.headers)).data.statement
-      expect(current.totals.service_fee).toMatchObject({ status: "available" })
-      expect(current.totals.adjustments).toEqual({
+      const owed = (await statement(staff.headers)).data.statement
+      expect(owed.totals.adjustments).toEqual({
         status: "unavailable",
         reason: "processing_pending",
       })
-      expect(current.problems).toContainEqual(
+      expect(owed.problems).toContainEqual(
         expect.objectContaining({
           code: "earlier_month_service_fee_pending",
           sources: expect.arrayContaining([
@@ -1529,6 +1529,27 @@ medusaIntegrationTestRunner({
           ]),
         }),
       )
+
+      await recoverRestaurantFinanceWorkflow(getContainer()).run({ input: {} })
+      await recoverRestaurantFinanceWorkflow(getContainer()).run({ input: {} })
+
+      expect(
+        (
+          await finance().listFinanceServiceFees({ restaurant_id: pizzeriaId })
+        ).map(({ month: accrued }) => accrued),
+      ).toEqual([month()])
+      const { data } = await statement(staff.headers)
+      expect(data.statement.totals.service_fee).toMatchObject({
+        status: "available",
+      })
+      expect(data.statement.totals.adjustments.status).toBe("available")
+      expect(
+        data.entries.filter(
+          (entry: { kind: string; original_month: string }) =>
+            entry.kind === "service_fee_difference" &&
+            entry.original_month === endedMonth,
+        ),
+      ).toEqual([expect.objectContaining({ posting_month: month() })])
       const ended = (await statement(staff.headers, "", pizzeriaId, endedMonth))
         .data.statement
       expect(ended).toMatchObject({
@@ -1541,6 +1562,20 @@ medusaIntegrationTestRunner({
           status: "verified",
           month: endedMonth,
           accrual: { status: "accrual_pending" },
+        },
+      })
+      // Nothing was recognized for the ended month, so the proven difference
+      // is its verified fee, posted once: never a second whole fee.
+      const difference = data.entries.find(
+        (entry: { kind: string; original_month: string }) =>
+          entry.kind === "service_fee_difference" &&
+          entry.original_month === endedMonth,
+      )
+      expect(difference).toMatchObject({
+        amounts: { service_fee: ended.service_fee_evidence.amount },
+        calculation: {
+          amount: ended.service_fee_evidence.amount,
+          recognized_amount: "0",
         },
       })
     })
@@ -2290,6 +2325,249 @@ medusaIntegrationTestRunner({
         expect(data.statement.problems).not.toContainEqual(
           expect.objectContaining({ code: "conflicting_recognition" }),
         )
+      })
+    })
+
+    describe("recovery after interrupted financial processing (#234)", () => {
+      const codesOf = (problems: { code: string }[]) =>
+        problems.map(({ code }) => code)
+      /** The Order's recorded payment captures and refunds. */
+      const paymentRecordsOf = async (order_id: string) => {
+        const {
+          data: [record],
+        } = await getContainer()
+          .resolve(ContainerRegistrationKeys.QUERY)
+          .graph({
+            entity: "order",
+            fields: [
+              "payment_collections.payments.captures.id",
+              "payment_collections.payments.refunds.id",
+            ],
+            filters: { id: order_id },
+          })
+        const payments = (record.payment_collections ?? []).flatMap(
+          (collection) => collection?.payments ?? [],
+        )
+        return {
+          captures: payments.flatMap((payment) => payment?.captures ?? [])
+            .length,
+          refunds: payments.flatMap((payment) => payment?.refunds ?? []).length,
+        }
+      }
+
+      it("drains a backlog larger than one batch through fresh invocations and stays pending until the last one", async () => {
+        const orders = [
+          await deliveredOrder(),
+          await deliveredOrder(),
+          await deliveredOrder(),
+        ]
+        await forgetFinance()
+
+        const first = await recoverRestaurantFinanceWorkflow(
+          getContainer(),
+        ).run({ input: { batch: 1 } })
+
+        expect(first.result.backlog).toBe(true)
+        const partial = (await statement(staff.headers)).data
+        expect(partial.count).toBe(1)
+        expect(partial.statement.totals.food_credits).toEqual({
+          status: "unavailable",
+          reason: "processing_pending",
+        })
+        expect(partial.statement.problems).toContainEqual(
+          expect.objectContaining({ code: "recognition_pending", count: 2 }),
+        )
+
+        await drainRestaurantFinance(getContainer(), { batch: 1 })
+
+        const drained = (await statement(staff.headers)).data
+        expect(drained.count).toBe(3)
+        expect(drained.statement.totals).toMatchObject({
+          food_credits: { status: "available", amount: "228" },
+          commission: { status: "available", amount: "13.68" },
+        })
+        expect(codesOf(drained.statement.problems)).not.toContain(
+          "recognition_pending",
+        )
+        const again = await recoverRestaurantFinanceWorkflow(
+          getContainer(),
+        ).run({ input: { batch: 1 } })
+        expect(again.result.backlog).toBe(false)
+        expect(
+          await finance().listFinanceReceipts({
+            source_id: orders.map(({ id }) => id),
+          }),
+        ).toHaveLength(3)
+      })
+
+      it("reaches an owed handover behind an older one without an Order operation, which never counts as progress", async () => {
+        const orphan = await deliveredOrder()
+        const owed = await deliveredOrder()
+        await forgetFinance()
+        await operations().deleteOrderOperations(
+          (await operations().listOrderOperations({ order_id: orphan.id })).map(
+            ({ id }) => id,
+          ),
+        )
+
+        const first = await recoverRestaurantFinanceWorkflow(
+          getContainer(),
+        ).run({ input: { batch: 1 } })
+        const again = await recoverRestaurantFinanceWorkflow(
+          getContainer(),
+        ).run({ input: { batch: 1 } })
+
+        expect(first.result.outcomes).toEqual({
+          [orphan.id]: "not_owed",
+          [owed.id]: "recognized",
+        })
+        expect(again.result.outcomes).toEqual({ [orphan.id]: "not_owed" })
+        expect(
+          await finance().listFinanceReceipts({
+            source_id: [orphan.id, owed.id],
+          }),
+        ).toEqual([expect.objectContaining({ source_id: owed.id })])
+      })
+
+      it("keeps a handover delivered when finance is interrupted and recovers one entry in a fresh run without repeating payment, refund or food credit", async () => {
+        const { order, agent } = await collectedOrder()
+        const outage = jest
+          .spyOn(finance(), "recognizeSource")
+          .mockRejectedValue(new Error("process stopped after the handover"))
+
+        const delivered = await post(
+          `/partner/deliveries/${order.id}/deliver`,
+          agent,
+        )
+
+        expect(delivered.status).toBe(200)
+        const handedOverAt = await terminalAtOf(order.id)
+        const pending = (await statement(staff.headers)).data
+        expect(pending.count).toBe(0)
+        expect(pending.statement.totals.food_credits).toEqual({
+          status: "unavailable",
+          reason: "processing_pending",
+        })
+        expect(pending.statement.problems).toContainEqual({
+          code: "recognition_pending",
+          count: 1,
+          sources: [{ kind: "order_delivered", id: order.id }],
+        })
+        outage.mockRestore()
+        const paidBefore = await paymentRecordsOf(order.id)
+        expect(paidBefore.captures).toBeGreaterThan(0)
+
+        await recoverRestaurantFinance(getContainer())
+        await recoverRestaurantFinance(getContainer())
+
+        const { data } = await statement(staff.headers)
+        expect(data.count).toBe(1)
+        expect(data.entries[0]).toMatchObject({
+          order: { id: order.id },
+          occurred_at: handedOverAt,
+          amounts: { food_credit: "76", commission: "4.56" },
+        })
+        expect(codesOf(data.statement.problems)).not.toContain(
+          "recognition_pending",
+        )
+        expect(await terminalAtOf(order.id)).toBe(handedOverAt)
+        expect(await paymentRecordsOf(order.id)).toEqual(paidBefore)
+        expect(
+          await operations().listFoodCredits({ order_id: order.id }),
+        ).toEqual([])
+      })
+
+      it("leaves one entry and one monthly fee obligation when two recovery workers run together", async () => {
+        await participateFromNow()
+        const order = await deliveredOrder()
+        await forgetFinance()
+
+        await Promise.all([
+          recoverRestaurantFinance(getContainer()),
+          recoverRestaurantFinance(getContainer()),
+        ])
+
+        const { data } = await statement(staff.headers)
+        expect(data.count).toBe(1)
+        expect(data.statement).toMatchObject({
+          completeness: "complete",
+          totals: {
+            food_credits: { status: "available", amount: "76" },
+            service_fee: {
+              status: "available",
+              amount: ONE_DAY_FEE[daysInMonth()],
+            },
+            balance: {
+              status: "available",
+              amount: ONE_ORDER_ONE_DAY_BALANCE[daysInMonth()],
+            },
+          },
+        })
+        expect(
+          await finance().listFinanceReceipts({ source_id: order.id }),
+        ).toHaveLength(1)
+        expect(
+          await finance().listFinanceServiceFees({
+            restaurant_id: pizzeriaId,
+          }),
+        ).toHaveLength(1)
+      })
+
+      it("keeps recovering and closing months while the flag is off, and shows the recovered result when it is on again", async () => {
+        await beginNovember()
+        const order = await deliveredOrder()
+        await forgetFinance()
+        setFlag(false)
+        clockAt("2026-12-01T00:10:00.000Z")
+        try {
+          await delivery().updateIntendedDeliveries({
+            selector: { order_id: order.id },
+            data: { terminal_at: new Date("2026-11-30T22:59:59.000Z") },
+          })
+
+          await recoverRestaurantFinance(getContainer())
+
+          expect((await statement(freshHeaders(staff.headers))).status).toBe(
+            404,
+          )
+          expect(
+            await finance().listFinanceClosures({
+              restaurant_id: pizzeriaId,
+              month: "2026-11",
+            }),
+          ).toHaveLength(1)
+          setFlag(true)
+          const november = (
+            await statement(
+              freshHeaders(staff.headers),
+              "",
+              pizzeriaId,
+              "2026-11",
+            )
+          ).data
+          expect(november.statement.lifecycle).toBe("closed")
+          expect(november.statement.totals.food_credits.status).toBe(
+            "unavailable",
+          )
+          const december = (
+            await statement(
+              freshHeaders(staff.headers),
+              "",
+              pizzeriaId,
+              "2026-12",
+            )
+          ).data
+          expect(december.count).toBe(1)
+          expect(december.entries[0]).toMatchObject({
+            original_month: "2026-11",
+            posting_month: "2026-12",
+            occurred_at: "2026-11-30T22:59:59.000Z",
+            amounts: { food_credit: "76", commission: "4.56", net: "71.44" },
+            original_statement: { month: "2026-11" },
+          })
+        } finally {
+          jest.useRealTimers()
+        }
       })
     })
   },
