@@ -4,6 +4,7 @@ import { Alert, Button, Container, Heading, Text, clx } from "@medusajs/ui"
 import { useQuery } from "@tanstack/react-query"
 import { CountBarChart } from "../../components/count-bar-chart"
 import { LoadingStatus } from "../../components/loading-status"
+import { WorkWaitingFigures } from "../../components/work-waiting-figures"
 import { sdk } from "../../lib/restaurant-api"
 import {
   formatCalculatedAt,
@@ -52,7 +53,10 @@ function OpenOrdersBody({
  * How the platform is doing right now (#54), for MTOGO operators. Every
  * figure is calculated for the one moment shown at the top; the page reads
  * again only when the operator refreshes, and never polls. #259 adds Open
- * Orders by stage. Shown only while the backend releases the Feature.
+ * Orders by stage; #260 adds the work waiting: unassigned deliveries,
+ * deliveries needing attention and unresolved Full refunds, as counts that
+ * link to the pages listing them. Shown only while the backend releases the
+ * Feature.
  */
 const OperationsPage = () => {
   const flags = useFeatureFlag("operations_monitoring")
@@ -138,6 +142,18 @@ const OperationsPage = () => {
           Could not refresh. The figures below are still those calculated at{" "}
           {calculatedAt}.
         </Alert>
+      )}
+
+      {figures && calculatedAt && (
+        <div
+          aria-busy={isRecalculating}
+          className={clx(
+            "transition-opacity duration-150 ease-out",
+            isRecalculating && "opacity-60",
+          )}
+        >
+          <WorkWaitingFigures figures={figures} calculatedAt={calculatedAt} />
+        </div>
       )}
 
       <Container className="divide-y p-0">

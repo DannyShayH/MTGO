@@ -24,6 +24,12 @@ import DeliveryAttention, {
 import DeliveryContactAttempt from "./models/delivery-contact-attempt"
 import DeliveryLocation from "./models/delivery-location"
 
+/**
+ * The scope of the operations counts of work waiting (#260): deliveries
+ * accepted strictly before `waiting_before` have waited over ten minutes.
+ */
+export type WorkWaitingFilter = { waiting_before: Date; restaurant_id?: string }
+
 /** What the shared assignment rule needs, read under both row locks. */
 export type AssignmentFacts = {
   agent: {
@@ -311,6 +317,84 @@ class DeliveryModuleService extends MedusaService({
       grouped("assigned_agent_id"),
     ])
     return { restaurants, agents }
+  }
+
+  /**
+   * Counts unended deliveries without an assigned agent (#260), and those
+   * accepted strictly before `waiting_before`, in one query. A delivery only
+   * exists for an accepted Order and ends when the Order ends, so these are
+   * the Open Orders without a Delivery agent. An accepted cancellation ends
+   * the delivery in a second write; if a process stops between the two, the
+   * Order counts here until the unassigned deadline sweep ends its delivery.
+   */
+  @InjectManager()
+  async countUnassignedDeliveries(
+    input: WorkWaitingFilter,
+    @MedusaContext() context: Context = {},
+  ): Promise<{ total: number; waiting: number }> {
+    const manager = context.manager as EntityManager
+    const knex = manager.getKnex()
+    const query = knex("intended_delivery")
+      .whereNull("assigned_agent_id")
+      .whereNull("terminal_outcome")
+      .whereNull("deleted_at")
+      .select(
+        knex.raw("count(*) as total"),
+        knex.raw("count(*) filter (where accepted_at < ?) as waiting", [
+          input.waiting_before,
+        ]),
+      )
+    if (input.restaurant_id) query.where("restaurant_id", input.restaurant_id)
+    const [row] = (await query) as { total: string; waiting: string }[]
+    return { total: Number(row.total), waiting: Number(row.waiting) }
+  }
+
+  /**
+   * Counts outstanding attention by type (#260) with the #49 list's
+   * definition: raised, unresolved, on a delivery that has not ended, which
+   * stands in for the list's active Order without reading another module.
+   * The two differ only if a process stops between an accepted
+   * cancellation and the delivery's end, until the next attention sweep
+   * resolves the item (at most a minute). Per type, it also
+   * counts the items on deliveries still unassigned and accepted strictly
+   * before `waiting_before`, the Orders counted as waiting over ten minutes.
+   */
+  @InjectManager()
+  async countOutstandingAttentionByType(
+    input: WorkWaitingFilter,
+    @MedusaContext() context: Context = {},
+  ): Promise<
+    { type: AttentionType; count: number; waiting_unassigned: number }[]
+  > {
+    const manager = context.manager as EntityManager
+    const knex = manager.getKnex()
+    const query = knex("delivery_attention as a")
+      .join("intended_delivery as d", "d.order_id", "a.order_id")
+      .whereNotNull("a.raised_at")
+      .whereNull("a.resolved_at")
+      .whereNull("a.deleted_at")
+      .whereNull("d.terminal_outcome")
+      .whereNull("d.deleted_at")
+      .select(
+        "a.type",
+        knex.raw("count(*) as count"),
+        knex.raw(
+          "count(*) filter (where d.assigned_agent_id is null and d.accepted_at < ?) as waiting_unassigned",
+          [input.waiting_before],
+        ),
+      )
+      .groupBy("a.type")
+    if (input.restaurant_id) query.where("d.restaurant_id", input.restaurant_id)
+    const rows = (await query) as {
+      type: AttentionType
+      count: string
+      waiting_unassigned: string
+    }[]
+    return rows.map((row) => ({
+      type: row.type,
+      count: Number(row.count),
+      waiting_unassigned: Number(row.waiting_unassigned),
+    }))
   }
 
   /** Fence credential creation against consumption and revocation, even if a lease is lost. */

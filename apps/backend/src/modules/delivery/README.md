@@ -479,6 +479,37 @@ Delivery agent over the same half-open handover-time range as Feedback, where a 
 open (`all_time`). It counts recorded handovers, including Orders without Feedback, and excludes other
 terminal outcomes.
 
+### Work waiting for operators (#260)
+
+Two read-only counts feed the Operations page, each one query over this
+module's own tables:
+
+- `countUnassignedDeliveries({ waiting_before, restaurant_id? })` counts
+  deliveries without `assigned_agent_id` and without a terminal outcome, and,
+  of those, the ones with `accepted_at` strictly before `waiting_before`. A
+  delivery exists only for an accepted Order and ends with it, so these are
+  the Open Orders without a Delivery agent. The partial
+  `(claim_deadline, id)` index on unassigned, unended work covers the read.
+- `countOutstandingAttentionByType({ waiting_before, restaurant_id? })` counts
+  `DeliveryAttention` that is raised and unresolved, on a delivery that has not
+  ended, grouped by `type`: the attention list's definition (#49), with the
+  delivery's own end standing in for the list's active Order so no other
+  module is read. Each
+  group also counts its items on deliveries still unassigned and accepted
+  before `waiting_before`, which marks the unassigned items as the same Orders
+  as the deliveries waiting over ten minutes.
+
+An accepted cancellation commits the Order's cancellation and then ends the
+delivery in a second write. If a process stops between the two, the Order
+still counts here: as attention until the next attention sweep resolves it (at
+most a minute; the deliveries page hides it at once), and as unassigned until
+the unassigned deadline sweep ends its delivery. Making the counts exact
+would need a join across modules, which the read must not do.
+
+`readOperationsWorkflow` passes both the same cutoff, `now` minus the ten
+minutes of the unassigned attention deadline (`unassignedWaitingCutoff` in
+`src/workflows/operations-monitoring/work-waiting.ts`).
+
 ### Agent Bonus points (#236)
 
 `GET /partner/delivery-agent/bonus` is available when the backend-owned

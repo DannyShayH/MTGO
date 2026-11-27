@@ -344,6 +344,15 @@ Every stage is returned, zero when empty. A partial index on
 stays small as history grows. `readOperationsWorkflow`
 (`src/workflows/operations-monitoring`) is the only caller.
 
+## Unresolved Full refunds (#260)
+
+`countUnresolvedFullRefunds({ restaurant_id? })` counts `RefundObligation`
+records with status `pending` and with status `failed` in one query, the same
+statuses the Refunds page lists; `succeeded` obligations are resolved and left
+out. One Restaurant's refunds are found by joining its own `OrderOperation`
+records on `order_id`, inside this module. The `(status, created_at, id)` index
+serves the read. `readOperationsWorkflow` is the only caller.
+
 ## Link
 
 `src/links/order-order-operation.ts` is a read-only, one-to-one link from the Order

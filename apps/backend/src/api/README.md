@@ -1779,7 +1779,8 @@ curl "http://localhost:9000/admin/restaurants/$RESTAURANT_ID/statements/2026-11?
 doing right now (#54), behind the default-off `operations_monitoring` flag
 (ADR-0022). The route runs `readOperationsWorkflow` with the platform scope
 and the server's time as `now`; every figure is calculated for that one
-moment, which the response returns as `as_of`. #259 adds Open Orders by stage;
+moment, which the response returns as `as_of`. #259 adds Open Orders by
+stage and #260 unassigned deliveries, attention and unresolved Full refunds;
 later work items add the other measures to the same response.
 
 **Success:** `200` with
@@ -1792,6 +1793,21 @@ and zero when empty: `awaiting_acceptance`, `accepted_or_preparing`,
 `ready_unassigned`, `assigned_not_picked_up` and `picked_up`. An Open Order is
 an Order that is not cancelled and has no delivery outcome, with or without a
 placement time. Total and stages come from one query, so they always add up.
+
+The response also carries three counts of work waiting (#260), each with
+`period: { at }` and empty `exclusions`:
+
+- `unassigned_deliveries: { total, waiting_over_ten_minutes }`: Open Orders
+  whose delivery has no assigned agent, and those accepted strictly more than
+  ten minutes before `as_of`.
+- `attention: { total, types }`: raised, unresolved attention items on
+  deliveries that have not ended, the same items `GET /admin/deliveries/attention`
+  lists. `types` names all six types in that page's order, each
+  `{ type, count }`, zero when empty. The `unassigned` entry also has
+  `waiting_unassigned_orders`: how many of its items are on Orders counted in
+  `waiting_over_ten_minutes`, so one Order is not read as two problems.
+- `full_refunds: { total, pending, failed }`: Full refunds still owed, the
+  same ones `GET /admin/refunds` lists; succeeded refunds are not counted.
 
 | Status | When                                                                                                                                 |
 | ------ | ------------------------------------------------------------------------------------------------------------------------------------ |

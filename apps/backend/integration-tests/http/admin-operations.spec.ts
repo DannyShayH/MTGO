@@ -6,13 +6,18 @@ import {
 } from "@medusajs/framework/utils"
 import type { FlagRouter } from "@medusajs/framework/utils"
 import type { SettingsTypes } from "@medusajs/framework/types"
+import SystemProviderService from "@medusajs/payment/dist/providers/system"
 import { DELIVERY_MODULE } from "../../src/modules/delivery"
 import type DeliveryModuleService from "../../src/modules/delivery/service"
 import OperationsMonitoringFeatureFlag from "../../src/feature-flags/operations-monitoring"
 import syncOperationsNavigation from "../../src/jobs/sync-operations-navigation"
+import { recoverDeliveryAttentionWorkflow } from "../../src/workflows/delivery/attention"
+import { readOperationsWorkflow } from "../../src/workflows/operations-monitoring"
 import { restaurantOrdersHarness } from "../helpers/restaurant-orders"
 
 jest.setTimeout(300000)
+
+const MINUTE = 60 * 1000
 
 type Stage = { stage: string; count: number }
 
@@ -133,6 +138,47 @@ medusaIntegrationTestRunner({
       return order
     }
 
+    /**
+     * An accepted, unassigned delivery whose recorded acceptance lies
+     * `minutes` before now, with the claim and attention deadlines the
+     * acceptance derives moved with it.
+     */
+    const acceptedMinutesAgo = async (minutes: number) => {
+      const order = await accepted()
+      const acceptedAt = Date.now() - minutes * MINUTE
+      const [record] = await delivery().listIntendedDeliveries({
+        order_id: order.id,
+      })
+      await delivery().updateIntendedDeliveries({
+        id: record.id,
+        accepted_at: new Date(acceptedAt),
+        claim_deadline: new Date(acceptedAt + 30 * MINUTE),
+      })
+      const [owed] = await delivery().listDeliveryAttentions({
+        order_id: order.id,
+        type: "unassigned",
+      })
+      await delivery().updateDeliveryAttentions({
+        id: owed.id,
+        due_at: new Date(acceptedAt + 10 * MINUTE),
+      })
+      return order
+    }
+    /** The production attention sweep, at the current time. */
+    const sweep = () =>
+      recoverDeliveryAttentionWorkflow(getContainer()).run({
+        input: { now: new Date().toISOString() },
+      })
+    const reportProblem = (
+      orderId: string,
+      agentHeaders: Record<string, string>,
+    ) =>
+      api.post(
+        `/partner/deliveries/${orderId}/problem-report`,
+        { category: "food_missing_or_wrong" },
+        { headers: agentHeaders, validateStatus: () => true },
+      )
+
     const stagesOf = (body: { open_orders: { stages: Stage[] } }) =>
       Object.fromEntries(
         body.open_orders.stages.map(({ stage, count }) => [stage, count]),
@@ -215,6 +261,205 @@ medusaIntegrationTestRunner({
       const response = await read()
       expect(response.data.open_orders.total).toBe(1)
       expect(stagesOf(response.data).accepted_or_preparing).toBe(1)
+    })
+
+    describe("unassigned deliveries and attention (#260)", () => {
+      it("counts 2 unassigned, 1 waiting over 10 minutes, and leaves assigned work out", async () => {
+        await acceptedMinutesAgo(12)
+        await accepted()
+        await claimedAndReady()
+
+        const response = await read()
+        expect(response.status).toBe(200)
+        expect(response.data.unassigned_deliveries).toEqual({
+          period: { at: response.data.as_of },
+          total: 2,
+          waiting_over_ten_minutes: 1,
+          exclusions: [],
+        })
+      })
+
+      it.each([
+        {
+          minutes: 9,
+          waiting: 0,
+          reason: "BVA: one minute inside ten minutes does not wait over",
+        },
+        {
+          minutes: 10,
+          waiting: 0,
+          reason: "BVA: exactly ten minutes is not over ten minutes",
+        },
+        {
+          minutes: 11,
+          waiting: 1,
+          reason: "BVA: one minute past ten minutes waits over",
+        },
+      ])("$reason", async ({ minutes, waiting }) => {
+        const order = await accepted()
+        const [record] = await delivery().listIntendedDeliveries({
+          order_id: order.id,
+        })
+        const acceptedAt = new Date(record.accepted_at).getTime()
+        const { result } = await readOperationsWorkflow(getContainer()).run({
+          input: {
+            scope: { type: "platform" },
+            now: new Date(acceptedAt + minutes * MINUTE).toISOString(),
+          },
+        })
+        expect(result.unassigned_deliveries).toMatchObject({
+          total: 1,
+          waiting_over_ten_minutes: waiting,
+        })
+      })
+
+      it("counts raised attention by type, marks the unassigned item as the Order waiting over 10 minutes, and agrees with the deliveries page", async () => {
+        const waiting = await acceptedMinutesAgo(12)
+        // Accepted five minutes ago: its unassigned attention is not due.
+        await acceptedMinutesAgo(5)
+        await sweep()
+        const { order: reported, agent } = await claimedAndReady()
+        expect((await reportProblem(reported.id, agent.headers)).status).toBe(
+          201,
+        )
+        // A problem on an Order handed over since is no longer outstanding.
+        const { order: ended, agent: deliverer } = await pickedUp()
+        expect((await reportProblem(ended.id, deliverer.headers)).status).toBe(
+          201,
+        )
+        const handover = `/partner/deliveries/${ended.id}/deliver`
+        expect((await post(handover, deliverer.headers)).status).toBe(200)
+
+        const response = await read()
+        const counts = Object.fromEntries(
+          response.data.attention.types.map(
+            ({ type, count }: { type: string; count: number }) => [type, count],
+          ),
+        )
+        expect(counts).toEqual({
+          unassigned: 1,
+          access_revoked: 0,
+          assigned_without_pickup: 0,
+          in_transit_without_delivery: 0,
+          arrived_without_handover: 0,
+          agent_reported_problem: 1,
+        })
+        expect(response.data.attention.total).toBe(2)
+        expect(response.data.attention.types[0]).toEqual({
+          type: "unassigned",
+          count: 1,
+          waiting_unassigned_orders: 1,
+        })
+        expect(response.data.unassigned_deliveries).toMatchObject({
+          total: 2,
+          waiting_over_ten_minutes: 1,
+        })
+
+        // The same definitions as the #49 list, so the numbers never disagree.
+        const list = await api.get("/admin/deliveries/attention", {
+          headers: admin,
+        })
+        expect(list.data.attention).toHaveLength(2)
+        expect(
+          list.data.attention.find(
+            ({ type }: { type: string }) => type === "unassigned",
+          ).order_id,
+        ).toBe(waiting.id)
+      })
+    })
+
+    describe("unresolved Full refunds (#260)", () => {
+      afterEach(() => jest.restoreAllMocks())
+      const providerRefunds = () =>
+        jest.spyOn(SystemProviderService.prototype, "refundPayment")
+      const statusOf = async (order_id: string) =>
+        (await operations().listRefundObligations({ order_id }))[0]?.status
+
+      it("counts 1 pending and 1 failed Full refund and leaves the succeeded one out", async () => {
+        // The minute-by-minute recovery job must not settle the deliberately
+        // pending refund before it is counted.
+        const service = operations()
+        const listObligations = service.listRefundObligations.bind(service)
+        jest
+          .spyOn(service, "listRefundObligations")
+          .mockImplementation((filters, options, context) =>
+            filters?.status === "pending" && !filters.order_id
+              ? Promise.resolve([])
+              : listObligations(filters, options, context),
+          )
+
+        const succeeded = await placePaidOrder(pizzeriaId)
+        expect((await reject(staff, succeeded.id)).status).toBe(200)
+        expect(await statusOf(succeeded.id)).toBe("succeeded")
+
+        const failed = await placePaidOrder(pizzeriaId)
+        const declined = providerRefunds().mockRejectedValue(
+          new Error("mock provider declined"),
+        )
+        expect((await reject(staff, failed.id)).status).toBe(200)
+        declined.mockRestore()
+        expect(await statusOf(failed.id)).toBe("failed")
+
+        // The process stops before the attempt records its outcome.
+        const pending = await placePaidOrder(pizzeriaId)
+        const update = service.updateRefundObligations.bind(service)
+        const lost = jest
+          .spyOn(service, "updateRefundObligations")
+          .mockImplementation(((data: {
+            status?: string
+            selector?: unknown
+          }) =>
+            data.selector || data.status === "pending"
+              ? update(data as never)
+              : Promise.reject(new Error("process stopped"))) as never)
+        expect((await reject(staff, pending.id)).status).toBe(200)
+        lost.mockRestore()
+        expect(await statusOf(pending.id)).toBe("pending")
+
+        const response = await read()
+        expect(response.data.full_refunds).toEqual({
+          period: { at: response.data.as_of },
+          total: 2,
+          pending: 1,
+          failed: 1,
+          exclusions: [],
+        })
+        const list = await api.get("/admin/refunds", { headers: admin })
+        expect(list.data.count).toBe(2)
+      })
+    })
+
+    it("narrows unassigned deliveries, attention and Full refunds to one Restaurant", async () => {
+      await acceptedMinutesAgo(12)
+      await sweep()
+      const rejected = await placePaidOrder(pizzeriaId)
+      const declined = jest
+        .spyOn(SystemProviderService.prototype, "refundPayment")
+        .mockRejectedValue(new Error("mock provider declined"))
+      expect((await reject(staff, rejected.id)).status).toBe(200)
+      declined.mockRestore()
+
+      const scoped = async (restaurant_id: string) =>
+        (
+          await readOperationsWorkflow(getContainer()).run({
+            input: {
+              scope: { type: "restaurant", restaurant_id },
+              now: new Date().toISOString(),
+            },
+          })
+        ).result
+      const own = await scoped(pizzeriaId)
+      expect(own.unassigned_deliveries).toMatchObject({
+        total: 1,
+        waiting_over_ten_minutes: 1,
+      })
+      expect(own.attention.total).toBe(1)
+      expect(own.full_refunds).toMatchObject({ failed: 1, pending: 0 })
+
+      const other = await scoped("rest_another_restaurant")
+      expect(other.unassigned_deliveries.total).toBe(0)
+      expect(other.attention.total).toBe(0)
+      expect(other.full_refunds.total).toBe(0)
     })
 
     it.each([

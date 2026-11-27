@@ -441,6 +441,18 @@ description states the population (all Restaurants, Orders not cancelled and
 not yet ended, legacy Orders included) and the moment. While a refresh runs,
 the figures fade to 60% and are marked `aria-busy`.
 
+Above it, `components/work-waiting-figures.tsx` shows three cards of work
+waiting (#260), side by side from `lg` and stacked below: **Unassigned
+deliveries** (the total and a badge with how many have waited over ten
+minutes, orange when any), **Deliveries needing attention** (the total and a
+count for each of the six types, with the deliveries page's labels from
+`lib/attention-types.ts`; a line under the unassigned count says how many are
+the same Orders as the unassigned deliveries waiting over ten minutes) and
+**Unresolved Full refunds** (the total, failed and pending). Each card states
+its moment and ends with a link to the page that lists the records:
+Deliveries for the first two, Refunds for the third. The page shows counts
+only, never a second list, and zeros are greyed out but never hidden.
+
 `components/count-bar-chart.tsx` draws every count chart: horizontal bars in
 the order the rows arrive, flush inside a `Container` with `p-0 divide-y`.
 Each bar has its name on the axis (on one line) and its count at the end, so

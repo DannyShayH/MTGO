@@ -1,3 +1,5 @@
+import type { AttentionType } from "./attention-types"
+
 /** The operations read (#54) as `GET /admin/operations` returns it. */
 export type OpenOrderStage =
   | "awaiting_acceptance"
@@ -14,6 +16,36 @@ export type Operations = {
     period: { at: string }
     total: number
     stages: { stage: OpenOrderStage; count: number }[]
+    exclusions: { reason: string; count: number }[]
+  }
+  /** Open Orders without a Delivery agent, and those waiting over 10 min (#260). */
+  unassigned_deliveries: {
+    period: { at: string }
+    total: number
+    waiting_over_ten_minutes: number
+    exclusions: { reason: string; count: number }[]
+  }
+  /** Raised, unresolved attention items by type, as the deliveries page lists them. */
+  attention: {
+    period: { at: string }
+    total: number
+    types: (
+      | {
+          type: "unassigned"
+          count: number
+          /** Of these, the Orders counted as waiting over 10 minutes. */
+          waiting_unassigned_orders: number
+        }
+      | { type: Exclude<AttentionType, "unassigned">; count: number }
+    )[]
+    exclusions: { reason: string; count: number }[]
+  }
+  /** Full refunds still owed, as the Refunds page lists them. */
+  full_refunds: {
+    period: { at: string }
+    total: number
+    pending: number
+    failed: number
     exclusions: { reason: string; count: number }[]
   }
 }

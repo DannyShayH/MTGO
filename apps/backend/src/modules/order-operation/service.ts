@@ -138,6 +138,34 @@ class OrderOperationModuleService extends MedusaService({
   }
 
   /**
+   * Counts Full refunds still owed (#260), pending apart from failed, in one
+   * query; succeeded refunds are resolved and left out. One Restaurant's are
+   * found through its Orders' operation records in this module.
+   */
+  @InjectManager()
+  async countUnresolvedFullRefunds(
+    scope: { restaurant_id?: string } = {},
+    @MedusaContext() context: Context = {},
+  ): Promise<{ pending: number; failed: number }> {
+    const manager = context.manager as EntityManager
+    const knex = manager.getKnex()
+    const query = knex("refund_obligation as r")
+      .whereIn("r.status", ["pending", "failed"])
+      .whereNull("r.deleted_at")
+      .select(
+        knex.raw("count(*) filter (where r.status = 'pending') as pending"),
+        knex.raw("count(*) filter (where r.status = 'failed') as failed"),
+      )
+    if (scope.restaurant_id)
+      query
+        .join("order_operation as o", "o.order_id", "r.order_id")
+        .whereNull("o.deleted_at")
+        .where("o.restaurant_id", scope.restaurant_id)
+    const [row] = (await query) as { pending: string; failed: string }[]
+    return { pending: Number(row.pending), failed: Number(row.failed) }
+  }
+
+  /**
    * Records how a refund attempt ended (#197): the outcome on the obligation
    * and one new history entry, in one transaction, so the history never
    * claims an outcome the obligation does not show. Entries are only ever
