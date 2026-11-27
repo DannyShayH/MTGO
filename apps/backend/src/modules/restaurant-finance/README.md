@@ -162,8 +162,11 @@ names the purchase or terms evidence that is missing
   routes (`GET /admin/restaurants/{id}/statements[/{month}]`, #230, #232).
   Each surface only authorizes its caller (own-Restaurant staff, or Admin
   authentication) before the same read steps, so a new financial kind reaches
-  both surfaces at once. Reads acquire the finance
-  guard for a consistent header/page but never create entries or closures.
+  both surfaces at once. A closed month is served from its stored snapshot
+  without the finance guard; other months are read under the guard for a
+  consistent header/page, and readers of the same Restaurant, month and page
+  still waiting for it share one guarded read (#235). Reads never create
+  entries or closures.
   Before physical materialization they project the exclusive boundary cutoff;
   afterwards they page the stored immutable snapshot. Ordinary totals include
   only entries whose original and posting months agree. Older entries
@@ -199,6 +202,16 @@ only missing date slots. `demo-statements-plan.unit.spec.ts` covers the plan.
 In the devcontainer, whose `.env` names the database host `postgres`, run it
 with `NODE_ENV=development` and `DATABASE_URL` pointing at `localhost`, which
 the synthetic-seed guard accepts.
+
+`src/scripts/seed-statement-population.ts` (#235) is the verification
+population: 100 synthetic Customers and 500 Orders at four Restaurants of
+their own over two closed months and the current one. The Orders have mixed
+delivered and cancellation outcomes, prepared-food compensation and linked
+late adjustments. `src/scripts/check-statement-population.ts` reconciles
+every statement on both surfaces against the independently expected manifest
+(`src/lib/statement-population-manifest.ts`) and times twenty simultaneous
+journeys. See
+[Statement verification population](/MTGO/product/restaurant-statement-population/).
 
 Closed snapshots retain unresolved earlier-month adjustment warnings as well as
 warnings about their own activity. Boundary reads and materialization use the

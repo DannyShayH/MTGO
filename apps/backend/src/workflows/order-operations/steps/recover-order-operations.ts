@@ -31,7 +31,11 @@ export type RecoveryResult = {
   resumed: string[]
 }
 
-async function expireDueOrder(
+/**
+ * Expires one awaiting Order whose acceptance deadline has passed, under its
+ * lock; true when this call cancelled it. The caller settles it afterwards.
+ */
+export async function expireDueOrder(
   container: MedusaContainer,
   order_id: string,
   now: Date,

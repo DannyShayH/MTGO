@@ -981,6 +981,108 @@ medusaIntegrationTestRunner({
       expect(operator.data).toEqual(old)
     })
 
+    it("serves a closed statement while the Restaurant's finance guard is busy (#235)", async () => {
+      await beginNovember()
+      await deliveredOrder()
+      clockAt("2026-12-02T10:00:00.000Z")
+      await closeRestaurantStatements(getContainer(), pizzeriaId)
+      const closed = (
+        await statement(freshHeaders(staff.headers), "", pizzeriaId, "2026-11")
+      ).data
+      expect(closed.statement.lifecycle).toBe("closed")
+      let unlock!: () => void
+      let entered!: () => void
+      const ready = new Promise<void>((resolve) => {
+        entered = resolve
+      })
+      const gate = new Promise<void>((resolve) => {
+        unlock = resolve
+      })
+      const busy = getContainer()
+        .resolve(Modules.LOCKING)
+        .execute(restaurantFinanceLock(pizzeriaId).key, async () => {
+          entered()
+          await gate
+        })
+      await ready
+      try {
+        // The guard stays held until `finally`, so a read that waited for it
+        // would answer 409 after the lock's ten-second timeout, not the
+        // closed statement.
+        const [partner, operator] = await Promise.all([
+          statement(freshHeaders(staff.headers), "", pizzeriaId, "2026-11"),
+          api.get(`/admin/restaurants/${pizzeriaId}/statements/2026-11`, {
+            headers: freshHeaders(admin),
+            validateStatus: () => true,
+          }),
+        ])
+        expect(partner.data).toEqual(closed)
+        expect(operator.data).toEqual(closed)
+      } finally {
+        unlock()
+        await busy
+      }
+    })
+
+    it("answers every reader waiting for a busy finance guard with the same current statement (#235)", async () => {
+      await beginNovember()
+      await deliveredOrder()
+      const withoutVerifiedAt = (body: unknown) =>
+        JSON.parse(
+          JSON.stringify(body, (key, value) =>
+            key === "verified_at" ? undefined : value,
+          ),
+        )
+      let unlock!: () => void
+      let entered!: () => void
+      const ready = new Promise<void>((resolve) => {
+        entered = resolve
+      })
+      const gate = new Promise<void>((resolve) => {
+        unlock = resolve
+      })
+      const busy = getContainer()
+        .resolve(Modules.LOCKING)
+        .execute(restaurantFinanceLock(pizzeriaId).key, async () => {
+          entered()
+          await gate
+        })
+      await ready
+      // The provisional month is read under the guard, so these all wait.
+      const waiting = Promise.all([
+        statement(freshHeaders(staff.headers), "", pizzeriaId, "2026-11"),
+        statement(freshHeaders(staff.headers), "", pizzeriaId, "2026-11"),
+        api.get(`/admin/restaurants/${pizzeriaId}/statements/2026-11`, {
+          headers: freshHeaders(admin),
+          validateStatus: () => true,
+        }),
+        statement(
+          freshHeaders(staff.headers),
+          "?offset=1",
+          pizzeriaId,
+          "2026-11",
+        ),
+      ])
+      unlock()
+      await busy
+      const [first, second, operator, laterPage] = await waiting
+      for (const response of [first, second, operator, laterPage])
+        expect(response.status).toBe(200)
+      const after = (
+        await statement(freshHeaders(staff.headers), "", pizzeriaId, "2026-11")
+      ).data
+      expect(after.statement.lifecycle).toBe("provisional")
+      expect(after.entries).toHaveLength(1)
+      for (const response of [first, second, operator])
+        expect(withoutVerifiedAt(response.data)).toEqual(
+          withoutVerifiedAt(after),
+        )
+      expect(withoutVerifiedAt(laterPage.data.statement)).toEqual(
+        withoutVerifiedAt(after.statement),
+      )
+      expect(laterPage.data.entries).toEqual([])
+    })
+
     it("fixes a pending November statement and recovers its handover once as a linked December adjustment", async () => {
       await beginNovember()
       const order = await deliveredOrder()

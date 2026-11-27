@@ -33,13 +33,17 @@ export type DemoDish = {
  * The delivery and billing address of a demo checkout: the Customer's own
  * name and phone where recorded, synthetic values where not.
  */
-export function demoAddress(customer: DemoCustomer, postal_code: string) {
+export function demoAddress(
+  customer: DemoCustomer,
+  postal_code: string,
+  street?: { address_1: string; city: string },
+) {
   return {
     first_name: customer.first_name || "Demo",
     last_name: customer.last_name || "Kunde",
-    address_1: "Demovej 1",
+    address_1: street?.address_1 ?? "Demovej 1",
     postal_code,
-    city: "København",
+    city: street?.city ?? "København",
     country_code: "dk",
     phone: customer.phone || "+4512345678",
   }
@@ -63,11 +67,13 @@ export async function placeDemoPaidOrder(
     /** Several dishes and quantities; defaults to one of `dish`. */
     basket?: DemoBasketLine[]
     postal_code: string
+    /** The Customer's own street and city; synthetic ones when absent. */
+    street?: { address_1: string; city: string }
     metadata: Record<string, unknown>
   },
 ) {
   const { customer } = input
-  const address = demoAddress(customer, input.postal_code)
+  const address = demoAddress(customer, input.postal_code, input.street)
   // The menu sales channel, which a storefront's publishable key supplies.
   const {
     result: { sales_channel_id },

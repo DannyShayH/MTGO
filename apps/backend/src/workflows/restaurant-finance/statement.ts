@@ -30,30 +30,114 @@ import type { StatementSnapshot } from "../../types/restaurant-statement"
 export type { StatementSnapshot } from "../../types/restaurant-statement"
 type Page = { limit: number; offset: number }
 
-/** Reads never close or recognize. Ended months use their boundary cutoff even before materialization. */
+/**
+ * Guarded reads still waiting for the finance guard, by Restaurant, month and
+ * page. A read leaves this map the moment it enters the guard.
+ */
+const waitingReads = new Map<string, Promise<StatementSnapshot>>()
+
+/**
+ * Reads never close or recognize. Ended months use their boundary cutoff even
+ * before materialization. A closed statement is fixed (ADR-0023), so it is
+ * served without waiting for the Restaurant's finance guard; only a month
+ * still open to posting or closing is read under it (#235).
+ *
+ * The guard keeps a read consistent with posting, not with other reads. So
+ * readers of the same page that are all still waiting for the guard share
+ * one guarded read: it starts after every one of them asked, exactly as each
+ * own read would have, but they no longer queue behind each other (#235).
+ */
 export async function readStatement(
   container: MedusaContainer,
   input: StatementReadInput,
 ): Promise<StatementSnapshot> {
-  const lock = restaurantFinanceLock(input.restaurant_id)
-  return container
-    .resolve(Modules.LOCKING)
-    .execute(lock.key, () => readGuardedStatement(container, input), {
-      timeout: lock.timeout,
-      expire: lock.ttl,
-    })
+  assertCalendarMonth(input.month)
+  if (input.month !== copenhagenMonthOf(new Date())) {
+    const closed = await readClosedStatement(container, input)
+    if (closed) return closed
+  }
+  const key = [
+    input.restaurant_id,
+    input.month,
+    input.limit,
+    input.offset,
+  ].join(":")
+  let shared = waitingReads.get(key)
+  if (!shared) {
+    const lock = restaurantFinanceLock(input.restaurant_id)
+    // Declared first, so the guarded job can compare against it whenever
+    // the locking provider runs it.
+    let read: Promise<StatementSnapshot> | undefined = undefined
+    read = container
+      .resolve(Modules.LOCKING)
+      .execute(
+        lock.key,
+        () => {
+          if (waitingReads.get(key) === read) waitingReads.delete(key)
+          return readGuardedStatement(container, input)
+        },
+        { timeout: lock.timeout, expire: lock.ttl },
+      )
+      .finally(() => {
+        // A read that never entered the guard (a timeout) stops collecting.
+        if (waitingReads.get(key) === read) waitingReads.delete(key)
+      })
+    shared = read
+    waitingReads.set(key, shared)
+  }
+  // Each caller gets its own copy, so no caller can change another's result.
+  return structuredClone(await shared)
+}
+
+const assertCalendarMonth = (month: string) => {
+  if (!isCalendarMonth(month))
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "statement_month_invalid",
+      "statement_month_invalid",
+    )
+}
+
+/** The month's fixed closed statement, one page of it, or null before closure. */
+async function readClosedStatement(
+  container: MedusaContainer,
+  input: StatementReadInput,
+): Promise<StatementSnapshot | null> {
+  const [closure] = await container
+    .resolve<RestaurantFinanceModuleService>(RESTAURANT_FINANCE_MODULE)
+    .listFinanceClosures(
+      { restaurant_id: input.restaurant_id, month: input.month },
+      { take: 1 },
+    )
+  if (!closure) return null
+  const snapshot = closure.snapshot as unknown as StatementSnapshot
+  return {
+    ...snapshot,
+    statement: {
+      ...snapshot.statement,
+      // A closure stored before #256 holds every entry, so its MTOGO-funded
+      // credits are derived from them by the same rule.
+      mtogo_funded_food_credits:
+        snapshot.statement.mtogo_funded_food_credits ??
+        mtogoFundedFoodCredits(
+          snapshot.statement.totals.food_credits as Total,
+          snapshot.entries.map((entry) => ({
+            food_credit: entry.amounts.food_credit,
+            funded_by: entry.funded_by,
+            is_adjustment: entry.original_month !== entry.posting_month,
+          })),
+        ),
+    },
+    entries: snapshot.entries.slice(input.offset, input.offset + input.limit),
+    limit: input.limit,
+    offset: input.offset,
+  }
 }
 
 async function readGuardedStatement(
   container: MedusaContainer,
   input: StatementReadInput,
 ): Promise<StatementSnapshot> {
-  if (!isCalendarMonth(input.month))
-    throw new MedusaError(
-      MedusaError.Types.INVALID_DATA,
-      "statement_month_invalid",
-      "statement_month_invalid",
-    )
   const now = new Date()
   const [restaurant] = await container
     .resolve<RestaurantModuleService>(RESTAURANT_MODULE)
@@ -72,36 +156,8 @@ async function readGuardedStatement(
     )
   if (input.month === copenhagenMonthOf(now))
     return readLiveStatement(container, input, now)
-  const [closure] = await container
-    .resolve<RestaurantFinanceModuleService>(RESTAURANT_FINANCE_MODULE)
-    .listFinanceClosures(
-      { restaurant_id: input.restaurant_id, month: input.month },
-      { take: 1 },
-    )
-  if (closure) {
-    const snapshot = closure.snapshot as unknown as StatementSnapshot
-    return {
-      ...snapshot,
-      statement: {
-        ...snapshot.statement,
-        // A closure stored before #256 holds every entry, so its MTOGO-funded
-        // credits are derived from them by the same rule.
-        mtogo_funded_food_credits:
-          snapshot.statement.mtogo_funded_food_credits ??
-          mtogoFundedFoodCredits(
-            snapshot.statement.totals.food_credits as Total,
-            snapshot.entries.map((entry) => ({
-              food_credit: entry.amounts.food_credit,
-              funded_by: entry.funded_by,
-              is_adjustment: entry.original_month !== entry.posting_month,
-            })),
-          ),
-      },
-      entries: snapshot.entries.slice(input.offset, input.offset + input.limit),
-      limit: input.limit,
-      offset: input.offset,
-    }
-  }
+  const closed = await readClosedStatement(container, input)
+  if (closed) return closed
   const cutoff = copenhagenMonthPeriod(input.month).ends_at
   return readLiveStatement(container, input, cutoff, cutoff)
 }
