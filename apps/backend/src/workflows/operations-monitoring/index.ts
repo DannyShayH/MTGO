@@ -24,6 +24,10 @@ import {
   placementsPerDayFigure,
   previousSevenDays,
 } from "./volume"
+import { FEEDBACK_MODULE } from "../../modules/feedback"
+import type FeedbackModuleService from "../../modules/feedback/service"
+import { lastThirtyDays } from "../feedback/statistics-period"
+import { customerRatingFigure, unfulfilledOrdersFigure } from "./reliability"
 import {
   changePercent,
   processingTimeFigure,
@@ -205,13 +209,48 @@ const readSpeedStep = createStep(
 )
 
 /**
+ * The Unfulfilled Order rate by cause (#263) among the Orders placed in the
+ * last 24 hours, from one grouped Order-operation query, with the Orders
+ * still open counted apart.
+ */
+const readUnfulfilledOrdersStep = createStep(
+  "read-unfulfilled-orders",
+  async (input: OperationsInput, { container }) => {
+    const period = last24Hours(new Date(input.now))
+    const rows = await container
+      .resolve<OrderOperationModuleService>(ORDER_OPERATION_MODULE)
+      .countPlacementsByOutcome(period, restaurantFilter(input.scope))
+    return new StepResponse(unfulfilledOrdersFigure(rows, period))
+  },
+)
+
+/**
+ * The average Customer rating (#263): #51's platform-wide experience rating
+ * for its last 30 days, from the Feedback module's statistics read. A
+ * Restaurant's own view has none: its food rating stays on the Ratings page,
+ * and the experience rating describes the whole service (ADR-0008).
+ */
+const readCustomerRatingStep = createStep(
+  "read-customer-rating",
+  async (input: OperationsInput, { container }) => {
+    if (input.scope.type === "restaurant") return new StepResponse(null)
+    const period = lastThirtyDays(new Date(input.now))
+    const { experience } = await container
+      .resolve<FeedbackModuleService>(FEEDBACK_MODULE)
+      .statistics(period)
+    return new StepResponse(customerRatingFigure(experience, period))
+  },
+)
+
+/**
  * The operations read (#54), the only entry point for the operator and
  * staff views. It takes a scope and one explicit `now` and derives every
  * period from it, so each response states the moment it describes. Each
  * owning module aggregates its own records in the database; this workflow
  * only combines them. #259 adds Open Orders by stage; #260 adds unassigned
  * deliveries, attention by type and unresolved Full refunds; #261 adds the
- * Order volume; #262 adds Order processing time and Delivery transit time.
+ * Order volume; #262 adds Order processing time and Delivery transit time;
+ * #263 adds the Unfulfilled Order rate by cause and the Customer rating.
  */
 export const readOperationsWorkflow = createWorkflow(
   "read-operations",
@@ -221,15 +260,19 @@ export const readOperationsWorkflow = createWorkflow(
     const fullRefunds = readFullRefundsStep(input)
     const volume = readVolumeStep(input)
     const speed = readSpeedStep(input)
+    const unfulfilled = readUnfulfilledOrdersStep(input)
+    const rating = readCustomerRatingStep(input)
     return new WorkflowResponse(
       transform(
-        { open, work, fullRefunds, volume, speed },
-        ({ open, work, fullRefunds, volume, speed }) => ({
+        { open, work, fullRefunds, volume, speed, unfulfilled, rating },
+        ({ open, work, fullRefunds, volume, speed, unfulfilled, rating }) => ({
           ...open,
           ...work,
           full_refunds: fullRefunds,
           ...volume,
           ...speed,
+          unfulfilled_orders: unfulfilled,
+          customer_rating: rating,
         }),
       ),
     )

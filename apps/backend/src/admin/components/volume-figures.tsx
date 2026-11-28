@@ -21,8 +21,8 @@ import {
 } from "recharts"
 import { ChartNumbers } from "./chart-numbers"
 import {
-  cancelledSummary,
-  cancellationShortLabels,
+  causeLabels,
+  inCauseOrder,
   formatDay,
   formatPeriodEdge,
   hourLabels,
@@ -413,23 +413,31 @@ export function PlacementsCard({ figures }: Readonly<{ figures: Operations }>) {
           All Restaurants, cancellations included.
         </Text>
       </div>
-      <div className="flex flex-col gap-y-1 px-6 py-4">
+      <div className="px-6 py-4">
         <Headline value={String(placements.total)} unit="placed" />
-        <Text size="small" leading="compact" className="text-ui-fg-subtle">
-          {cancelledSummary(placements.cancelled)}
-        </Text>
       </div>
-      <div className="flex flex-1 flex-col gap-y-2 px-6 py-4">
-        <Text
-          size="xsmall"
-          leading="compact"
-          weight="plus"
-          className="text-ui-fg-muted"
-        >
-          Cancelled by
-        </Text>
-        <dl className="flex flex-col gap-y-2">
-          {placements.cancelled.categories.map(({ category, count }) => (
+      {/* The one place the cancellations are counted, in the Unfulfilled
+          chart's order and wording, so each number is found once. */}
+      <dl className="flex flex-1 flex-col gap-y-2 px-6 py-4">
+        <div className="flex items-baseline justify-between gap-x-3 pb-1">
+          <dt>
+            <Text size="small" leading="compact" weight="plus">
+              Cancelled
+            </Text>
+          </dt>
+          <dd>
+            <Text
+              size="small"
+              leading="compact"
+              weight="plus"
+              className="tabular-nums"
+            >
+              {placements.cancelled.total}
+            </Text>
+          </dd>
+        </div>
+        {inCauseOrder(placements.cancelled.categories).map(
+          ({ category, count }) => (
             <div
               key={category}
               className="flex items-baseline justify-between gap-x-3"
@@ -440,7 +448,7 @@ export function PlacementsCard({ figures }: Readonly<{ figures: Operations }>) {
                   leading="compact"
                   className="text-ui-fg-subtle"
                 >
-                  {cancellationShortLabels[category]}
+                  {causeLabels[category]}
                 </Text>
               </dt>
               <dd>
@@ -456,9 +464,9 @@ export function PlacementsCard({ figures }: Readonly<{ figures: Operations }>) {
                 </Text>
               </dd>
             </div>
-          ))}
-        </dl>
-      </div>
+          ),
+        )}
+      </dl>
     </Container>
   )
 }

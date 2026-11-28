@@ -113,7 +113,84 @@ export type Operations = {
       delivery_transit_time: DayAverage
     }[]
   }
+  /** Of the Orders placed in the last 24 hours, those ended without handover (#263). */
+  unfulfilled_orders: {
+    period: Period
+    placed: number
+    ended: number
+    unfulfilled: number
+    /** Unfulfilled of ended, to one decimal; null while none has ended. */
+    rate_percent: number | null
+    /** Every cause, Customer first, then Restaurant, then MTOGO. */
+    causes: { cause: UnfulfilledCause; group: CauseGroup; count: number }[]
+    groups: { group: CauseGroup; count: number }[]
+    /** The Orders still open: in neither number of the rate. */
+    exclusions: { reason: "still_open"; count: number }[]
+  }
+  /** #51's platform-wide experience rating for its last 30 days (#263). */
+  customer_rating: {
+    period: Period & { key: "last_30_days" }
+    /** One decimal, 1 to 5; null without ratings, never zero. */
+    average: number | null
+    count: number
+    exclusions: { reason: string; count: number }[]
+  } | null
 }
+
+export type CauseGroup = "customer" | "restaurant" | "mtogo"
+export type UnfulfilledCause = CancellationCategory | "delivery_failed"
+
+/**
+ * Every cause of an Unfulfilled Order in the one order the page shows them:
+ * Customer first, then Restaurant, then MTOGO. The cancellations under
+ * Orders placed and the Unfulfilled chart list them alike, so the same
+ * number sits in the same place in both.
+ */
+export const CAUSE_ORDER: readonly UnfulfilledCause[] = [
+  "customer_cancelled",
+  "restaurant_rejected",
+  "acceptance_timeout",
+  "unassigned_timeout",
+  "operator_cancelled",
+  "delivery_failed",
+]
+
+/**
+ * Operator wording for each cause, shared by every list of causes. "Failed"
+ * names only the delivery outcome (GLOSSARY: Unfulfilled Order).
+ */
+export const causeLabels: Record<UnfulfilledCause, string> = {
+  customer_cancelled: "Customer cancelled",
+  restaurant_rejected: "Restaurant rejected",
+  acceptance_timeout: "Restaurant did not accept in time",
+  unassigned_timeout: "No Delivery agent in time",
+  operator_cancelled: "MTOGO operator cancelled",
+  delivery_failed: "Delivery failed",
+}
+
+/** Rows that name a cause, in `CAUSE_ORDER`. */
+export const inCauseOrder = <Row extends { category: UnfulfilledCause }>(
+  rows: Row[],
+) =>
+  [...rows].sort(
+    (a, b) => CAUSE_ORDER.indexOf(a.category) - CAUSE_ORDER.indexOf(b.category),
+  )
+
+export const causeGroupLabels: Record<CauseGroup, string> = {
+  customer: "Customer",
+  restaurant: "Restaurant",
+  mtogo: "MTOGO",
+}
+
+/** A rate as people read it: "10%", "66.7%", or null while there is none. */
+export const formatRate = (percent: number | null) =>
+  percent === null
+    ? null
+    : `${percent.toLocaleString("en-GB", { maximumFractionDigits: 1 })}%`
+
+/** An average rating to one decimal, "4.0", or null without ratings. */
+export const formatRating = (average: number | null) =>
+  average === null ? null : average.toFixed(1)
 
 /** One Copenhagen day's average time and the Orders it includes. */
 export type DayAverage = { included: number; average_seconds: number | null }
@@ -136,34 +213,6 @@ export type TimeMeasure<Reason extends string = string> = {
   /** Whole seconds; null when no Order is included, never zero. */
   average_seconds: number | null
   exclusions: { reason: Reason; count: number }[]
-}
-
-/** Short operator wording for who or what cancelled an Order. */
-export const cancellationShortLabels: Record<CancellationCategory, string> = {
-  restaurant_rejected: "Restaurant rejected",
-  acceptance_timeout: "Not accepted in time",
-  customer_cancelled: "Customer",
-  unassigned_timeout: "No agent in time",
-  operator_cancelled: "MTOGO operator",
-}
-
-/**
- * The cancellations among the placements as one line, largest category
- * first: "3 cancelled: 2 Customer, 1 Restaurant rejected".
- */
-export const cancelledSummary = ({
-  total,
-  categories,
-}: CancelledPlacements) => {
-  const parts = categories
-    .filter(({ count }) => count > 0)
-    .sort((a, b) => b.count - a.count)
-    .map(
-      ({ category, count }) => `${count} ${cancellationShortLabels[category]}`,
-    )
-  return parts.length
-    ? `${total} cancelled: ${parts.join(", ")}`
-    : `${total} cancelled`
 }
 
 /**

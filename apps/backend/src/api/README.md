@@ -1781,9 +1781,9 @@ doing right now (#54), behind the default-off `operations_monitoring` flag
 and the server's time as `now`; every figure is calculated for that one
 moment, which the response returns as `as_of`. #259 adds Open Orders by
 stage, #260 unassigned deliveries, attention and unresolved Full refunds,
-the Order volume comes from #261, and Order processing time and Delivery
-transit time from #262; later work items add the other measures to the same
-response.
+the Order volume comes from #261, Order processing time and Delivery
+transit time from #262, and the Unfulfilled Order rate and the Customer
+rating from #263; the staff view adds a Restaurant scope.
 
 **Success:** `200` with
 `{ as_of, scope: { type: "platform" }, open_orders: { period, total, stages, exclusions } }`.
@@ -1863,6 +1863,31 @@ covers the same previous seven complete Copenhagen days as
 ones without the change. `days` lists all seven days oldest first, each
 `{ date, processing_time: { included, average_seconds }, delivery_transit_time: { included, average_seconds } }`;
 a day without handovers has `included: 0` and `average_seconds: null`.
+
+`unfulfilled_orders` (#263) covers the Orders placed in the same `period` as
+`placements`:
+`{ period, placed, ended, unfulfilled, rate_percent, causes, groups, exclusions }`.
+An Unfulfilled Order ended without its food handed over: cancelled in any
+category, or a delivery that ended `not_delivered` without a cancellation.
+`ended` is `unfulfilled` plus the delivered Orders; `rate_percent` is
+`unfulfilled / ended` as a percent to one decimal, or `null` while no Order
+has ended (never 0). The Orders still open are in neither number and are the
+one exclusion, `{ reason: "still_open", count }`, so `placed` is `ended` plus
+them. `causes` names all six, `0` when none, in this order and with the party
+each lies with: `customer_cancelled` (`customer`), `restaurant_rejected` and
+`acceptance_timeout` (`restaurant`), `unassigned_timeout`,
+`operator_cancelled` and `delivery_failed` (`mtogo`). An Order cancelled after
+its delivery ended without handover counts once, under its cancellation
+category. `groups` sums the causes per party. One grouped query gives every
+number, so they always add up.
+
+`customer_rating` (#263) is #51's platform-wide experience rating for the
+last 30 days, the figure `GET /admin/feedback/statistics` returns as
+`experience` for its default period:
+`{ period: { key: "last_30_days", starts_at, ends_at }, average, count, exclusions: [] }`.
+`average` is one decimal, or `null` without ratings. It is `null` for a
+Restaurant scope, whose food rating stays on the Ratings page. The `feedback`
+flag that once hid it was removed with #255, so it is always shown.
 
 | Status | When                                                                                                                                 |
 | ------ | ------------------------------------------------------------------------------------------------------------------------------------ |

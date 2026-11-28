@@ -503,9 +503,9 @@ operations monitoring is not released, and the API answers `404`.
 refusals, the `404` and the sidebar job.
 
 `components/volume-figures.tsx` shows the Order volume (#261). Under **Last
-24 hours**, **Orders placed** (the total, the line "3 cancelled: 2 Customer,
-1 Restaurant rejected" from `cancelledSummary`, largest first, and a count per
-category under "Cancelled by") sits beside **Orders per hour**, side by side
+24 hours**, **Orders placed** (the total, then "Cancelled" with its count and one row per
+category, in the Unfulfilled chart's order and wording from `inCauseOrder` and
+`causeLabels`, so each number appears once) sits beside **Orders per hour**, side by side
 from `lg`. Under **Previous 7 days**, **Placements per day** spans the width.
 Both charts are vertical bar charts with a legend above the plot and a count
 on each bar:
@@ -554,6 +554,22 @@ table lists both times and the Orders per day, then the seven-day averages and
 the exclusions. `ChartNumbers` takes several value columns for it, with "–"
 where a day has no value.
 
+`components/reliability-figures.tsx` adds the last section (#263),
+**Unfulfilled Orders and Customer rating**. **Unfulfilled Orders by cause**
+spans two columns from `lg`. Its rate is the headline (`formatRate`: "10%",
+"66.7%", or "No rate" while nothing has ended) with "3 of 30 ended Orders"
+right under it. A row below splits the Unfulfilled Orders by party (Customer,
+Restaurant, MTOGO) and sets "Still open, not in the rate" apart behind a
+divider. `CountBarChart` then has one bar per cause in `CAUSE_ORDER`, Customer
+first, then Restaurant and MTOGO, named by `causeLabels`, the same order and
+wording as the cancellations under Orders placed. "Failed" appears only as
+"Delivery failed", the delivery outcome (GLOSSARY: Unfulfilled Order).
+**Average Customer rating** shows the experience average as "4.1 of 5"
+(`formatRating`), or "No ratings", the number of ratings and the 30-day
+period, and links to the Feedback page. It keeps its own height beside the
+chart (`lg:self-start`). It is left out when the read has no rating, and the
+Unfulfilled card then takes the full width.
+
 Under each chart, `ChartNumbers` lists every bar, with a caption naming the
 period and population. The bars, the dashed outline and the dashed line all carry a text label as
 well, so nothing relies on colour.
@@ -566,8 +582,10 @@ calculation moment and Refresh, the work waiting and Open Orders for **Right
 now**; the period, placements, Orders per hour and peak hour for **Last 24
 hours**; the complete days and the average over seven for **Previous 7
 days**; and what each time runs between, which Orders count, exclusions, the
-comparison and the per-day chart for **Processing and transit time**. The
-cards keep only short labels such as "All Restaurants, each Copenhagen day."
+comparison and the per-day chart for **Processing and transit time**; and
+the Unfulfilled Order, its rate, the causes and the Customer rating for
+**Unfulfilled Orders and Customer rating**. The cards keep only short labels
+such as "All Restaurants, each Copenhagen day."
 
 ## MTOGO branding
 

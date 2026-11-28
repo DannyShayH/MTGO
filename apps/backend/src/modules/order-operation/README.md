@@ -401,6 +401,16 @@ same handovers by the Copenhagen calendar date of `delivery_ended_at`
 with a handover, for the seven-day trend. Exclusions are counted once for the
 whole period by `averageProcessingTime`. The same index serves it.
 
+## Placement outcomes (#263)
+
+`countPlacementsByOutcome(period, { restaurant_id? })` groups the Orders
+placed in a period, in one query, by how each stands now: its
+`cancellation_category` when cancelled (even when its delivery then ended
+`not_delivered`), else its `delivery_outcome` (`delivered` or
+`not_delivered`), else `open`. It returns `{ outcome, count }` for each
+outcome present. The operations read turns it into the Unfulfilled Order rate
+by cause. The placement index serves it, as `admin-operations.spec.ts` checks.
+
 ## Link
 
 `src/links/order-order-operation.ts` is a read-only, one-to-one link from the Order

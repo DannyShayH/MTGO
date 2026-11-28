@@ -9,6 +9,7 @@ import {
 } from "@medusajs/framework/utils"
 import OrderOperation, {
   type CancellationCategory,
+  type DeliveryOutcome,
   type OrderOperationState,
 } from "./models/order-operation"
 import FoodCredit from "./models/food-credit"
@@ -49,6 +50,23 @@ end`
 
 /** A range of time: from `starts_at`, inclusive, to `ends_at`, exclusive. */
 export type PlacementPeriod = { starts_at: string; ends_at: string }
+
+/**
+ * How a placed Order stands now (#263): cancelled by a category, ended by
+ * its delivery outcome, or still open.
+ */
+export type PlacementOutcome = CancellationCategory | DeliveryOutcome | "open"
+
+/**
+ * The outcome rule, evaluated in the database so one grouped query counts
+ * all. A cancelled record always has a category: its one write,
+ * `cancelWithRefundObligation`, sets both together.
+ */
+const PLACEMENT_OUTCOME_SQL = `case
+  when o.state = 'cancelled' then o.cancellation_category
+  when o.delivery_outcome is not null then o.delivery_outcome
+  else 'open'
+end`
 
 /** Order processing time as the database averages it (#262). */
 export type ProcessingTimeCounts = {
@@ -252,6 +270,30 @@ class OrderOperationModuleService extends MedusaService({
       .count({ count: "*" })
       .groupBy("date")) as { date: string; count: string }[]
     return rows.map(({ date, count }) => ({ date, count: Number(count) }))
+  }
+
+  /**
+   * Counts the Orders placed in a period by how they stand now (#263): the
+   * cancellation category of a cancelled Order (which wins over a delivery
+   * that then ended `not_delivered`), else the delivery outcome, else
+   * `open`. One grouped query, so the Unfulfilled Orders, their causes, the
+   * delivered and the still-open Orders always add up to the placements.
+   */
+  @InjectManager()
+  async countPlacementsByOutcome(
+    period: PlacementPeriod,
+    scope: { restaurant_id?: string } = {},
+    @MedusaContext() context: Context = {},
+  ): Promise<{ outcome: PlacementOutcome; count: number }[]> {
+    const manager = context.manager as EntityManager
+    const rows = (await this.placementsIn(manager, period, scope)
+      .select(manager.getKnex().raw(`${PLACEMENT_OUTCOME_SQL} as outcome`))
+      .count({ count: "*" })
+      .groupBy("outcome")) as { outcome: string; count: string }[]
+    return rows.map(({ outcome, count }) => ({
+      outcome: outcome as PlacementOutcome,
+      count: Number(count),
+    }))
   }
 
   /** Delivered records, not deleted, optionally of one Restaurant (#262). */

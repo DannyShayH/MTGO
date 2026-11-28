@@ -6,6 +6,10 @@ import type { ReactNode } from "react"
 import { CountBarChart } from "../../components/count-bar-chart"
 import { OperationsSkeleton } from "../../components/operations-skeleton"
 import { SectionDefinitions } from "../../components/section-definitions"
+import {
+  CustomerRatingCard,
+  UnfulfilledOrdersCard,
+} from "../../components/reliability-figures"
 import { SpeedFigures, TimesPerDayChart } from "../../components/speed-figures"
 import {
   OrdersPerHourChart,
@@ -123,8 +127,9 @@ function PeriodSection({
  * the last 24 hours, Orders per hour and placements per day with the
  * seven-day average; #262 adds Order processing time and Delivery transit
  * time for the Orders handed over in the last 24 hours, each against the
- * previous seven days, and their averages per day over those seven days. Shown only while
- * the backend releases the Feature.
+ * previous seven days, and their averages per day over those seven days;
+ * #263 adds the Unfulfilled Order rate by cause and the average Customer
+ * rating. Shown only while the backend releases the Feature.
  */
 const OperationsPage = () => {
   const flags = useFeatureFlag("operations_monitoring")
@@ -281,6 +286,23 @@ const OperationsPage = () => {
           >
             <SpeedFigures figures={figures} />
             <TimesPerDayChart figures={figures} />
+          </PeriodSection>
+
+          <PeriodSection
+            id="operations-reliability"
+            title="Unfulfilled Orders and Customer rating"
+            period="Orders placed in the last 24 hours; ratings from the last 30 days"
+            info={<SectionDefinitions {...operationsDefinitions.reliability} />}
+          >
+            <div className="grid gap-3 lg:grid-cols-3">
+              <UnfulfilledOrdersCard
+                figures={figures}
+                className={
+                  figures.customer_rating ? "lg:col-span-2" : "lg:col-span-3"
+                }
+              />
+              <CustomerRatingCard figures={figures} />
+            </div>
           </PeriodSection>
         </div>
       )}

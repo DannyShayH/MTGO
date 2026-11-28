@@ -85,7 +85,7 @@ const DAY_HEIGHTS = [44, 58, 40, 76, 30, 36, 52]
 
 /**
  * The Operations page's shape while its figures are first calculated: the
- * same three period sections, cards and charts in grey, so the page forms in
+ * same period sections, cards and charts in grey, so the page forms in
  * place and nothing moves when the figures arrive. Screen readers hear one
  * status line instead of the blocks. A refresh keeps the figures shown and
  * fades them instead, so the operator never loses what they were reading.
@@ -135,6 +135,24 @@ export function OperationsSkeleton() {
             <FigureCard rows={3} />
           </div>
           <ChartCard heights={DAY_HEIGHTS} />
+        </section>
+
+        <section className="flex flex-col gap-y-3">
+          <SectionHead />
+          <div className="grid gap-3 lg:grid-cols-3">
+            <Container className="flex flex-col divide-y p-0 lg:col-span-2">
+              <CardHead wide />
+              <div className="flex flex-col gap-y-4 px-6 py-5">
+                {[12, 16, 4, 6, 10, 8].map((width, row) => (
+                  <div key={row} className="flex items-center gap-x-4">
+                    <Block className="h-3 w-48 shrink-0" />
+                    <Block className="h-4" style={{ width: `${width}%` }} />
+                  </div>
+                ))}
+              </div>
+            </Container>
+            <FigureCard rows={1} />
+          </div>
         </section>
       </div>
     </div>

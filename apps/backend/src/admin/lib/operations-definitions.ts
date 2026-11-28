@@ -2,12 +2,12 @@
 export type Definition = { term: string; text: string }
 
 /**
- * What each Operations section counts (#259-#262), in operator wording, for
+ * What each Operations section counts (#259-#263), in operator wording, for
  * the info Drawer next to its heading. The definitions follow ADR-0015 and
  * the operations monitoring specification; keep them in step with the reads.
  */
 export const operationsDefinitions: Record<
-  "now" | "last24Hours" | "previous7Days" | "speed",
+  "now" | "last24Hours" | "previous7Days" | "speed" | "reliability",
   { title: string; description: string; definitions: Definition[] }
 > = {
   now: {
@@ -99,6 +99,29 @@ export const operationsDefinitions: Record<
       {
         term: "Per day",
         text: "Each Copenhagen day's average, by the day of the handover. A day without handovers has no average and leaves a gap in the chart.",
+      },
+    ],
+  },
+  reliability: {
+    title: "Unfulfilled Orders and Customer rating",
+    description:
+      "How often Orders end without food reaching the Customer, and how Customers rate the service.",
+    definitions: [
+      {
+        term: "Unfulfilled Order",
+        text: "An Order that ended without its food being handed over to the Customer: cancelled for any reason, or a delivery that failed.",
+      },
+      {
+        term: "Unfulfilled Order rate",
+        text: "Of the Orders placed in the last 24 hours that have ended, the share that ended unfulfilled. Orders still open are left out of the rate and shown beside it, so recent Orders cannot make it look better than it is.",
+      },
+      {
+        term: "Causes",
+        text: "Each Unfulfilled Order counts once, under its cancellation category, or as Delivery failed when the delivery ended without a handover and the Order was not cancelled. Customer cancellations come first, then Restaurant causes (rejected, not accepted in time), then MTOGO causes (no Delivery agent in time, cancelled by an operator, delivery failed).",
+      },
+      {
+        term: "Average Customer rating",
+        text: "The overall experience rating Customers gave, 1 to 5, for Orders handed over in the last 30 days across all Restaurants, with the number of ratings. It is the figure the Feedback page shows for the same period.",
       },
     ],
   },

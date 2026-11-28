@@ -9,6 +9,8 @@ import type { SettingsTypes } from "@medusajs/framework/types"
 import SystemProviderService from "@medusajs/payment/dist/providers/system"
 import { DELIVERY_MODULE } from "../../src/modules/delivery"
 import type DeliveryModuleService from "../../src/modules/delivery/service"
+import { FEEDBACK_MODULE } from "../../src/modules/feedback"
+import type FeedbackModuleService from "../../src/modules/feedback/service"
 import OperationsMonitoringFeatureFlag from "../../src/feature-flags/operations-monitoring"
 import syncOperationsNavigation from "../../src/jobs/sync-operations-navigation"
 import { recoverDeliveryAttentionWorkflow } from "../../src/workflows/delivery/attention"
@@ -592,8 +594,9 @@ medusaIntegrationTestRunner({
         } finally {
           knex.removeListener("query", capture)
         }
-        // Placements, Orders per hour and placements per day.
-        expect(seen).toHaveLength(3)
+        // Placements, Orders per hour, placements per day and the
+        // Unfulfilled Orders (#263).
+        expect(seen).toHaveLength(4)
         for (const { sql, bindings } of seen) {
           // The test database is tiny, so a sequential scan would be
           // cheaper; ruling it out shows whether the index can serve.
@@ -893,6 +896,144 @@ medusaIntegrationTestRunner({
           // Either delivered handover-time index serves it.
           /IDX_intended_delivery_(delivered_terminal_at_id|restaurant_id_terminal_at_id)/,
         )
+      })
+    })
+
+    describe("Unfulfilled Orders and the Customer rating (#263)", () => {
+      const DAY = 24 * 60 * MINUTE
+      const recordOf = async (orderId: string) =>
+        (await operations().listOrderOperations({ order_id: orderId }))[0]
+      const operatorCancel = (orderId: string) =>
+        api.post(
+          `/admin/orders/${orderId}/operator-cancel`,
+          { reason: "Restaurant lost power" },
+          { headers: admin, validateStatus: () => true },
+        )
+
+      it("rates 4 of 6 ended Orders unfulfilled by cause and shows the still-open Order apart", async () => {
+        await delivered()
+        await delivered()
+        const withdrawn = await placePaidOrder(pizzeriaId)
+        expect((await harness.cancel(customer, withdrawn.id)).status).toBe(200)
+        const rejected = await placePaidOrder(pizzeriaId)
+        expect((await reject(staff, rejected.id)).status).toBe(200)
+        // Cancelled after pickup: the cancellation is the cause, not the
+        // delivery that then ended without handover.
+        const { order: cancelledOnTheWay } = await pickedUp()
+        expect((await operatorCancel(cancelledOnTheWay.id)).status).toBe(200)
+        expect((await recordOf(cancelledOnTheWay.id)).delivery_outcome).toBe(
+          "not_delivered",
+        )
+        // A delivery that ended without handover and without cancellation,
+        // as history would hold a failed delivery.
+        const { order: failed } = await pickedUp()
+        await operations().updateOrderOperations({
+          id: (await recordOf(failed.id)).id,
+          delivery_outcome: "not_delivered",
+          delivery_ended_at: new Date(),
+        })
+        await accepted()
+        // Placed before the last 24 hours: in neither number.
+        const older = await placePaidOrder(pizzeriaId)
+        await operations().updateOrderOperations({
+          id: (await recordOf(older.id)).id,
+          placed_at: new Date(Date.now() - DAY - 5 * MINUTE),
+        })
+
+        const response = await read()
+        expect(response.status).toBe(200)
+        expect(response.data.unfulfilled_orders).toEqual({
+          period: response.data.placements.period,
+          placed: 7,
+          ended: 6,
+          unfulfilled: 4,
+          rate_percent: 66.7,
+          causes: [
+            { cause: "customer_cancelled", group: "customer", count: 1 },
+            { cause: "restaurant_rejected", group: "restaurant", count: 1 },
+            { cause: "acceptance_timeout", group: "restaurant", count: 0 },
+            { cause: "unassigned_timeout", group: "mtogo", count: 0 },
+            { cause: "operator_cancelled", group: "mtogo", count: 1 },
+            { cause: "delivery_failed", group: "mtogo", count: 1 },
+          ],
+          groups: [
+            { group: "customer", count: 1 },
+            { group: "restaurant", count: 1 },
+            { group: "mtogo", count: 2 },
+          ],
+          exclusions: [{ reason: "still_open", count: 1 }],
+        })
+        // The same placements the volume counts.
+        expect(response.data.placements.total).toBe(7)
+      })
+
+      it("has no rate while every placement is still open, never 0%", async () => {
+        await placePaidOrder(pizzeriaId)
+        const response = await read()
+        expect(response.status).toBe(200)
+        expect(response.data.unfulfilled_orders).toMatchObject({
+          placed: 1,
+          ended: 0,
+          rate_percent: null,
+          exclusions: [{ reason: "still_open", count: 1 }],
+        })
+      })
+
+      it("shows the Feedback page's experience rating for the last 30 days, and none for one Restaurant", async () => {
+        const feedback = () =>
+          getContainer().resolve<FeedbackModuleService>(FEEDBACK_MODULE)
+        const now = Date.now()
+        const rated = [
+          { at: now - DAY, rating: 5 },
+          { at: now - 29 * DAY, rating: 2 },
+          // Outside the last 30 days.
+          { at: now - 31 * DAY, rating: 1 },
+        ]
+        for (const [index, { at, rating }] of rated.entries())
+          await feedback().createFeedbacks({
+            order_id: `operations-rated-${index}`,
+            customer_id: "customer",
+            restaurant_id: pizzeriaId,
+            agent_id: "agent",
+            delivered_at: new Date(at),
+            food_rating: 4,
+            experience_rating: rating,
+            agent_rating: 4,
+          })
+
+        const response = await read()
+        expect(response.status).toBe(200)
+        const rating = response.data.customer_rating
+        expect(rating).toMatchObject({ average: 3.5, count: 2 })
+        expect(rating.period.key).toBe("last_30_days")
+        expect(
+          Date.parse(rating.period.ends_at) -
+            Date.parse(rating.period.starts_at),
+        ).toBe(30 * DAY)
+        const page = await api.get("/admin/feedback/statistics", {
+          headers: admin,
+        })
+        expect(page.data.experience).toMatchObject({
+          average: rating.average,
+          count: rating.count,
+        })
+
+        const scoped = await readOperationsWorkflow(getContainer()).run({
+          input: {
+            scope: { type: "restaurant", restaurant_id: pizzeriaId },
+            now: new Date().toISOString(),
+          },
+        })
+        expect(scoped.result.customer_rating).toBeNull()
+      })
+
+      it("has no average while nobody has rated in the last 30 days, never zero", async () => {
+        const response = await read()
+        expect(response.status).toBe(200)
+        expect(response.data.customer_rating).toMatchObject({
+          average: null,
+          count: 0,
+        })
       })
     })
 

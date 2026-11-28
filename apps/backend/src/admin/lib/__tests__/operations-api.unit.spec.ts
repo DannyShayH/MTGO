@@ -1,5 +1,7 @@
 import {
-  cancelledSummary,
+  inCauseOrder,
+  formatRate,
+  formatRating,
   exclusionSummary,
   changeSummary,
   formatDuration,
@@ -15,29 +17,19 @@ const none = [
   "operator_cancelled",
 ] as const
 
-describe("The cancellations line", () => {
-  it('reads "3 cancelled: 2 Customer, 1 Restaurant rejected", largest first', () => {
+describe("The order of causes (#263)", () => {
+  it("lists cancellations Customer first, then Restaurant, then MTOGO, as the Unfulfilled chart does", () => {
     expect(
-      cancelledSummary({
-        total: 3,
-        categories: none.map((category) => ({
-          category,
-          count:
-            { customer_cancelled: 2, restaurant_rejected: 1 }[
-              category as string
-            ] ?? 0,
-        })),
-      }),
-    ).toBe("3 cancelled: 2 Customer, 1 Restaurant rejected")
-  })
-
-  it('reads "0 cancelled" when none was', () => {
-    expect(
-      cancelledSummary({
-        total: 0,
-        categories: none.map((category) => ({ category, count: 0 })),
-      }),
-    ).toBe("0 cancelled")
+      inCauseOrder(none.map((category) => ({ category }))).map(
+        ({ category }) => category,
+      ),
+    ).toEqual([
+      "customer_cancelled",
+      "restaurant_rejected",
+      "acceptance_timeout",
+      "unassigned_timeout",
+      "operator_cancelled",
+    ])
   })
 })
 
@@ -195,4 +187,33 @@ describe("Time measure wording (#262)", () => {
       expect(changeSummary(percent, previous)).toEqual({ text, tone })
     },
   )
+})
+
+describe("The Unfulfilled Order rate (#263)", () => {
+  it.each([
+    { percent: 10, text: "10%", reason: "EP: 3 of 30 reads 10%, no decimal" },
+    { percent: 66.7, text: "66.7%", reason: "EP: one decimal is kept" },
+    { percent: 0, text: "0%", reason: "BVA: none unfulfilled is a real 0%" },
+    { percent: null, text: null, reason: "EP: nothing ended has no rate" },
+  ])("$reason", ({ percent, text }) => {
+    expect(formatRate(percent)).toBe(text)
+  })
+})
+
+describe("The Customer rating (#263)", () => {
+  it.each([
+    {
+      average: 4,
+      text: "4.0",
+      reason: "EP: a whole average keeps one decimal",
+    },
+    { average: 3.5, text: "3.5", reason: "EP: one decimal" },
+    {
+      average: null,
+      text: null,
+      reason: "EP: no ratings has no average, never 0",
+    },
+  ])("$reason", ({ average, text }) => {
+    expect(formatRating(average)).toBe(text)
+  })
 })
