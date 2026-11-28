@@ -407,7 +407,10 @@ async function finishedOrders(
  * never deletes Orders or financial evidence; this synthetic seed does, only
  * on databases `syntheticSeedAllowed` accepts and only for its own Orders.
  */
-async function discardOrders(container: MedusaContainer, order_ids: string[]) {
+export async function discardOrders(
+  container: MedusaContainer,
+  order_ids: string[],
+) {
   if (!order_ids.length) return
   const finance = container.resolve<RestaurantFinanceModuleService>(
     RESTAURANT_FINANCE_MODULE,
@@ -538,6 +541,16 @@ async function driveOutcome(
   await confirmHandoverWorkflow(container).run(agentRun("handover"))
 }
 
+/**
+ * What retiming and recognition read of a planned Order: its outcome (an
+ * open Order of the demo world names none of the ended ones) and timeline.
+ * Also used by `seed-demo-world.ts` (#258).
+ */
+export type RetimedOrder = {
+  outcome: PopulationOrder["outcome"] | "open"
+  timeline: PopulationOrder["timeline"]
+}
+
 type When = Date | string | null | undefined
 type Stamped = Record<string, When>
 /** The listed times of `record`, retimed, leaving unset times unset. */
@@ -563,10 +576,11 @@ function retimed<T extends object>(
  * `syntheticSeedAllowed` accepts. The field lists name every recorded time
  * of these records: add a new one here too.
  */
-async function retimeOrder(
+export async function retimeOrder(
   container: MedusaContainer,
-  planned: PopulationOrder,
+  planned: RetimedOrder,
   order_id: string,
+  makeRetimer: typeof retimerAlong = retimerAlong,
 ) {
   const operations = container.resolve<OrderOperationModuleService>(
     ORDER_OPERATION_MODULE,
@@ -592,7 +606,7 @@ async function retimeOrder(
     [deadline, timeline.deadline_at],
     [operation.cancelled_at, timeline.cancelled_at],
   ]
-  const retime = retimerAlong(
+  const retime = makeRetimer(
     pairs.flatMap(([recorded, plannedAt]) =>
       recorded && plannedAt
         ? [{ recorded: new Date(recorded), planned: plannedAt }]
@@ -693,9 +707,9 @@ async function retimeOrder(
  * recognition would have posted it, except for a late delivery, which stays
  * posted now: a linked adjustment of its original month.
  */
-async function recognizeAtPlannedTime(
+export async function recognizeAtPlannedTime(
   container: MedusaContainer,
-  planned: PopulationOrder,
+  planned: RetimedOrder,
   order_id: string,
 ) {
   const finance = container.resolve<RestaurantFinanceModuleService>(
@@ -769,10 +783,13 @@ async function seedOrder(
  * `created_at` or a past participation change, so this synthetic seed writes
  * them on the Restaurant module directly.
  */
-async function moveParticipation(
+export async function moveParticipation(
   container: MedusaContainer,
   restaurant_id: string,
-  planned: StatementPopulation["restaurants"][number],
+  planned: Pick<
+    StatementPopulation["restaurants"][number],
+    "created_at" | "changes"
+  >,
 ) {
   const service = container.resolve<RestaurantModuleService>(RESTAURANT_MODULE)
   await service.updateRestaurants({
@@ -846,44 +863,63 @@ async function finalizeRestaurants(
   population: StatementPopulation,
   restaurants: SeededRestaurant[],
 ) {
-  const finance = container.resolve<RestaurantFinanceModuleService>(
-    RESTAURANT_FINANCE_MODULE,
-  )
   const now = new Date()
   for (const restaurant of restaurants) {
     const planned = population.restaurants.find(
       ({ key }) => key === restaurant.plan.key,
     )!
     await moveParticipation(container, restaurant.id, planned)
-    const facts = (await readParticipation(container, [restaurant.id])).get(
-      restaurant.id,
-    )!
-    for (const month of population.months) {
-      const period = copenhagenMonthPeriod(month)
-      if (period.ends_at > now || period.ends_at <= planned.created_at) continue
-      const [held] = await finance.listFinanceServiceFees(
-        { restaurant_id: restaurant.id, month },
-        { take: 1, select: ["id"] },
-      )
-      const evidence = serviceFeeEvidence(facts, month, now)
-      if (held || evidence.status !== "verified") continue
-      await finance.createFinanceServiceFees({
-        restaurant_id: restaurant.id,
-        month,
-        terms_version: evidence.terms_version,
-        currency_code: "dkk",
-        policy_amount: evidence.policy_amount,
-        amount: evidence.amount,
-        month_day_count: evidence.month_day_count,
-        active_dates: evidence.active_dates,
-        active_date_count: evidence.active_dates.length,
-        accrued_at: new Date(period.ends_at.getTime() - 60 * 1000),
-      } as unknown as Parameters<typeof finance.createFinanceServiceFees>[0])
-    }
-    await closeRestaurantStatements(container, restaurant.id)
-    await reconcileClosedServiceFees(container, restaurant.id)
-    await accrueServiceFee(container, restaurant.id)
+    await closeSeededMonths(container, restaurant.id, {
+      created_at: planned.created_at,
+      months: population.months,
+      now,
+    })
   }
+}
+
+/**
+ * Records the ended months' fees as accrued at their end from the recorded
+ * participation, closes those months and accrues the current fee, as the
+ * recovery job would have done at each month's end. Also used by
+ * `seed-demo-world.ts` (#258).
+ */
+export async function closeSeededMonths(
+  container: MedusaContainer,
+  restaurant_id: string,
+  input: { created_at: Date; months: string[]; now: Date },
+) {
+  const finance = container.resolve<RestaurantFinanceModuleService>(
+    RESTAURANT_FINANCE_MODULE,
+  )
+  const { now } = input
+  const facts = (await readParticipation(container, [restaurant_id])).get(
+    restaurant_id,
+  )!
+  for (const month of input.months) {
+    const period = copenhagenMonthPeriod(month)
+    if (period.ends_at > now || period.ends_at <= input.created_at) continue
+    const [held] = await finance.listFinanceServiceFees(
+      { restaurant_id, month },
+      { take: 1, select: ["id"] },
+    )
+    const evidence = serviceFeeEvidence(facts, month, now)
+    if (held || evidence.status !== "verified") continue
+    await finance.createFinanceServiceFees({
+      restaurant_id,
+      month,
+      terms_version: evidence.terms_version,
+      currency_code: "dkk",
+      policy_amount: evidence.policy_amount,
+      amount: evidence.amount,
+      month_day_count: evidence.month_day_count,
+      active_dates: evidence.active_dates,
+      active_date_count: evidence.active_dates.length,
+      accrued_at: new Date(period.ends_at.getTime() - 60 * 1000),
+    } as unknown as Parameters<typeof finance.createFinanceServiceFees>[0])
+  }
+  await closeRestaurantStatements(container, restaurant_id)
+  await reconcileClosedServiceFees(container, restaurant_id)
+  await accrueServiceFee(container, restaurant_id)
 }
 
 /** The Copenhagen date of the population's first run, kept by its Orders. */

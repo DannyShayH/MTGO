@@ -88,8 +88,8 @@ Everything sits behind a default-off feature flag until the team releases it.
 ### Demo world
 
 45. As the team, we want a demo world on staging with Scarpetta as the prime Restaurant, so that we can demonstrate the platform on believable data.
-46. As the team, we want seven further Restaurants, each a distinct business with its own cuisine, Danish and English menu, opening hours, delivery area and volume and rating profile, so that the platform looks like a real marketplace.
-47. As the team, we want about 150 Customers, 10 Delivery agents and roughly 3,000 Orders over the two previous Copenhagen months and the current month, so that statements, bonuses, ratings and operations figures all have real history.
+46. As the team, we want two more prime Restaurants and sixteen general ones, each a distinct business with its own cuisine, Danish and English menu, opening hours, delivery area and volume and rating profile, so that the platform looks like a real marketplace.
+47. As the team, we want about 400 Customers, 25 Delivery agents and about 3,800 Orders over the two previous Copenhagen months and the current month, so that statements, bonuses, ratings and operations figures all have real history.
 48. As the team, we want every demo Order to go through the real ordering, kitchen, delivery, Feedback, cancellation and refund workflows, so that every Feature's figures agree with each other.
 49. As the team, we want lunch and dinner peaks, busier weekends, about 5% Unfulfilled Orders, varied ratings, early and late pickups, a part-month deactivation, legacy Orders and missing pickup times, so that every measure and exclusion has something to show.
 50. As the team, we want realistic names, addresses and phone numbers with every email address on a domain the team controls, so that the data looks real without ever emailing a stranger.
@@ -153,9 +153,9 @@ Everything sits behind a default-off feature flag until the team releases it.
 
 ### 7. Demo world
 
-- A pure, deterministic plan describes the world relative to the run time: Scarpetta and seven other Restaurants across Copenhagen postal codes, about 150 Customers, 10 Delivery agents and roughly 3,000 Orders over the two previous Copenhagen months and the current month, with the agreed patterns. A trial run fixes the final size before the work item is accepted.
+- A pure, deterministic plan describes the world relative to the run time: three prime Restaurants (Scarpetta first) and sixteen general Restaurants across Copenhagen postal codes, 400 Customers, 25 Delivery agents and about 3,800 Orders over the two previous Copenhagen months and the current month, with the agreed patterns. The trial run fixed this size (discovery Q27).
 - A seed script executes the plan through the real workflows (checkout, acceptance, preparation, claim, pickup, handover, Feedback, cancellations, Full refunds) and then moves recorded times back together, as the Feedback seed does. Application code still never rewrites recorded facts; only this seed does, and only on local, disposable CI or staging databases.
-- Scarpetta is defined in the plan and matched by handle. Where it exists it is used as is: no change to its menu, photos, settings or staff. Where it does not exist it is created.
+- Scarpetta is defined in the plan and matched by its staging id, then its name. Where it exists its dishes, photos, settings and staff are kept; the seed adds only missing dishes, one staff member and demo Orders (discovery Q26). Where it does not exist it is created.
 - People look real: Danish and international names, Copenhagen addresses inside the delivery areas, Danish phone numbers and natural email local parts on a team-controlled domain. Accounts are created already verified, authorized or accepted, so no email is sent. Every seeded record carries an internal seed marker.
 - A rerun creates only missing records and adds a fresh "now": Open Orders in every stage, an unassigned delivery waiting over ten minutes, outstanding attention items, pending and failed Full refunds and placements across the last 24 hours.
 - Seeded logins share one demo password from a staging environment variable. The seed logs which login shows what, never the password or Customer emails.

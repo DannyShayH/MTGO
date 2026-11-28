@@ -294,7 +294,7 @@ nothing else:
 | Sudo rule `/etc/sudoers.d/mtogo-deploy`           | root    | Only those four subcommands of `/usr/local/sbin/mtogo-deploy.sh`                                                                                                                        |
 | `/usr/local/sbin/mtogo-deploy.sh`                 | root    | Enforces the same four forms again for any sudo caller outside the `sudo` group, so the sudo rule's wildcards add nothing; starts only the containers of the release's own Compose file |
 
-`restore`, `rollback`, `seed`, `psql`, `logs` and `compose` stay with
+`restore`, `rollback`, `seed`, `demo-seed`, `psql`, `logs` and `compose` stay with
 administrators. The deploy user must not be in the `docker` group (that is
 root access) and needs no password.
 
@@ -509,6 +509,60 @@ sudo mtogo-deploy.sh compose run --rm migrate npm exec --no -- medusa exec ./src
 ```
 
 The page shows only while `MTOGO_FF_RESTAURANT_STATEMENTS=true`.
+
+### Seed the demo world
+
+The demo world (#258; [operations monitoring](/MTGO/product/operations-monitoring/),
+Q26–Q35) fills staging with three Copenhagen months of activity: Restaurant
+Scarpetta and two more prime Restaurants, sixteen general Restaurants, about
+400 Customers, 25 Delivery agents and about 3,800 Orders through the real
+workflows, with Feedback, statements and a fresh "now". The plan and its
+rules are in `apps/backend/src/lib/demo-world/`; the seed is
+`apps/backend/src/scripts/seed-demo-world.ts`.
+
+**Agreement with the staging administrator.** The seed reaches the staging
+database only through this administrator subcommand, which runs it in the
+current release's backend image. Nobody receives a database password or a
+direct `psql` connection for it, and the CI deploy key cannot start it (the
+SSH gate allows only `prepare`, `release`, `deploy` and `status`).
+
+Set `DEMO_WORLD_PASSWORD` and `DEMO_WORLD_EMAIL_DOMAIN` in the Droplet `.env`
+(see `deploy/staging/.env.template`) once, then:
+
+```bash
+sudo mtogo-deploy.sh demo-seed          # backs up the database, starts the seed in the background
+sudo mtogo-deploy.sh demo-seed logs     # follow progress: Orders done, ms per Order, minutes left
+sudo mtogo-deploy.sh demo-seed status   # whether it still runs
+```
+
+A first run takes two to three hours on the 2 GB Droplet. It is safe to
+repeat: a rerun keeps every finished Order, replaces an interrupted one, adds
+the days since the last run and a fresh "now" (Open Orders in each stage, an
+unassigned delivery waiting over ten minutes, stalled deliveries, a reported
+problem, a pending and two failed Full refunds). The "now" Orders are live, so
+the recovery jobs move them on within minutes: start a rerun shortly before a
+demonstration. A rerun first delivers the earlier "now" deliveries an agent
+still holds, so every agent is free again. The last log lines name the logins (operator, the three prime
+Restaurants' staff, agents) without the password or any Customer's email.
+
+On staging the seed finds Scarpetta by its id and adds only its missing dishes
+and drinks, one staff member and demo Orders; its existing dishes, photos,
+settings and staff stay as they are. It moves Scarpetta's creation and first
+activation to the start of the window, so its statements cover all three
+months. The other Restaurants already on staging are never touched.
+
+Locally, from `apps/backend` (`NODE_ENV=development` and a loopback
+`DATABASE_URL`; the dev container's `postgres` host is reached as
+`127.0.0.1`):
+
+```bash
+DEMO_WORLD_PASSWORD=<8+ characters> DEMO_WORLD_EMAIL_DOMAIN=corral.dk \
+  NODE_ENV=development npx medusa exec ./src/scripts/seed-demo-world.ts
+```
+
+`DEMO_WORLD_MAX_ORDERS=<n>` stops after that many new history Orders, for a
+timed trial; the ended months close only once the history is complete.
+`npx medusa exec ./src/scripts/check-demo-world.ts` verifies a finished run.
 
 ### Database backup and restore
 

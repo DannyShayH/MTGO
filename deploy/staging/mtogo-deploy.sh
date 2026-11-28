@@ -28,6 +28,9 @@
 #   mtogo-deploy.sh restore <file> --yes   Stop the apps, restore a dump, start again.
 #   mtogo-deploy.sh logs [args...]    docker compose logs (default: last 10 minutes).
 #   mtogo-deploy.sh seed              Run the synthetic Restaurant and menu seeds once.
+#   mtogo-deploy.sh demo-seed [start|logs|status]  The demo world (#258): start
+#       backs up the database, then seeds in the background (rerun to add a
+#       fresh "now"); logs follows it; status shows whether it still runs.
 #   mtogo-deploy.sh psql [args...]    psql as the restricted staging database user.
 #   mtogo-deploy.sh compose [args...] Any docker compose command for the current release.
 #   mtogo-deploy.sh monitoring up      Private request metrics (#194): turn on the
@@ -489,6 +492,36 @@ cmd_seed() {
   compose "$sha" run --rm migrate npm exec --no -- medusa exec ./src/scripts/seed-demo-menu.js
 }
 
+readonly DEMO_SEED_CONTAINER=mtogo-demo-seed
+
+cmd_demo_seed() {
+  local action=${1:-start} sha
+  [[ $# -le 1 ]] || die "demo-seed takes one action: start, logs or status"
+  check_env_file
+  sha=$(current_release)
+  case "$action" in
+    start)
+      env_value DEMO_WORLD_PASSWORD > /dev/null
+      env_value DEMO_WORLD_EMAIL_DOMAIN > /dev/null
+      if [[ -n "$(docker ps -q --filter "name=^${DEMO_SEED_CONTAINER}$")" ]]; then
+        die "the demo seed is still running; follow it with: demo-seed logs"
+      fi
+      take_lock
+      database_backup "$sha"
+      docker rm "$DEMO_SEED_CONTAINER" > /dev/null 2>&1 || true
+      log "starting the demo world seed for release ${sha:0:12} in the background"
+      compose "$sha" run -d --name "$DEMO_SEED_CONTAINER" demo-seed > /dev/null
+      log "follow it with: mtogo-deploy.sh demo-seed logs"
+      ;;
+    logs) docker logs --follow --tail 40 "$DEMO_SEED_CONTAINER" ;;
+    status)
+      docker ps -a --filter "name=^${DEMO_SEED_CONTAINER}$" \
+        --format '{{.Names}}  {{.Status}}  started {{.CreatedAt}}'
+      ;;
+    *) die "unknown demo-seed action: $action (start, logs, status)" ;;
+  esac
+}
+
 cmd_psql() {
   check_env_file
   local sha
@@ -726,10 +759,11 @@ main() {
     restore) cmd_restore "$@" ;;
     logs) cmd_logs "$@" ;;
     seed) cmd_seed ;;
+    demo-seed) cmd_demo_seed "$@" ;;
     psql) cmd_psql "$@" ;;
     compose) cmd_compose "$@" ;;
     monitoring) cmd_monitoring "$@" ;;
-    help | --help | -h) sed -n '2,47p' "$0" ;;
+    help | --help | -h) sed -n '2,50p' "$0" ;;
     *) die "unknown command: $command (try: help)" ;;
   esac
 }

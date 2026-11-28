@@ -1,0 +1,443 @@
+/**
+ * Names, streets and shift patterns for the demo world (#258). Danish and
+ * international names, as Copenhagen has; streets belong to their postal
+ * codes, so every Customer lives inside the delivery areas.
+ */
+
+export const FIRST_NAMES = [
+  "Freja",
+  "Mikkel",
+  "Ida",
+  "Jonas",
+  "Sofie",
+  "Mads",
+  "Emma",
+  "Frederik",
+  "Clara",
+  "Lucas",
+  "Laura",
+  "Oliver",
+  "Anna",
+  "William",
+  "Karla",
+  "Noah",
+  "Ella",
+  "Magnus",
+  "Alma",
+  "Emil",
+  "Maja",
+  "Victor",
+  "Josefine",
+  "Christian",
+  "Mathilde",
+  "Rasmus",
+  "Cecilie",
+  "Søren",
+  "Line",
+  "Anders",
+  "Mette",
+  "Henrik",
+  "Hanne",
+  "Jakob",
+  "Astrid",
+  "Kasper",
+  "Signe",
+  "Thomas",
+  "Nanna",
+  "Martin",
+  "Julie",
+  "Peter",
+  "Louise",
+  "Morten",
+  "Camilla",
+  "Nikolaj",
+  "Katrine",
+  "Simon",
+  "Pernille",
+  "Troels",
+  "Birgitte",
+  "Lasse",
+  "Rikke",
+  "Ahmed",
+  "Fatima",
+  "Ali",
+  "Leila",
+  "Omar",
+  "Yasmin",
+  "Mohammed",
+  "Sara",
+  "Hassan",
+  "Amira",
+  "Mehmet",
+  "Elif",
+  "Can",
+  "Zeynep",
+  "Piotr",
+  "Agnieszka",
+  "Tomasz",
+  "Marta",
+  "Luca",
+  "Giulia",
+  "Marco",
+  "Chiara",
+  "Pablo",
+  "Lucía",
+  "Diego",
+  "Sofía",
+  "Ingrid",
+  "Lars",
+  "Erik",
+  "Johanna",
+  "Priya",
+  "Arjun",
+  "Ananya",
+  "Wei",
+  "Mei",
+  "Hiroshi",
+  "Yuki",
+  "Daniel",
+  "Hannah",
+  "James",
+  "Emily",
+  "Liam",
+  "Olivia",
+  "Aleksander",
+  "Natalia",
+  "Mateusz",
+  "Ewa",
+]
+
+export const LAST_NAMES = [
+  "Nielsen",
+  "Jensen",
+  "Hansen",
+  "Pedersen",
+  "Andersen",
+  "Christensen",
+  "Larsen",
+  "Sørensen",
+  "Rasmussen",
+  "Jørgensen",
+  "Petersen",
+  "Madsen",
+  "Kristensen",
+  "Olsen",
+  "Thomsen",
+  "Christiansen",
+  "Poulsen",
+  "Johansen",
+  "Møller",
+  "Mortensen",
+  "Holm",
+  "Dahl",
+  "Lund",
+  "Bech",
+  "Kjær",
+  "Frost",
+  "Østergaard",
+  "Lindberg",
+  "Friis",
+  "Skov",
+  "Bak",
+  "Winther",
+  "Brandt",
+  "Krogh",
+  "Vinther",
+  "Mikkelsen",
+  "Lauridsen",
+  "Bertelsen",
+  "Hussain",
+  "Yilmaz",
+  "Novak",
+  "Ali",
+  "Rahman",
+  "Khan",
+  "Demir",
+  "Kaya",
+  "Kowalski",
+  "Nowak",
+  "Rossi",
+  "Bianchi",
+  "García",
+  "Martínez",
+  "Svensson",
+  "Johansson",
+  "Berg",
+  "Patel",
+  "Sharma",
+  "Wang",
+  "Li",
+  "Tanaka",
+  "Smith",
+  "O'Brien",
+  "Müller",
+  "Schmidt",
+  "Wiśniewska",
+]
+
+/** Streets by postal code; a Customer's code picks its street. */
+export const STREETS: Record<string, { city: string; streets: string[] }> = {
+  "1123": {
+    city: "København K",
+    streets: ["Gothersgade", "Store Regnegade", "Møntergade"],
+  },
+  "1150": {
+    city: "København K",
+    streets: ["Købmagergade", "Skindergade", "Valkendorfsgade"],
+  },
+  "1360": {
+    city: "København K",
+    streets: ["Store Kongensgade", "Hindegade", "Borgergade"],
+  },
+  "1401": {
+    city: "København K",
+    streets: [
+      "Torvegade",
+      "Dronningensgade",
+      "Prinsessegade",
+      "Sankt Annæ Gade",
+    ],
+  },
+  "1550": {
+    city: "København V",
+    streets: ["Gammel Kongevej", "Vester Farimagsgade", "Kampmannsgade"],
+  },
+  "1620": {
+    city: "København V",
+    streets: [
+      "Vesterbrogade",
+      "Oehlenschlægersgade",
+      "Matthæusgade",
+      "Saxogade",
+    ],
+  },
+  "1650": {
+    city: "København V",
+    streets: ["Istedgade", "Absalonsgade", "Valdemarsgade", "Skydebanegade"],
+  },
+  "1700": {
+    city: "København V",
+    streets: ["Enghavevej", "Sønder Boulevard", "Dybbølsgade"],
+  },
+  "1850": {
+    city: "Frederiksberg C",
+    streets: ["Gammel Kongevej", "Værnedamsvej", "Svanholmsvej", "Kingosgade"],
+  },
+  "1870": {
+    city: "Frederiksberg C",
+    streets: ["Bülowsvej", "Thorvaldsensvej", "Dr. Abildgaards Allé"],
+  },
+  "2000": {
+    city: "Frederiksberg",
+    streets: [
+      "Falkoner Allé",
+      "Godthåbsvej",
+      "Nordre Fasanvej",
+      "Howitzvej",
+      "Smallegade",
+    ],
+  },
+  "2100": {
+    city: "København Ø",
+    streets: [
+      "Østerbrogade",
+      "Classensgade",
+      "Nordre Frihavnsgade",
+      "Strandboulevarden",
+      "Ribegade",
+    ],
+  },
+  "2150": {
+    city: "Nordhavn",
+    streets: ["Århusgade", "Sandkaj", "Helsinkigade"],
+  },
+  "2200": {
+    city: "København N",
+    streets: [
+      "Nørrebrogade",
+      "Jagtvej",
+      "Guldbergsgade",
+      "Blågårdsgade",
+      "Elmegade",
+      "Fælledvej",
+      "Rantzausgade",
+      "Jægersborggade",
+    ],
+  },
+  "2300": {
+    city: "København S",
+    streets: [
+      "Amagerbrogade",
+      "Holmbladsgade",
+      "Englandsvej",
+      "Øresundsvej",
+      "Lergravsvej",
+    ],
+  },
+  "2400": {
+    city: "København NV",
+    streets: [
+      "Frederikssundsvej",
+      "Tagensvej",
+      "Rentemestervej",
+      "Glasvej",
+      "Bispebjerg Bakke",
+    ],
+  },
+  "2450": {
+    city: "København SV",
+    streets: ["Mozarts Plads", "Borgbjergsvej", "Sydhavnsgade", "Wagnersvej"],
+  },
+  "2500": {
+    city: "Valby",
+    streets: [
+      "Valby Langgade",
+      "Toftegårds Allé",
+      "Gammel Køge Landevej",
+      "Vigerslevvej",
+    ],
+  },
+  "2860": {
+    city: "Søborg",
+    streets: ["Søborg Hovedgade", "Gladsaxevej", "Maglegårds Allé"],
+  },
+  "2900": {
+    city: "Hellerup",
+    streets: ["Strandvejen", "Hellerupvej", "Rygårds Allé"],
+  },
+}
+
+export const FLOORS = [
+  "st. tv.",
+  "st. th.",
+  "1. tv.",
+  "1. th.",
+  "2. tv.",
+  "2. th.",
+  "3. mf.",
+  "4. tv.",
+  "5. th.",
+]
+
+/**
+ * When an agent usually works: weekdays and services. Days are 0 (Sunday)
+ * to 6 (Saturday), as `Date.getUTCDay` counts them for the Copenhagen date.
+ */
+export type ShiftPattern = {
+  days: number[]
+  lunch: boolean
+  dinner: boolean
+}
+
+export const SHIFTS: Record<
+  "full_time" | "part_time" | "weekend" | "evenings",
+  ShiftPattern
+> = {
+  full_time: { days: [1, 2, 3, 4, 5], lunch: true, dinner: true },
+  part_time: { days: [2, 4, 6], lunch: false, dinner: true },
+  weekend: { days: [5, 6, 0], lunch: true, dinner: true },
+  evenings: { days: [0, 1, 3, 5], lunch: false, dinner: true },
+}
+
+/** The 25 Delivery agents: a name, a shift pattern and a usual rating. */
+export const DEMO_WORLD_AGENTS: {
+  first_name: string
+  last_name: string
+  shift: keyof typeof SHIFTS
+  quality: number
+}[] = [
+  {
+    first_name: "Mikkel",
+    last_name: "Thorsen",
+    shift: "full_time",
+    quality: 4.7,
+  },
+  {
+    first_name: "Sara",
+    last_name: "Lindqvist",
+    shift: "full_time",
+    quality: 4.8,
+  },
+  { first_name: "Yusuf", last_name: "Demir", shift: "full_time", quality: 4.4 },
+  {
+    first_name: "Katrine",
+    last_name: "Bech",
+    shift: "full_time",
+    quality: 4.6,
+  },
+  { first_name: "Jonas", last_name: "Dahl", shift: "full_time", quality: 4.1 },
+  {
+    first_name: "Aleksander",
+    last_name: "Nowak",
+    shift: "full_time",
+    quality: 4.5,
+  },
+  {
+    first_name: "Amira",
+    last_name: "Hassan",
+    shift: "full_time",
+    quality: 4.9,
+  },
+  {
+    first_name: "Frederik",
+    last_name: "Krogh",
+    shift: "full_time",
+    quality: 3.8,
+  },
+  {
+    first_name: "Mateusz",
+    last_name: "Kowalski",
+    shift: "full_time",
+    quality: 4.3,
+  },
+  {
+    first_name: "Line",
+    last_name: "Vinther",
+    shift: "full_time",
+    quality: 4.6,
+  },
+  { first_name: "Omar", last_name: "Rahman", shift: "part_time", quality: 4.2 },
+  { first_name: "Clara", last_name: "Friis", shift: "part_time", quality: 4.7 },
+  {
+    first_name: "Diego",
+    last_name: "Martínez",
+    shift: "part_time",
+    quality: 3.6,
+  },
+  { first_name: "Signe", last_name: "Skov", shift: "part_time", quality: 4.5 },
+  { first_name: "Arjun", last_name: "Patel", shift: "part_time", quality: 4.4 },
+  { first_name: "Emil", last_name: "Brandt", shift: "evenings", quality: 4.0 },
+  {
+    first_name: "Natalia",
+    last_name: "Wiśniewska",
+    shift: "evenings",
+    quality: 4.8,
+  },
+  { first_name: "Hassan", last_name: "Khan", shift: "evenings", quality: 3.4 },
+  { first_name: "Ingrid", last_name: "Berg", shift: "evenings", quality: 4.6 },
+  { first_name: "Lasse", last_name: "Winther", shift: "weekend", quality: 4.3 },
+  { first_name: "Zeynep", last_name: "Kaya", shift: "weekend", quality: 4.7 },
+  { first_name: "Liam", last_name: "O'Brien", shift: "weekend", quality: 4.1 },
+  { first_name: "Josefine", last_name: "Bak", shift: "weekend", quality: 4.5 },
+  { first_name: "Piotr", last_name: "Nowak", shift: "weekend", quality: 3.9 },
+  {
+    first_name: "Maja",
+    last_name: "Mikkelsen",
+    shift: "weekend",
+    quality: 4.6,
+  },
+]
+
+export const REJECTION_NOTES = [
+  "Vi er løbet tør for en ingrediens til retten",
+  "Ovnen er gået i stykker",
+  "Køkkenet er overbooket lige nu",
+  "Vi lukker tidligt i dag",
+]
+
+export const OPERATOR_REASONS = [
+  "Restaurant reported a power cut during preparation",
+  "Customer's building is closed off; delivery not possible",
+  "Restaurant reported a fire alarm and evacuated the kitchen",
+  "Customer asked support to cancel after an emergency",
+]

@@ -133,6 +133,38 @@ services:
       - private
       - database
 
+  # The demo world (#258), run by `mtogo-deploy.sh demo-seed` in the
+  # background. Its logins share DEMO_WORLD_PASSWORD from .env, on the team's
+  # DEMO_WORLD_EMAIL_DOMAIN; the seed sends no email and prints neither.
+  demo-seed:
+    image: ${STAGING_IMAGE_PREFIX:?}-backend:${MTOGO_RELEASE:?}
+    profiles: ["tools"]
+    logging: *logging
+    command:
+      [
+        "npm",
+        "exec",
+        "--no",
+        "--",
+        "medusa",
+        "exec",
+        "./src/scripts/seed-demo-world.js",
+      ]
+    environment:
+      <<: *backend-environment
+      MEDUSA_WORKER_MODE: shared
+      DEMO_WORLD_PASSWORD: ${DEMO_WORLD_PASSWORD:?Set DEMO_WORLD_PASSWORD in .env}
+      DEMO_WORLD_EMAIL_DOMAIN: ${DEMO_WORLD_EMAIL_DOMAIN:?Set DEMO_WORLD_EMAIL_DOMAIN in .env}
+      DEMO_WORLD_WORKERS: ${DEMO_WORLD_WORKERS:-3}
+      DEMO_WORLD_SCALE: ${DEMO_WORLD_SCALE:-1}
+      NODE_OPTIONS: --max-old-space-size=${DEMO_SEED_HEAP_MB:-768}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - private
+      - database
+
   # Shared worker mode by default: one process serves HTTP and runs
   # subscribers, jobs and workflows, which fits a 2 GB Droplet. With
   # STAGING_SPLIT_WORKER=true the deploy script runs it as "server" and starts
