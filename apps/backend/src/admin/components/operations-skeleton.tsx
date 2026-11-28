@@ -127,6 +127,15 @@ export function OperationsSkeleton() {
           <SectionHead />
           <ChartCard heights={DAY_HEIGHTS} />
         </section>
+
+        <section className="flex flex-col gap-y-3">
+          <SectionHead />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <FigureCard rows={3} />
+            <FigureCard rows={3} />
+          </div>
+          <ChartCard heights={DAY_HEIGHTS} />
+        </section>
       </div>
     </div>
   )

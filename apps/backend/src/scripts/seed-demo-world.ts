@@ -33,7 +33,9 @@
  * Those are live: the backend's recovery jobs move them on like any other
  * Order, so run the seed shortly before a demonstration. A rerun first
  * delivers the earlier runs' "now" Orders that an agent still holds, so
- * every agent is free for the history and the new "now".
+ * every agent is free for the history and the new "now", and moves those
+ * deliveries onto believable ready, pickup and handover times, so they do
+ * not show as hours of processing and transit time.
  *
  * DEMO_WORLD_SCALE (default 1) multiplies every Restaurant's daily volume,
  * and DEMO_WORLD_MAX_ORDERS stops after that many new history Orders, for a
@@ -56,6 +58,7 @@ import {
   planDemoWorld,
   planNowOrders,
   retimerNearest,
+  settledNowTimeline,
   type DemoWorldCustomer,
   type DemoWorldNowOrder,
   type DemoWorldOrder,
@@ -1175,6 +1178,81 @@ async function deliverEarlierNow(context: Context, placed: Placed[]) {
   return held.length
 }
 
+/**
+ * Moves the earlier runs' delivered "now" Orders onto believable times. A
+ * rerun delivers them at its own time to free their agents, hours after they
+ * were live, which would show as hours of Order processing and Delivery
+ * transit time (#262). Each keeps the milestones it had and gets ready,
+ * pickup and handover times that follow them (`settledNowTimeline`), and
+ * finance recognizes it again at the new handover, as history Orders are.
+ * Orders already settled are left alone, so reruns only touch new ones.
+ */
+async function settleEarlierNow(context: Context, placed: Placed[]) {
+  const { container } = context
+  const order_ids = placed
+    .filter(({ slot }) => slot.startsWith(NOW_SLOT_PREFIX))
+    .map(({ order_id }) => order_id)
+  if (!order_ids.length) return 0
+  const deliveries = await container
+    .resolve<DeliveryModuleService>(DELIVERY_MODULE)
+    .listIntendedDeliveries(
+      { order_id: order_ids, terminal_outcome: "delivered" },
+      {
+        select: ["order_id", "assigned_at", "picked_up_at", "terminal_at"],
+        take: null,
+      },
+    )
+  if (!deliveries.length) return 0
+  const operations = await container
+    .resolve<OrderOperationModuleService>(ORDER_OPERATION_MODULE)
+    .listOrderOperations(
+      { order_id: deliveries.map(({ order_id }) => order_id) },
+      {
+        select: [
+          "order_id",
+          "placed_at",
+          "accepted_at",
+          "preparation_started_at",
+          "ready_at",
+        ],
+        take: null,
+      },
+    )
+  const operationOf = new Map(operations.map((row) => [row.order_id, row]))
+  const dateOf = (value: Date | string | null | undefined) =>
+    value ? new Date(value) : null
+  const now = new Date()
+  let settled = 0
+  for (const delivered of deliveries) {
+    const operation = operationOf.get(delivered.order_id)
+    const placed_at = dateOf(operation?.placed_at)
+    const accepted_at = dateOf(operation?.accepted_at)
+    const handed_over_at = dateOf(delivered.terminal_at)
+    if (!operation || !placed_at || !accepted_at || !handed_over_at) continue
+    const recorded = {
+      order_id: delivered.order_id,
+      placed_at,
+      accepted_at,
+      claimed_at: dateOf(delivered.assigned_at),
+      preparation_started_at: dateOf(operation.preparation_started_at),
+      ready_at: dateOf(operation.ready_at),
+      picked_up_at: dateOf(delivered.picked_up_at),
+      handed_over_at,
+    }
+    const timeline = settledNowTimeline(recorded, now)
+    const isSettled =
+      timeOf(recorded.ready_at) === timeOf(timeline.ready_at) &&
+      timeOf(recorded.picked_up_at) === timeOf(timeline.picked_up_at) &&
+      timeOf(recorded.handed_over_at) === timeOf(timeline.handed_over_at)
+    if (isSettled) continue
+    const retimed = { outcome: "delivered" as const, timeline }
+    await retimeOrder(container, retimed, delivered.order_id, retimerNearest)
+    await recognizeAtPlannedTime(container, retimed, delivered.order_id)
+    settled += 1
+  }
+  return settled
+}
+
 export default async function seedDemoWorld({ container }: ExecArgs) {
   const config = container.resolve(ContainerRegistrationKeys.CONFIG_MODULE)
   if (
@@ -1247,6 +1325,11 @@ export default async function seedDemoWorld({ container }: ExecArgs) {
   if (delivered)
     logger.info(
       `Demo world: delivered ${delivered} "now" Orders of earlier runs to free their agents`,
+    )
+  const settled = await settleEarlierNow(context, placed)
+  if (settled)
+    logger.info(
+      `Demo world: moved ${settled} delivered "now" Orders of earlier runs onto believable handover times`,
     )
   context.busy = await busyAgents(container, context.agents)
   const { finished, unfinished } = await finishedOrders(container, plan, placed)

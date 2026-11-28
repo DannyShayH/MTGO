@@ -30,6 +30,30 @@ import DeliveryLocation from "./models/delivery-location"
  */
 export type WorkWaitingFilter = { waiting_before: Date; restaurant_id?: string }
 
+/**
+ * A range of handovers (#262): from `starts_at`, inclusive, to `ends_at`,
+ * exclusive, optionally of one Restaurant.
+ */
+export type HandoverPeriod = {
+  starts_at: string
+  ends_at: string
+  restaurant_id?: string
+}
+
+/** A database average as a number; no rows averaged is no average. */
+const averageOrNull = (value: string | null) =>
+  value === null ? null : Number(value)
+
+/** Delivery transit time as the database averages it (#262). */
+export type TransitTimeCounts = {
+  /** Deliveries handed over in the period with a recorded pickup. */
+  included: number
+  /** Their average from pickup to handover, null when none is included. */
+  average_seconds: number | null
+  /** Deliveries handed over in the period without a recorded pickup. */
+  no_pickup_time: number
+}
+
 /** What the shared assignment rule needs, read under both row locks. */
 export type AssignmentFacts = {
   agent: {
@@ -394,6 +418,91 @@ class DeliveryModuleService extends MedusaService({
       type: row.type,
       count: Number(row.count),
       waiting_unassigned: Number(row.waiting_unassigned),
+    }))
+  }
+
+  /**
+   * Deliveries handed over in a period, from `starts_at` inclusive to
+   * `ends_at` exclusive, with the pickup-to-handover columns each transit
+   * read groups differently (#262). Selected by handover time, so the
+   * delivered handover-time indexes serve it.
+   */
+  private handedOverIn(manager: EntityManager, input: HandoverPeriod) {
+    const knex = manager.getKnex()
+    const query = knex("intended_delivery")
+      .where("terminal_outcome", "delivered")
+      .whereNull("deleted_at")
+      .where("terminal_at", ">=", new Date(input.starts_at))
+      .where("terminal_at", "<", new Date(input.ends_at))
+      .select(
+        knex.raw("count(picked_up_at) as included"),
+        knex.raw(
+          "avg(extract(epoch from terminal_at - picked_up_at)) as average_seconds",
+        ),
+      )
+    if (input.restaurant_id) query.where("restaurant_id", input.restaurant_id)
+    return query
+  }
+
+  /**
+   * Averages Delivery transit time in the database (#262): from the recorded
+   * pickup to the handover, for deliveries handed over in the period. A
+   * delivery handed over without a recorded pickup is counted as excluded,
+   * never averaged as zero.
+   */
+  @InjectManager()
+  async averageTransitTime(
+    input: HandoverPeriod,
+    @MedusaContext() context: Context = {},
+  ): Promise<TransitTimeCounts> {
+    const manager = context.manager as EntityManager
+    const [row] = (await this.handedOverIn(manager, input).select(
+      manager
+        .getKnex()
+        .raw("count(*) filter (where picked_up_at is null) as no_pickup_time"),
+    )) as {
+      included: string
+      average_seconds: string | null
+      no_pickup_time: string
+    }[]
+    return {
+      included: Number(row.included),
+      average_seconds: averageOrNull(row.average_seconds),
+      no_pickup_time: Number(row.no_pickup_time),
+    }
+  }
+
+  /**
+   * Averages Delivery transit time per Copenhagen calendar date of the
+   * handover (#262), as `YYYY-MM-DD`, for the seven-day trend. A date
+   * without handovers is absent; exclusions are counted once for the whole
+   * period by `averageTransitTime`.
+   */
+  @InjectManager()
+  async averageTransitTimeByCopenhagenDate(
+    input: HandoverPeriod,
+    @MedusaContext() context: Context = {},
+  ): Promise<
+    { date: string; included: number; average_seconds: number | null }[]
+  > {
+    const manager = context.manager as EntityManager
+    const rows = (await this.handedOverIn(manager, input)
+      .select(
+        manager
+          .getKnex()
+          .raw(
+            "to_char(terminal_at at time zone 'Europe/Copenhagen', 'YYYY-MM-DD') as date",
+          ),
+      )
+      .groupBy("date")) as {
+      date: string
+      included: string
+      average_seconds: string | null
+    }[]
+    return rows.map((row) => ({
+      date: row.date,
+      included: Number(row.included),
+      average_seconds: averageOrNull(row.average_seconds),
     }))
   }
 

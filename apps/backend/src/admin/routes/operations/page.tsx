@@ -5,6 +5,8 @@ import { useQuery } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { CountBarChart } from "../../components/count-bar-chart"
 import { OperationsSkeleton } from "../../components/operations-skeleton"
+import { SectionDefinitions } from "../../components/section-definitions"
+import { SpeedFigures, TimesPerDayChart } from "../../components/speed-figures"
 import {
   OrdersPerHourChart,
   PlacementsCard,
@@ -19,6 +21,7 @@ import {
   openOrderStageLabels,
   type Operations,
 } from "../../lib/operations-api"
+import { operationsDefinitions } from "../../lib/operations-definitions"
 import { useFeatureFlag } from "../../lib/use-feature-flag"
 
 /** Open Orders by stage: the total in the header, the stages as bars. */
@@ -40,8 +43,7 @@ function OpenOrdersCard({ figures }: Readonly<{ figures: Operations }>) {
             leading="compact"
             className="max-w-prose text-ui-fg-subtle"
           >
-            Not cancelled and not yet handed over, all Restaurants. Includes
-            Orders without a placement time.
+            Not cancelled and not yet handed over, all Restaurants.
           </Text>
         </div>
         <div className="flex items-baseline gap-x-1.5">
@@ -81,11 +83,14 @@ function PeriodSection({
   id,
   title,
   period,
+  info,
   children,
 }: Readonly<{
   id: string
   title: string
   period: ReactNode
+  /** An info button for the section's definitions, after the period. */
+  info?: ReactNode
   children: ReactNode
 }>) {
   return (
@@ -101,6 +106,7 @@ function PeriodSection({
         >
           {period}
         </Text>
+        {info}
       </div>
       {children}
     </section>
@@ -115,7 +121,10 @@ function PeriodSection({
  * deliveries needing attention and unresolved Full refunds, as counts that
  * link to the pages listing them; #261 adds the Order volume: placements in
  * the last 24 hours, Orders per hour and placements per day with the
- * seven-day average. Shown only while the backend releases the Feature.
+ * seven-day average; #262 adds Order processing time and Delivery transit
+ * time for the Orders handed over in the last 24 hours, each against the
+ * previous seven days, and their averages per day over those seven days. Shown only while
+ * the backend releases the Feature.
  */
 const OperationsPage = () => {
   const flags = useFeatureFlag("operations_monitoring")
@@ -231,6 +240,7 @@ const OperationsPage = () => {
             id="operations-now"
             title="Right now"
             period={`as of ${calculatedAt}`}
+            info={<SectionDefinitions {...operationsDefinitions.now} />}
           >
             <WorkWaitingFigures figures={figures} />
             <OpenOrdersCard figures={figures} />
@@ -240,6 +250,7 @@ const OperationsPage = () => {
             id="operations-last-24-hours"
             title="Last 24 hours"
             period={`${formatPeriodEdge(figures.placements.period.starts_at)} – ${formatPeriodEdge(figures.placements.period.ends_at)}`}
+            info={<SectionDefinitions {...operationsDefinitions.last24Hours} />}
           >
             <div className="grid gap-3 lg:grid-cols-3">
               <PlacementsCard figures={figures} />
@@ -255,8 +266,21 @@ const OperationsPage = () => {
             id="operations-previous-7-days"
             title="Previous 7 days"
             period={`${formatDay(figures.placements_per_day.days[0].date)} – ${formatDay(figures.placements_per_day.days.at(-1)!.date)}, complete days`}
+            info={
+              <SectionDefinitions {...operationsDefinitions.previous7Days} />
+            }
           >
             <PlacementsPerDayChart figures={figures} />
+          </PeriodSection>
+
+          <PeriodSection
+            id="operations-speed"
+            title="Processing and transit time"
+            period="last 24 hours against the previous 7 days, all Restaurants"
+            info={<SectionDefinitions {...operationsDefinitions.speed} />}
+          >
+            <SpeedFigures figures={figures} />
+            <TimesPerDayChart figures={figures} />
           </PeriodSection>
         </div>
       )}

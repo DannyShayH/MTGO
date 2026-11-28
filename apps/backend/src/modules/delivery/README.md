@@ -510,6 +510,28 @@ would need a join across modules, which the read must not do.
 minutes of the unassigned attention deadline (`unassignedWaitingCutoff` in
 `src/workflows/operations-monitoring/work-waiting.ts`).
 
+### Delivery transit time (#262)
+
+`averageTransitTime({ starts_at, ends_at, restaurant_id? })` averages, in
+one query, `terminal_at - picked_up_at` in seconds for deliveries with the
+`delivered` outcome and `terminal_at` from `starts_at` inclusive to `ends_at`
+exclusive. It returns `{ included, average_seconds, no_pickup_time }`:
+`included` counts those with a recorded pickup, `average_seconds` is `null`
+when none is included, and a handover without `picked_up_at` counts as
+`no_pickup_time` instead of being averaged as zero. Selecting by handover time
+means the Order-operation module's processing time over the same period
+describes the same Orders without either module reading the other. The
+delivered handover-time indexes (`IDX_intended_delivery_delivered_terminal_at_id`,
+or the Restaurant one when narrowed) serve it;
+`integration-tests/http/admin-operations.spec.ts` checks the plan with
+`EXPLAIN`.
+
+`averageTransitTimeByCopenhagenDate({ starts_at, ends_at, restaurant_id? })`
+groups the same handovers by the Copenhagen calendar date of `terminal_at`
+and returns `{ date, included, average_seconds }` for each date with a
+handover, for the seven-day trend; `averageTransitTime` counts the exclusions
+for the whole period.
+
 ### Agent Bonus points (#236)
 
 `GET /partner/delivery-agent/bonus` is available when the backend-owned

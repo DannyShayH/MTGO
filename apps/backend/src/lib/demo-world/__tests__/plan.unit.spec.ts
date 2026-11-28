@@ -6,6 +6,7 @@ import {
   NOW_SLOT_PREFIX,
   planDemoWorld,
   retimerNearest,
+  settledNowTimeline,
   type DemoWorldOrder,
 } from "../plan"
 import { DEMO_WORLD_RESTAURANTS, PAUSED_RESTAURANT_KEY } from "../restaurants"
@@ -376,6 +377,86 @@ describe("demo world size and retiming (#258)", () => {
     // A deadline keeps its distance from the nearest milestone.
     expect(retime(at("2026-11-28T08:05:02.000Z")).toISOString()).toBe(
       "2026-09-01T10:45:00.000Z",
+    )
+  })
+})
+
+describe("An earlier run's delivered now Order", () => {
+  const at = (minutes: number) => new Date(now.getTime() + minutes * MINUTE)
+  // Seeded as live work at -300 minutes, delivered by a rerun at -5.
+  const recorded = {
+    order_id: "order_01LEFTOVER",
+    placed_at: at(-330),
+    accepted_at: at(-327),
+    claimed_at: at(-326),
+    preparation_started_at: at(-324),
+    ready_at: at(-305),
+    picked_up_at: at(-300),
+    handed_over_at: at(-5),
+  }
+  const transitOf = (timeline: ReturnType<typeof settledNowTimeline>) =>
+    (timeline.handed_over_at!.getTime() - timeline.picked_up_at!.getTime()) /
+    MINUTE
+
+  it("keeps the milestones it had and hands over 7 to 24 minutes after its pickup", () => {
+    const timeline = settledNowTimeline(recorded, now)
+    expect(timeline).toMatchObject({
+      placed_at: recorded.placed_at,
+      accepted_at: recorded.accepted_at,
+      claimed_at: recorded.claimed_at,
+      preparation_started_at: recorded.preparation_started_at,
+      ready_at: recorded.ready_at,
+      picked_up_at: recorded.picked_up_at,
+    })
+    expect(transitOf(timeline)).toBeGreaterThanOrEqual(7)
+    expect(transitOf(timeline)).toBeLessThanOrEqual(24)
+  })
+
+  it("moves a ready and pickup the rerun recorded hours late to just after preparation", () => {
+    const timeline = settledNowTimeline(
+      {
+        ...recorded,
+        ready_at: at(-6),
+        picked_up_at: at(-5),
+        handed_over_at: at(-5),
+      },
+      now,
+    )
+    expect(timeline.ready_at).toEqual(at(-309))
+    expect(timeline.picked_up_at).toEqual(at(-305))
+    expect(transitOf(timeline)).toBeGreaterThanOrEqual(7)
+  })
+
+  it("is settled already when run again, so a rerun changes nothing", () => {
+    const once = settledNowTimeline(recorded, now)
+    const again = settledNowTimeline(
+      {
+        ...recorded,
+        ready_at: once.ready_at!,
+        picked_up_at: once.picked_up_at!,
+        handed_over_at: once.handed_over_at!,
+      },
+      now,
+    )
+    expect(again).toEqual(once)
+  })
+
+  it("never plans a handover after now", () => {
+    const timeline = settledNowTimeline(
+      {
+        ...recorded,
+        preparation_started_at: at(-3),
+        ready_at: at(-1),
+        picked_up_at: at(-1),
+        handed_over_at: at(-1),
+      },
+      now,
+    )
+    expect(timeline.handed_over_at!.getTime()).toBeLessThanOrEqual(
+      now.getTime(),
+    )
+    expect(timeline.picked_up_at!.getTime()).toBeLessThanOrEqual(
+      timeline.handed_over_at!.getTime(),
     )
   })
 })

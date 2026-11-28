@@ -529,9 +529,45 @@ hour. Each count has a halo in the card colour so the average line never
 crosses it. A zero is muted, and left out when the bars are too narrow for a
 label each; an empty period still keeps a grey stub.
 
+`components/speed-figures.tsx` shows the two average times (#262) in their
+own section, **Processing and transit time**, after **Previous 7 days**, so
+the cards and their trend follow each other. Its definitions are in the
+section's info Drawer (below), so the cards keep short labels. The cards sit side by side from
+`sm`: **Order processing time**
+("Placement to handover") and **Delivery transit time** ("Pickup to
+handover"), so the delivery part is never read as the whole wait. Each shows:
+
+- the average to the whole minute as people say it (`formatDuration`: "53 min",
+  "2 h 3 min"), or "No average" instead of 0 when no Order is included;
+- "78 Orders · none excluded", or the exclusions from `exclusionSummary`;
+- the change from the previous seven days from `changeSummary`, such as "19%
+  faster than the 7-day average of 43 min" in green with an up arrow, or
+  "12% slower…" in orange with a down arrow: the arrow shows whether the
+  service got better or worse, not which way the time moved. The words say which, so neither
+  colour nor arrow carries it alone.
+
+Below the cards, **Processing and transit time per day** covers the same
+previous seven days as Placements per day: one line per measure on one minute scale, processing
+solid with round points and transit dashed with square points, and a gap on a
+day without handovers. Its headline is the seven-day average of each, and its
+table lists both times and the Orders per day, then the seven-day averages and
+the exclusions. `ChartNumbers` takes several value columns for it, with "–"
+where a day has no value.
+
 Under each chart, `ChartNumbers` lists every bar, with a caption naming the
 period and population. The bars, the dashed outline and the dashed line all carry a text label as
 well, so nothing relies on colour.
+
+Every section heading ends with an info button (`InformationCircleSolid`)
+that opens a Drawer of definitions (`components/section-definitions.tsx`),
+the Medusa pattern for longer side content; a tooltip suits one short
+sentence only. The wording lives in `lib/operations-definitions.ts`: the
+calculation moment and Refresh, the work waiting and Open Orders for **Right
+now**; the period, placements, Orders per hour and peak hour for **Last 24
+hours**; the complete days and the average over seven for **Previous 7
+days**; and what each time runs between, which Orders count, exclusions, the
+comparison and the per-day chart for **Processing and transit time**. The
+cards keep only short labels such as "All Restaurants, each Copenhagen day."
 
 ## MTOGO branding
 

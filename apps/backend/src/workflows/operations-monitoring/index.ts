@@ -24,6 +24,12 @@ import {
   placementsPerDayFigure,
   previousSevenDays,
 } from "./volume"
+import {
+  changePercent,
+  processingTimeFigure,
+  timesPerDayFigure,
+  transitTimeFigure,
+} from "./speed"
 
 /** The whole platform, or one Restaurant's own figures. */
 export type OperationsScope =
@@ -133,13 +139,79 @@ const readVolumeStep = createStep(
 )
 
 /**
+ * Order processing time and Delivery transit time (#262), each averaged by
+ * its owning module: the Order-operation module from placement, the
+ * delivery module from pickup. Both select by handover time over the same
+ * periods, so they describe the same Orders without one module reading the
+ * other's records. The last 24 hours state their change from the previous
+ * seven complete Copenhagen days, which also give one average per day.
+ */
+const readSpeedStep = createStep(
+  "read-speed",
+  async (input: OperationsInput, { container }) => {
+    const operations = container.resolve<OrderOperationModuleService>(
+      ORDER_OPERATION_MODULE,
+    )
+    const delivery = container.resolve<DeliveryModuleService>(DELIVERY_MODULE)
+    const now = new Date(input.now)
+    const scope = restaurantFilter(input.scope)
+    const rolling24Hours = last24Hours(now)
+    const week = previousSevenDays(now)
+    const sevenDays = { starts_at: week.starts_at, ends_at: week.ends_at }
+    const [
+      processing,
+      transit,
+      processingTotal,
+      transitTotal,
+      processingByDate,
+      transitByDate,
+    ] = await Promise.all([
+      operations.averageProcessingTime(rolling24Hours, scope),
+      delivery.averageTransitTime({ ...rolling24Hours, ...scope }),
+      operations.averageProcessingTime(sevenDays, scope),
+      delivery.averageTransitTime({ ...sevenDays, ...scope }),
+      operations.averageProcessingTimeByCopenhagenDate(sevenDays, scope),
+      delivery.averageTransitTimeByCopenhagenDate({ ...sevenDays, ...scope }),
+    ])
+    const perDay = timesPerDayFigure(
+      {
+        processing: processingByDate,
+        transit: transitByDate,
+        processingTotal,
+        transitTotal,
+      },
+      now,
+    )
+    const processing24 = processingTimeFigure(processing, rolling24Hours)
+    const transit24 = transitTimeFigure(transit, rolling24Hours)
+    return new StepResponse({
+      processing_time: {
+        ...processing24,
+        change_from_previous_7_days_percent: changePercent(
+          processing24.average_seconds,
+          perDay.processing_time.average_seconds,
+        ),
+      },
+      delivery_transit_time: {
+        ...transit24,
+        change_from_previous_7_days_percent: changePercent(
+          transit24.average_seconds,
+          perDay.delivery_transit_time.average_seconds,
+        ),
+      },
+      times_per_day: perDay,
+    })
+  },
+)
+
+/**
  * The operations read (#54), the only entry point for the operator and
  * staff views. It takes a scope and one explicit `now` and derives every
  * period from it, so each response states the moment it describes. Each
  * owning module aggregates its own records in the database; this workflow
  * only combines them. #259 adds Open Orders by stage; #260 adds unassigned
  * deliveries, attention by type and unresolved Full refunds; #261 adds the
- * Order volume.
+ * Order volume; #262 adds Order processing time and Delivery transit time.
  */
 export const readOperationsWorkflow = createWorkflow(
   "read-operations",
@@ -148,14 +220,16 @@ export const readOperationsWorkflow = createWorkflow(
     const work = readDeliveryWorkStep(input)
     const fullRefunds = readFullRefundsStep(input)
     const volume = readVolumeStep(input)
+    const speed = readSpeedStep(input)
     return new WorkflowResponse(
       transform(
-        { open, work, fullRefunds, volume },
-        ({ open, work, fullRefunds, volume }) => ({
+        { open, work, fullRefunds, volume, speed },
+        ({ open, work, fullRefunds, volume, speed }) => ({
           ...open,
           ...work,
           full_refunds: fullRefunds,
           ...volume,
+          ...speed,
         }),
       ),
     )

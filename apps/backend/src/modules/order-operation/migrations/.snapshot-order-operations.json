@@ -793,6 +793,15 @@
           "expression": "CREATE INDEX IF NOT EXISTS \"IDX_order_operation_placed_at\" ON \"order_operation\" (\"placed_at\") WHERE placed_at IS NOT NULL AND deleted_at IS NULL"
         },
         {
+          "keyName": "IDX_order_operation_delivery_ended_at",
+          "columnNames": [],
+          "composite": false,
+          "constraint": false,
+          "primary": false,
+          "unique": false,
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_order_operation_delivery_ended_at\" ON \"order_operation\" (\"delivery_ended_at\") WHERE delivery_outcome = 'delivered' AND deleted_at IS NULL"
+        },
+        {
           "keyName": "IDX_order_operation_restaurant_id_state",
           "columnNames": [],
           "composite": false,

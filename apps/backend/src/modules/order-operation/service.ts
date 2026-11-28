@@ -50,6 +50,18 @@ end`
 /** A range of time: from `starts_at`, inclusive, to `ends_at`, exclusive. */
 export type PlacementPeriod = { starts_at: string; ends_at: string }
 
+/** Order processing time as the database averages it (#262). */
+export type ProcessingTimeCounts = {
+  /** Orders handed over in the period with a placement time. */
+  included: number
+  /** Their average from placement to handover, null when none is included. */
+  average_seconds: number | null
+  /** Orders handed over in the period without a placement time (legacy). */
+  no_placement_time: number
+  /** Orders delivered without a handover time, placed in the period. */
+  no_handover_time: number
+}
+
 export type CancellationCommand = {
   /** The record and the revision and state the caller decided on. */
   id: string
@@ -98,6 +110,10 @@ export type RefundAttemptRecord = {
     failure_code: string | null
   }
 }
+
+/** A database average as a number; no rows averaged is no average. */
+const averageOrNull = (value: string | null) =>
+  value === null ? null : Number(value)
 
 class OrderOperationModuleService extends MedusaService({
   OrderOperation,
@@ -236,6 +252,118 @@ class OrderOperationModuleService extends MedusaService({
       .count({ count: "*" })
       .groupBy("date")) as { date: string; count: string }[]
     return rows.map(({ date, count }) => ({ date, count: Number(count) }))
+  }
+
+  /** Delivered records, not deleted, optionally of one Restaurant (#262). */
+  private delivered(manager: EntityManager, scope: { restaurant_id?: string }) {
+    const query = manager
+      .getKnex()("order_operation as o")
+      .whereNull("o.deleted_at")
+      .where("o.delivery_outcome", "delivered")
+    if (scope.restaurant_id) query.where("o.restaurant_id", scope.restaurant_id)
+    return query
+  }
+
+  /**
+   * Delivered records handed over in a period, from `starts_at` inclusive to
+   * `ends_at` exclusive, with the placement-to-handover columns each
+   * processing-time read groups differently (#262). Selected by handover
+   * time alone, so the delivery-end-time index serves it.
+   */
+  private handedOverIn(
+    manager: EntityManager,
+    period: PlacementPeriod,
+    scope: { restaurant_id?: string },
+  ) {
+    const knex = manager.getKnex()
+    return this.delivered(manager, scope)
+      .where("o.delivery_ended_at", ">=", new Date(period.starts_at))
+      .where("o.delivery_ended_at", "<", new Date(period.ends_at))
+      .select(
+        knex.raw("count(o.placed_at) as included"),
+        knex.raw(
+          "avg(extract(epoch from o.delivery_ended_at - o.placed_at)) as average_seconds",
+        ),
+      )
+  }
+
+  /**
+   * Averages Order processing time in the database (#262): from `placed_at`
+   * to the copied handover time, for Orders delivered with a handover time
+   * in the period (selected by handover time, so the delivery-end-time index
+   * serves it). Cancelled and not-delivered Orders are never in it. Missing
+   * data is counted by reason, never averaged as zero: a handed-over Order
+   * without a placement time (legacy), and a delivered Order without a
+   * handover time, which can only be placed in the period by its placement.
+   */
+  @InjectManager()
+  async averageProcessingTime(
+    period: PlacementPeriod,
+    scope: { restaurant_id?: string } = {},
+    @MedusaContext() context: Context = {},
+  ): Promise<ProcessingTimeCounts> {
+    const manager = context.manager as EntityManager
+    const [handedOver] = (await this.handedOverIn(
+      manager,
+      period,
+      scope,
+    ).select(
+      manager
+        .getKnex()
+        .raw(
+          "count(*) filter (where o.placed_at is null) as no_placement_time",
+        ),
+    )) as {
+      included: string
+      average_seconds: string | null
+      no_placement_time: string
+    }[]
+    const [withoutHandover] = (await this.delivered(manager, scope)
+      .whereNull("o.delivery_ended_at")
+      .where("o.placed_at", ">=", new Date(period.starts_at))
+      .where("o.placed_at", "<", new Date(period.ends_at))
+      .count({ count: "*" })) as { count: string }[]
+    return {
+      included: Number(handedOver.included),
+      average_seconds: averageOrNull(handedOver.average_seconds),
+      no_placement_time: Number(handedOver.no_placement_time),
+      no_handover_time: Number(withoutHandover.count),
+    }
+  }
+
+  /**
+   * Averages Order processing time per Copenhagen calendar date of the
+   * handover (#262), as `YYYY-MM-DD`, for the seven-day trend. A date without
+   * handovers is absent; exclusions are counted once for the whole period by
+   * `averageProcessingTime`.
+   */
+  @InjectManager()
+  async averageProcessingTimeByCopenhagenDate(
+    period: PlacementPeriod,
+    scope: { restaurant_id?: string } = {},
+    @MedusaContext() context: Context = {},
+  ): Promise<
+    { date: string; included: number; average_seconds: number | null }[]
+  > {
+    const manager = context.manager as EntityManager
+    const rows = (await this.handedOverIn(manager, period, scope)
+      .select(
+        manager
+          .getKnex()
+          .raw(
+            "to_char(o.delivery_ended_at at time zone 'Europe/Copenhagen', 'YYYY-MM-DD') as date",
+          ),
+      )
+      .groupBy("date")) as {
+      date: string
+      included: string
+      average_seconds: string | null
+    }[]
+    return rows.map((row) => ({
+      date: row.date,
+      included: Number(row.included),
+      average_seconds: averageOrNull(row.average_seconds),
+    }))
   }
 
   /**

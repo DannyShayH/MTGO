@@ -1,4 +1,11 @@
-import { cancelledSummary, hourLabels, peakHour } from "../operations-api"
+import {
+  cancelledSummary,
+  exclusionSummary,
+  changeSummary,
+  formatDuration,
+  hourLabels,
+  peakHour,
+} from "../operations-api"
 
 const none = [
   "restaurant_rejected",
@@ -98,4 +105,94 @@ describe("The peak hour", () => {
   ])("$reason", ({ hours, expected }) => {
     expect(peakHour(hours)).toEqual(expected)
   })
+})
+
+describe("Time measure wording (#262)", () => {
+  it('reads "1 excluded: no placement time" for one legacy Order', () => {
+    expect(
+      exclusionSummary([
+        { reason: "no_placement_time", count: 1 },
+        { reason: "no_handover_time", count: 0 },
+      ]),
+    ).toBe("1 excluded: no placement time")
+  })
+
+  it("names each reason with its count, largest first, when there are several", () => {
+    expect(
+      exclusionSummary([
+        { reason: "no_placement_time", count: 1 },
+        { reason: "no_handover_time", count: 2 },
+      ]),
+    ).toBe("3 excluded: 2 no handover time, 1 no placement time")
+  })
+
+  it('reads "None excluded" when every Order is included', () => {
+    expect(exclusionSummary([{ reason: "no_pickup_time", count: 0 }])).toBe(
+      "None excluded",
+    )
+  })
+
+  it.each([
+    { seconds: 3180, shown: "53 min", reason: "EP: under an hour in minutes" },
+    {
+      seconds: 3174,
+      shown: "53 min",
+      reason: "BVA: 52.9 minutes rounds to 53",
+    },
+    {
+      seconds: 3570,
+      shown: "1 h",
+      reason: "BVA: 59.5 minutes rounds up to the hour",
+    },
+    {
+      seconds: 7356,
+      shown: "2 h 3 min",
+      reason: "EP: 122.6 minutes as hours and minutes",
+    },
+    {
+      seconds: 7200,
+      shown: "2 h",
+      reason: "BVA: whole hours drop the minutes",
+    },
+    { seconds: 0, shown: "0 min", reason: "BVA: a real zero average" },
+    { seconds: null, shown: null, reason: "EP: no average is not zero" },
+  ])("shows a duration: $reason", ({ seconds, shown }) => {
+    expect(formatDuration(seconds)).toBe(shown)
+  })
+
+  it.each([
+    {
+      percent: -19,
+      previous: 2600,
+      text: "19% faster than the 7-day average of 43 min",
+      tone: "faster",
+      reason: "EP: shorter is faster",
+    },
+    {
+      percent: 12,
+      previous: 2600,
+      text: "12% slower than the 7-day average of 43 min",
+      tone: "slower",
+      reason: "EP: longer is slower",
+    },
+    {
+      percent: 0,
+      previous: 2600,
+      text: "Same as the 7-day average of 43 min",
+      tone: "same",
+      reason: "BVA: no change",
+    },
+    {
+      percent: null,
+      previous: null,
+      text: "No previous 7 days to compare with",
+      tone: "none",
+      reason: "EP: nothing to compare",
+    },
+  ])(
+    "compares with the previous 7 days: $reason",
+    ({ percent, previous, text, tone }) => {
+      expect(changeSummary(percent, previous)).toEqual({ text, tone })
+    },
+  )
 })

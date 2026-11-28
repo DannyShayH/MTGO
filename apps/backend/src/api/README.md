@@ -1781,8 +1781,9 @@ doing right now (#54), behind the default-off `operations_monitoring` flag
 and the server's time as `now`; every figure is calculated for that one
 moment, which the response returns as `as_of`. #259 adds Open Orders by
 stage, #260 unassigned deliveries, attention and unresolved Full refunds,
-and #261 the Order volume; later work items add the other measures to the
-same response.
+the Order volume comes from #261, and Order processing time and Delivery
+transit time from #262; later work items add the other measures to the same
+response.
 
 **Success:** `200` with
 `{ as_of, scope: { type: "platform" }, open_orders: { period, total, stages, exclusions } }`.
@@ -1835,6 +1836,33 @@ period:
   seven days before today to midnight starting today. `average_per_day` is
   `total` divided by seven, rounded to one decimal (ADR-0015): days without
   Orders and days of 23 or 25 hours each count as one day.
+
+And two average times (#262) for the Orders handed over in the last 24 hours
+(the same `period` as `placements`, selected by handover time), each
+`{ period, included, average_seconds, exclusions }`. `average_seconds` is
+whole seconds, or `null` when `included` is `0`; an Order missing a time is
+counted in `exclusions` by reason, never averaged as zero, and every reason is
+named, `0` when none:
+
+- `processing_time`: placement to handover. Cancelled and not-delivered Orders
+  are never in it. Exclusions are `no_placement_time` (a legacy Order handed
+  over in the period) and `no_handover_time` (a delivered Order without a
+  handover time, placed in the period).
+- `delivery_transit_time`: pickup to handover. The exclusion is
+  `no_pickup_time`.
+
+Both also carry `change_from_previous_7_days_percent`: how much their average
+differs from the same measure's average over the previous seven days (below),
+as a whole percent. Negative is faster, positive slower, and `null` when
+either has no average.
+
+`times_per_day: { period, processing_time, delivery_transit_time, days }`
+covers the same previous seven complete Copenhagen days as
+`placements_per_day`, selected by handover time. `processing_time` and
+`delivery_transit_time` are the seven-day measures, shaped like the 24-hour
+ones without the change. `days` lists all seven days oldest first, each
+`{ date, processing_time: { included, average_seconds }, delivery_transit_time: { included, average_seconds } }`;
+a day without handovers has `included: 0` and `average_seconds: null`.
 
 | Status | When                                                                                                                                 |
 | ------ | ------------------------------------------------------------------------------------------------------------------------------------ |

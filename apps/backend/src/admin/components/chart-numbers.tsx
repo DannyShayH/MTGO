@@ -1,7 +1,16 @@
 import { Table, Text, clx } from "@medusajs/ui"
 import { useId, useState } from "react"
 
-export type ChartNumber = { key: string; label: string; count: number }
+/**
+ * One row of a chart's numbers: a count, or (for a chart of several series)
+ * one text value per column, "–" where there is none.
+ */
+export type ChartNumber =
+  | { key: string; label: string; count: number }
+  | { key: string; label: string; values: string[] }
+
+/** A missing value in a several-series table, never shown as zero. */
+export const NO_VALUE = "–"
 
 /**
  * The numbers behind a chart, as a table with a caption naming what it
@@ -18,14 +27,16 @@ export function ChartNumbers({
 }: Readonly<{
   caption: string
   categoryHeader: string
-  valueHeader: string
+  /** One header per value column; a single count column takes one. */
+  valueHeader: string | string[]
   rows: ChartNumber[]
   /** Summary rows after the counts, such as a total or an average. */
-  footer?: { label: string; value: string }[]
+  footer?: { label: string; value: string | string[] }[]
 }>) {
   const captionId = useId()
   const tableId = useId()
   const [isShown, setIsShown] = useState(false)
+  const valueHeaders = [valueHeader].flat()
   return (
     <div>
       <div className="px-6 py-3">
@@ -50,25 +61,32 @@ export function ChartNumbers({
         <Table.Header>
           <Table.Row>
             <Table.HeaderCell scope="col">{categoryHeader}</Table.HeaderCell>
-            <Table.HeaderCell scope="col" className="text-right">
-              {valueHeader}
-            </Table.HeaderCell>
+            {valueHeaders.map((header) => (
+              <Table.HeaderCell key={header} scope="col" className="text-right">
+                {header}
+              </Table.HeaderCell>
+            ))}
           </Table.Row>
         </Table.Header>
         <Table.Body>
-          {rows.map(({ key, label, count }) => (
-            <Table.Row key={key}>
+          {rows.map((row) => (
+            <Table.Row key={row.key}>
               <Table.HeaderCell scope="row" className="font-normal">
-                {label}
+                {row.label}
               </Table.HeaderCell>
-              <Table.Cell
-                className={clx(
-                  "text-right tabular-nums",
-                  !count && "text-ui-fg-muted",
-                )}
-              >
-                {count}
-              </Table.Cell>
+              {("values" in row ? row.values : [row.count]).map(
+                (value, column) => (
+                  <Table.Cell
+                    key={valueHeaders[column]}
+                    className={clx(
+                      "text-right tabular-nums",
+                      (!value || value === NO_VALUE) && "text-ui-fg-muted",
+                    )}
+                  >
+                    {value}
+                  </Table.Cell>
+                ),
+              )}
             </Table.Row>
           ))}
           {footer?.map(({ label, value }) => (
@@ -81,11 +99,16 @@ export function ChartNumbers({
                   {label}
                 </Text>
               </Table.HeaderCell>
-              <Table.Cell className="text-right tabular-nums">
-                <Text size="small" leading="compact" weight="plus">
-                  {value}
-                </Text>
-              </Table.Cell>
+              {[value].flat().map((cell, column) => (
+                <Table.Cell
+                  key={valueHeaders[column]}
+                  className="text-right tabular-nums"
+                >
+                  <Text size="small" leading="compact" weight="plus">
+                    {cell}
+                  </Text>
+                </Table.Cell>
+              ))}
             </Table.Row>
           ))}
         </Table.Body>

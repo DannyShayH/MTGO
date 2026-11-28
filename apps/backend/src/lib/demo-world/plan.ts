@@ -821,6 +821,71 @@ export function planNowOrders(
   }))
 }
 
+/** What an earlier run's delivered "now" Order recorded, before settling. */
+export type RecordedNowOrder = {
+  order_id: string
+  placed_at: Date
+  accepted_at: Date
+  claimed_at: Date | null
+  preparation_started_at: Date | null
+  ready_at: Date | null
+  picked_up_at: Date | null
+  handed_over_at: Date
+}
+
+/**
+ * Where an earlier run's "now" Order belongs once a rerun has delivered it
+ * to free its agent. The rerun records ready, pickup and handover at its own
+ * time, hours after the Order was live, which would show as hours of
+ * processing and transit time. Each milestone keeps its recorded time when
+ * it follows the one before within the plan's range, and otherwise moves
+ * there: ready 15 minutes after preparation started, pickup 4 minutes after
+ * ready, handover 7 to 24 minutes after pickup (fixed per Order). Nothing
+ * lands after `now`. A settled Order settles to itself, so reruns change
+ * nothing.
+ */
+export function settledNowTimeline(
+  recorded: RecordedNowOrder,
+  now: Date,
+): PopulationTimeline {
+  const within = (
+    time: Date | null,
+    after: Date,
+    least: number,
+    most: number,
+  ) =>
+    time !== null &&
+    time.getTime() - after.getTime() >= least * MINUTE &&
+    time.getTime() - after.getTime() <= most * MINUTE
+  const plus = (time: Date, minutes: number) =>
+    new Date(Math.min(time.getTime() + minutes * MINUTE, now.getTime()))
+  const started = recorded.preparation_started_at ?? recorded.accepted_at
+  const ready = within(recorded.ready_at, started, 0, 45)
+    ? recorded.ready_at!
+    : plus(started, 15)
+  const pickedUp = within(recorded.picked_up_at, ready, 0, 40)
+    ? recorded.picked_up_at!
+    : plus(ready, 4)
+  const transit =
+    7 +
+    ([...recorded.order_id].reduce((sum, char) => sum + char.charCodeAt(0), 0) %
+      18)
+  const handedOver = within(recorded.handed_over_at, pickedUp, 1, 30)
+    ? recorded.handed_over_at
+    : plus(pickedUp, transit)
+  return {
+    placed_at: recorded.placed_at,
+    accepted_at: recorded.accepted_at,
+    ...(recorded.claimed_at ? { claimed_at: recorded.claimed_at } : {}),
+    ...(recorded.preparation_started_at
+      ? { preparation_started_at: recorded.preparation_started_at }
+      : {}),
+    ready_at: ready,
+    picked_up_at: pickedUp,
+    handed_over_at: handedOver,
+  }
+}
+
 /**
  * Maps a recorded time onto the planned history from the recorded milestone
  * nearest to it: a milestone lands exactly on its planned time and any other

@@ -578,7 +578,13 @@ medusaIntegrationTestRunner({
         )
         const seen: { sql: string; bindings: unknown[] }[] = []
         const capture = (query: { sql: string; bindings: unknown[] }) => {
-          if (/placed_at"?\s*>=/.test(query.sql)) seen.push(query)
+          // Not the delivered Orders without a handover time (#262), which
+          // the processing time also selects by placement.
+          if (
+            /placed_at"?\s*>=/.test(query.sql) &&
+            !/delivery_ended_at/.test(query.sql)
+          )
+            seen.push(query)
         }
         knex.on("query", capture)
         try {
@@ -600,6 +606,293 @@ medusaIntegrationTestRunner({
           const text = plan.rows.map((row) => row["QUERY PLAN"]).join("\n")
           expect(text).toMatch(/IDX_order_operation_placed_at/)
         }
+      })
+    })
+
+    describe("Order processing time and Delivery transit time (#262)", () => {
+      /**
+       * Moves an Order's recorded times as history would hold them: the
+       * placement and the copied pickup and handover on its operation record,
+       * and the pickup and handover on its delivery. `null` removes a time.
+       */
+      const retime = async (
+        orderId: string,
+        times: {
+          placed_at?: Date | null
+          picked_up_at?: Date | null
+          handed_over_at?: Date | null
+        },
+      ) => {
+        const [record] = await operations().listOrderOperations({
+          order_id: orderId,
+        })
+        await operations().updateOrderOperations({
+          id: record.id,
+          ...("placed_at" in times && { placed_at: times.placed_at }),
+          ...("picked_up_at" in times && {
+            delivery_picked_up_at: times.picked_up_at,
+          }),
+          ...("handed_over_at" in times && {
+            delivery_ended_at: times.handed_over_at,
+          }),
+        })
+        const [intended] = await delivery().listIntendedDeliveries({
+          order_id: orderId,
+        })
+        await delivery().updateIntendedDeliveries({
+          id: intended.id,
+          ...("picked_up_at" in times && { picked_up_at: times.picked_up_at }),
+          ...("handed_over_at" in times && {
+            terminal_at: times.handed_over_at,
+          }),
+        })
+      }
+      const readAt = async (
+        now: Date,
+        scope:
+          | { type: "platform" }
+          | { type: "restaurant"; restaurant_id: string } = {
+          type: "platform",
+        },
+      ) =>
+        (
+          await readOperationsWorkflow(getContainer()).run({
+            input: { scope, now: now.toISOString() },
+          })
+        ).result
+
+      it("averages 40 minutes over 3 Orders, excludes the legacy Order and leaves the cancelled and not-delivered Orders out", async () => {
+        const handedOver = new Date(Date.now() - 60 * MINUTE)
+        for (const minutes of [30, 40, 50]) {
+          const order = await delivered()
+          await retime(order.id, {
+            placed_at: new Date(handedOver.getTime() - minutes * MINUTE),
+            handed_over_at: handedOver,
+          })
+        }
+        const legacy = await delivered()
+        await retime(legacy.id, { placed_at: null })
+        const rejected = await placePaidOrder(pizzeriaId)
+        expect((await reject(staff, rejected.id)).status).toBe(200)
+        // Cancelled after pickup: the delivery ends without handover.
+        const { order: notDelivered } = await pickedUp()
+        expect(
+          (
+            await api.post(
+              `/admin/orders/${notDelivered.id}/operator-cancel`,
+              { reason: "Restaurant lost power" },
+              { headers: admin, validateStatus: () => true },
+            )
+          ).status,
+        ).toBe(200)
+        const [ended] = await operations().listOrderOperations({
+          order_id: notDelivered.id,
+        })
+        expect(ended.delivery_outcome).toBe("not_delivered")
+
+        const response = await read()
+        expect(response.status).toBe(200)
+        expect(response.data.processing_time).toMatchObject({
+          period: response.data.placements.period,
+          included: 3,
+          average_seconds: 40 * 60,
+          exclusions: [
+            { reason: "no_placement_time", count: 1 },
+            { reason: "no_handover_time", count: 0 },
+          ],
+        })
+      })
+
+      it("excludes a delivered Order without a handover time instead of averaging it as zero", async () => {
+        const order = await delivered()
+        await retime(order.id, { handed_over_at: null })
+
+        const response = await read()
+        expect(response.status).toBe(200)
+        const { processing_time } = response.data
+        expect(processing_time.included).toBe(0)
+        expect(processing_time.average_seconds).toBeNull()
+        expect(processing_time.exclusions).toEqual([
+          { reason: "no_placement_time", count: 0 },
+          { reason: "no_handover_time", count: 1 },
+        ])
+      })
+
+      it("counts handovers from exactly 24 hours before now, inclusive, to now, exclusive", async () => {
+        const now = new Date("2026-11-28T13:00:00.000Z")
+        const handedOverAt = async (at: Date) => {
+          const order = await delivered()
+          await retime(order.id, {
+            placed_at: new Date(at.getTime() - 30 * MINUTE),
+            picked_up_at: new Date(at.getTime() - 10 * MINUTE),
+            handed_over_at: at,
+          })
+        }
+        // BVA: the first second of the period is in, now itself is out.
+        await handedOverAt(new Date(now.getTime() - 24 * 60 * MINUTE))
+        await handedOverAt(new Date(now.getTime() - 24 * 60 * MINUTE - 1000))
+        await handedOverAt(now)
+
+        const figures = await readAt(now)
+        expect(figures.processing_time.included).toBe(1)
+        expect(figures.delivery_transit_time.included).toBe(1)
+        expect(figures.delivery_transit_time.period).toEqual({
+          starts_at: "2026-11-27T13:00:00.000Z",
+          ends_at: "2026-11-28T13:00:00.000Z",
+        })
+      })
+
+      it("measures picked up 18:05, handed over 18:25 as 20 minutes in transit and excludes a delivery without a pickup time", async () => {
+        // 18:05 and 18:25 on a clock 20 minutes apart, an hour before now.
+        const handedOver = Date.now() - 60 * MINUTE
+        const order = await delivered()
+        await retime(order.id, {
+          placed_at: new Date(handedOver - 45 * MINUTE),
+          picked_up_at: new Date(handedOver - 20 * MINUTE),
+          handed_over_at: new Date(handedOver),
+        })
+        const withoutPickup = await delivered()
+        await retime(withoutPickup.id, {
+          placed_at: new Date(handedOver - 40 * MINUTE),
+          picked_up_at: null,
+          handed_over_at: new Date(handedOver),
+        })
+
+        const response = await read()
+        expect(response.status).toBe(200)
+        expect(response.data.delivery_transit_time).toMatchObject({
+          period: response.data.placements.period,
+          included: 1,
+          average_seconds: 20 * 60,
+          exclusions: [{ reason: "no_pickup_time", count: 1 }],
+        })
+        // Both were placed, so both count for processing time.
+        expect(response.data.processing_time.included).toBe(2)
+
+        const now = new Date()
+        const other = await readAt(now, {
+          type: "restaurant",
+          restaurant_id: "rest_another_restaurant",
+        })
+        expect(other.processing_time.included).toBe(0)
+        expect(other.delivery_transit_time.included).toBe(0)
+        expect(other.delivery_transit_time.exclusions).toEqual([
+          { reason: "no_pickup_time", count: 0 },
+        ])
+        const own = await readAt(now, {
+          type: "restaurant",
+          restaurant_id: pizzeriaId,
+        })
+        expect(own.delivery_transit_time.included).toBe(1)
+      })
+
+      it("averages the previous seven Copenhagen days, one average per day, and compares the last 24 hours with them", async () => {
+        // 10:00 on Monday 26 October 2026, Copenhagen time.
+        const now = new Date("2026-10-26T09:00:00.000Z")
+        const handedOverAt = async (
+          at: string,
+          processingMinutes: number,
+          transitMinutes: number,
+        ) => {
+          const order = await delivered()
+          const handover = Date.parse(at)
+          await retime(order.id, {
+            placed_at: new Date(handover - processingMinutes * MINUTE),
+            picked_up_at: new Date(handover - transitMinutes * MINUTE),
+            handed_over_at: new Date(handover),
+          })
+        }
+        await handedOverAt("2026-10-20T12:00:00.000Z", 45, 10)
+        await handedOverAt("2026-10-20T18:00:00.000Z", 55, 20)
+        // 23:30 on the 25-hour 25 October: in the seven days and the 24 hours.
+        await handedOverAt("2026-10-25T22:30:00.000Z", 30, 10)
+        // Today: in the 24 hours only.
+        await handedOverAt("2026-10-26T08:00:00.000Z", 40, 14)
+
+        const figures = await readAt(now)
+        expect(figures.times_per_day.period).toEqual({
+          starts_at: "2026-10-18T22:00:00.000Z",
+          ends_at: "2026-10-25T23:00:00.000Z",
+        })
+        // (45 + 55 + 30) / 3 and (10 + 20 + 10) / 3 minutes.
+        expect(figures.times_per_day.processing_time).toMatchObject({
+          included: 3,
+          average_seconds: 2600,
+        })
+        expect(figures.times_per_day.delivery_transit_time).toMatchObject({
+          included: 3,
+          average_seconds: 800,
+        })
+        expect(
+          figures.times_per_day.days.map(
+            ({ date, processing_time, delivery_transit_time }) => [
+              date,
+              processing_time.average_seconds,
+              delivery_transit_time.average_seconds,
+            ],
+          ),
+        ).toEqual([
+          ["2026-10-19", null, null],
+          ["2026-10-20", 3000, 900],
+          ["2026-10-21", null, null],
+          ["2026-10-22", null, null],
+          ["2026-10-23", null, null],
+          ["2026-10-24", null, null],
+          ["2026-10-25", 1800, 600],
+        ])
+        // 35 minutes against 43.3 is 19% faster; 12 against 13.3 is 10%.
+        expect(figures.processing_time).toMatchObject({
+          included: 2,
+          average_seconds: 2100,
+          change_from_previous_7_days_percent: -19,
+        })
+        expect(figures.delivery_transit_time).toMatchObject({
+          included: 2,
+          average_seconds: 720,
+          change_from_previous_7_days_percent: -10,
+        })
+      })
+
+      it("reads handovers through the delivery-end-time indexes", async () => {
+        const knex = getContainer().resolve(
+          ContainerRegistrationKeys.PG_CONNECTION,
+        )
+        const seen: { sql: string; bindings: unknown[] }[] = []
+        const capture = (query: { sql: string; bindings: unknown[] }) => {
+          if (/(delivery_ended_at|terminal_at)"?\s*>=/.test(query.sql))
+            seen.push(query)
+        }
+        knex.on("query", capture)
+        try {
+          await readAt(new Date())
+        } finally {
+          knex.removeListener("query", capture)
+        }
+        // On the Order and on the delivery: the last 24 hours, the seven
+        // days and the seven days per day.
+        expect(seen).toHaveLength(6)
+        const plans: string[] = []
+        for (const { sql, bindings } of seen) {
+          // The test database is tiny, so a sequential scan would be
+          // cheaper; ruling it out shows whether the index can serve.
+          const plan = (await knex.transaction(async (trx) => {
+            await trx.raw("set local enable_seqscan = off")
+            const text = sql.replace(/\$\d+/g, "?")
+            return trx.raw(`explain ${text}`, bindings as never)
+          })) as unknown as { rows: Record<string, string>[] }
+          plans.push(plan.rows.map((row) => row["QUERY PLAN"]).join("\n"))
+        }
+        for (const plan of plans)
+          expect(plan).toMatch(
+            /IDX_order_operation_delivery_ended_at|IDX_intended_delivery_(delivered_terminal_at_id|restaurant_id_terminal_at_id)/,
+          )
+        expect(plans.join("\n")).toMatch(
+          /IDX_order_operation_delivery_ended_at/,
+        )
+        expect(plans.join("\n")).toMatch(
+          // Either delivered handover-time index serves it.
+          /IDX_intended_delivery_(delivered_terminal_at_id|restaurant_id_terminal_at_id)/,
+        )
       })
     })
 

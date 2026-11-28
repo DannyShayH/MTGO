@@ -97,6 +97,45 @@ export type Operations = {
     average_per_day: number
     exclusions: { reason: string; count: number }[]
   }
+  /** Placement to handover, for Orders handed over in the last 24 hours (#262). */
+  processing_time: ComparedTimeMeasure<ProcessingExclusionReason>
+  /** Pickup to handover, for the same Orders (#262). */
+  delivery_transit_time: ComparedTimeMeasure<TransitExclusionReason>
+  /** Both times over the previous seven complete Copenhagen days (#262). */
+  times_per_day: {
+    period: Period
+    processing_time: TimeMeasure<ProcessingExclusionReason>
+    delivery_transit_time: TimeMeasure<TransitExclusionReason>
+    /** Oldest first; a day without handovers has no average. */
+    days: {
+      date: string
+      processing_time: DayAverage
+      delivery_transit_time: DayAverage
+    }[]
+  }
+}
+
+/** One Copenhagen day's average time and the Orders it includes. */
+export type DayAverage = { included: number; average_seconds: number | null }
+
+/** A last-24-hours time with its change from the previous seven days. */
+export type ComparedTimeMeasure<Reason extends string = string> =
+  TimeMeasure<Reason> & {
+    /** Whole percent; negative is faster. Null without both averages. */
+    change_from_previous_7_days_percent: number | null
+  }
+
+export type ProcessingExclusionReason = "no_placement_time" | "no_handover_time"
+export type TransitExclusionReason = "no_pickup_time"
+export type ExclusionReason = ProcessingExclusionReason | TransitExclusionReason
+
+/** An average time with the Orders it includes and those it left out, by reason. */
+export type TimeMeasure<Reason extends string = string> = {
+  period: Period
+  included: number
+  /** Whole seconds; null when no Order is included, never zero. */
+  average_seconds: number | null
+  exclusions: { reason: Reason; count: number }[]
 }
 
 /** Short operator wording for who or what cancelled an Order. */
@@ -192,3 +231,66 @@ export const formatCalculatedAt = (value: string) =>
     dateStyle: "medium",
     timeStyle: "medium",
   }).format(new Date(value))
+
+/** Operator wording for why an Order was left out of a time measure. */
+export const exclusionReasonLabels: Record<ExclusionReason, string> = {
+  no_placement_time: "no placement time",
+  no_handover_time: "no handover time",
+  no_pickup_time: "no pickup time",
+}
+
+/**
+ * A time to the whole minute as people say it: "53 min", "2 h 3 min" or
+ * "2 h". Null when there is no average: no Order included is never zero.
+ */
+export const formatDuration = (seconds: number | null) => {
+  if (seconds === null) return null
+  const minutes = Math.round(seconds / 60)
+  if (minutes < 60) return `${minutes} min`
+  const hours = Math.floor(minutes / 60)
+  const rest = minutes % 60
+  return rest ? `${hours} h ${rest} min` : `${hours} h`
+}
+
+/**
+ * The last 24 hours against the previous seven days, in words and a tone:
+ * a shorter time is faster (good), a longer one slower. The text carries the
+ * meaning, so the tone is never the only signal.
+ */
+export const changeSummary = (
+  percent: number | null,
+  previousSeconds: number | null,
+): { text: string; tone: "faster" | "slower" | "same" | "none" } => {
+  const previous = formatDuration(previousSeconds)
+  if (percent === null || previous === null)
+    return { text: "No previous 7 days to compare with", tone: "none" }
+  const against = `the 7-day average of ${previous}`
+  if (percent === 0) return { text: `Same as ${against}`, tone: "same" }
+  return percent < 0
+    ? { text: `${-percent}% faster than ${against}`, tone: "faster" }
+    : { text: `${percent}% slower than ${against}`, tone: "slower" }
+}
+
+/**
+ * The Orders a time measure left out, as one line, largest reason first:
+ * "1 excluded: no placement time", "3 excluded: 2 no pickup time, 1 no
+ * handover time", or "None excluded".
+ */
+export const exclusionSummary = (
+  exclusions: { reason: ExclusionReason; count: number }[],
+) => {
+  const present = exclusions
+    .filter(({ count }) => count > 0)
+    .sort((a, b) => b.count - a.count)
+  const total = present.reduce((sum, { count }) => sum + count, 0)
+  if (total === 0) return "None excluded"
+  const reasons =
+    present.length === 1
+      ? exclusionReasonLabels[present[0].reason]
+      : present
+          .map(
+            ({ reason, count }) => `${count} ${exclusionReasonLabels[reason]}`,
+          )
+          .join(", ")
+  return `${total} excluded: ${reasons}`
+}

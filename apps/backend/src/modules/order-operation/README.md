@@ -373,6 +373,34 @@ only the period's rows however much history accumulates.
 `integration-tests/http/admin-operations.spec.ts` captures the three queries
 the workflow sends and checks with `EXPLAIN` that each can use the index.
 
+## Order processing time (#262)
+
+`averageProcessingTime(period, { restaurant_id? })` averages, in the
+database, `delivery_ended_at - placed_at` in seconds for records with
+`delivery_outcome = 'delivered'` and `delivery_ended_at` in the period
+(inclusive, exclusive). Cancelled and `not_delivered` records are never in it.
+It returns `{ included, average_seconds, no_placement_time, no_handover_time }`:
+
+- `included` counts the handovers with a placement time; `average_seconds` is
+  `null` when none is included, never zero.
+- `no_placement_time` counts handovers in the period without `placed_at`
+  (legacy Orders).
+- `no_handover_time` counts delivered records without `delivery_ended_at`.
+  Without a handover time they can be placed in no handover period, so a
+  second query counts those with `placed_at` in the period instead.
+
+A partial index on `delivery_ended_at` (`IDX_order_operation_delivery_ended_at`,
+only delivered, not deleted records) serves the first query and the placement
+index the second. `integration-tests/http/admin-operations.spec.ts` checks the
+plan with `EXPLAIN`. The delivery module's `averageTransitTime` selects by
+handover time over the same period.
+
+`averageProcessingTimeByCopenhagenDate(period, { restaurant_id? })` groups the
+same handovers by the Copenhagen calendar date of `delivery_ended_at`
+(`YYYY-MM-DD`) and returns `{ date, included, average_seconds }` for each date
+with a handover, for the seven-day trend. Exclusions are counted once for the
+whole period by `averageProcessingTime`. The same index serves it.
+
 ## Link
 
 `src/links/order-order-operation.ts` is a read-only, one-to-one link from the Order
