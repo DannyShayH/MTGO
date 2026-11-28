@@ -71,3 +71,39 @@ export function copenhagenMonthPeriod(month: string) {
         : copenhagenMidnight(year, number + 1),
   }
 }
+
+/** Copenhagen's offset from UTC at an instant, in minutes (60 or 120). */
+export function copenhagenOffsetMinutes(instant: Date) {
+  const local = copenhagenParts(instant)
+  const asUtc = Date.UTC(
+    local.year,
+    local.month - 1,
+    local.day,
+    local.hour,
+    local.minute,
+    local.second,
+  )
+  return Math.round(
+    (asUtc - Math.floor(instant.getTime() / 1000) * 1000) / 60000,
+  )
+}
+
+/** Copenhagen's offset from UTC at an instant: `+01:00` or `+02:00`. */
+export function copenhagenUtcOffset(instant: Date) {
+  const hours = copenhagenOffsetMinutes(instant) / 60
+  return `+${String(hours).padStart(2, "0")}:00`
+}
+
+/** The Copenhagen calendar date `days` after (or before) a `YYYY-MM-DD` date. */
+export function addCopenhagenDays(date: string, days: number) {
+  const [year, month, day] = date.split("-").map(Number)
+  return new Date(Date.UTC(year, month - 1, day + days))
+    .toISOString()
+    .slice(0, 10)
+}
+
+/** The instant of Copenhagen midnight starting a `YYYY-MM-DD` date. */
+export function copenhagenDayStart(date: string) {
+  const [year, month, day] = date.split("-").map(Number)
+  return copenhagenMidnight(year, month, day)
+}

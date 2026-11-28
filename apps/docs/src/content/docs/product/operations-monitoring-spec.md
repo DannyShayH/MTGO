@@ -116,7 +116,7 @@ Everything sits behind a default-off feature flag until the team releases it.
 ### 2. Periods and Copenhagen time
 
 - The rolling 24-hour period runs from `now` minus 24 hours (inclusive) to `now` (exclusive).
-- Hour buckets are the Copenhagen clock hours overlapping that period. The current hour is marked "so far". An empty hour is zero. The repeated hour on the night the clocks go back is two buckets, each labelled with its UTC offset.
+- Orders per hour has 24 buckets: the Copenhagen clock hours ending with the current one, so its period runs from the start of the first hour to `now` (discovery Q11, Q12). The current hour is marked "so far". An empty hour is zero. The repeated hour on the night the clocks go back is two buckets, each labelled with its UTC offset.
 - The seven-day period is the seven complete Copenhagen calendar days before today. Daily counts use Copenhagen dates, the average is the total divided by seven, and days of 23 or 25 hours each count as one day.
 - The existing Copenhagen time helpers are reused and extended where needed.
 

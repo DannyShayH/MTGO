@@ -98,7 +98,7 @@ function FigureCard({
       className="flex min-w-0 flex-col divide-y p-0"
     >
       <div className="flex flex-col gap-y-1 px-6 py-4">
-        <Heading level="h2" id={id}>
+        <Heading level="h3" id={id}>
           {title}
         </Heading>
         <Text size="small" leading="compact" className="text-ui-fg-subtle">
@@ -119,8 +119,7 @@ function FigureCard({
  */
 export function WorkWaitingFigures({
   figures,
-  calculatedAt,
-}: Readonly<{ figures: Operations; calculatedAt: string }>) {
+}: Readonly<{ figures: Operations }>) {
   const { unassigned_deliveries: unassigned, attention, full_refunds } = figures
   const waiting = unassigned.waiting_over_ten_minutes
   return (
@@ -128,7 +127,7 @@ export function WorkWaitingFigures({
       <FigureCard
         id="operations-unassigned"
         title="Unassigned deliveries"
-        description={`Open Orders with no Delivery agent at ${calculatedAt}.`}
+        description="Open Orders with no Delivery agent yet."
         link={<PageLink to="/deliveries">View unclaimed deliveries</PageLink>}
       >
         <Headline count={unassigned.total} unit="unassigned" />
@@ -142,7 +141,7 @@ export function WorkWaitingFigures({
       <FigureCard
         id="operations-attention"
         title="Deliveries needing attention"
-        description={`Raised and not yet resolved, by type, at ${calculatedAt}.`}
+        description="Raised and not yet resolved, by type."
         link={
           <PageLink to="/deliveries">View attention on Deliveries</PageLink>
         }
@@ -173,7 +172,7 @@ export function WorkWaitingFigures({
       <FigureCard
         id="operations-full-refunds"
         title="Unresolved Full refunds"
-        description={`Owed to Customers and not yet refunded, at ${calculatedAt}.`}
+        description="Owed to Customers and not yet refunded."
         link={<PageLink to="/refunds">View refunds</PageLink>}
       >
         <Headline count={full_refunds.total} unit="unresolved" />

@@ -16,6 +16,14 @@ import {
   unassignedDeliveriesFigure,
   unassignedWaitingCutoff,
 } from "./work-waiting"
+import {
+  hourWindow,
+  last24Hours,
+  ordersPerHourFigure,
+  placementsFigure,
+  placementsPerDayFigure,
+  previousSevenDays,
+} from "./volume"
 
 /** The whole platform, or one Restaurant's own figures. */
 export type OperationsScope =
@@ -97,12 +105,41 @@ const readFullRefundsStep = createStep(
 )
 
 /**
+ * Order volume (#261): placements in the last 24 hours with those now
+ * cancelled by category, Orders per hour over the last 24 Copenhagen clock
+ * hours and placements per day over the previous seven complete Copenhagen
+ * days, each period derived from the one `now`.
+ */
+const readVolumeStep = createStep(
+  "read-order-volume",
+  async (input: OperationsInput, { container }) => {
+    const operations = container.resolve<OrderOperationModuleService>(
+      ORDER_OPERATION_MODULE,
+    )
+    const now = new Date(input.now)
+    const scope = restaurantFilter(input.scope)
+    const rolling24Hours = last24Hours(now)
+    const [byCancellation, byHour, byDate] = await Promise.all([
+      operations.countPlacementsByCancellation(rolling24Hours, scope),
+      operations.countPlacementsByHour(hourWindow(now), scope),
+      operations.countPlacementsByCopenhagenDate(previousSevenDays(now), scope),
+    ])
+    return new StepResponse({
+      placements: placementsFigure(byCancellation, rolling24Hours),
+      orders_per_hour: ordersPerHourFigure(byHour, now),
+      placements_per_day: placementsPerDayFigure(byDate, now),
+    })
+  },
+)
+
+/**
  * The operations read (#54), the only entry point for the operator and
  * staff views. It takes a scope and one explicit `now` and derives every
  * period from it, so each response states the moment it describes. Each
  * owning module aggregates its own records in the database; this workflow
  * only combines them. #259 adds Open Orders by stage; #260 adds unassigned
- * deliveries, attention by type and unresolved Full refunds.
+ * deliveries, attention by type and unresolved Full refunds; #261 adds the
+ * Order volume.
  */
 export const readOperationsWorkflow = createWorkflow(
   "read-operations",
@@ -110,12 +147,17 @@ export const readOperationsWorkflow = createWorkflow(
     const open = readOpenOrdersStep(input)
     const work = readDeliveryWorkStep(input)
     const fullRefunds = readFullRefundsStep(input)
+    const volume = readVolumeStep(input)
     return new WorkflowResponse(
-      transform({ open, work, fullRefunds }, ({ open, work, fullRefunds }) => ({
-        ...open,
-        ...work,
-        full_refunds: fullRefunds,
-      })),
+      transform(
+        { open, work, fullRefunds, volume },
+        ({ open, work, fullRefunds, volume }) => ({
+          ...open,
+          ...work,
+          full_refunds: fullRefunds,
+          ...volume,
+        }),
+      ),
     )
   },
 )

@@ -1,5 +1,5 @@
-import { Table, Text, clx } from "@medusajs/ui"
-import { useId, type ComponentProps } from "react"
+import { type ComponentProps } from "react"
+import { ChartNumbers } from "./chart-numbers"
 import {
   Bar,
   BarChart,
@@ -45,8 +45,8 @@ function CategoryTick({
  * arrive, with the same numbers in a table under the chart. Each bar carries
  * its name on the axis and its count at the end, so nothing relies on colour;
  * an empty category keeps a stub and a 0 rather than vanishing. The chart is
- * a picture for sighted operators; the table, named by `caption`, holds the
- * numbers for screen readers and keyboard users. Meant to sit flush in a
+ * a picture for sighted operators; `ChartNumbers`, named by `caption`, holds
+ * the numbers for screen readers and, folded until asked for, everyone else. Meant to sit flush in a
  * `Container` with `p-0 divide-y`.
  */
 export function CountBarChart({
@@ -66,7 +66,6 @@ export function CountBarChart({
   /** Room for the longest category name, in pixels. */
   labelWidth?: number
 }>) {
-  const captionId = useId()
   return (
     <>
       <div className="px-6 py-4">
@@ -132,50 +131,17 @@ export function CountBarChart({
           </ResponsiveContainer>
         </div>
       </div>
-      <Table aria-labelledby={captionId}>
-        <caption id={captionId} className="sr-only">
-          {caption}
-        </caption>
-        <Table.Header>
-          <Table.Row>
-            <Table.HeaderCell scope="col">{categoryHeader}</Table.HeaderCell>
-            <Table.HeaderCell scope="col" className="text-right">
-              {valueHeader}
-            </Table.HeaderCell>
-          </Table.Row>
-        </Table.Header>
-        <Table.Body>
-          {rows.map(({ key, label, count }) => (
-            <Table.Row key={key}>
-              <Table.HeaderCell scope="row" className="font-normal">
-                {label}
-              </Table.HeaderCell>
-              <Table.Cell
-                className={clx(
-                  "text-right tabular-nums",
-                  !count && "text-ui-fg-muted",
-                )}
-              >
-                {count}
-              </Table.Cell>
-            </Table.Row>
-          ))}
-          {total !== undefined && (
-            <Table.Row className="bg-ui-bg-subtle hover:bg-ui-bg-subtle">
-              <Table.HeaderCell scope="row">
-                <Text size="small" leading="compact" weight="plus">
-                  Total
-                </Text>
-              </Table.HeaderCell>
-              <Table.Cell className="text-right tabular-nums">
-                <Text size="small" leading="compact" weight="plus">
-                  {total}
-                </Text>
-              </Table.Cell>
-            </Table.Row>
-          )}
-        </Table.Body>
-      </Table>
+      <ChartNumbers
+        caption={caption}
+        categoryHeader={categoryHeader}
+        valueHeader={valueHeader}
+        rows={rows}
+        footer={
+          total === undefined
+            ? undefined
+            : [{ label: "Total", value: String(total) }]
+        }
+      />
     </>
   )
 }

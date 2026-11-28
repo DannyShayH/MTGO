@@ -353,6 +353,26 @@ out. One Restaurant's refunds are found by joining its own `OrderOperation`
 records on `order_id`, inside this module. The `(status, created_at, id)` index
 serves the read. `readOperationsWorkflow` is the only caller.
 
+## Placements (#261)
+
+Three reads count the records with `placed_at` in a period, from `starts_at`
+inclusive to `ends_at` exclusive, optionally for one `restaurant_id`. Each is
+one grouped query in the database; a record without `placed_at` (a legacy
+Order) is never in a period. `readOperationsWorkflow` derives every period
+from its one `now` and is the only caller.
+
+| Method                                                        | Groups by                                                                                                                                                                                                    |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `countPlacementsByCancellation(period, { restaurant_id? })`   | The `cancellation_category` of records now `cancelled`, `null` for the rest, so the volume and its cancellations come from one query                                                                         |
+| `countPlacementsByHour(period, { restaurant_id? })`           | The UTC hour of `placed_at`, returned as each hour's start. Copenhagen's offset is whole hours, so each UTC hour is one Copenhagen clock hour, and the repeated hour when the clocks go back stays two hours |
+| `countPlacementsByCopenhagenDate(period, { restaurant_id? })` | The Copenhagen calendar date of `placed_at` as `YYYY-MM-DD`, computed with `at time zone 'Europe/Copenhagen'`, whatever the session's time zone                                                              |
+
+A partial index on `placed_at` (`IDX_order_operation_placed_at`, only records
+with a placement time and not deleted) serves all three, so the read touches
+only the period's rows however much history accumulates.
+`integration-tests/http/admin-operations.spec.ts` captures the three queries
+the workflow sends and checks with `EXPLAIN` that each can use the index.
+
 ## Link
 
 `src/links/order-order-operation.ts` is a read-only, one-to-one link from the Order

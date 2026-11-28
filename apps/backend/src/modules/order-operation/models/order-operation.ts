@@ -111,6 +111,8 @@ const OrderOperation = model
     { on: ["restaurant_id", "state", "placed_at", "id"] },
     // The kitchen feed's bounded read of recently changed records (#148).
     { on: ["restaurant_id", "updated_at"] },
+    // Placements in the last 24 hours and seven days (#261), platform-wide.
+    { on: ["placed_at"], where: "placed_at IS NOT NULL" },
     // Open Orders by stage (#259): only work that has not ended.
     {
       on: ["restaurant_id", "state"],

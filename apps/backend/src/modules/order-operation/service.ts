@@ -47,6 +47,9 @@ const OPEN_ORDER_STAGE_SQL = `case
   else 'assigned_not_picked_up'
 end`
 
+/** A range of time: from `starts_at`, inclusive, to `ends_at`, exclusive. */
+export type PlacementPeriod = { starts_at: string; ends_at: string }
+
 export type CancellationCommand = {
   /** The record and the revision and state the caller decided on. */
   id: string
@@ -135,6 +138,104 @@ class OrderOperationModuleService extends MedusaService({
     for (const { stage, count } of rows)
       counts[stage as OpenOrderStage] = Number(count)
     return counts
+  }
+
+  /**
+   * The Orders placed in a period, from `starts_at` inclusive to `ends_at`
+   * exclusive, as a query each placement count groups differently (#261).
+   * Selected by placement time alone, so the placement-time index serves it.
+   */
+  private placementsIn(
+    manager: EntityManager,
+    period: PlacementPeriod,
+    scope: { restaurant_id?: string },
+  ) {
+    const query = manager
+      .getKnex()("order_operation as o")
+      .whereNull("o.deleted_at")
+      .where("o.placed_at", ">=", new Date(period.starts_at))
+      .where("o.placed_at", "<", new Date(period.ends_at))
+    if (scope.restaurant_id) query.where("o.restaurant_id", scope.restaurant_id)
+    return query
+  }
+
+  /**
+   * Counts the Orders placed in a period by the cancellation category they
+   * now have (#261), null for those not cancelled, so the volume and its
+   * cancellations come from one grouped query.
+   */
+  @InjectManager()
+  async countPlacementsByCancellation(
+    period: PlacementPeriod,
+    scope: { restaurant_id?: string } = {},
+    @MedusaContext() context: Context = {},
+  ): Promise<{ category: CancellationCategory | null; count: number }[]> {
+    const manager = context.manager as EntityManager
+    const rows = (await this.placementsIn(manager, period, scope)
+      .select(
+        manager
+          .getKnex()
+          .raw(
+            "case when o.state = 'cancelled' then o.cancellation_category end as category",
+          ),
+      )
+      .count({ count: "*" })
+      .groupBy("category")) as { category: string | null; count: string }[]
+    return rows.map(({ category, count }) => ({
+      category: category as CancellationCategory | null,
+      count: Number(count),
+    }))
+  }
+
+  /**
+   * Counts the Orders placed in a period by the hour they were placed in
+   * (#261), as each hour's start. Hours are counted on the UTC clock:
+   * Copenhagen's offset is whole hours, so each is one Copenhagen clock hour,
+   * and the repeated hour when the clocks go back stays two hours.
+   */
+  @InjectManager()
+  async countPlacementsByHour(
+    period: PlacementPeriod,
+    scope: { restaurant_id?: string } = {},
+    @MedusaContext() context: Context = {},
+  ): Promise<{ starts_at: string; count: number }[]> {
+    const manager = context.manager as EntityManager
+    const rows = (await this.placementsIn(manager, period, scope)
+      .select(
+        manager
+          .getKnex()
+          .raw("floor(extract(epoch from o.placed_at) / 3600)::bigint as hour"),
+      )
+      .count({ count: "*" })
+      .groupBy("hour")) as { hour: string; count: string }[]
+    return rows.map(({ hour, count }) => ({
+      starts_at: new Date(Number(hour) * 3600 * 1000).toISOString(),
+      count: Number(count),
+    }))
+  }
+
+  /**
+   * Counts the Orders placed in a period by their Copenhagen calendar date
+   * (#261), as `YYYY-MM-DD`, whatever the database session's time zone.
+   */
+  @InjectManager()
+  async countPlacementsByCopenhagenDate(
+    period: PlacementPeriod,
+    scope: { restaurant_id?: string } = {},
+    @MedusaContext() context: Context = {},
+  ): Promise<{ date: string; count: number }[]> {
+    const manager = context.manager as EntityManager
+    const rows = (await this.placementsIn(manager, period, scope)
+      .select(
+        manager
+          .getKnex()
+          .raw(
+            "to_char(o.placed_at at time zone 'Europe/Copenhagen', 'YYYY-MM-DD') as date",
+          ),
+      )
+      .count({ count: "*" })
+      .groupBy("date")) as { date: string; count: string }[]
+    return rows.map(({ date, count }) => ({ date, count: Number(count) }))
   }
 
   /**

@@ -1780,8 +1780,9 @@ doing right now (#54), behind the default-off `operations_monitoring` flag
 (ADR-0022). The route runs `readOperationsWorkflow` with the platform scope
 and the server's time as `now`; every figure is calculated for that one
 moment, which the response returns as `as_of`. #259 adds Open Orders by
-stage and #260 unassigned deliveries, attention and unresolved Full refunds;
-later work items add the other measures to the same response.
+stage, #260 unassigned deliveries, attention and unresolved Full refunds,
+and #261 the Order volume; later work items add the other measures to the
+same response.
 
 **Success:** `200` with
 `{ as_of, scope: { type: "platform" }, open_orders: { period, total, stages, exclusions } }`.
@@ -1808,6 +1809,32 @@ The response also carries three counts of work waiting (#260), each with
   `waiting_over_ten_minutes`, so one Order is not read as two problems.
 - `full_refunds: { total, pending, failed }`: Full refunds still owed, the
   same ones `GET /admin/refunds` lists; succeeded refunds are not counted.
+
+And three measures of Order volume (#261), each with a `period` of
+`{ starts_at, ends_at }` (inclusive, exclusive) and empty `exclusions`, since
+Orders are selected by placement time and a legacy Order without one is in no
+period:
+
+- `placements: { total, cancelled: { total, categories } }`: Orders placed in
+  the last 24 hours, from `as_of` minus 24 hours to `as_of`. `cancelled`
+  counts those placements now cancelled; they stay in `total`. `categories`
+  names all five cancellation categories, each `{ category, count }`, in the
+  order `restaurant_rejected`, `acceptance_timeout`, `customer_cancelled`,
+  `unassigned_timeout`, `operator_cancelled`.
+- `orders_per_hour: { total, hours }`: placements in each of the 24 Copenhagen
+  clock hours ending with the current one; `period` runs from the start of the
+  first hour to `as_of`. Each hour is
+  `{ starts_at, local_time, utc_offset, is_current, count }`, oldest first:
+  `local_time` is the Copenhagen clock time as `HH:00`, `utc_offset` is
+  `+01:00` or `+02:00`, `is_current` marks the current hour and an hour without
+  Orders is `0`. On the night the clocks go back, `02:00` appears twice with
+  different offsets; on the night they go forward there is no `02:00`.
+- `placements_per_day: { total, days, average_per_day }`: placements on each
+  of the previous seven complete Copenhagen days, `{ date, count }` with
+  `date` as `YYYY-MM-DD`, oldest first. `period` runs from Copenhagen midnight
+  seven days before today to midnight starting today. `average_per_day` is
+  `total` divided by seven, rounded to one decimal (ADR-0015): days without
+  Orders and days of 23 or 25 hours each count as one day.
 
 | Status | When                                                                                                                                 |
 | ------ | ------------------------------------------------------------------------------------------------------------------------------------ |

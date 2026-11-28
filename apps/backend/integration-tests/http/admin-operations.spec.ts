@@ -429,6 +429,180 @@ medusaIntegrationTestRunner({
       })
     })
 
+    describe("Order volume (#261)", () => {
+      const HOUR = 60 * MINUTE
+      /** Moves an Order's recorded placement to `at`, as history would hold it. */
+      const placedAt = async (orderId: string, at: Date) => {
+        const [record] = await operations().listOrderOperations({
+          order_id: orderId,
+        })
+        await operations().updateOrderOperations({
+          id: record.id,
+          placed_at: at,
+        })
+      }
+      const placeAt = async (at: Date, restaurantId = pizzeriaId) => {
+        const order = await placePaidOrder(restaurantId)
+        await placedAt(order.id, at)
+        return order
+      }
+      const readAt = async (
+        now: Date,
+        scope:
+          | { type: "platform" }
+          | { type: "restaurant"; restaurant_id: string } = {
+          type: "platform",
+        },
+      ) =>
+        (
+          await readOperationsWorkflow(getContainer()).run({
+            input: { scope, now: now.toISOString() },
+          })
+        ).result
+
+      it("counts placements from exactly 24 hours before now, inclusive, to now, exclusive", async () => {
+        const now = new Date(Date.parse("2026-11-28T13:00:00.000Z"))
+        // At 14:00: yesterday 13:30 is outside, 14:30 inside.
+        await placeAt(new Date(now.getTime() - 24 * HOUR - 30 * MINUTE))
+        await placeAt(new Date(now.getTime() - 23 * HOUR - 30 * MINUTE))
+        // BVA: the first second of the period is in, now itself is out.
+        await placeAt(new Date(now.getTime() - 24 * HOUR))
+        await placeAt(new Date(now.getTime() - 24 * HOUR - 1000))
+        await placeAt(now)
+
+        const { placements } = await readAt(now)
+        expect(placements.total).toBe(2)
+        expect(placements.period).toEqual({
+          starts_at: "2026-11-27T13:00:00.000Z",
+          ends_at: "2026-11-28T13:00:00.000Z",
+        })
+      })
+
+      it("keeps cancelled Orders in the volume and counts them by cancellation category", async () => {
+        await placePaidOrder(pizzeriaId)
+        await accepted()
+        const rejected = await placePaidOrder(pizzeriaId)
+        expect((await reject(staff, rejected.id)).status).toBe(200)
+        const withdrawn = await placePaidOrder(pizzeriaId)
+        expect((await harness.cancel(customer, withdrawn.id)).status).toBe(200)
+
+        const response = await read()
+        expect(response.status).toBe(200)
+        expect(response.data.placements.total).toBe(4)
+        expect(response.data.placements.cancelled).toEqual({
+          total: 2,
+          categories: [
+            { category: "restaurant_rejected", count: 1 },
+            { category: "acceptance_timeout", count: 0 },
+            { category: "customer_cancelled", count: 1 },
+            { category: "unassigned_timeout", count: 0 },
+            { category: "operator_cancelled", count: 0 },
+          ],
+        })
+        expect(response.data.orders_per_hour.total).toBe(4)
+        expect(response.data.orders_per_hour.hours.at(-1)).toMatchObject({
+          is_current: true,
+          count: 4,
+        })
+      })
+
+      it("counts the repeated 02:00 hour of 25 October 2026 as two hours", async () => {
+        // 02:30 at +02:00, then 02:30 again at +01:00.
+        await placeAt(new Date("2026-10-25T00:30:00.000Z"))
+        await placeAt(new Date("2026-10-25T01:30:00.000Z"))
+        await placeAt(new Date("2026-10-25T01:45:00.000Z"))
+
+        const { orders_per_hour } = await readAt(
+          new Date("2026-10-25T09:20:00.000Z"),
+        )
+        expect(
+          orders_per_hour.hours
+            .filter(({ local_time }) => local_time === "02:00")
+            .map(({ utc_offset, count }) => ({ utc_offset, count })),
+        ).toEqual([
+          { utc_offset: "+02:00", count: 1 },
+          { utc_offset: "+01:00", count: 2 },
+        ])
+        expect(orders_per_hour.total).toBe(3)
+      })
+
+      it("counts placements per Copenhagen day over the previous seven complete days and averages them over seven", async () => {
+        // 00:30 and 23:30 Copenhagen time on the 25-hour 25 October.
+        await placeAt(new Date("2026-10-24T22:30:00.000Z"))
+        await placeAt(new Date("2026-10-25T22:30:00.000Z"))
+        // 23:30 on 18 October, before the seven days.
+        await placeAt(new Date("2026-10-18T21:30:00.000Z"))
+        await placeAt(new Date("2026-10-20T10:00:00.000Z"))
+        // 00:30 on 26 October: today, not a complete day yet.
+        await placeAt(new Date("2026-10-25T23:30:00.000Z"))
+
+        const { placements_per_day } = await readAt(
+          new Date("2026-10-26T10:00:00.000Z"),
+        )
+        expect(placements_per_day.days).toEqual([
+          { date: "2026-10-19", count: 0 },
+          { date: "2026-10-20", count: 1 },
+          { date: "2026-10-21", count: 0 },
+          { date: "2026-10-22", count: 0 },
+          { date: "2026-10-23", count: 0 },
+          { date: "2026-10-24", count: 0 },
+          { date: "2026-10-25", count: 2 },
+        ])
+        expect(placements_per_day.total).toBe(3)
+        expect(placements_per_day.average_per_day).toBe(0.4)
+      })
+
+      it("narrows the volume to one Restaurant", async () => {
+        const now = new Date()
+        await placeAt(new Date(now.getTime() - HOUR))
+        const { burgerId } = harness.seeded()
+        await placeAt(new Date(now.getTime() - HOUR), burgerId)
+
+        const own = await readAt(now, {
+          type: "restaurant",
+          restaurant_id: pizzeriaId,
+        })
+        expect(own.placements.total).toBe(1)
+        expect(own.orders_per_hour.total).toBe(1)
+        expect((await readAt(now)).placements.total).toBe(2)
+        const other = await readAt(now, {
+          type: "restaurant",
+          restaurant_id: "rest_another_restaurant",
+        })
+        expect(other.placements.total).toBe(0)
+      })
+
+      it("reads placements through the placement-time index", async () => {
+        const knex = getContainer().resolve(
+          ContainerRegistrationKeys.PG_CONNECTION,
+        )
+        const seen: { sql: string; bindings: unknown[] }[] = []
+        const capture = (query: { sql: string; bindings: unknown[] }) => {
+          if (/placed_at"?\s*>=/.test(query.sql)) seen.push(query)
+        }
+        knex.on("query", capture)
+        try {
+          await readAt(new Date())
+        } finally {
+          knex.removeListener("query", capture)
+        }
+        // Placements, Orders per hour and placements per day.
+        expect(seen).toHaveLength(3)
+        for (const { sql, bindings } of seen) {
+          // The test database is tiny, so a sequential scan would be
+          // cheaper; ruling it out shows whether the index can serve.
+          const plan = (await knex.transaction(async (trx) => {
+            await trx.raw("set local enable_seqscan = off")
+            // The captured text is in the driver's `$1` form.
+            const text = sql.replace(/\$\d+/g, "?")
+            return trx.raw(`explain ${text}`, bindings as never)
+          })) as unknown as { rows: Record<string, string>[] }
+          const text = plan.rows.map((row) => row["QUERY PLAN"]).join("\n")
+          expect(text).toMatch(/IDX_order_operation_placed_at/)
+        }
+      })
+    })
+
     it("narrows unassigned deliveries, attention and Full refunds to one Restaurant", async () => {
       await acceptedMinutesAgo(12)
       await sweep()

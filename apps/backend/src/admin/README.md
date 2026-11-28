@@ -434,22 +434,35 @@ again only when the operator presses **Refresh**; it never polls and does not
 refetch on window focus. The header shows the moment the figures were
 calculated for (`as_of`, Copenhagen time, to the second). If a refresh fails,
 a warning says the figures shown are still those of the earlier moment.
+Until the first figures arrive (the flag check included),
+`components/operations-skeleton.tsx` shows the page's shape: the same three
+sections, cards and charts as grey blocks that pulse (still under
+`prefers-reduced-motion`), so the page forms in place and nothing moves when
+the figures replace it. Screen readers hear one status line, "Calculating the
+operations figures…", and the header says "Calculating…". A refresh never
+shows the skeleton: the figures stay and fade instead.
 `lib/operations-api.ts` holds the response types and stage labels.
+
+The figures are grouped by period, so each period is stated once, above its
+cards, and each card only says what it counts and for which Orders: **Right
+now** (as of the calculation moment), **Last 24 hours** (its start and end to
+the minute) and **Previous 7 days** (the first and last day). Section titles
+are `h2`, card titles `h3`. While a refresh runs, all three sections fade to
+60% and are marked `aria-busy`; loading and load failure show once, above them.
 
 **Open Orders by stage** shows the total and a horizontal bar chart. Its
 description states the population (all Restaurants, Orders not cancelled and
-not yet ended, legacy Orders included) and the moment. While a refresh runs,
-the figures fade to 60% and are marked `aria-busy`.
+not yet ended, legacy Orders included).
 
-Above it, `components/work-waiting-figures.tsx` shows three cards of work
+Under **Right now**, `components/work-waiting-figures.tsx` shows three cards of work
 waiting (#260), side by side from `lg` and stacked below: **Unassigned
 deliveries** (the total and a badge with how many have waited over ten
 minutes, orange when any), **Deliveries needing attention** (the total and a
 count for each of the six types, with the deliveries page's labels from
 `lib/attention-types.ts`; a line under the unassigned count says how many are
 the same Orders as the unassigned deliveries waiting over ten minutes) and
-**Unresolved Full refunds** (the total, failed and pending). Each card states
-its moment and ends with a link to the page that lists the records:
+**Unresolved Full refunds** (the total, failed and pending), above Open
+Orders by stage. Each card ends with a link to the page that lists the records:
 Deliveries for the first two, Refunds for the third. The page shows counts
 only, never a second list, and zeros are greyed out but never hidden.
 
@@ -457,8 +470,12 @@ only, never a second list, and zeros are greyed out but never hidden.
 the order the rows arrive, flush inside a `Container` with `p-0 divide-y`.
 Each bar has its name on the axis (on one line) and its count at the end, so
 nothing relies on colour; an empty category keeps a grey stub and a `0`. The
-chart is `aria-hidden`. Under it, a table with a screen-reader caption lists
-the same counts, zeros greyed out, and an optional total. Horizontal bars suit
+chart is `aria-hidden`. Under it, `components/chart-numbers.tsx` lists the
+same counts in a table with a screen-reader caption, zeros greyed out, and an
+optional total. Every chart on Operations and Feedback uses it: screen
+readers always read the table, and on screen it stays folded until **Show the
+numbers** (a button with `aria-expanded`), so the page does not show each
+count twice. Horizontal bars suit
 these figures: few categories with long names, in a fixed order, compared by
 size. A funnel would suggest conversion between stages, and a pie hides small
 counts. **Feedback** uses the same chart for the overall star distribution.
@@ -484,6 +501,37 @@ sidebar position is the supported way to put Operations first. The direct URL sa
 operations monitoring is not released, and the API answers `404`.
 `integration-tests/http/admin-operations.spec.ts` proves the counts, the
 refusals, the `404` and the sidebar job.
+
+`components/volume-figures.tsx` shows the Order volume (#261). Under **Last
+24 hours**, **Orders placed** (the total, the line "3 cancelled: 2 Customer,
+1 Restaurant rejected" from `cancelledSummary`, largest first, and a count per
+category under "Cancelled by") sits beside **Orders per hour**, side by side
+from `lg`. Under **Previous 7 days**, **Placements per day** spans the width.
+Both charts are vertical bar charts with a legend above the plot and a count
+on each bar:
+
+- **Orders per hour** has 24 bars named by the Copenhagen hour. Its headline
+  is the peak hour (`peakHour`: the most placements, the earlier hour on a
+  tie), since the 24-hour total sits in the card beside it. The current hour
+  is lighter with a dashed outline and its axis label says "so far"; on the
+  night the clocks go back each repeated hour's axis label carries its UTC
+  offset. `hourLabels` in `lib/operations-api.ts` names each hour the same
+  way in the table, for example `02:00 (+01:00)` or `14:00 (so far)`.
+- **Placements per day** has seven bars named by weekday and date, and the
+  seven-day average drawn as a dashed line behind the bars, named in the
+  legend ("Average 4.6 a day"). Its headline is the average, and its table
+  ends with the total and the average (total ÷ 7).
+
+The axis labels as many ticks as fit at the chart's measured width (about
+30 px each): every hour on a wide screen, every second or third on a phone,
+always counting back from the current hour and always including a repeated
+hour. Each count has a halo in the card colour so the average line never
+crosses it. A zero is muted, and left out when the bars are too narrow for a
+label each; an empty period still keeps a grey stub.
+
+Under each chart, `ChartNumbers` lists every bar, with a caption naming the
+period and population. The bars, the dashed outline and the dashed line all carry a text label as
+well, so nothing relies on colour.
 
 ## MTOGO branding
 
