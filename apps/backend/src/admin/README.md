@@ -466,11 +466,14 @@ Orders by stage. Each card ends with a link to the page that lists the records:
 Deliveries for the first two, Refunds for the third. The page shows counts
 only, never a second list, and zeros are greyed out but never hidden.
 
-`components/count-bar-chart.tsx` draws every count chart: horizontal bars in
+The charts come from `@dtc/charts` (`packages/charts`), which the partner
+app's Drift / Operations page shares, so both draw the same measures the same
+way. `components/count-bar-chart.tsx` draws every count chart: horizontal bars in
 the order the rows arrive, flush inside a `Container` with `p-0 divide-y`.
 Each bar has its name on the axis (on one line) and its count at the end, so
 nothing relies on colour; an empty category keeps a grey stub and a `0`. The
-chart is `aria-hidden`. Under it, `components/chart-numbers.tsx` lists the
+chart is `aria-hidden`. Under it, `components/chart-numbers.tsx` (the shared
+table with the Admin's English toggle and focus style) lists the
 same counts in a table with a screen-reader caption, zeros greyed out, and an
 optional total. Every chart on Operations and Feedback uses it: screen
 readers always read the table, and on screen it stays folded until **Show the
@@ -586,6 +589,27 @@ comparison and the per-day chart for **Processing and transit time**; and
 the Unfulfilled Order, its rate, the causes and the Customer rating for
 **Unfulfilled Orders and Customer rating**. The cards keep only short labels
 such as "All Restaurants, each Copenhagen day."
+
+### One Restaurant (#264)
+
+The header's **Restaurant** select narrows the page to one Restaurant,
+**All Restaurants** by default. It lists up to 100 Restaurants from
+`GET /admin/restaurants`, by name, deactivated ones marked "(deactivated)"
+because their recent service still counts. The choice lives in the address
+as `?restaurant=<id>` (replacing the history entry), so a refresh or a shared
+link keeps it, and the read becomes `GET /admin/operations?restaurant_id=`,
+the same figures that Restaurant's staff see on Drift / Operations, plus the
+operator-only ones. Each choice is its own query; while another choice
+calculates, the previous figures stay, dimmed, under the name they were
+calculated for: `components/operations-scope.tsx` provides the wording
+(`scopeWording` in `lib/operations-api.ts`: "All Restaurants" / "across all
+Restaurants", or the name / "at Restaurant Scarpetta") from the response's
+own `scope`, not from the select. Card labels, chart captions, section
+periods and the definitions Drawer (`operationsDefinitions(across)`) all
+follow it. A Restaurant view has no Customer rating, so its last section is
+just **Unfulfilled Orders**. An unknown id in the address says the
+Restaurant was not found and offers **Show all Restaurants**. The links to
+Deliveries and Refunds still open those pages unfiltered.
 
 ## MTOGO branding
 

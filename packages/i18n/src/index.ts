@@ -151,6 +151,19 @@ export {
   starsLabel,
 } from "./restaurant-ratings.ts"
 export {
+  RESTAURANT_OPERATIONS_TEXT,
+  formatOperationsAverage,
+  formatOperationsCalculatedAt,
+  formatOperationsDay,
+  formatOperationsDuration,
+  formatOperationsMoment,
+  formatOperationsRate,
+  operationsChangeText,
+  operationsExclusionText,
+  operationsHourLabels,
+  operationsIncludedText,
+} from "./restaurant-operations.ts"
+export {
   RESTAURANT_STATEMENTS_TEXT,
   formatStatementDate,
   formatStatementMonth,

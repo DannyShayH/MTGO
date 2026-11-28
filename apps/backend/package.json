@@ -25,6 +25,7 @@
     "test:coverage:shard": "TEST_TYPE=coverage NODE_OPTIONS=--experimental-vm-modules jest --silent --maxWorkers=${JEST_MAX_WORKERS:-1} --forceExit --coverage --coverageThreshold={} --coverageReporters=json --coverageDirectory=coverage/shard"
   },
   "dependencies": {
+    "@dtc/charts": "0.0.1",
     "@dtc/logging": "^0.0.1",
     "@medusajs/admin-sdk": "2.22.4",
     "@medusajs/admin-shared": "2.22.4",

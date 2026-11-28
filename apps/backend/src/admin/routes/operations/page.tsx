@@ -1,8 +1,18 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { ArrowPath, ChartActivity } from "@medusajs/icons"
-import { Alert, Button, Container, Heading, Text, clx } from "@medusajs/ui"
-import { useQuery } from "@tanstack/react-query"
-import type { ReactNode } from "react"
+import { FetchError } from "@medusajs/js-sdk"
+import {
+  Alert,
+  Button,
+  Container,
+  Heading,
+  Select,
+  Text,
+  clx,
+} from "@medusajs/ui"
+import { keepPreviousData, useQuery } from "@tanstack/react-query"
+import { useId, type ReactNode } from "react"
+import { useSearchParams } from "react-router-dom"
 import { CountBarChart } from "../../components/count-bar-chart"
 import { OperationsSkeleton } from "../../components/operations-skeleton"
 import { SectionDefinitions } from "../../components/section-definitions"
@@ -17,9 +27,14 @@ import {
   PlacementsPerDayChart,
 } from "../../components/volume-figures"
 import { WorkWaitingFigures } from "../../components/work-waiting-figures"
-import { sdk } from "../../lib/restaurant-api"
+import {
+  OperationsScopeProvider,
+  useScopeWording,
+} from "../../components/operations-scope"
+import { sdk, type Restaurant } from "../../lib/restaurant-api"
 import {
   formatCalculatedAt,
+  scopeWording,
   formatDay,
   formatPeriodEdge,
   openOrderStageLabels,
@@ -31,6 +46,7 @@ import { useFeatureFlag } from "../../lib/use-feature-flag"
 /** Open Orders by stage: the total in the header, the stages as bars. */
 function OpenOrdersCard({ figures }: Readonly<{ figures: Operations }>) {
   const { open_orders: open } = figures
+  const scope = useScopeWording()
   return (
     <Container
       role="region"
@@ -47,7 +63,7 @@ function OpenOrdersCard({ figures }: Readonly<{ figures: Operations }>) {
             leading="compact"
             className="max-w-prose text-ui-fg-subtle"
           >
-            Not cancelled and not yet handed over, all Restaurants.
+            Not cancelled and not yet handed over, {scope.across}.
           </Text>
         </div>
         <div className="flex items-baseline gap-x-1.5">
@@ -73,9 +89,64 @@ function OpenOrdersCard({ figures }: Readonly<{ figures: Operations }>) {
         total={open.total}
         categoryHeader="Stage"
         valueHeader="Open Orders"
-        caption={`Open Orders by stage across all Restaurants at ${formatCalculatedAt(figures.as_of)} (Copenhagen time), total ${open.total}`}
+        caption={`Open Orders by stage ${scope.across} at ${formatCalculatedAt(figures.as_of)} (Copenhagen time), total ${open.total}`}
       />
     </Container>
+  )
+}
+
+/** The value the selector uses for the default, all Restaurants. */
+const ALL_RESTAURANTS = "all"
+
+/**
+ * Narrows the page to one Restaurant (#264), all Restaurants by default.
+ * The choice lives in the address, so a refresh or a shared link keeps it.
+ * Deactivated Restaurants stay listed: their recent service still counts.
+ */
+function RestaurantChoice({
+  restaurants,
+  value,
+  onChange,
+  disabled,
+}: Readonly<{
+  restaurants: Restaurant[]
+  value: string | null
+  onChange: (restaurantId: string | null) => void
+  disabled: boolean
+}>) {
+  const labelId = useId()
+  return (
+    <div className="flex min-w-0 items-center gap-x-2">
+      <Text
+        size="small"
+        leading="compact"
+        weight="plus"
+        id={labelId}
+        className="shrink-0"
+      >
+        Restaurant
+      </Text>
+      <Select
+        size="small"
+        value={value ?? ALL_RESTAURANTS}
+        onValueChange={(next) =>
+          onChange(next === ALL_RESTAURANTS ? null : next)
+        }
+        disabled={disabled}
+      >
+        <Select.Trigger aria-labelledby={labelId} className="w-56 max-w-[60vw]">
+          <Select.Value className="truncate" />
+        </Select.Trigger>
+        <Select.Content className="max-h-80">
+          <Select.Item value={ALL_RESTAURANTS}>All Restaurants</Select.Item>
+          {restaurants.map(({ id, name, is_active }) => (
+            <Select.Item key={id} value={id}>
+              {is_active ? name : `${name} (deactivated)`}
+            </Select.Item>
+          ))}
+        </Select.Content>
+      </Select>
+    </div>
   )
 }
 
@@ -117,6 +188,40 @@ function PeriodSection({
   )
 }
 
+/** The Restaurant choice kept in the address as `?restaurant=`, or none. */
+function useRestaurantChoice() {
+  const [params, setParams] = useSearchParams()
+  const choose = (next: string | null) =>
+    setParams(
+      (current) => {
+        const updated = new URLSearchParams(current)
+        if (next) updated.set("restaurant", next)
+        else updated.delete("restaurant")
+        return updated
+      },
+      { replace: true },
+    )
+  return [params.get("restaurant") || null, choose] as const
+}
+
+const scopeOf = (restaurantId: string | null): Operations["scope"] =>
+  restaurantId
+    ? { type: "restaurant", restaurant_id: restaurantId }
+    : { type: "platform" }
+
+/**
+ * The name the page uses for the figures shown, not for the choice: while
+ * another choice calculates, the dimmed figures keep the name they were
+ * calculated for. Null means all Restaurants.
+ */
+const nameOf = (scope: Operations["scope"], restaurants?: Restaurant[]) => {
+  if (scope.type === "platform") return null
+  return (
+    restaurants?.find(({ id }) => id === scope.restaurant_id)?.name ??
+    "the chosen Restaurant"
+  )
+}
+
 /**
  * How the platform is doing right now (#54), for MTOGO operators. Every
  * figure is calculated for the one moment shown at the top; the page reads
@@ -129,14 +234,33 @@ function PeriodSection({
  * time for the Orders handed over in the last 24 hours, each against the
  * previous seven days, and their averages per day over those seven days;
  * #263 adds the Unfulfilled Order rate by cause and the average Customer
- * rating. Shown only while the backend releases the Feature.
+ * rating; #264 adds the Restaurant choice, all Restaurants by default, with
+ * the same figures the chosen Restaurant's staff see. Shown only while the
+ * backend releases the Feature.
  */
 const OperationsPage = () => {
   const flags = useFeatureFlag("operations_monitoring")
-  const operations = useQuery({
-    queryKey: ["admin-operations"],
-    queryFn: () => sdk.client.fetch<Operations>("/admin/operations"),
+  const [restaurantId, chooseRestaurant] = useRestaurantChoice()
+  const restaurants = useQuery({
+    queryKey: ["operations-restaurant-choice"],
+    queryFn: () =>
+      sdk.client.fetch<{ restaurants: Restaurant[]; count: number }>(
+        "/admin/restaurants",
+        { query: { limit: 100 } },
+      ),
     enabled: flags.isReleased,
+    select: ({ restaurants }) =>
+      [...restaurants].sort((a, b) => a.name.localeCompare(b.name, "da")),
+  })
+  const operations = useQuery({
+    queryKey: ["admin-operations", restaurantId ?? ALL_RESTAURANTS],
+    queryFn: () =>
+      sdk.client.fetch<Operations>("/admin/operations", {
+        query: restaurantId ? { restaurant_id: restaurantId } : {},
+      }),
+    enabled: flags.isReleased,
+    // The previous figures stay, dimmed, while another choice calculates.
+    placeholderData: keepPreviousData,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   })
@@ -166,16 +290,35 @@ const OperationsPage = () => {
   const calculatedAt = figures ? formatCalculatedAt(figures.as_of) : null
   const isRecalculating = operations.isFetching && !operations.isLoading
   const pendingStatus = operations.error ? "Not calculated yet" : "Calculating…"
+  const shownScope = figures?.scope ?? scopeOf(restaurantId)
+  const scope = scopeWording(nameOf(shownScope, restaurants.data))
+  const definitions = operationsDefinitions(scope.across)
+  const isUnknownRestaurant =
+    !!restaurantId &&
+    operations.error instanceof FetchError &&
+    operations.error.status === 404
   return (
     <div className="flex flex-col gap-y-3">
       <Container className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 px-6 py-4">
         <div className="flex min-w-0 flex-col gap-y-1">
           <Heading>Operations</Heading>
-          <Text size="small" leading="compact" className="text-ui-fg-subtle">
-            How the platform is doing, across all Restaurants.
+          <Text
+            size="small"
+            leading="compact"
+            className="break-words text-ui-fg-subtle"
+          >
+            {shownScope.type === "restaurant"
+              ? `How ${scope.label} is doing, with the definitions its staff see.`
+              : "How the platform is doing, across all Restaurants."}
           </Text>
         </div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <RestaurantChoice
+            restaurants={restaurants.data ?? []}
+            value={restaurantId}
+            onChange={chooseRestaurant}
+            disabled={!flags.isReleased || !restaurants.data}
+          />
           <Text
             size="small"
             leading="compact"
@@ -220,7 +363,23 @@ const OperationsPage = () => {
       {/* The flags and the first calculation both show the page's shape. */}
       {!figures && !operations.error && <OperationsSkeleton />}
 
-      {!figures && operations.error && (
+      {isUnknownRestaurant && (
+        <Container className="flex flex-col items-start gap-3 px-6 py-4">
+          <Alert variant="error">
+            The chosen Restaurant was not found. It may have been removed, or
+            the link is mistyped.
+          </Alert>
+          <Button
+            size="small"
+            variant="secondary"
+            onClick={() => chooseRestaurant(null)}
+          >
+            Show all Restaurants
+          </Button>
+        </Container>
+      )}
+
+      {!figures && operations.error && !isUnknownRestaurant && (
         <Container className="flex flex-col items-start gap-3 px-6 py-4">
           <Alert variant="error">Could not load the operations figures.</Alert>
           <Button
@@ -234,77 +393,85 @@ const OperationsPage = () => {
       )}
 
       {figures && calculatedAt && (
-        <div
-          aria-busy={isRecalculating}
-          className={clx(
-            "flex flex-col gap-y-6 transition-opacity duration-150 ease-out",
-            isRecalculating && "opacity-60",
-          )}
-        >
-          <PeriodSection
-            id="operations-now"
-            title="Right now"
-            period={`as of ${calculatedAt}`}
-            info={<SectionDefinitions {...operationsDefinitions.now} />}
+        <OperationsScopeProvider value={scope}>
+          <div
+            aria-busy={isRecalculating}
+            className={clx(
+              "flex flex-col gap-y-6 transition-opacity duration-150 ease-out",
+              isRecalculating && "opacity-60",
+            )}
           >
-            <WorkWaitingFigures figures={figures} />
-            <OpenOrdersCard figures={figures} />
-          </PeriodSection>
+            <PeriodSection
+              id="operations-now"
+              title="Right now"
+              period={`as of ${calculatedAt}`}
+              info={<SectionDefinitions {...definitions.now} />}
+            >
+              <WorkWaitingFigures figures={figures} />
+              <OpenOrdersCard figures={figures} />
+            </PeriodSection>
 
-          <PeriodSection
-            id="operations-last-24-hours"
-            title="Last 24 hours"
-            period={`${formatPeriodEdge(figures.placements.period.starts_at)} – ${formatPeriodEdge(figures.placements.period.ends_at)}`}
-            info={<SectionDefinitions {...operationsDefinitions.last24Hours} />}
-          >
-            <div className="grid gap-3 lg:grid-cols-3">
-              <PlacementsCard figures={figures} />
-              <OrdersPerHourChart
-                figures={figures}
-                calculatedAt={calculatedAt}
-                className="lg:col-span-2"
-              />
-            </div>
-          </PeriodSection>
+            <PeriodSection
+              id="operations-last-24-hours"
+              title="Last 24 hours"
+              period={`${formatPeriodEdge(figures.placements.period.starts_at)} – ${formatPeriodEdge(figures.placements.period.ends_at)}`}
+              info={<SectionDefinitions {...definitions.last24Hours} />}
+            >
+              <div className="grid gap-3 lg:grid-cols-3">
+                <PlacementsCard figures={figures} />
+                <OrdersPerHourChart
+                  figures={figures}
+                  calculatedAt={calculatedAt}
+                  className="lg:col-span-2"
+                />
+              </div>
+            </PeriodSection>
 
-          <PeriodSection
-            id="operations-previous-7-days"
-            title="Previous 7 days"
-            period={`${formatDay(figures.placements_per_day.days[0].date)} – ${formatDay(figures.placements_per_day.days.at(-1)!.date)}, complete days`}
-            info={
-              <SectionDefinitions {...operationsDefinitions.previous7Days} />
-            }
-          >
-            <PlacementsPerDayChart figures={figures} />
-          </PeriodSection>
+            <PeriodSection
+              id="operations-previous-7-days"
+              title="Previous 7 days"
+              period={`${formatDay(figures.placements_per_day.days[0].date)} – ${formatDay(figures.placements_per_day.days.at(-1)!.date)}, complete days`}
+              info={<SectionDefinitions {...definitions.previous7Days} />}
+            >
+              <PlacementsPerDayChart figures={figures} />
+            </PeriodSection>
 
-          <PeriodSection
-            id="operations-speed"
-            title="Processing and transit time"
-            period="last 24 hours against the previous 7 days, all Restaurants"
-            info={<SectionDefinitions {...operationsDefinitions.speed} />}
-          >
-            <SpeedFigures figures={figures} />
-            <TimesPerDayChart figures={figures} />
-          </PeriodSection>
+            <PeriodSection
+              id="operations-speed"
+              title="Processing and transit time"
+              period={`last 24 hours against the previous 7 days, ${scope.across}`}
+              info={<SectionDefinitions {...definitions.speed} />}
+            >
+              <SpeedFigures figures={figures} />
+              <TimesPerDayChart figures={figures} />
+            </PeriodSection>
 
-          <PeriodSection
-            id="operations-reliability"
-            title="Unfulfilled Orders and Customer rating"
-            period="Orders placed in the last 24 hours; ratings from the last 30 days"
-            info={<SectionDefinitions {...operationsDefinitions.reliability} />}
-          >
-            <div className="grid gap-3 lg:grid-cols-3">
-              <UnfulfilledOrdersCard
-                figures={figures}
-                className={
-                  figures.customer_rating ? "lg:col-span-2" : "lg:col-span-3"
-                }
-              />
-              <CustomerRatingCard figures={figures} />
-            </div>
-          </PeriodSection>
-        </div>
+            <PeriodSection
+              id="operations-reliability"
+              title={
+                figures.customer_rating
+                  ? "Unfulfilled Orders and Customer rating"
+                  : "Unfulfilled Orders"
+              }
+              period={
+                figures.customer_rating
+                  ? "Orders placed in the last 24 hours; ratings from the last 30 days"
+                  : `Orders placed in the last 24 hours, ${scope.across}`
+              }
+              info={<SectionDefinitions {...definitions.reliability} />}
+            >
+              <div className="grid gap-3 lg:grid-cols-3">
+                <UnfulfilledOrdersCard
+                  figures={figures}
+                  className={
+                    figures.customer_rating ? "lg:col-span-2" : "lg:col-span-3"
+                  }
+                />
+                <CustomerRatingCard figures={figures} />
+              </div>
+            </PeriodSection>
+          </div>
+        </OperationsScopeProvider>
       )}
     </div>
   )

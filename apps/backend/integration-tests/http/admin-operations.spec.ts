@@ -15,6 +15,9 @@ import OperationsMonitoringFeatureFlag from "../../src/feature-flags/operations-
 import syncOperationsNavigation from "../../src/jobs/sync-operations-navigation"
 import { recoverDeliveryAttentionWorkflow } from "../../src/workflows/delivery/attention"
 import { readOperationsWorkflow } from "../../src/workflows/operations-monitoring"
+import { RESTAURANT_MODULE } from "../../src/modules/restaurant"
+import type RestaurantModuleService from "../../src/modules/restaurant/service"
+import { revokeRestaurantStaffWorkflow } from "../../src/workflows/restaurant-staff"
 import { restaurantOrdersHarness } from "../helpers/restaurant-orders"
 
 jest.setTimeout(300000)
@@ -1033,6 +1036,238 @@ medusaIntegrationTestRunner({
         expect(response.data.customer_rating).toMatchObject({
           average: null,
           count: 0,
+        })
+      })
+    })
+
+    describe("one Restaurant's operations for its staff and operators (#264)", () => {
+      /** Every measure the staff view carries, and nothing else. */
+      const STAFF_MEASURES = [
+        "as_of",
+        "scope",
+        "open_orders",
+        "placements",
+        "orders_per_hour",
+        "placements_per_day",
+        "processing_time",
+        "times_per_day",
+        "unfulfilled_orders",
+      ]
+      const staffRead = (
+        headers: Record<string, string>,
+        restaurantId = pizzeriaId,
+      ) =>
+        api.get(`/partner/restaurants/${restaurantId}/operations`, {
+          headers,
+          validateStatus: () => true,
+        })
+      const adminRead = (query: string) =>
+        api.get(`/admin/operations${query}`, {
+          headers: admin,
+          validateStatus: () => true,
+        })
+      /** The figures, without the moments they were calculated for. */
+      const figuresOf = (body: Record<string, unknown>) =>
+        JSON.parse(
+          JSON.stringify(body).replace(
+            /"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z"/g,
+            '"moment"',
+          ),
+        )
+
+      it("shows staff their own Restaurant's figures and never Full refunds, attention or Delivery transit time", async () => {
+        await delivered()
+        await placePaidOrder(pizzeriaId)
+        const rejected = await placePaidOrder(pizzeriaId)
+        expect((await reject(staff, rejected.id)).status).toBe(200)
+        const { burgerId } = harness.seeded()
+        await placePaidOrder(burgerId)
+
+        const response = await staffRead(staff)
+        expect(response.status).toBe(200)
+        expect(Object.keys(response.data).sort()).toEqual(
+          [...STAFF_MEASURES].sort(),
+        )
+        expect(response.data.scope).toEqual({
+          type: "restaurant",
+          restaurant_id: pizzeriaId,
+        })
+        expect(response.data.open_orders.total).toBe(1)
+        expect(response.data.placements).toMatchObject({
+          total: 3,
+          cancelled: { total: 1 },
+        })
+        expect(response.data.processing_time.included).toBe(1)
+        expect(response.data.unfulfilled_orders).toMatchObject({
+          placed: 3,
+          ended: 2,
+          unfulfilled: 1,
+        })
+        expect(Object.keys(response.data.times_per_day).sort()).toEqual([
+          "days",
+          "period",
+          "processing_time",
+        ])
+        for (const day of response.data.times_per_day.days)
+          expect(Object.keys(day).sort()).toEqual(["date", "processing_time"])
+        expect(JSON.stringify(response.data)).not.toMatch(
+          /full_refunds|attention|unassigned_deliveries|transit|customer_rating/,
+        )
+      })
+
+      it("gives operators choosing the Restaurant the same figures its staff see, and all Restaurants by default", async () => {
+        await delivered()
+        await placePaidOrder(pizzeriaId)
+        const { burgerId } = harness.seeded()
+        await placePaidOrder(burgerId)
+
+        const all = await adminRead("")
+        expect(all.status).toBe(200)
+        expect(all.data.scope).toEqual({ type: "platform" })
+        expect(all.data.placements.total).toBe(3)
+
+        const own = await adminRead(`?restaurant_id=${pizzeriaId}`)
+        expect(own.status).toBe(200)
+        expect(own.data.scope).toEqual({
+          type: "restaurant",
+          restaurant_id: pizzeriaId,
+        })
+        expect(own.data.customer_rating).toBeNull()
+        const seen = (await staffRead(staff)).data
+        const operatorView = Object.fromEntries(
+          STAFF_MEASURES.map((key) => [key, own.data[key]]),
+        )
+        const { delivery_transit_time: _t, ...processingTotals } =
+          operatorView.times_per_day
+        operatorView.times_per_day = {
+          ...processingTotals,
+          days: processingTotals.days.map(
+            ({ date, processing_time }: Record<string, unknown>) => ({
+              date,
+              processing_time,
+            }),
+          ),
+        }
+        expect(figuresOf(operatorView)).toEqual(figuresOf(seen))
+        // The operator's Restaurant view keeps the operator-only figures.
+        expect(own.data).toHaveProperty("full_refunds")
+        expect(own.data).toHaveProperty("delivery_transit_time")
+      })
+
+      it("answers 404 for an unknown Restaurant and 400 for an empty choice", async () => {
+        expect((await adminRead("?restaurant_id=rest_unknown")).status).toBe(
+          404,
+        )
+        expect((await adminRead("?restaurant_id=")).status).toBe(400)
+      })
+
+      it("serves every aggregate of the staff read from an index, with no sequential scan", async () => {
+        await delivered()
+        await placePaidOrder(pizzeriaId)
+        const knex = getContainer().resolve(
+          ContainerRegistrationKeys.PG_CONNECTION,
+        )
+        const seen: { sql: string; bindings: unknown[] }[] = []
+        // The counts and averages, not the staff lookup that authorizes.
+        const capture = (query: { sql: string; bindings: unknown[] }) => {
+          if (/^\s*select/i.test(query.sql) && /count|avg|sum/i.test(query.sql))
+            seen.push(query)
+        }
+        knex.on("query", capture)
+        try {
+          expect((await staffRead(staff)).status).toBe(200)
+        } finally {
+          knex.removeListener("query", capture)
+        }
+        expect(seen.length).toBeGreaterThan(0)
+        for (const { sql, bindings } of seen) {
+          // The test database is tiny, so a sequential scan would be
+          // cheaper; ruling it out shows whether an index can serve.
+          const plan = (await knex.transaction(async (trx) => {
+            await trx.raw("set local enable_seqscan = off")
+            const text = sql.replace(/\$\d+/g, "?")
+            return trx.raw(`explain ${text}`, bindings as never)
+          })) as unknown as { rows: Record<string, string>[] }
+          const text = plan.rows.map((row) => row["QUERY PLAN"]).join("\n")
+          expect(text).not.toMatch(/Seq Scan/)
+        }
+      })
+
+      it("keeps the figures readable for staff after the Restaurant is deactivated", async () => {
+        await placePaidOrder(pizzeriaId)
+        const restaurants = () =>
+          getContainer().resolve<RestaurantModuleService>(RESTAURANT_MODULE)
+        await restaurants().updateRestaurants({
+          id: pizzeriaId,
+          is_active: false,
+        })
+        try {
+          const response = await staffRead(staff)
+          expect(response.status).toBe(200)
+          expect(response.data.placements.total).toBe(1)
+        } finally {
+          await restaurants().updateRestaurants({
+            id: pizzeriaId,
+            is_active: true,
+          })
+        }
+      })
+
+      it.each([
+        { caller: "foreign_staff", status: 404 },
+        { caller: "revoked_staff", status: 403 },
+        { caller: "signed_out", status: 401 },
+        { caller: "customer", status: 401 },
+        { caller: "delivery_agent", status: 401 },
+      ] as const)(
+        "discloses no figures to $caller",
+        async ({ caller, status }) => {
+          await placePaidOrder(pizzeriaId)
+          const headers = await {
+            foreign_staff: async () =>
+              (
+                await signInAsStaffOf(
+                  harness.seeded().burgerId,
+                  `operations-foreign-${Date.now()}@example.test`,
+                )
+              ).headers,
+            revoked_staff: async () => {
+              const member = await signInAsStaffOf(
+                pizzeriaId,
+                `operations-revoked-${Date.now()}@example.test`,
+              )
+              const { data } = await api.get("/admin/users/me", {
+                headers: admin,
+              })
+              await revokeRestaurantStaffWorkflow(getContainer()).run({
+                input: {
+                  restaurant_id: pizzeriaId,
+                  staff_id: member.staffId,
+                  revoked_by: data.user.id,
+                },
+              })
+              return member.headers
+            },
+            signed_out: async () => ({}),
+            customer: async () => customer,
+            delivery_agent: async () => (await agentFor()).headers,
+          }[caller]()
+
+          const response = await staffRead(headers)
+          expect(response.status).toBe(status)
+          expect(JSON.stringify(response.data)).not.toMatch(/open_orders/)
+        },
+      )
+
+      it("answers 404 before authentication and hides the partner link while the flag is off", async () => {
+        const on = await api.get("/partner/me", { headers: staff })
+        expect(on.data.features).toMatchObject({ operations_monitoring: true })
+        setFlag(false)
+        for (const headers of [staff, {}])
+          expect((await staffRead(headers)).status).toBe(404)
+        const off = await api.get("/partner/me", { headers: staff })
+        expect(off.data.features).toMatchObject({
+          operations_monitoring: false,
         })
       })
     })

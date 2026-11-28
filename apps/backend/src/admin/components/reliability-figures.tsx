@@ -11,6 +11,7 @@ import {
   formatRating,
   type Operations,
 } from "../lib/operations-api"
+import { useScopeWording } from "./operations-scope"
 
 /** One small figure in a row of them: a muted label over its count. */
 function Stat({
@@ -60,6 +61,7 @@ export function UnfulfilledOrdersCard({
     unfulfilled.exclusions.find(({ reason }) => reason === "still_open")
       ?.count ?? 0
   const rate = formatRate(unfulfilled.rate_percent)
+  const scope = useScopeWording()
   const from = formatPeriodEdge(unfulfilled.period.starts_at)
   const to = formatPeriodEdge(unfulfilled.period.ends_at)
   return (
@@ -78,7 +80,7 @@ export function UnfulfilledOrdersCard({
             leading="compact"
             className="max-w-prose text-ui-fg-subtle"
           >
-            Ended without the food handed over, all Restaurants.
+            Ended without the food handed over, {scope.across}.
           </Text>
         </div>
         <div className="flex flex-col gap-y-1 sm:items-end">
@@ -114,7 +116,7 @@ export function UnfulfilledOrdersCard({
         categoryHeader="Cause"
         valueHeader="Unfulfilled Orders"
         labelWidth={220}
-        caption={`Unfulfilled Orders by cause among the Orders placed across all Restaurants from ${from} to ${to} (Copenhagen time): ${unfulfilled.unfulfilled} of ${unfulfilled.ended} ended, ${stillOpen} still open and not counted`}
+        caption={`Unfulfilled Orders by cause among the Orders placed ${scope.across} from ${from} to ${to} (Copenhagen time): ${unfulfilled.unfulfilled} of ${unfulfilled.ended} ended, ${stillOpen} still open and not counted`}
       />
     </Container>
   )

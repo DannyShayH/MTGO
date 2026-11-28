@@ -1,5 +1,19 @@
 import type { AttentionType } from "./attention-types"
 
+/** How the page names the Restaurants its figures describe (#264). */
+export type ScopeWording = {
+  /** "All Restaurants", or the chosen Restaurant's name, to start a sentence. */
+  label: string
+  /** "across all Restaurants", or "at <name>", to end one. */
+  across: string
+}
+
+/** All Restaurants without a choice, else the chosen Restaurant by name. */
+export const scopeWording = (restaurantName: string | null): ScopeWording =>
+  restaurantName
+    ? { label: restaurantName, across: `at ${restaurantName}` }
+    : { label: "All Restaurants", across: "across all Restaurants" }
+
 /** The operations read (#54) as `GET /admin/operations` returns it. */
 export type OpenOrderStage =
   | "awaiting_acceptance"

@@ -5,6 +5,7 @@ import {
 import { retrieveAuthorizedStaffWorkflow } from "../../../workflows/restaurant-staff"
 import { isFeatureReleased } from "../../feature-flag"
 import RestaurantStatementsFeatureFlag from "../../../feature-flags/restaurant-statements"
+import OperationsMonitoringFeatureFlag from "../../../feature-flags/operations-monitoring"
 
 /**
  * The signed-in staff member and their Restaurant, with the backend-owned
@@ -23,6 +24,10 @@ export async function GET(
       restaurant_statements: isFeatureReleased(
         req.scope,
         RestaurantStatementsFeatureFlag.key,
+      ),
+      operations_monitoring: isFeatureReleased(
+        req.scope,
+        OperationsMonitoringFeatureFlag.key,
       ),
     },
   })

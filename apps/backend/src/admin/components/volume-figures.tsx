@@ -1,24 +1,6 @@
 import { Container, Heading, Text, clx } from "@medusajs/ui"
-import {
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  type ComponentProps,
-  type ReactNode,
-} from "react"
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ComposedChart,
-  LabelList,
-  Rectangle,
-  ReferenceLine,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-} from "recharts"
+import { useId, type ReactNode } from "react"
+import { LegendKey, TimeBars, type TimeBar as SharedTimeBar } from "@dtc/charts"
 import { ChartNumbers } from "./chart-numbers"
 import {
   causeLabels,
@@ -29,70 +11,10 @@ import {
   peakHour,
   type Operations,
 } from "../lib/operations-api"
+import { useScopeWording } from "./operations-scope"
 
-const CHART_HEIGHT = 220
-/** The two time series (#262): never told apart by colour alone. */
-export const PROCESSING_COLOR = "var(--fg-interactive)"
-export const TRANSIT_COLOR = "var(--tag-purple-icon)"
-const AXIS_HEIGHT = 54
-/** The least room, in pixels, one axis label needs beside the next. */
-const TICK_SPACING = 30
-
-/** One bar of a time chart: its axis name, its full name and its count. */
-type TimeBar = {
-  key: string
-  tick: string
-  /** Up to two short lines under the tick, such as "so far" or "+01:00". */
-  notes: string[]
-  label: string
-  count: number
-  isPartial?: boolean
-  /** Labelled on the axis even when space allows only every few ticks. */
-  isAlwaysLabelled?: boolean
-}
-
-type BarShape = ComponentProps<typeof Rectangle> & { payload?: TimeBar }
-
-/** An axis label: the time, and below it what sets the bar apart. */
-function TimeTick({
-  x,
-  y,
-  payload,
-  bars,
-  step,
-}: Readonly<{
-  x?: number
-  y?: number
-  payload?: { value: string; index: number }
-  bars: TimeBar[]
-  /** Label every `step`th tick, counted back from the last. */
-  step: number
-}>) {
-  const index = payload?.index ?? 0
-  const bar = bars[index]
-  const isLabelled =
-    bar?.isAlwaysLabelled || (bars.length - 1 - index) % step === 0
-  if (!isLabelled) return null
-  const notes = bar?.notes ?? []
-  return (
-    <g transform={`translate(${x},${y})`}>
-      <text dy={14} textAnchor="middle" fill="var(--fg-subtle)" fontSize={11}>
-        {payload?.value}
-      </text>
-      {notes.map((note, line) => (
-        <text
-          key={note}
-          dy={27 + line * 12}
-          textAnchor="middle"
-          fill="var(--fg-muted)"
-          fontSize={10}
-        >
-          {note}
-        </text>
-      ))}
-    </g>
-  )
-}
+/** One bar of a time chart, and its row in the numbers under it. */
+type TimeBar = SharedTimeBar & { label: string }
 
 /** A chart's frame: what it shows, for which period and Orders, and a headline. */
 export function ChartSection({
@@ -157,248 +79,11 @@ export function Headline({
   )
 }
 
-/**
- * A bar's count above it, with a halo in the card colour so it stays legible
- * where it meets the average line or the grid. A zero is muted, and left out
- * when the bars are too narrow to carry one each; the table keeps it.
- */
-function CountLabel({
-  x,
-  y,
-  width,
-  value,
-  isRoomy,
-}: Readonly<{
-  x?: number | string
-  y?: number | string
-  width?: number | string
-  value?: unknown
-  isRoomy: boolean
-}>) {
-  const count = Number(value)
-  if (!count && !isRoomy) return null
-  return (
-    <text
-      x={Number(x) + Number(width) / 2}
-      y={Number(y) - 6}
-      textAnchor="middle"
-      fontSize={isRoomy ? 11 : 10}
-      fill={count ? "var(--fg-base)" : "var(--fg-muted)"}
-      stroke="var(--bg-base)"
-      strokeWidth={3}
-      strokeLinejoin="round"
-      style={{ paintOrder: "stroke" }}
-    >
-      {count}
-    </text>
-  )
-}
-
-/** The rendered width of an element, following resizes. */
-function useWidth<T extends HTMLElement>() {
-  const ref = useRef<T>(null)
-  const [width, setWidth] = useState(0)
-  useEffect(() => {
-    const element = ref.current
-    if (!element) return
-    const observer = new ResizeObserver(([entry]) =>
-      setWidth(entry.contentRect.width),
-    )
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [])
-  return [ref, width] as const
-}
-
-type LegendMark = "bar" | "partial" | "line" | "processing" | "transit"
-
-/** A legend mark, 14 by 10, drawn the way its chart draws the series. */
-function LegendMarkShape({ mark }: Readonly<{ mark: LegendMark }>) {
-  switch (mark) {
-    case "line":
-      return (
-        <line
-          x1="0"
-          x2="14"
-          y1="5"
-          y2="5"
-          stroke="var(--fg-base)"
-          strokeWidth="1.5"
-          strokeDasharray="4 2"
-        />
-      )
-    case "processing":
-      return (
-        <>
-          <line
-            x1="0"
-            x2="14"
-            y1="5"
-            y2="5"
-            stroke={PROCESSING_COLOR}
-            strokeWidth="2"
-          />
-          <circle cx="7" cy="5" r="3" fill={PROCESSING_COLOR} />
-        </>
-      )
-    case "transit":
-      return (
-        <>
-          <line
-            x1="0"
-            x2="14"
-            y1="5"
-            y2="5"
-            stroke={TRANSIT_COLOR}
-            strokeWidth="2"
-            strokeDasharray="3 2"
-          />
-          <rect x="4.5" y="2.5" width="5" height="5" fill={TRANSIT_COLOR} />
-        </>
-      )
-    default:
-      return (
-        <rect
-          x="1"
-          y="1"
-          width="12"
-          height="8"
-          rx="2"
-          fill="var(--fg-interactive)"
-          fillOpacity={mark === "partial" ? 0.35 : 1}
-          stroke={mark === "partial" ? "var(--fg-interactive)" : "none"}
-          strokeDasharray="3 2"
-        />
-      )
-  }
-}
-
-/** One key of a chart legend: a small mark drawn like the chart draws it. */
-export function LegendKey({
-  mark,
-  children,
-}: Readonly<{ mark: LegendMark; children: ReactNode }>) {
-  return (
-    <div className="flex items-center gap-x-1.5">
-      <svg aria-hidden width="14" height="10" className="shrink-0">
-        <LegendMarkShape mark={mark} />
-      </svg>
-      <Text size="xsmall" leading="compact" className="text-ui-fg-subtle">
-        {children}
-      </Text>
-    </div>
-  )
-}
-
-/**
- * Columns of counts over time. A partial period's bar is outlined and
- * lighter, and its axis label says so, so nothing relies on colour; an empty
- * period keeps a stub rather than vanishing.
- */
-function TimeBars({
-  bars,
-  average,
-  legend,
-}: Readonly<{ bars: TimeBar[]; average?: number; legend: ReactNode }>) {
-  const Chart = average === undefined ? BarChart : ComposedChart
-  const [chartRef, width] = useWidth<HTMLDivElement>()
-  // How many ticks share one label at this width: 1 when all fit.
-  const step = width
-    ? Math.max(1, Math.ceil((bars.length * TICK_SPACING) / width))
-    : 1
-  return (
-    <div className="flex flex-col gap-y-3 px-6 py-4">
-      <div aria-hidden className="flex flex-wrap gap-x-4 gap-y-1">
-        {legend}
-      </div>
-      <div
-        ref={chartRef}
-        aria-hidden
-        style={{ height: CHART_HEIGHT }}
-        className="w-full"
-      >
-        <ResponsiveContainer width="100%" height="100%">
-          <Chart
-            data={bars}
-            margin={{ top: 16, right: 12, bottom: 0, left: -20 }}
-            accessibilityLayer={false}
-          >
-            <CartesianGrid
-              vertical={false}
-              stroke="var(--border-base)"
-              strokeDasharray="3 3"
-            />
-            <XAxis
-              dataKey="tick"
-              interval={0}
-              tick={<TimeTick bars={bars} step={step} />}
-              tickLine={false}
-              axisLine={{ stroke: "var(--border-base)" }}
-              height={AXIS_HEIGHT}
-            />
-            <YAxis
-              allowDecimals={false}
-              domain={[0, (max: number) => Math.max(max, average ?? 0, 1)]}
-              tick={{ fill: "var(--fg-muted)", fontSize: 12 }}
-              tickLine={false}
-              axisLine={false}
-            />
-            {/* Before the bars, so the bars and their counts sit on top. */}
-            {average !== undefined && (
-              <ReferenceLine
-                y={average}
-                stroke="var(--fg-base)"
-                strokeDasharray="6 4"
-                strokeWidth={1.5}
-                ifOverflow="extendDomain"
-              />
-            )}
-            <Bar
-              dataKey="count"
-              maxBarSize={32}
-              minPointSize={2}
-              radius={[3, 3, 0, 0]}
-              isAnimationActive={false}
-              shape={(bar: BarShape) => (
-                <Rectangle
-                  {...bar}
-                  fill={
-                    bar.payload?.count
-                      ? "var(--fg-interactive)"
-                      : "var(--border-strong)"
-                  }
-                  fillOpacity={bar.payload?.isPartial ? 0.35 : 1}
-                  stroke={
-                    bar.payload?.isPartial ? "var(--fg-interactive)" : undefined
-                  }
-                  strokeDasharray={bar.payload?.isPartial ? "3 2" : undefined}
-                />
-              )}
-            >
-              <LabelList
-                dataKey="count"
-                content={(label) => (
-                  <CountLabel
-                    x={label.x}
-                    y={label.y}
-                    width={label.width}
-                    value={label.value}
-                    isRoomy={step === 1}
-                  />
-                )}
-              />
-            </Bar>
-          </Chart>
-        </ResponsiveContainer>
-      </div>
-    </div>
-  )
-}
-
 /** Orders placed in the last 24 hours and, among them, those now cancelled. */
 export function PlacementsCard({ figures }: Readonly<{ figures: Operations }>) {
   const { placements } = figures
   const id = useId()
+  const scope = useScopeWording()
   return (
     <Container
       role="region"
@@ -410,7 +95,7 @@ export function PlacementsCard({ figures }: Readonly<{ figures: Operations }>) {
           Orders placed
         </Heading>
         <Text size="small" leading="compact" className="text-ui-fg-subtle">
-          All Restaurants, cancellations included.
+          {scope.label}, cancellations included.
         </Text>
       </div>
       <div className="px-6 py-4">
@@ -504,11 +189,12 @@ export function OrdersPerHourChart({
   })
   const from = formatPeriodEdge(perHour.period.starts_at)
   const peak = peakHour(perHour.hours)
+  const scope = useScopeWording()
   return (
     <ChartSection
       id="operations-orders-per-hour"
       title="Orders per hour"
-      description={`All Restaurants, each Copenhagen clock hour from ${perHour.hours[0].local_time}.`}
+      description={`${scope.label}, each Copenhagen clock hour from ${perHour.hours[0].local_time}.`}
       headline={
         peak ? (
           <Headline
@@ -522,6 +208,7 @@ export function OrdersPerHourChart({
       className={className}
     >
       <TimeBars
+        className="px-6 py-4"
         bars={bars}
         legend={
           <>
@@ -531,7 +218,7 @@ export function OrdersPerHourChart({
         }
       />
       <ChartNumbers
-        caption={`Orders placed per Copenhagen clock hour across all Restaurants, from ${from} to ${calculatedAt}`}
+        caption={`Orders placed per Copenhagen clock hour ${scope.across}, from ${from} to ${calculatedAt}`}
         categoryHeader="Hour (Copenhagen time)"
         valueHeader="Orders placed"
         rows={bars}
@@ -558,15 +245,17 @@ export function PlacementsPerDayChart({
   })
   const first = formatDay(perDay.days[0].date)
   const last = formatDay(perDay.days.at(-1)!.date)
+  const scope = useScopeWording()
   return (
     <ChartSection
       id="operations-placements-per-day"
       title="Placements per day"
-      description="All Restaurants, each Copenhagen day."
+      description={`${scope.label}, each Copenhagen day.`}
       headline={<Headline value={average.toFixed(1)} unit="a day on average" />}
       className={className}
     >
       <TimeBars
+        className="px-6 py-4"
         bars={bars}
         average={average}
         legend={
@@ -579,7 +268,7 @@ export function PlacementsPerDayChart({
         }
       />
       <ChartNumbers
-        caption={`Orders placed per Copenhagen day across all Restaurants, ${first} to ${last}, with the seven-day average`}
+        caption={`Orders placed per Copenhagen day ${scope.across}, ${first} to ${last}, with the seven-day average`}
         categoryHeader="Day"
         valueHeader="Orders placed"
         rows={bars}

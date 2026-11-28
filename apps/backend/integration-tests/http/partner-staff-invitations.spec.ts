@@ -144,6 +144,7 @@ medusaIntegrationTestRunner({
         // covered by the Feature's own specs.
         features: {
           restaurant_statements: expect.any(Boolean),
+          operations_monitoring: expect.any(Boolean),
         },
       })
 

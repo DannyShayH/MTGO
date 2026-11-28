@@ -1783,7 +1783,20 @@ moment, which the response returns as `as_of`. #259 adds Open Orders by
 stage, #260 unassigned deliveries, attention and unresolved Full refunds,
 the Order volume comes from #261, Order processing time and Delivery
 transit time from #262, and the Unfulfilled Order rate and the Customer
-rating from #263; the staff view adds a Restaurant scope.
+rating from #263.
+
+Query (#264): `restaurant_id`, optional. Without it every figure covers all
+Restaurants and `scope` is `{ type: "platform" }`. With it,
+`readAdminOperationsWorkflow` first checks the Restaurant exists (a
+deactivated one does), then every figure covers that Restaurant only, with
+`scope: { type: "restaurant", restaurant_id }` and `customer_rating: null`.
+Its figures are the ones its staff get from
+`GET /partner/restaurants/{id}/operations`, plus the operator-only ones.
+
+```bash
+curl "http://localhost:9000/admin/operations?restaurant_id=$RESTAURANT_ID" \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+```
 
 **Success:** `200` with
 `{ as_of, scope: { type: "platform" }, open_orders: { period, total, stages, exclusions } }`.
@@ -1889,10 +1902,11 @@ last 30 days, the figure `GET /admin/feedback/statistics` returns as
 Restaurant scope, whose food rating stays on the Ratings page. The `feedback`
 flag that once hid it was removed with #255, so it is always shown.
 
-| Status | When                                                                                                                                 |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `401`  | Signed out, or a Customer, Restaurant staff or Delivery agent token                                                                  |
-| `404`  | The `operations_monitoring` flag is off; a signed-in operator gets `404` as for a path that never existed, a signed-out caller `401` |
+| Status | When                                                                                                                                                                            |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `400`  | `restaurant_id` is empty, or the query has another parameter                                                                                                                    |
+| `401`  | Signed out, or a Customer, Restaurant staff or Delivery agent token                                                                                                             |
+| `404`  | The `operations_monitoring` flag is off; a signed-in operator gets `404` as for a path that never existed, a signed-out caller `401`; or no Restaurant has that `restaurant_id` |
 
 ### GET /admin/earnings and GET /admin/earnings/{month}
 
@@ -2191,6 +2205,37 @@ Orders count by handover time. `delivered_orders` includes unrated Orders;
 | `401`  | As for `GET /partner/me`; also Customer and Delivery agent tokens |
 | `403`  | `code: "staff_access_revoked"`: as for `GET /partner/me`          |
 | `404`  | `code: "restaurant_not_found"` for another Restaurant             |
+
+### GET /partner/restaurants/{id}/operations
+
+**Actor:** Restaurant staff (`restaurant_staff`, bearer token only) of that
+very Restaurant, also after it is deactivated. The Restaurant's own
+operations (#264), behind the default-off `operations_monitoring` flag
+(ADR-0022), which is checked before authentication. `GET /partner/me`
+reports it as `features.operations_monitoring`.
+
+```bash
+curl "http://localhost:9000/partner/restaurants/$RESTAURANT_ID/operations" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+`readRestaurantOperationsWorkflow` authorizes the staff member as the
+statements routes do, runs the one operations read
+(`readOperationsWorkflow`) for `{ type: "restaurant", restaurant_id }` and
+the server's time, and keeps an allow-list of measures
+(`staffOperations`): `as_of`, `scope`, `open_orders`, `placements`,
+`orders_per_hour`, `placements_per_day`, `processing_time`,
+`times_per_day` (its `processing_time` and each day's `processing_time`
+only) and `unfulfilled_orders`, each exactly as `GET /admin/operations`
+describes it. Full refunds, attention items, unassigned deliveries,
+Delivery transit time and the Customer rating are never returned; a measure
+the read gains later stays out until the allow-list names it.
+
+| Status | When                                                                      |
+| ------ | ------------------------------------------------------------------------- |
+| `401`  | As for `GET /partner/me`; also Customer and Delivery agent tokens         |
+| `403`  | `code: "staff_access_revoked"`: as for `GET /partner/me`                  |
+| `404`  | `code: "restaurant_not_found"` for another Restaurant; or the flag is off |
 
 ### GET /partner/restaurants/{id}/statements and GET /partner/restaurants/{id}/statements/{month}
 

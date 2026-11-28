@@ -28,6 +28,11 @@ import { FEEDBACK_MODULE } from "../../modules/feedback"
 import type FeedbackModuleService from "../../modules/feedback/service"
 import { lastThirtyDays } from "../feedback/statistics-period"
 import { customerRatingFigure, unfulfilledOrdersFigure } from "./reliability"
+import { RESTAURANT_MODULE } from "../../modules/restaurant"
+import type RestaurantModuleService from "../../modules/restaurant/service"
+import { retrieveAuthorizedStaffStep } from "../restaurant-staff/steps/retrieve-authorized-staff"
+import { assertOwnRestaurantStep } from "../restaurant-staff/steps/own-restaurant"
+import { staffOperations } from "./staff-view"
 import {
   changePercent,
   processingTimeFigure,
@@ -275,6 +280,73 @@ export const readOperationsWorkflow = createWorkflow(
           customer_rating: rating,
         }),
       ),
+    )
+  },
+)
+
+/**
+ * Refuses an operator's choice of a Restaurant that does not exist with
+ * NOT_FOUND, so a mistyped choice is never shown as a quiet Restaurant.
+ * Deactivated Restaurants exist and keep their history.
+ */
+const assertScopedRestaurantStep = createStep(
+  "assert-scoped-restaurant",
+  async (input: OperationsInput, { container }) => {
+    if (input.scope.type === "restaurant")
+      await container
+        .resolve<RestaurantModuleService>(RESTAURANT_MODULE)
+        .retrieveRestaurant(input.scope.restaurant_id, { select: ["id"] })
+    return new StepResponse(undefined)
+  },
+)
+
+/**
+ * `GET /admin/operations` (#54): the platform, or one Restaurant the
+ * operator chose (#264), through the one operations read. A Restaurant
+ * view keeps the operator-only figures and has no Customer rating.
+ */
+export const readAdminOperationsWorkflow = createWorkflow(
+  "read-admin-operations",
+  function (input: OperationsInput) {
+    const checked = assertScopedRestaurantStep(input)
+    return new WorkflowResponse(
+      readOperationsWorkflow.runAsStep({
+        // `checked` only orders the read after the Restaurant is found.
+        input: transform({ input, checked }, ({ input }) => input),
+      }),
+    )
+  },
+)
+
+/**
+ * `GET /partner/restaurants/:id/operations` (#264): the staff member's own
+ * Restaurant through the same operations read operators use for it, cut to
+ * the staff measures. Access follows the statements rules (ADR-0017):
+ * authorized staff of this very Restaurant, also after deactivation;
+ * another Restaurant is not found and revoked staff are refused.
+ */
+export const readRestaurantOperationsWorkflow = createWorkflow(
+  "read-restaurant-operations",
+  function (input: { staff_id: string; restaurant_id: string; now: string }) {
+    const current = retrieveAuthorizedStaffStep({ staff_id: input.staff_id })
+    const authorized = assertOwnRestaurantStep(
+      transform({ input, current }, ({ input, current }) => ({
+        id: input.restaurant_id,
+        staff_restaurant_id: current.restaurant.id,
+      })),
+    )
+    const figures = readOperationsWorkflow.runAsStep({
+      // `authorized` only orders the read after authorization.
+      input: transform({ input, authorized }, ({ input }) => ({
+        scope: {
+          type: "restaurant" as const,
+          restaurant_id: input.restaurant_id,
+        },
+        now: input.now,
+      })),
+    })
+    return new WorkflowResponse(
+      transform({ figures }, ({ figures }) => staffOperations(figures)),
     )
   },
 )

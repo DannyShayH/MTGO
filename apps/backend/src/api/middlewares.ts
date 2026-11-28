@@ -81,6 +81,7 @@ import {
 import { requireFeatureFlag, requireFeatureFlagFor } from "./feature-flag"
 import AgentBonusFeatureFlag from "../feature-flags/agent-bonus"
 import { GetFeedbackStatisticsSchema } from "./admin/feedback/statistics/validators"
+import { GetAdminOperationsSchema } from "./admin/operations/validators"
 import RestaurantStatementsFeatureFlag from "../feature-flags/restaurant-statements"
 import OperationsMonitoringFeatureFlag from "../feature-flags/operations-monitoring"
 import {
@@ -752,6 +753,11 @@ export default defineMiddlewares({
           RestaurantStatementsFeatureFlag.key,
           /^\/partner\/restaurants\/[^/]+\/statements(\/|$)/,
         ),
+        // So is the staff operations view (#264), behind its own flag.
+        requireFeatureFlagFor(
+          OperationsMonitoringFeatureFlag.key,
+          /^\/partner\/restaurants\/[^/]+\/operations(\/|$)/,
+        ),
         authenticate(RESTAURANT_STAFF_ACTOR, "bearer"),
       ],
     },
@@ -768,6 +774,11 @@ export default defineMiddlewares({
       // Operations monitoring (#54) is withheld while its flag is off.
       matcher: "/admin/operations*",
       middlewares: [requireFeatureFlag(OperationsMonitoringFeatureFlag.key)],
+    },
+    {
+      matcher: "/admin/operations",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(GetAdminOperationsSchema, {})],
     },
     {
       // MTOGO's earnings (#256) follow the statements they add up.

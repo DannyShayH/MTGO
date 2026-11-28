@@ -10,12 +10,8 @@ import {
   YAxis,
 } from "recharts"
 import { ChartNumbers, NO_VALUE } from "./chart-numbers"
-import {
-  ChartSection,
-  LegendKey,
-  PROCESSING_COLOR,
-  TRANSIT_COLOR,
-} from "./volume-figures"
+import { LegendKey, PROCESSING_COLOR, TRANSIT_COLOR } from "@dtc/charts"
+import { ChartSection } from "./volume-figures"
 import {
   changeSummary,
   exclusionSummary,
@@ -26,6 +22,7 @@ import {
   type Operations,
   type TimeMeasure,
 } from "../lib/operations-api"
+import { useScopeWording } from "./operations-scope"
 
 const CHART_HEIGHT = 220
 
@@ -234,6 +231,7 @@ export function TimesPerDayChart({
   className,
 }: Readonly<{ figures: Operations; className?: string }>) {
   const { times_per_day: week } = figures
+  const scope = useScopeWording()
   const points = week.days.map((day) => ({
     date: day.date,
     processing: minutesOf(day.processing_time.average_seconds),
@@ -319,7 +317,7 @@ export function TimesPerDayChart({
         </div>
       </div>
       <ChartNumbers
-        caption={`Average Order processing time and Delivery transit time per Copenhagen day across all Restaurants, ${first} to ${last}, with the Orders in the processing time`}
+        caption={`Average Order processing time and Delivery transit time per Copenhagen day ${scope.across}, ${first} to ${last}, with the Orders in the processing time`}
         categoryHeader="Day"
         valueHeader={["Processing", "Transit", "Orders"]}
         rows={week.days.map((day) => ({

@@ -12,6 +12,7 @@ import {
   InformationCircle,
   DocumentText,
   Star,
+  ChartBar,
 } from "@medusajs/icons"
 import { signOut } from "@lib/data/session"
 import { BrandMark } from "@modules/common/components/brand-mark"
@@ -37,6 +38,13 @@ const STATEMENTS = {
   Icon: DocumentText,
 } as const
 
+/** Shown only while the backend releases operations monitoring (#264). */
+const OPERATIONS = {
+  href: "/operations",
+  label: "operations",
+  Icon: ChartBar,
+} as const
+
 /** The Restaurant's own food rating (#249). */
 const RATINGS = { href: "/ratings", label: "ratings", Icon: Star } as const
 
@@ -46,18 +54,21 @@ export function Sidebar({
   staffName,
   restaurantName,
   isStatementsReleased = false,
+  isOperationsReleased = false,
 }: {
   locale: Locale
   text: Messages["text"]
   staffName: string
   restaurantName: string
   isStatementsReleased?: boolean
+  isOperationsReleased?: boolean
 }) {
   const pathname = usePathname()
   const navigation = [
     ...NAVIGATION,
     ...(isStatementsReleased ? [STATEMENTS] : []),
     RATINGS,
+    ...(isOperationsReleased ? [OPERATIONS] : []),
   ]
   return (
     <aside className="bg-ui-bg-base border-ui-border-base flex w-full flex-col border-b md:sticky md:top-0 md:h-screen md:w-60 md:shrink-0 md:border-b-0 md:border-r">

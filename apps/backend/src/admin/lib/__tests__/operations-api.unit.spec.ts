@@ -7,6 +7,7 @@ import {
   formatDuration,
   hourLabels,
   peakHour,
+  scopeWording,
 } from "../operations-api"
 
 const none = [
@@ -215,5 +216,21 @@ describe("The Customer rating (#263)", () => {
     },
   ])("$reason", ({ average, text }) => {
     expect(formatRating(average)).toBe(text)
+  })
+})
+
+describe("Naming the Restaurants the figures describe (#264)", () => {
+  it("EP: no choice names all Restaurants", () => {
+    expect(scopeWording(null)).toEqual({
+      label: "All Restaurants",
+      across: "across all Restaurants",
+    })
+  })
+
+  it("EP: a chosen Restaurant is named as it is called", () => {
+    expect(scopeWording("Scarpetta")).toEqual({
+      label: "Scarpetta",
+      across: "at Scarpetta",
+    })
   })
 })

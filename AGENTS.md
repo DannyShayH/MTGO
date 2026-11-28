@@ -32,6 +32,7 @@ Medusa DTC Starter — a Turborepo workspace monorepo containing a Medusa backen
 | Partner app (Restaurant staff)                         | `apps/partner/src/` (`lib/data` calls `/partner/*`)            | `@medusajs/js-sdk`, `@medusajs/ui`, `apps/partner/README.md`     |
 | Danish and English text, design tokens                 | `packages/i18n/`, `packages/ui/`                               | their `README.md`                                                |
 | Next.js app loading the wrong React copy               | `packages/next-react/`, `npm run check:react`                  | its `README.md`                                                  |
+| Operations charts in the Admin and the partner app     | `packages/charts/`                                             | its `README.md`, `recharts`                                      |
 | Lint failure                                           | the flagged file                                               | `@medusajs/eslint-plugin`                                        |
 
 ## Directory Structure
@@ -67,6 +68,7 @@ Medusa DTC Starter — a Turborepo workspace monorepo containing a Medusa backen
 │           ├── lib/data/         # Server-side Medusa API calls (js-sdk)
 │           └── modules/          # Feature UI: cart, checkout, products, account, order...
 ├── packages/
+│   ├── charts/                   # @dtc/charts: the operations charts shared by Medusa Admin and the partner app
 │   ├── i18n/                     # @dtc/i18n: Danish and English text keyed by API codes, locale rule
 │   ├── next-react/               # @dtc/next-react: keeps each Next.js app on its own React 19 copy
 │   └── ui/                       # @dtc/ui: MTOGO design tokens as a Tailwind preset on Medusa UI

@@ -142,11 +142,11 @@ Everything sits behind a default-off feature flag until the team releases it.
 - A new English **Operations** UI route in the Admin sidebar (ADR-0018) shows figure cards and four charts: Orders per hour, placements per day with the average line, Open Orders by stage and Unfulfilled Orders by cause. It shows the calculation time and a refresh button and polls nothing.
 - Attention and Full refund figures link to the existing Admin deliveries and refunds pages. The rating links to the Feedback page.
 - Charts use Recharts with Medusa UI colours. Each chart has an accessible table of its numbers and never relies on colour alone. The library must work with both the Admin's React 18 and the partner app's React 19.
-- The Restaurant selector, defaulting to all Restaurants, arrives with the staff view.
+- The Restaurant selector, defaulting to all Restaurants, arrives with the staff view. #264 keeps the choice in the address (`?restaurant=`) and reads `GET /admin/operations?restaurant_id=`. The operator's Restaurant view shows the staff figures and keeps the operator-only ones (attention, Full refunds, transit time) for that Restaurant; it has no Customer rating.
 
 ### 5. Partner API and staff page
 
-- An authenticated partner read endpoint for one Restaurant returns the staff subset: Open Orders by stage, placements and cancellations, Orders per hour, placements per day with the average, Order processing time and the Unfulfilled Order rate by cause. It never returns Full refunds, attention items or Delivery transit time.
+- An authenticated partner read endpoint for one Restaurant returns the staff subset: Open Orders by stage, placements and cancellations, Orders per hour, placements per day with the average, Order processing time and the Unfulfilled Order rate by cause. It never returns Full refunds, attention items or Delivery transit time. #264 cuts the one operations read to an allow-list, so a measure added to the read later stays out of the staff response until it is named. The processing time keeps its per-day averages, which back its comparison with the previous seven days.
 - Access follows the statements rules: authorized staff of that Restaurant only, including after deactivation; revoked staff, staff of another Restaurant (`404`), Delivery agents, Customers and signed-out callers are refused.
 - A new **Drift / Operations** page in the partner sidebar shows the same figures and charts in Danish and English through the shared text package, laid out for phone widths, with a link to the Ratings page. The Overview page stays the place for Restaurant settings.
 

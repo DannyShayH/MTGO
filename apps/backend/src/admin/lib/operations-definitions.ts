@@ -6,14 +6,16 @@ export type Definition = { term: string; text: string }
  * the info Drawer next to its heading. The definitions follow ADR-0015 and
  * the operations monitoring specification; keep them in step with the reads.
  */
-export const operationsDefinitions: Record<
+export const operationsDefinitions = (
+  /** Where the figures come from: "across all Restaurants" or "at Scarpetta" (#264). */
+  across: string,
+): Record<
   "now" | "last24Hours" | "previous7Days" | "speed" | "reliability",
   { title: string; description: string; definitions: Definition[] }
-> = {
+> => ({
   now: {
     title: "Right now",
-    description:
-      "Work in progress at the moment the figures were calculated, across all Restaurants.",
+    description: `Work in progress at the moment the figures were calculated, ${across}.`,
     definitions: [
       {
         term: "Calculated at",
@@ -39,8 +41,7 @@ export const operationsDefinitions: Record<
   },
   last24Hours: {
     title: "Last 24 hours",
-    description:
-      "Orders placed from exactly 24 hours before the calculation up to it, across all Restaurants.",
+    description: `Orders placed from exactly 24 hours before the calculation up to it, ${across}.`,
     definitions: [
       {
         term: "Orders placed",
@@ -58,8 +59,7 @@ export const operationsDefinitions: Record<
   },
   previous7Days: {
     title: "Previous 7 days",
-    description:
-      "The seven complete Copenhagen calendar days before today, across all Restaurants. Today is added once it has ended.",
+    description: `The seven complete Copenhagen calendar days before today, ${across}. Today is added once it has ended.`,
     definitions: [
       {
         term: "Placements per day",
@@ -86,7 +86,7 @@ export const operationsDefinitions: Record<
       },
       {
         term: "Which Orders count",
-        text: "Orders handed over in the period, across all Restaurants, chosen by their handover time. Cancelled Orders and deliveries that ended without a handover never count.",
+        text: `Orders handed over in the period, ${across}, chosen by their handover time. Cancelled Orders and deliveries that ended without a handover never count.`,
       },
       {
         term: "Excluded Orders",
@@ -125,4 +125,4 @@ export const operationsDefinitions: Record<
       },
     ],
   },
-}
+})

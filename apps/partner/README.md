@@ -694,14 +694,60 @@ The operator's reason did not appear on any page. An operator credit
 recognized under #229, whose receipt still records the claim deadline, reads
 the same way. No browser runtime errors were seen.
 
-## Operations charts (planned, #54)
+## Operations (#264)
 
-The Drift / Operations staff view will draw its charts with Recharts, as the
-Admin Operations page does (#259). Recharts 3.10.1 declares React 16 to 19
-and a matching `react-is` as peers, so it supports this app's React 19. The
-root holds `react-is` 18 for the Admin, so install `recharts@3.10.1` and
-`react-is@19` here, beside this app's React copy, and run
-`npm run check:react` (see `packages/next-react`). Nothing is installed yet.
+**Drift** / **Operations** (`/operations`) appears in the navigation, after
+Ratings, only while `GET /partner/me` reports `features.operations_monitoring`,
+the backend's default-off Feature flag (ADR-0022); otherwise the page is not
+found and the backend answers `404` before authentication. It reads
+`GET /partner/restaurants/{id}/operations` for the staff member's own
+Restaurant: the operator's definitions, cut to what staff see. Full refunds,
+attention items, unassigned deliveries, Delivery transit time and the
+platform's Customer rating are never in the response; the page links to
+Ratings for the food rating instead.
+
+The header shows when the figures were calculated (Copenhagen time) and a
+**Refresh** button that calculates them again (`router.refresh()`); the page
+never polls. Three sections follow, each naming its period once:
+
+- **Right now:** Open Orders by stage, the total in the header and one bar
+  per stage, the stages in the order work moves through them.
+- **Last 24 hours:** Orders placed with those now cancelled per category,
+  Orders per hour (the current hour outlined and labelled "so far", the
+  repeated hour on the night the clocks go back labelled with its UTC
+  offset), Order processing time with the Orders included and excluded and
+  its change from the previous 7 days in words, and Unfulfilled Orders by
+  cause with the rate, its denominator, the parties and the Orders still open
+  set apart. "Failed" appears only as "Delivery failed".
+- **Previous 7 days:** placements per day with the seven-day average as a
+  dashed line.
+
+The charts and their tables come from `@dtc/charts` (`packages/charts`), the
+same components as the Admin Operations page; this app passes its Danish or
+English text, its padding and its toggle's touch target and MTOGO focus ring.
+Every chart is drawn with Recharts and hidden from screen readers; under it,
+**Show the numbers** unfolds a table with a caption naming the period and
+Orders, which screen readers always read. The processing time's table also
+lists the average per day. Category bars carry their name above the bar and
+their count at its end, so long Danish names fit a phone and nothing relies
+on colour; an empty category keeps a stub and a 0. On a phone the hour axis
+labels every few hours, counted back from the current one, and leaves the
+counts to the table. Text is in `RESTAURANT_OPERATIONS_TEXT` (`@dtc/i18n`),
+with locale-aware times, rates and averages ("42 min", "2 t 3 min",
+"66,7 %"). Loading shows a skeleton and a failed read says so with a retry,
+never zeros.
+
+Recharts 3.10.1 is installed here at the Admin's exact version and hoisted
+to the root, where `react-is` is the Admin's 18. `next.config.mjs` aliases
+`react-is` to this app's 19 (installed beside its React), since `react-is` 18
+does not recognise React 19 elements. `npm run check:react` still passes.
+
+Checked on 28 November 2026 against the local demo world, signed in as
+Restaurant Scarpetta staff, production build in headless Chromium, Danish and
+English at 375 px and 1280 px: no horizontal scroll, no browser errors, the
+Drift link present, keyboard focus visible on **Show the numbers** and the
+table opening with Enter. The figures matched what the Admin shows with
+Scarpetta chosen.
 
 ## Run it
 
