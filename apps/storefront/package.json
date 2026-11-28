@@ -49,7 +49,7 @@
     "tailwindcss-radix": "^2.8.0"
   },
   "devDependencies": {
-    "@babel/core": "^7.17.5",
+    "@babel/core": "^8.1.2",
     "@medusajs/types": "2.22.4",
     "@playwright/test": "^1.65.0",
     "@types/leaflet": "1.9.22",
